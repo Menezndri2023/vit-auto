@@ -8,17 +8,21 @@ import styles from "./Auth.module.css";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const Login = () => {
+  // `t` d'abord : useDocumentMeta le lit, et lire une const déclarée plus bas
+  // plante toute la page (règle vit/lecture-avant-declaration).
+  const { t } = useI18n();
+
   // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
   // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
   // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
   useDocumentMeta({
-    title: "Connexion",
-    description: "Accédez à votre espace VIT AUTO : réservations, documents, annonces et suivi de vos transactions.",
+    title: t("login.title"),
+    description: t("login.metaDesc"),
+    traduite: true,
   });
 
   const { login, oauthGoogle, verifyTwoFactor } = useAuth();
   const { success, error } = useToast();
-  const { t } = useI18n();
   const navigate  = useNavigate();
   const location  = useLocation();
 
@@ -46,7 +50,7 @@ const Login = () => {
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!form.identifier || !form.password) { error("Veuillez remplir tous les champs."); return; }
+    if (!form.identifier || !form.password) { error(t("login.fillAll")); return; }
     setLoading(true);
     setNotVerified(null);
     try {
@@ -59,7 +63,7 @@ const Login = () => {
         setTwoFaChallenge({ challengeToken: result.challengeToken });
         return;
       }
-      success("Connexion réussie ! Redirection...");
+      success(t("login.success"));
       redirectAfterAuth(result?.role);
     } catch (err) {
       if (err.code === "EMAIL_NOT_VERIFIED") {
@@ -74,11 +78,11 @@ const Login = () => {
 
   const onVerifyTwoFa = async (e) => {
     e.preventDefault();
-    if (!twoFaCode.trim()) { error("Saisissez votre code 2FA ou un code de secours."); return; }
+    if (!twoFaCode.trim()) { error(t("login.enter2fa")); return; }
     setTwoFaVerifying(true);
     try {
       const loggedUser = await verifyTwoFactor({ challengeToken: twoFaChallenge.challengeToken, token: twoFaCode.trim() });
-      success("Connexion réussie ! Redirection...");
+      success(t("login.success"));
       redirectAfterAuth(loggedUser?.role);
     } catch (err) {
       error(err.message || "Code invalide.");
@@ -96,22 +100,22 @@ const Login = () => {
   };
 
   const handleGoogleCredential = async (credential) => {
-    if (!credential) { error("Connexion Google annulée ou impossible."); return; }
+    if (!credential) { error(t("login.googleCancel")); return; }
     setLoading(true);
     try {
       const result = await oauthGoogle({ credential });
       if (result?.requiresTwoFactor) {
-        error("Ce compte a la double authentification activée. Connectez-vous avec votre mot de passe.");
+        error(t("login.google2fa"));
         return;
       }
-      success("Connexion réussie ! Redirection...");
+      success(t("login.success"));
       redirectAfterAuth(result?.role);
     } catch (err) {
       if (err.code === "OAUTH_NO_ACCOUNT") {
-        error("Aucun compte trouvé pour cette adresse Google. Merci de vous inscrire d'abord.");
+        error(t("login.googleNoAcct"));
         setTimeout(() => navigate("/register"), 1200);
       } else {
-        error(err.message || "Erreur de connexion Google.");
+        error(err.message || t("login.googleError"));
       }
     } finally {
       setLoading(false);
@@ -129,12 +133,12 @@ const Login = () => {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        error(data.message || "Erreur lors de l'envoi. Réessayez.");
+        error(data.message || t("login.sendError"));
       } else {
         setResendDone(true);
       }
     } catch {
-      error("Erreur lors de l'envoi. Réessayez.");
+      error(t("login.sendError"));
     } finally {
       setResendLoading(false);
     }
@@ -146,18 +150,18 @@ const Login = () => {
         <div className={styles.logo}>
           <div className={styles.logoIcon}>🚗</div>
           <h1>VIT AUTO</h1>
-          <p>{t("auth.loginSubtitle") || "Connectez-vous à votre espace"}</p>
+          <p>{t("auth.loginSubtitle")}</p>
         </div>
 
         {/* Bloc redirection depuis page protégée */}
         {fromPage && !notVerified && (
           <div className={`${styles.encart} ${styles.encartInfo}`}>
             <p>
-              🔒 Connectez-vous pour accéder à{" "}
-              <strong>{fromPage === "/vendor" || fromPage === "/vendor/dashboard" ? "l'espace partenaire"
-                      : fromPage.startsWith("/booking") ? "votre réservation"
-                      : fromPage === "/profile" ? "votre profil"
-                      : "cette page"}</strong>.
+              {t("login.gateIntro")}{" "}
+              <strong>{fromPage === "/vendor" || fromPage === "/vendor/dashboard" ? t("login.gatePartner")
+                      : fromPage.startsWith("/booking") ? t("login.gateBooking")
+                      : fromPage === "/profile" ? t("login.gateProfile")
+                      : t("login.gatePage")}</strong>.
             </p>
           </div>
         )}
@@ -165,16 +169,13 @@ const Login = () => {
         {/* Bloc email non vérifié */}
         {notVerified && (
           <div className={`${styles.encart} ${styles.encartAttention}`}>
-            <p className={styles.encartTitre}>📧 E-mail non vérifié</p>
-            <p>
-              Votre adresse <strong>{notVerified}</strong> n'a pas encore été confirmée.
-              Vérifiez votre boîte mail ou cliquez ci-dessous pour recevoir un nouveau lien.
-            </p>
+            <p className={styles.encartTitre}>📧 {t("auth.verifyEmail")}</p>
+            <p>{t("login.notVerified", { email: notVerified })}</p>
             {resendDone ? (
-              <p className={styles.encartSucces}>✅ Lien envoyé ! Vérifiez votre boîte mail.</p>
+              <p className={styles.encartSucces}>{t("login.linkSent")}</p>
             ) : (
               <button type="button" onClick={handleResendEmail} disabled={resendLoading} className={styles.encartBtn}>
-                {resendLoading ? "Envoi…" : "📤 Renvoyer le lien de vérification"}
+                {resendLoading ? t("login.sending") : t("login.resendLink")}
               </button>
             )}
           </div>
@@ -183,30 +184,27 @@ const Login = () => {
         {twoFaChallenge ? (
           <form className={styles.form} onSubmit={onVerifyTwoFa} autoComplete="off">
             <div className={`${styles.encart} ${styles.encartInfo}`}>
-              <p>
-                🔐 Ce compte est protégé par la double authentification. Saisissez le code de votre
-                application d'authentification, ou l'un de vos codes de secours.
-              </p>
+              <p>{t("login.2faIntro")}</p>
             </div>
             <div className={styles.field}>
-              <label htmlFor="login-2fa">Code de vérification</label>
+              <label htmlFor="login-2fa">{t("login.2faLabel")}</label>
               <input
                 id="login-2fa"
                 type="text"
                 inputMode="text"
                 value={twoFaCode}
                 onChange={(e) => setTwoFaCode(e.target.value)}
-                placeholder="Code à 6 chiffres ou code de secours"
+                placeholder={t("login.2faPh")}
                 autoFocus
                 required
               />
             </div>
             <button type="submit" className={styles.submitBtn} disabled={twoFaVerifying}>
-              {twoFaVerifying ? `${t("common.loading")}` : "Vérifier"}
+              {twoFaVerifying ? t("common.loading") : t("login.verify")}
             </button>
             <div className={styles.footerLink}>
               <button type="button" onClick={() => { setTwoFaChallenge(null); setTwoFaCode(""); }}>
-                ← Retour
+                {t("login.back")}
               </button>
             </div>
           </form>
@@ -217,10 +215,10 @@ const Login = () => {
                 préalable. Elle était jusqu'ici reléguée sous le bouton
                 d'envoi, après le formulaire qu'elle sert justement à éviter. */}
             <GoogleAuthButton onCredential={handleGoogleCredential} />
-            <div className={styles.divider}>ou avec vos identifiants</div>
+            <div className={styles.divider}>{t("login.orCreds")}</div>
 
             <div className={styles.field}>
-              <label htmlFor="login-identifier">E-mail ou téléphone</label>
+              <label htmlFor="login-identifier">{t("login.identifier")}</label>
               <input
                 id="login-identifier"
                 type="text"
@@ -228,7 +226,7 @@ const Login = () => {
                 autoComplete="username"
                 value={form.identifier}
                 onChange={handleChange}
-                placeholder="vous@exemple.com"
+                placeholder={t("login.emailPh")}
                 required
               />
             </div>
@@ -249,21 +247,21 @@ const Login = () => {
                 />
                 <button type="button" onClick={() => setShowPassword((p) => !p)}
                   className={styles.pwToggle}
-                  aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
+                  aria-label={showPassword ? t("login.hidePwd") : t("login.showPwd")}>
                   {showPassword ? "🙈" : "👁️"}
                 </button>
               </div>
             </div>
 
             <button type="submit" className={styles.submitBtn} disabled={loading}>
-              {loading ? `${t("common.loading")}` : t("auth.loginBtn")}
+              {loading ? t("common.loading") : t("auth.loginBtn")}
             </button>
 
             <div className={styles.footerLink}>
               <Link to="/forgot-password">{t("auth.forgotPwd")}</Link>
             </div>
             <div className={styles.footerLink}>
-              <span>{t("auth.noAccount") || "Pas encore de compte ? "}</span>
+              <span>{t("auth.noAccount")}</span>
               {/* Relaie la destination d'origine (page protégée qui a redirigé vers
                   /login) — sans ce state, Register.jsx la perdait entièrement,
                   renvoyant systématiquement vers /dashboard après inscription. */}

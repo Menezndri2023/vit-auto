@@ -100,24 +100,24 @@ export default function BottomNav() {
                 {isPartner ? (
                   <>
                     <button className={styles.sheetItem} onClick={() => { navigate("/vendor"); setMoreOpen(false); }}>
-                      📢 Publier
+                      📢 {t("nav.publish")}
                     </button>
                     <button className={styles.sheetItem} onClick={() => { navigate("/vendor/dashboard"); setMoreOpen(false); }}>
-                      🤝 Mon espace
+                      🤝 {t("nav.mySpace")}
                     </button>
                   </>
                 ) : (
                   <>
                     <button className={styles.sheetItem} onClick={() => { navigate("/dashboard"); setMoreOpen(false); }}>
-                      📊 Tableau de bord
+                      📊 {t("nav.dashboard")}
                     </button>
                     <button className={styles.sheetItem} onClick={() => { navigate("/import-export/dashboard"); setMoreOpen(false); }}>
-                      📦 Mes achats Import/Export
+                      📦 {t("nav.myPurchasesIE")}
                     </button>
                   </>
                 )}
                 <button className={styles.sheetItem} onClick={() => { navigate("/help"); setMoreOpen(false); }}>
-                  💬 Centre d'aide
+                  💬 {t("nav.help")}
                 </button>
                 <div className={styles.sheetDivider} />
                 <button className={styles.sheetItem} onClick={() => { logout(); setMoreOpen(false); }}>
@@ -127,13 +127,13 @@ export default function BottomNav() {
             ) : (
               <>
                 <button className={styles.sheetItem} onClick={() => { navigate("/login"); setMoreOpen(false); }}>
-                  🔑 Connexion
+                  🔑 {t("nav.login")}
                 </button>
                 <button className={styles.sheetItem} onClick={() => { navigate("/register"); setMoreOpen(false); }}>
-                  ✏️ Inscription
+                  ✏️ {t("nav.register")}
                 </button>
                 <button className={styles.sheetItem} onClick={() => { navigate("/help"); setMoreOpen(false); }}>
-                  💬 Centre d'aide
+                  💬 {t("nav.help")}
                 </button>
                 <div className={styles.sheetDivider} />
                 <button

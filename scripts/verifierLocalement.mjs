@@ -88,6 +88,8 @@ const BRUIT_COMMUN = /ipapi\.co|sentry|favicon|subscriptions\/insights|Parameter
 const LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(BASE);
 const BRUIT = LOCAL ? new RegExp(BRUIT_COMMUN.source + "|accounts\\.google\\.com\\/gsi|GSI_LOGGER") : BRUIT_COMMUN;
 
+const cheminFrancais = (chemin) => chemin.replace(/^\/(en|ar|es|zh)(?=\/|$)/, "") || "/";
+
 let anomalies = 0;
 const signaler = (ecran, chemin, problemes) => {
   const ok = problemes.length === 0;
@@ -334,6 +336,59 @@ if (ADMIN_ID && ADMIN_PWD) {
   await ctx.close();
 } else {
   console.log("\n(pages connectées et administration non vérifiées : VERIF_ADMIN_ID / VERIF_ADMIN_PWD absents)");
+}
+
+// ═══ LES VERSIONS LINGUISTIQUES ════════════════════════════════════════════
+// Le balayage ci-dessus ne visite que les chemins FRANÇAIS. Depuis que le
+// sitemap annonce /en/, /ar/, /es/ et /zh/, plus rien ne prouvait que ces
+// adresses s'affichent : sur une application monopage, TOUTE adresse renvoie
+// 200, y compris une route qui ne résout pas. Seul un vrai navigateur le dit.
+//
+// On vérifie trois choses par langue, chacune correspondant à une panne déjà
+// vue ailleurs : la page rend du contenu (basename du routeur correct),
+// <html lang>/dir suivent l'adresse (l'arabe doit passer en RTL), et
+// useDocumentMeta pose bien canonical + les cinq alternates réciproques —
+// c'est le pendant navigateur du test serveur sur le sitemap.
+{
+  const ATTENDU = [
+    { chemin: "/en/faq",        lang: "en",      dir: "ltr" },
+    { chemin: "/ar/catalogue",  lang: "ar",      dir: "rtl" },
+    { chemin: "/es/plans",      lang: "es",      dir: "ltr" },
+    { chemin: "/zh/services",   lang: "zh-Hans", dir: "ltr" },
+  ];
+  const ctx = await nav.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  for (const cas of ATTENDU) {
+    const problemes = [];
+    await page.goto(BASE + cas.chemin, { waitUntil: "domcontentloaded", timeout: 60000 })
+      .catch((x) => problemes.push("navigation : " + x.message.slice(0, 80)));
+    await page.waitForTimeout(5000);
+    const vu = await page.evaluate(() => ({
+      lang: document.documentElement.lang,
+      dir: document.documentElement.dir || "ltr",
+      texte: (document.querySelector("main, #root") || document.body).innerText.trim().length,
+      canonical: document.querySelector('link[rel="canonical"]')?.href || "",
+      alternates: [...document.querySelectorAll('link[rel="alternate"]')].map((l) => `${l.hreflang} ${l.href}`),
+    }));
+    if (vu.lang !== cas.lang) problemes.push(`<html lang> vaut « ${vu.lang} » au lieu de « ${cas.lang} »`);
+    if (vu.dir !== cas.dir) problemes.push(`direction « ${vu.dir} » au lieu de « ${cas.dir} »`);
+    // Une route non résolue rend une page quasi vide : le seuil attrape le cas
+    // où le basename du routeur ne correspond pas au préfixe de l'adresse.
+    if (vu.texte < 400) problemes.push(`page quasi vide (${vu.texte} caractères) — le préfixe de langue ne résout pas`);
+    if (!vu.canonical.includes(cas.chemin)) problemes.push(`canonical « ${vu.canonical} » ne désigne pas cette version`);
+    // Cinq langues + x-default, chacune devant se désigner elle-même.
+    if (vu.alternates.length !== 6) problemes.push(`${vu.alternates.length} alternates au lieu de 6`);
+    // Les alternates portent le domaine PUBLIC (vit-auto.com), pas celui du
+    // serveur local : on compare le chemin, pas l'origine.
+    if (!vu.alternates.some((a) => a.startsWith("x-default ") && new URL(a.slice(10)).pathname === cheminFrancais(cas.chemin))) {
+      problemes.push(`x-default absent ou ne renvoyant pas au français : ${vu.alternates.join(" | ").slice(0, 160)}`);
+    }
+    if (!vu.alternates.some((a) => a.startsWith(`${cas.lang} `) && a.endsWith(cas.chemin))) {
+      problemes.push(`la page ne se déclare pas elle-même comme version ${cas.lang}`);
+    }
+    signaler("langues", cas.chemin, problemes);
+  }
+  await ctx.close();
 }
 
 await nav.close();

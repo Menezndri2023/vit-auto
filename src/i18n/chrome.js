@@ -89,4 +89,24 @@ export default {
   "card.addFav":        { fr: "Ajouter aux favoris", en: "Add to favourites", ar: "إضافة إلى المفضلة", es: "Añadir a favoritos", zh: "加入收藏" },
   "card.advertiser":    { fr: "Annonceur", en: "Advertiser", ar: "المعلن", es: "Anunciante", zh: "发布方" },
   "card.seePartner":    { fr: "Voir le profil du partenaire", en: "See the partner's profile", ar: "عرض ملف الشريك", es: "Ver el perfil del socio", zh: "查看商家资料" },
+
+  // ─── Libellés restés en dur jusqu'au 2026-09-26 ───────────────────────────
+  // Trouvés en renforçant i18n.pagesTraduites.test.js : ils s'affichaient en
+  // français dans les cinq langues, dans la barre de navigation et la barre
+  // mobile — c'est-à-dire sur TOUTES les pages.
+  "nav.menu":       { fr: "Menu", en: "Menu", ar: "القائمة", es: "Menú", zh: "菜单" },
+  "nav.myPurchases":{ fr: "Mes achats", en: "My purchases", ar: "مشترياتي", es: "Mis compras", zh: "我的订单" },
+  "nav.myPurchasesIE": { fr: "Mes achats Import/Export", en: "My import/export purchases", ar: "مشترياتي من الاستيراد/التصدير", es: "Mis compras de importación/exportación", zh: "我的进出口订单" },
+  "nav.myProfile":  { fr: "Mon profil", en: "My profile", ar: "ملفي الشخصي", es: "Mi perfil", zh: "我的资料" },
+  "nav.seeProfile": { fr: "Voir mon profil", en: "View my profile", ar: "عرض ملفي الشخصي", es: "Ver mi perfil", zh: "查看我的资料" },
+  "cat.rentByCity": { fr: "Location de voiture par ville", en: "Car rental by city", ar: "تأجير السيارات حسب المدينة", es: "Alquiler de coches por ciudad", zh: "按城市租车" },
+  "hero.seeListing": { fr: "Voir l'annonce →", en: "View the listing →", ar: "عرض الإعلان →", es: "Ver el anuncio →", zh: "查看房源 →" },
+  "search.useGps":  { fr: "Utiliser ma position GPS", en: "Use my GPS location", ar: "استخدام موقعي عبر GPS", es: "Usar mi ubicación GPS", zh: "使用我的 GPS 定位" },
+  "login.googleError": { fr: "Erreur de connexion Google.", en: "Google sign-in error.", ar: "خطأ في تسجيل الدخول عبر Google.", es: "Error al iniciar sesión con Google.", zh: "Google 登录出错。" },
+  "reg.confirmMyEmail": { fr: "Confirmer mon e-mail", en: "Confirm my email", ar: "تأكيد بريدي الإلكتروني", es: "Confirmar mi correo", zh: "确认我的邮箱" },
+  "iel.contactBadge": { fr: "🌍 DEMANDE DE CONTACT", en: "🌍 CONTACT REQUEST", ar: "🌍 طلب تواصل", es: "🌍 SOLICITUD DE CONTACTO", zh: "🌍 联系请求" },
+  "iel.destCountry": { fr: "Pays de destination", en: "Destination country", ar: "بلد الوجهة", es: "País de destino", zh: "目的国" },
+  "iel.sourcePh":   { fr: "Pays d'origine…", en: "Country of origin…", ar: "بلد المنشأ…", es: "País de origen…", zh: "来源国…" },
+  "iel.sending":    { fr: "Envoi en cours…", en: "Sending…", ar: "جارٍ الإرسال…", es: "Enviando…", zh: "发送中…" },
+  "iel.submit":     { fr: "Envoyer ma demande →", en: "Send my request →", ar: "إرسال طلبي →", es: "Enviar mi solicitud →", zh: "提交申请 →" },
 };

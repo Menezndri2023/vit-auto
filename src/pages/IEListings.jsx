@@ -72,7 +72,7 @@ function QuickRequestModal({ listing, onClose }) {
         ) : (
           <>
             <div className={ieModalStyles.modalHeader}>
-              <span className={ieModalStyles.modalBadge}>🌍 DEMANDE DE CONTACT</span>
+              <span className={ieModalStyles.modalBadge}>{t("iel.contactBadge")}</span>
               <h2>{listing?.title}</h2>
               <p>{t("ie.formIntroShort")}</p>
             </div>
@@ -88,7 +88,7 @@ function QuickRequestModal({ listing, onClose }) {
               </div>
               <div className={ieModalStyles.formRow}>
                 <label className={ieModalStyles.formFull}>
-                  <span>Pays de destination</span>
+                  <span>{t("iel.destCountry")}</span>
                   <input list="qr-countries" value={form.destCountry} onChange={(e) => set("destCountry", e.target.value)} placeholder={t("ie.countryPh")} />
                 </label>
               </div>
@@ -98,7 +98,7 @@ function QuickRequestModal({ listing, onClose }) {
               </label>
               {error && <p className={ieModalStyles.formError}>❌ {error}</p>}
               <button type="submit" className={ieModalStyles.primaryBtn} disabled={sending}>
-                {sending ? "Envoi en cours…" : "Envoyer ma demande →"}
+                {sending ? t("iel.sending") : t("iel.submit")}
               </button>
             </form>
           </>
@@ -279,7 +279,7 @@ export default function IEListings() {
               className={styles.filterCountryInput}
               value={filterCountry}
               onChange={(e) => { setFilterCountry(e.target.value); setPage(1); }}
-              placeholder="Pays d'origine…"
+              placeholder={t("iel.sourcePh")}
             />
             {filterCountry && (
               <button className={styles.filterClear} style={{ right: 10, top: "50%", transform: "translateY(-50%)", position: "absolute" }} onClick={() => setFilterCountry("")}>✕</button>

@@ -1082,7 +1082,7 @@ const Catalogue = () => {
 
         {!isImportMode && !isChauffeurMode && !isOthersMode && villesDesservies.length > 0 && (
           <section style={{ margin: "28px auto 0", maxWidth: 1180, padding: "18px 1.25rem 0", borderTop: "1.5px solid #e2e8f0" }}>
-            <h2 style={{ fontSize: ".95rem", color: "#0f1b3f", margin: "0 0 10px" }}>Location de voiture par ville</h2>
+            <h2 style={{ fontSize: ".95rem", color: "#0f1b3f", margin: "0 0 10px" }}>{t("cat.rentByCity")}</h2>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {villesDesservies.map((c) => (
                 <Link key={c.slug} to={`/location-voiture/${c.slug}`}

@@ -268,7 +268,7 @@ export default function HeroSection() {
                   className={styles.spotCta}
                   onClick={() => navigate(`/vehicle/${slide.vid}`)}
                 >
-                  Voir l'annonce →
+                  {t("hero.seeListing")}
                 </button>
               )}
             </div>

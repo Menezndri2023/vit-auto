@@ -3,10 +3,11 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
-import { PAYMENTS_ENABLED_FALLBACK, PAYMENTS_DISABLED_NOTICE, PAYMENTS_DISABLED_CTA } from "../config/featureFlags";
+import { PAYMENTS_ENABLED_FALLBACK } from "../config/featureFlags";
 import { PLAN_INCLUDED_BOOSTS } from "../constants/subscriptionPlans";
 import { PLAN_SEATS, PLAN_SUPPORT_SLA_HOURS, AVANCE_DEMANDES_HEURES, PLACES_VITRINE_PAR_PLAN, LIBELLE_PLAN, PLAN_SECTEURS, PLAN_QUOTA_ANNONCES, FIN_IMMUNITE_QUOTAS, OUTILS_PAR_SECTEUR } from "../constants/planFeatures";
 import { ACTIVITIES, SECTEUR_LABELS, secteursDuPartenaire } from "../constants/partnerTaxonomy";
+import { libelleTraduit } from "../i18n/libelles";
 import styles from "./Plans.module.css";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
@@ -34,21 +35,26 @@ const FALLBACK_PRICING = {
 };
 
 const HOW_IT_WORKS = [
-  { icon: "📋", title: "Publiez votre annonce",    text: "Formulaire en 7 étapes : identité, véhicule, photos, tarif. Adresse GPS obligatoire pour la livraison." },
-  { icon: "✅", title: "Validation sous 24 h",     text: "Notre équipe vérifie chaque annonce — photos, documents, adresse — avant publication." },
-  { icon: "🔒", title: "Réservations sécurisées",  text: "Contrat digital, caution, paiement chiffré et suivi GPS en temps réel." },
-  { icon: "💰", title: "Revenus directs",           text: "Après commission et frais de service, le montant net vous est versé via votre méthode préférée." },
+  { icon: "📋", key: "plans.how1" },
+  { icon: "✅", key: "plans.how2" },
+  { icon: "🔒", key: "plans.how3" },
+  { icon: "💰", key: "plans.how4" },
 ];
 
 const pct = (rate) => rate == null ? "—" : `${Math.round(rate * 1000) / 10} %`;
 
 export default function Plans() {
+  // `t` d'abord : useDocumentMeta le lit, et lire une const déclarée plus bas
+  // plante toute la page (règle vit/lecture-avant-declaration).
+  const { t, lang } = useI18n();
+
   // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
   // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
   // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
   useDocumentMeta({
-    title: "Tarifs et abonnements",
-    description: "Commissions transparentes et abonnements partenaires VIT AUTO. Publier une annonce est gratuit ; vous ne payez qu'à la transaction.",
+    title: t("plans.hero.title"),
+    description: t("plans.metaDesc"),
+    traduite: true,
   });
 
   const { isAuthenticated, token, user } = useAuth();
@@ -64,7 +70,6 @@ export default function Plans() {
     if (secteurDuCompte && !secteurChoisi) setSecteur(secteurDuCompte);
   }, [secteurDuCompte, secteurChoisi]);
   const { fmtUSD, currentCurrency } = useCurrency();
-  const { t } = useI18n();
   const navigate = useNavigate();
   const [activating,  setActivating]  = useState(null);
   const [successMsg,  setSuccessMsg]  = useState("");
@@ -88,22 +93,25 @@ export default function Plans() {
   }, []);
 
   const immuniteEnCours = new Date() < FIN_IMMUNITE_QUOTAS;
-  const finImmunite = FIN_IMMUNITE_QUOTAS.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  // La date suit la langue affichée : « 1 janvier 2027 » dans une phrase
+  // anglaise trahirait que seule la moitié de la page est traduite.
+  const finImmunite = FIN_IMMUNITE_QUOTAS.toLocaleDateString(lang === "zh" ? "zh-Hans" : lang, { day: "numeric", month: "long", year: "numeric" });
   const texteSecteurs = (plan) => {
     const n = PLAN_SECTEURS[plan];
-    return n === null ? "Tous les secteurs d'activité sur un même compte" : `${n} secteur${n > 1 ? "s" : ""} d'activité (location, vente, export, chauffeur ou loisirs)`;
+    if (n === null) return t("plans.f.allSectors");
+    return t(n > 1 ? "plans.f.nSectors" : "plans.f.oneSector", { n });
   };
   // Le quota ne s'applique qu'après l'immunité de lancement ; d'ici là, on le
   // dit tel quel — annoncer une limite qui ne s'applique pas encore ferait
   // fuir sans raison.
   const texteQuota = (plan) => {
     const q = PLAN_QUOTA_ANNONCES[plan];
-    if (q === null) return "Annonces illimitées";
+    if (q === null) return t("plans.f.unlimitedAds");
     return immuniteEnCours
-      ? `Annonces illimitées jusqu'au ${finImmunite}, puis ${q} annonces actives par secteur`
-      : `${q} annonces actives par secteur`;
+      ? t("plans.f.quotaUntil", { date: finImmunite, n: q })
+      : t("plans.f.quota", { n: q });
   };
-  const outils = (plan) => (OUTILS_PAR_SECTEUR[secteur]?.[plan] || []).map((o) => ({ ok: true, text: o.text }));
+  const outils = (plan) => (OUTILS_PAR_SECTEUR[secteur]?.[plan] || []).map((o) => ({ ok: true, text: t(o.key) }));
 
   // Construit la liste des offres à partir de la tarification live — chaque
   // catégorie du cahier des charges (Particulier/Professionnel/Exportateur/
@@ -112,95 +120,95 @@ export default function Plans() {
     {
       id: "free", planTier: null, name: LIBELLE_PLAN.free, price: 0, period: null,
       badge: null, color: "#64748b", icon: "🚀",
-      desc: "Le strict nécessaire pour encaisser votre première transaction, quel que soit votre métier.",
+      desc: t("plans.desc.free"),
       features: [
         { ok: true,  text: texteSecteurs("free") },
         { ok: true,  text: texteQuota("free") },
-        { ok: true,  text: "Profil partenaire complet" },
-        { ok: true,  text: "Réception des demandes clients" },
-        { ok: true,  text: "Contrat digital automatique" },
-        { ok: false, text: "Classement prioritaire" },
-        { ok: false, text: "Statistiques avancées" },
-        { ok: false, text: "Badge « Pro » sur vos annonces" },
+        { ok: true,  text: t("plans.f.fullProfile") },
+        { ok: true,  text: t("plans.f.receiveLeads") },
+        { ok: true,  text: t("plans.f.digitalContract") },
+        { ok: false, text: t("plans.f.topRank") },
+        { ok: false, text: t("plans.f.advStats") },
+        { ok: false, text: t("plans.f.proBadge") },
       ],
-      cta: "Plan actuel", ctaDisabled: true, popular: false,
+      cta: t("plans.currentPlan"), ctaDisabled: true, popular: false,
     },
     {
       id: "individuel_plus", planTier: "individuel_plus", name: LIBELLE_PLAN.individuel_plus,
-      price: pricing.subscriptions?.individuel_plus?.priceUSD, period: "mois",
+      price: pricing.subscriptions?.individuel_plus?.priceUSD, period: t("plans.perMonth"),
       badge: null, color: "#6366f1", icon: "⚡",
-      desc: "Plus de visibilité dans votre métier, pour un indépendant comme pour une petite structure.",
+      desc: t("plans.desc.individuel"),
       features: [
-        { ok: true,  text: `Tout du plan ${LIBELLE_PLAN.free}` },
+        { ok: true,  text: t("plans.f.allOf", { plan: LIBELLE_PLAN.free }) },
         { ok: true,  text: texteSecteurs("individuel_plus") },
         { ok: true,  text: texteQuota("individuel_plus") },
         ...outils("individuel_plus"),
-        { ok: true,  text: `${PLAN_INCLUDED_BOOSTS.individuel_plus} mises en avant incluses chaque mois` },
-        { ok: true,  text: "Classement prioritaire" },
-        { ok: true,  text: "Statistiques de performance : vues, conversion, prix face au marché" },
-        { ok: true,  text: "Badge « Pro » sur toutes vos annonces" },
-        { ok: true,  text: `Assistance sous ${PLAN_SUPPORT_SLA_HOURS.individuel_plus} h` },
-        { ok: true,  text: `${PLACES_VITRINE_PAR_PLAN.individuel_plus} place en vitrine d'accueil, en rotation` },
-        { ok: false, text: "Export des statistiques" },
-        { ok: false, text: "Multi-utilisateurs" },
-        { ok: false, text: "Accès API" },
+        { ok: true,  text: t("plans.f.boosts", { n: PLAN_INCLUDED_BOOSTS.individuel_plus }) },
+        { ok: true,  text: t("plans.f.topRank") },
+        { ok: true,  text: t("plans.f.perfStats") },
+        { ok: true,  text: t("plans.f.proBadgeAll") },
+        { ok: true,  text: t("plans.f.support", { n: PLAN_SUPPORT_SLA_HOURS.individuel_plus }) },
+        { ok: true,  text: t(PLACES_VITRINE_PAR_PLAN.individuel_plus > 1 ? "plans.f.seats" : "plans.f.seat", { n: PLACES_VITRINE_PAR_PLAN.individuel_plus }) },
+        { ok: false, text: t("plans.f.noStatsExport") },
+        { ok: false, text: t("plans.f.multiUser") },
+        { ok: false, text: t("plans.f.apiAccess") },
       ],
-      cta: `Choisir ${LIBELLE_PLAN.individuel_plus}`, ctaDisabled: false, popular: false,
+      cta: t("plans.choosePlan", { plan: LIBELLE_PLAN.individuel_plus }), ctaDisabled: false, popular: false,
     },
     {
       id: "business", planTier: "business", name: LIBELLE_PLAN.business,
-      price: pricing.subscriptions?.business?.priceUSD, period: "mois",
-      badge: "⭐ Recommandé", color: "#f59e0b", icon: "🏆",
-      desc: "Une structure avec une équipe, ou deux métiers sur un même compte — l'agence qui loue et vend.",
+      price: pricing.subscriptions?.business?.priceUSD, period: t("plans.perMonth"),
+      badge: t("plans.badge.recommended"), color: "#f59e0b", icon: "🏆",
+      desc: t("plans.desc.business"),
       features: [
-        { ok: true,  text: `Tout du plan ${LIBELLE_PLAN.individuel_plus}` },
+        { ok: true,  text: t("plans.f.allOf", { plan: LIBELLE_PLAN.individuel_plus }) },
         { ok: true,  text: texteSecteurs("business") },
         { ok: true,  text: texteQuota("business") },
         ...outils("business"),
-        { ok: true,  text: `${PLAN_INCLUDED_BOOSTS.business} mises en avant incluses chaque mois` },
-        { ok: true,  text: "Classement prioritaire renforcé" },
-        { ok: true,  text: "Statistiques de performance par annonce" },
-        { ok: true,  text: "Export des statistiques au format tableur" },
-        { ok: true,  text: `Assistance prioritaire — première réponse sous ${PLAN_SUPPORT_SLA_HOURS.business} h` },
-        { ok: true,  text: `${PLAN_SEATS.business} accès utilisateurs (gérant + agents)` },
-        { ok: true,  text: `Demandes clients ${AVANCE_DEMANDES_HEURES} h avant les autres partenaires` },
-        { ok: true,  text: "Bilan mensuel de vos performances par e-mail" },
-        { ok: true,  text: "Badge « Pro » sur toutes vos annonces" },
-        { ok: false, text: "Accès API" },
-        { ok: true,  text: `${PLACES_VITRINE_PAR_PLAN.business} places en vitrine d'accueil, en rotation` },
+        { ok: true,  text: t("plans.f.boosts", { n: PLAN_INCLUDED_BOOSTS.business }) },
+        { ok: true,  text: t("plans.f.topRankPlus") },
+        { ok: true,  text: t("plans.f.statsPerAd") },
+        { ok: true,  text: t("plans.f.statsExport") },
+        { ok: true,  text: t("plans.f.supportPrio", { n: PLAN_SUPPORT_SLA_HOURS.business }) },
+        { ok: true,  text: t("plans.f.userSeats", { n: PLAN_SEATS.business }) },
+        { ok: true,  text: t("plans.f.earlyLeads", { n: AVANCE_DEMANDES_HEURES }) },
+        { ok: true,  text: t("plans.f.monthlyReport") },
+        { ok: true,  text: t("plans.f.proBadgeAll") },
+        { ok: false, text: t("plans.f.apiAccess") },
+        { ok: true,  text: t(PLACES_VITRINE_PAR_PLAN.business > 1 ? "plans.f.seats" : "plans.f.seat", { n: PLACES_VITRINE_PAR_PLAN.business }) },
       ],
-      cta: `Choisir ${LIBELLE_PLAN.business}`, ctaDisabled: false, popular: true,
+      cta: t("plans.choosePlan", { plan: LIBELLE_PLAN.business }), ctaDisabled: false, popular: true,
     },
     {
       id: "exportateur", planTier: "exportateur", name: LIBELLE_PLAN.exportateur,
-      price: pricing.subscriptions?.exportateur?.priceUSD, period: "mois",
-      badge: "🌍 Volume", color: "#0ea5e9", icon: "🌍",
-      desc: "Volume, API et CRM, tous secteurs confondus — le groupe qui loue, vend et exporte.",
+      price: pricing.subscriptions?.exportateur?.priceUSD, period: t("plans.perMonth"),
+      badge: t("plans.badge.volume"), color: "#0ea5e9", icon: "🌍",
+      desc: t("plans.desc.exportateur"),
       features: [
-        { ok: true,  text: `Tout du plan ${LIBELLE_PLAN.business}` },
+        { ok: true,  text: t("plans.f.allOf", { plan: LIBELLE_PLAN.business }) },
         { ok: true,  text: texteSecteurs("exportateur") },
         { ok: true,  text: texteQuota("exportateur") },
         ...outils("exportateur"),
-        { ok: true,  text: `${PLAN_INCLUDED_BOOSTS.exportateur} mises en avant incluses chaque mois` },
-        { ok: true,  text: "CRM intégré (leads et devis)" },
-        { ok: true,  text: "Accès API : synchronisez votre parc depuis votre propre logiciel" },
-        { ok: true,  text: `${PLAN_SEATS.exportateur} accès utilisateurs` },
-        { ok: true,  text: `${PLACES_VITRINE_PAR_PLAN.exportateur} places en vitrine d'accueil, en rotation` },
-        { ok: true,  text: `Assistance prioritaire — première réponse sous ${PLAN_SUPPORT_SLA_HOURS.exportateur} h` },
+        { ok: true,  text: t("plans.f.boosts", { n: PLAN_INCLUDED_BOOSTS.exportateur }) },
+        { ok: true,  text: t("plans.f.crm") },
+        { ok: true,  text: t("plans.f.apiSync") },
+        { ok: true,  text: t("plans.f.userSeatsPlain", { n: PLAN_SEATS.exportateur }) },
+        { ok: true,  text: t(PLACES_VITRINE_PAR_PLAN.exportateur > 1 ? "plans.f.seats" : "plans.f.seat", { n: PLACES_VITRINE_PAR_PLAN.exportateur }) },
+        { ok: true,  text: t("plans.f.supportPrio", { n: PLAN_SUPPORT_SLA_HOURS.exportateur }) },
       ],
-      cta: `Choisir ${LIBELLE_PLAN.exportateur}`, ctaDisabled: false, popular: false,
+      cta: t("plans.choosePlan", { plan: LIBELLE_PLAN.exportateur }), ctaDisabled: false, popular: false,
     },
     {
       id: "entreprise", planTier: null, name: LIBELLE_PLAN.entreprise, price: null, period: null,
-      badge: "🏢 Sur devis", color: "#0f1b3f", icon: "🏛️",
-      desc: "Pour les grands réseaux, flottes multi-pays et volumes importants — tarification personnalisée.",
+      badge: t("plans.badge.quote"), color: "#0f1b3f", icon: "🏛️",
+      desc: t("plans.desc.entreprise"),
       features: [
-        { ok: true,  text: "Fonctionnalités illimitées" },
-        { ok: true,  text: "Tableau de bord multi-utilisateurs" },
-        { ok: true,  text: "Account manager dédié" },
-        { ok: true,  text: "Devis manuel adapté à votre volume" },
+        { ok: true,  text: t("plans.f.unlimited") },
+        { ok: true,  text: t("plans.f.multiDash") },
+        { ok: true,  text: t("plans.f.accountMgr") },
+        { ok: true,  text: t("plans.f.customQuote") },
       ],
-      cta: "Contacter l'équipe", ctaDisabled: false, popular: false,
+      cta: t("plans.contact"), ctaDisabled: false, popular: false,
     },
   ];
 
@@ -231,12 +239,12 @@ export default function Plans() {
   const sf   = pricing.serviceFee             || FALLBACK_PRICING.serviceFee;
 
   const COMMISSIONS = [
-    { label: "Location",      color: "#6366f1", standard: std.location,      founder: fp.entreprise?.location },
-    { label: "Vente et essai",color: "#10b981", standard: std.vente,         founder: fp.entreprise?.vente },
-    { label: "Chauffeur",     color: "#f59e0b", standard: std.chauffeur,     founder: fp.entreprise?.chauffeur },
-    { label: "Import/Export", color: "#0ea5e9", standard: std.import_export, founder: fp.entreprise?.import_export },
-    { label: "Activités et loisirs", color: "#ec4899", standard: std.activite ?? FALLBACK_PRICING.commissions.standard.activite, founder: fp.entreprise?.activite ?? FALLBACK_PRICING.foundingPartner.entreprise.activite },
-    { label: "Leasing",       color: "#8b5cf6", standard: std.leasing,       founder: null },
+    { label: t("plans.comm.rental"),  color: "#6366f1", standard: std.location,      founder: fp.entreprise?.location },
+    { label: t("plans.comm.sale"),    color: "#10b981", standard: std.vente,         founder: fp.entreprise?.vente },
+    { label: t("plans.comm.driver"),  color: "#f59e0b", standard: std.chauffeur,     founder: fp.entreprise?.chauffeur },
+    { label: t("plans.comm.ie"),      color: "#0ea5e9", standard: std.import_export, founder: fp.entreprise?.import_export },
+    { label: t("plans.comm.leisure"), color: "#ec4899", standard: std.activite ?? FALLBACK_PRICING.commissions.standard.activite, founder: fp.entreprise?.activite ?? FALLBACK_PRICING.foundingPartner.entreprise.activite },
+    { label: t("plans.comm.leasing"), color: "#8b5cf6", standard: std.leasing,       founder: null },
   ];
 
   return (
@@ -279,7 +287,7 @@ export default function Plans() {
               {t("plans.founder.title")}
             </h3>
             <p style={{ margin: 0, color: "#78350f", fontSize: "0.88rem" }}>
-              {t("plans.founder.sub")} Taux préférentiel pendant {fp.durationMonths} mois, retour automatique au tarif standard ensuite.
+              {t("plans.founder.sub")} {t("plans.founderTail", { n: fp.durationMonths })}
             </p>
           </div>
           <Link to="/partenaires#offre-fondateur" style={{
@@ -296,14 +304,14 @@ export default function Plans() {
       <section className={styles.plansSection}>
         <div className={styles.sectionHeader}>
           <h2>{t("plans.choose.title")}</h2>
-          <p>Gratuit pour démarrer — les abonnements restent facultatifs : ils ouvrent des outils et de la visibilité, jamais une remise sur la commission. Même prix pour tous les métiers ; les outils affichés dépendent du vôtre.</p>
+          <p>{t("plans.choose.sub2")}</p>
         </div>
 
         {successMsg && (
           <div className={styles.successBanner}>{successMsg}</div>
         )}
 
-        <div role="tablist" aria-label="Votre secteur d'activité" style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8, marginBottom: "1rem" }}>
+        <div role="tablist" aria-label={t("plans.sectorTabs")} style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8, marginBottom: "1rem" }}>
           {ACTIVITIES.map((a) => (
             <button
               key={a}
@@ -317,7 +325,7 @@ export default function Plans() {
                 background: secteur === a ? "#0f1b3f" : "#fff", color: secteur === a ? "#fff" : "#334155",
               }}
             >
-              {SECTEUR_LABELS[a]}
+              {libelleTraduit(t, "sect", a, SECTEUR_LABELS)}
             </button>
           ))}
         </div>
@@ -326,7 +334,7 @@ export default function Plans() {
           <input
             value={promoCode}
             onChange={(e) => setPromoCode(e.target.value)}
-            placeholder="Code promo (optionnel)"
+            placeholder={t("plans.promoPh")}
             style={{ maxWidth: 240, width: "100%", padding: "8px 14px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: ".85rem", textAlign: "center" }}
           />
         </div>
@@ -388,7 +396,7 @@ export default function Plans() {
               </ul>
               {plan.features.some((f) => f.soon) && (
                 <p style={{ fontSize: ".7rem", color: "#94a3b8", marginTop: -4, marginBottom: 10, lineHeight: 1.4 }}>
-                  🔜 en préparation — non inclus aujourd'hui, ne comptez pas dessus pour choisir.
+                  {t("plans.soonNote")}
                 </p>
               )}
 
@@ -406,11 +414,11 @@ export default function Plans() {
                     style={plan.popular ? {} : { borderColor: plan.color, color: isDisabled ? "#94a3b8" : plan.color }}
                     disabled={isDisabled || activating === plan.id}
                     onClick={() => !isDisabled && handleActivate(plan)}
-                    title={demandeSupport ? PAYMENTS_DISABLED_NOTICE : undefined}
+                    title={demandeSupport ? t("pay.disabledNotice") : undefined}
                   >
                     {activating === plan.id ? t("plans.activating")
                       : plan.id === "entreprise" ? t("plans.contact")
-                      : demandeSupport ? PAYMENTS_DISABLED_CTA
+                      : demandeSupport ? t("pay.disabledCta")
                       : plan.cta}
                   </button>
                 );
@@ -420,7 +428,7 @@ export default function Plans() {
                   doit apprendre qu'il peut passer par le support. */}
               {estDemandeSupport(plan) && (
                 <p style={{ fontSize: ".72rem", color: "#b45309", marginTop: 8, lineHeight: 1.4 }}>
-                  {PAYMENTS_DISABLED_NOTICE}
+                  {t("pay.disabledNotice")}
                 </p>
               )}
             </div>
@@ -456,7 +464,7 @@ export default function Plans() {
                 </div>
                 <div className={`${styles.commCell} ${styles.commCellActive}`}>
                   <span className={styles.commRate} style={{ color: "#f59e0b" }}>
-                    {row.founder != null ? `${pct(row.founder)} (${fp.durationMonths} mois)` : "—"}
+                    {row.founder != null ? `${pct(row.founder)} (${t("plans.comm.months", { n: fp.durationMonths })})` : "—"}
                   </span>
                 </div>
                 <div className={styles.commCell}>
@@ -467,10 +475,10 @@ export default function Plans() {
             {/* Frais service */}
             <div className={styles.commRow}>
               <div className={styles.commCell}>
-                <span style={{ color: "#6366f1", fontWeight: 700 }}>Frais de service client</span>
+                <span style={{ color: "#6366f1", fontWeight: 700 }}>{t("plans.comm.clientFee")}</span>
               </div>
               <div className={`${styles.commCell} ${styles.commCellActive}`} style={{ gridColumn: "span 2", fontSize: "0.82rem", color: "#64748b" }}>
-                max({fmtUSD(sf.minUSD)}, {sf.percent * 100}% du montant), plafonné à {fmtUSD(sf.maxUSD)} — à la charge du client
+                {t("plans.comm.feeFormula", { min: fmtUSD(sf.minUSD), pct: sf.percent * 100, max: fmtUSD(sf.maxUSD) })}
               </div>
             </div>
           </div>
@@ -479,15 +487,15 @@ export default function Plans() {
           <div className={styles.commExamples}>
             <div className={styles.commExample}>
               <span style={{ color: "#6366f1" }}>📊</span>
-              <span>Ex. location : {fmtUSD(50)} loué → vous recevez {fmtUSD(50 * (1 - std.location) - 1)} nets (standard {pct(std.location)})</span>
+              <span>{t("plans.ex.rental", { loue: fmtUSD(50), net: fmtUSD(50 * (1 - std.location) - 1), taux: pct(std.location) })}</span>
             </div>
             <div className={styles.commExample}>
               <span style={{ color: "#10b981" }}>📊</span>
-              <span>Ex. vente : {fmtUSD(10000)} → vous recevez {fmtUSD(10000 * (1 - std.vente) - 25)} nets (standard {pct(std.vente)})</span>
+              <span>{t("plans.ex.sale", { prix: fmtUSD(10000), net: fmtUSD(10000 * (1 - std.vente) - 25), taux: pct(std.vente) })}</span>
             </div>
             <div className={styles.commExample}>
               <span style={{ color: "#f59e0b" }}>👑</span>
-              <span>Fondateur — location {fmtUSD(50)} → {fmtUSD(50 * (1 - (fp.entreprise?.location ?? std.location)) - 1)} nets ({pct(fp.entreprise?.location)} réduit)</span>
+              <span>{t("plans.ex.founder", { loue: fmtUSD(50), net: fmtUSD(50 * (1 - (fp.entreprise?.location ?? std.location)) - 1), taux: pct(fp.entreprise?.location) })}</span>
             </div>
           </div>
         </div>
@@ -500,11 +508,11 @@ export default function Plans() {
         </div>
         <div className={styles.howGrid}>
           {HOW_IT_WORKS.map((step, i) => (
-            <div key={step.title} className={styles.howCard}>
+            <div key={step.key} className={styles.howCard}>
               <div className={styles.howNum}>{String(i + 1).padStart(2, "0")}</div>
               <span className={styles.howIcon}>{step.icon}</span>
-              <h3>{step.title}</h3>
-              <p>{step.text}</p>
+              <h3>{t(step.key)}</h3>
+              <p>{t(`${step.key}d`)}</p>
             </div>
           ))}
         </div>

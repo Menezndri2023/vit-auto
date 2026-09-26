@@ -18,7 +18,12 @@ import { resolve, join } from "node:path";
 const RACINE = resolve(process.cwd(), "src");
 
 const ACCENTS = /[éèêëàâäùûüçôöîïœÉÈÀÇ]/;
-const MOTS_FR = /(^|[\s(])(le|la|les|des|une|vous|votre|notre|nos|pour|avec|dans|sur|est|sont|tous|toutes|chaque|depuis|sans|plus|aucun|aucune)([\s,.;:!?)]|$)/i;
+const MOTS_FR = /(^|[\s(])(le|la|les|des|une|vous|votre|notre|nos|pour|avec|dans|sur|est|sont|tous|toutes|chaque|depuis|sans|plus|aucun|aucune|de|du|au|aux|mon|ma|mes|ces|cette|cet|par)([\s,.;:!?)]|$)/i;
+
+// L'apostrophe d'élision — « d'aide », « l'espace », « n'est » — est un signal
+// français qu'aucune des deux règles ci-dessus n'attrapait : « Centre d'aide »
+// n'a ni accent ni mot outil isolé. Ajoutée le 2026-09-26.
+const ELISION = /(^|[\s(>])[ldnmtscj]['’][a-zà-ÿ]{2,}/i;
 
 // Libellés d'un seul mot, sans accent : « Accueil », « Tarifs », « Panier »…
 // Ils échappaient à la détection par accent comme à celle par mot outil, et
@@ -30,6 +35,13 @@ const MOTS_SEULS_FR = new RegExp(`^(${[
   "Continuer", "Retour", "Modifier", "Supprimer", "Enregistrer", "Partenaire",
   "Partenaires", "Location", "Vente", "Chauffeur", "Marque", "Ville", "Pays",
   "Devise", "Langue", "Profil", "Messages", "Notifications", "Deconnexion",
+  // Ajoutés le 2026-09-26 : « 🎈 Loisirs » et « Menu » étaient restés en dur
+  // dans la barre de navigation, déclarée traduite, et s'affichaient tels
+  // quels en arabe et en chinois. Un mot isolé SANS accent, ou identique en
+  // français et en anglais, passait entre les mailles.
+  // « Import », « Export », « Catalogue »… sont aussi des VALEURS internes
+  // (activeMode === "Import") : les ajouter ici ferait échouer sur du code.
+  "Loisirs", "Menu",
 ].join("|")})$`, "i");
 
 // Écarts assumés : ni traduisibles, ni du texte.
@@ -89,7 +101,12 @@ function textesVisibles(src) {
 function francaisEnDur(src) {
   return textesVisibles(src).filter((txt) => {
     if (TOLERE.some((r) => r.test(txt))) return false;
-    return ACCENTS.test(txt) || MOTS_FR.test(txt) || MOTS_SEULS_FR.test(txt);
+    // Un émoji de tête ne doit pas sauver le mot qui le suit : « 🎈 Loisirs »
+    // s'affichait tel quel en arabe et en chinois parce que MOTS_SEULS_FR est
+    // ancré sur toute la chaîne (2026-09-26).
+    const nu = txt.replace(/^[\s\p{Extended_Pictographic}\uFE0F\u200D]+/u, "").trim();
+    return ACCENTS.test(txt) || MOTS_FR.test(txt) || ELISION.test(txt)
+      || MOTS_SEULS_FR.test(txt) || MOTS_SEULS_FR.test(nu);
   });
 }
 

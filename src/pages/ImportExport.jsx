@@ -5,6 +5,7 @@ import styles from "./ImportExport.module.css";
 import { COUNTRIES_ALL, VEHICLE_TYPES } from "../data/autocomplete";
 import { useCurrency } from "../context/CurrencyContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
+import { useI18n } from "../context/I18nContext";
 import { LIBELLE_PLAN } from "../constants/planFeatures";
 
 // Repli tant que GET /api/pricing/config n'a pas répondu — mêmes valeurs que
@@ -15,119 +16,76 @@ const FALLBACK_PRICING = {
   subscriptions:{ individuel_plus: { priceUSD: 9.99 }, business: { priceUSD: 19.99 }, exportateur: { priceUSD: 49.99 } },
 };
 
+// Les tableaux ci-dessous portent des CLÉS de traduction, pas du texte : la
+// page est déclarée `traduite`, donc tout ce qui s'affiche doit exister dans
+// les cinq langues (i18n.pagesTraduites.test.js échoue sinon).
+
 /* ── Zones géographiques ── */
 const ZONES = [
   {
-    flag: "🇨🇳",
-    label: "Chine",
-    color: "#ef4444",
-    bg: "rgba(239,68,68,.09)",
-    desc: "Premier exportateur mondial de véhicules. BYD, Geely, Chery, Great Wall Motor, SAIC. VE, utilitaires, pièces détachées.",
-    tags: ["Véhicules neufs", "Électriques", "Pièces détachées", "Camions légers"],
+    flag: "🇨🇳", nameKey: "country.cn", descKey: "ie.zone.cn.desc",
+    color: "#ef4444", bg: "rgba(239,68,68,.09)",
+    tags: ["ie.tag.newCars", "ie.tag.electric", "ie.tag.spares", "ie.tag.lightTruck"],
   },
   {
-    flag: "🇦🇪",
-    label: "Dubaï / EAU",
-    color: "#f59e0b",
-    bg: "rgba(245,158,11,.09)",
-    desc: "Hub mondial du véhicule premium. SUV, Pick-up, Luxe, Utilitaires. Ventes aux enchères, leasing, concessionnaires.",
-    tags: ["SUV Premium", "Pick-up", "Luxe", "Enchères"],
+    flag: "🇦🇪", nameKey: "ie.zone.ae.name", descKey: "ie.zone.ae.desc",
+    color: "#f59e0b", bg: "rgba(245,158,11,.09)",
+    tags: ["ie.tag.suvPremium", "ie.tag.pickup", "ie.tag.luxury", "ie.tag.auctions"],
   },
   {
-    flag: "🇪🇺",
-    label: "Europe",
-    color: "#3b82f6",
-    bg: "rgba(59,130,246,.09)",
-    desc: "Allemagne, France, Belgique, Pays-Bas, Espagne, Italie. Occasion récente, véhicules professionnels, utilitaires.",
-    tags: ["Occasion récente", "Professionnels", "Utilitaires", "Pièces"],
+    flag: "🇪🇺", nameKey: "ie.zone.eu.name", descKey: "ie.zone.eu.desc",
+    color: "#3b82f6", bg: "rgba(59,130,246,.09)",
+    tags: ["ie.tag.recentUsed", "ie.tag.pro", "ie.tag.vans", "ie.tag.parts"],
   },
   {
-    flag: "🌍",
-    label: "Afrique de l'Ouest",
-    color: "#10b981",
-    bg: "rgba(16,185,129,.09)",
-    desc: "Côte d'Ivoire, Sénégal, Ghana, Togo, Bénin, Nigeria, Mali, Guinée, Burkina Faso et plus. Marché en forte croissance.",
-    tags: ["CI", "Sénégal", "Ghana", "Nigeria", "+7 pays"],
+    flag: "🌍", nameKey: "ie.zone.wa.name", descKey: "ie.zone.wa.desc",
+    color: "#10b981", bg: "rgba(16,185,129,.09)",
+    tags: ["country.ci", "country.sn", "country.gh", "country.ng", "ie.tag.morePays"],
   },
   {
-    flag: "🌐",
-    label: "Maghreb",
-    color: "#8b5cf6",
-    bg: "rgba(139,92,246,.09)",
-    desc: "Maroc, Algérie, Tunisie, Mauritanie, Libye. Proximité Europe-Afrique, carrefour stratégique du commerce automobile.",
-    tags: ["Maroc", "Algérie", "Tunisie", "Mauritanie"],
+    flag: "🌐", nameKey: "ie.zone.mg.name", descKey: "ie.zone.mg.desc",
+    color: "#8b5cf6", bg: "rgba(139,92,246,.09)",
+    tags: ["country.ma", "country.dz", "country.tn", "country.mr"],
   },
 ];
 
-/* ── Packs Import Assist ── */
+/* ── Packs Import Assist ── Silver/Gold/Platinum/Executive sont des noms
+   commerciaux : ils ne se traduisent pas, leur contenu si. ── */
 const PACKS = [
   {
-    name: "Silver",
-    price: "399 €",
-    color: "#94a3b8",
-    accent: "rgba(148,163,184,.12)",
-    border: "rgba(148,163,184,.3)",
-    items: [
-      "Vérification du vendeur",
-      "Assistance à l'achat",
-      "Suivi de dossier",
-      "Support par email",
-    ],
+    name: "Silver", price: "399 €", color: "#94a3b8",
+    accent: "rgba(148,163,184,.12)", border: "rgba(148,163,184,.3)",
+    items: ["ie.svc.sellerCheck", "ie.svc.buyAssist", "ie.svc.fileTracking", "ie.svc.emailSupport"],
   },
   {
-    name: "Gold",
-    price: "799 €",
-    color: "#f59e0b",
-    accent: "rgba(245,158,11,.10)",
-    border: "rgba(245,158,11,.35)",
-    popular: true,
-    items: [
-      "Tout Silver inclus",
-      "Inspection professionnelle",
-      "Suivi logistique complet",
-      "Support prioritaire",
-      "Négociation vendeur",
-    ],
+    name: "Gold", price: "799 €", color: "#f59e0b",
+    accent: "rgba(245,158,11,.10)", border: "rgba(245,158,11,.35)", popular: true,
+    inherits: "Silver",
+    items: ["ie.svc.proInspection", "ie.svc.fullLogistics", "ie.svc.prioritySupport", "ie.svc.negotiation"],
   },
   {
-    name: "Platinum",
-    price: "1 499 €",
-    color: "#6366f1",
-    accent: "rgba(99,102,241,.10)",
-    border: "rgba(99,102,241,.35)",
-    items: [
-      "Tout Gold inclus",
-      "Gestion complète du dossier",
-      "Assistance dédouanement",
-      "Coordination livraison",
-      "Conseiller dédié",
-    ],
+    name: "Platinum", price: "1 499 €", color: "#6366f1",
+    accent: "rgba(99,102,241,.10)", border: "rgba(99,102,241,.35)",
+    inherits: "Gold",
+    items: ["ie.svc.fullFile", "ie.svc.customs", "ie.svc.deliveryCoord", "ie.svc.advisor"],
   },
   {
-    name: "Executive",
-    price: "2 999 €",
-    color: "#ff4d2d",
-    accent: "rgba(255,77,45,.10)",
-    border: "rgba(255,77,45,.35)",
-    items: [
-      "Tout Platinum inclus",
-      "Conciergerie 24h/7j",
-      "Financement & assurance",
-      "Livraison porte-à-porte",
-      "Garantie satisfaction",
-    ],
+    name: "Executive", price: "2 999 €", color: "#ff4d2d",
+    accent: "rgba(255,77,45,.10)", border: "rgba(255,77,45,.35)",
+    inherits: "Platinum",
+    items: ["ie.svc.concierge", "ie.svc.financeIns", "ie.svc.doorToDoor", "ie.svc.satisfaction"],
   },
 ];
 
 /* ── Étapes du processus ── */
 const STEPS = [
-  { num: "01", icon: "🎯", title: "Choisir le service", desc: "Achat local, importation ou exportation selon votre besoin." },
-  { num: "02", icon: "🔍", title: "Recherche du véhicule", desc: "Notre équipe localise le véhicule dans le pays source." },
-  { num: "03", icon: "🔬", title: "Inspection", desc: "Vérification technique par un expert partenaire sur place." },
-  { num: "04", icon: "💳", title: "Paiement sécurisé", desc: "Transaction protégée sur la plateforme VIT AUTO." },
-  { num: "05", icon: "🚢", title: "Transport international", desc: "Coordination avec nos transitaires partenaires." },
-  { num: "06", icon: "📋", title: "Dédouanement", desc: "Accompagnement par nos courtiers agréés en douane." },
-  { num: "07", icon: "🏠", title: "Livraison", desc: "Remise du véhicule à votre adresse avec tous les documents." },
+  { num: "01", icon: "🎯", key: "ie.step1" },
+  { num: "02", icon: "🔍", key: "ie.step2" },
+  { num: "03", icon: "🔬", key: "ie.step3" },
+  { num: "04", icon: "💳", key: "ie.step4" },
+  { num: "05", icon: "🚢", key: "ie.step5" },
+  { num: "06", icon: "📋", key: "ie.step6" },
+  { num: "07", icon: "🏠", key: "ie.step7" },
 ];
 
 // Les tableaux COMMISSIONS et PLANS ne sont plus des données statiques —
@@ -137,28 +95,30 @@ const STEPS = [
 
 /* ── Pays de couverture ── */
 const COUNTRIES = [
-  { flag: "🇨🇳", name: "Chine" }, { flag: "🇦🇪", name: "Émirats" },
-  { flag: "🇩🇪", name: "Allemagne" }, { flag: "🇫🇷", name: "France" },
-  { flag: "🇧🇪", name: "Belgique" }, { flag: "🇳🇱", name: "Pays-Bas" },
-  { flag: "🇪🇸", name: "Espagne" }, { flag: "🇮🇹", name: "Italie" },
-  { flag: "🇲🇦", name: "Maroc" }, { flag: "🇩🇿", name: "Algérie" },
-  { flag: "🇹🇳", name: "Tunisie" }, { flag: "🇲🇷", name: "Mauritanie" },
-  { flag: "🇨🇮", name: "Côte d'Ivoire" }, { flag: "🇸🇳", name: "Sénégal" },
-  { flag: "🇬🇭", name: "Ghana" }, { flag: "🇳🇬", name: "Nigeria" },
-  { flag: "🇧🇯", name: "Bénin" }, { flag: "🇹🇬", name: "Togo" },
-  { flag: "🇲🇱", name: "Mali" }, { flag: "🇬🇳", name: "Guinée" },
+  { flag: "🇨🇳", key: "country.cn" }, { flag: "🇦🇪", key: "country.ae" },
+  { flag: "🇩🇪", key: "country.de" }, { flag: "🇫🇷", key: "country.fr" },
+  { flag: "🇧🇪", key: "country.be" }, { flag: "🇳🇱", key: "country.nl" },
+  { flag: "🇪🇸", key: "country.es" }, { flag: "🇮🇹", key: "country.it" },
+  { flag: "🇲🇦", key: "country.ma" }, { flag: "🇩🇿", key: "country.dz" },
+  { flag: "🇹🇳", key: "country.tn" }, { flag: "🇲🇷", key: "country.mr" },
+  { flag: "🇨🇮", key: "country.ci" }, { flag: "🇸🇳", key: "country.sn" },
+  { flag: "🇬🇭", key: "country.gh" }, { flag: "🇳🇬", key: "country.ng" },
+  { flag: "🇧🇯", key: "country.bj" }, { flag: "🇹🇬", key: "country.tg" },
+  { flag: "🇲🇱", key: "country.ml" }, { flag: "🇬🇳", key: "country.gn" },
 ];
 
 /* ── Partenaires stratégiques ── */
 const PARTNERS = [
-  { icon: "🚢", label: "Transitaires internationaux" },
-  { icon: "🛡️", label: "Assureurs partenaires" },
-  { icon: "🏦", label: "Banques & crédit auto" },
-  { icon: "🏢", label: "Concessionnaires agréés" },
-  { icon: "🅿️", label: "Parcs automobiles" },
-  { icon: "🔧", label: "Experts techniques" },
-  { icon: "📜", label: "Courtiers en douane" },
-  { icon: "🚗", label: "Constructeurs asiatiques" },
+  { icon: "🚢", key: "ie.eco.forwarders" }, { icon: "🛡️", key: "ie.eco.insurers" },
+  { icon: "🏦", key: "ie.eco.banks" },      { icon: "🏢", key: "ie.eco.dealers" },
+  { icon: "🅿️", key: "ie.eco.fleets" },    { icon: "🔧", key: "ie.eco.experts" },
+  { icon: "📜", key: "ie.eco.brokers" },    { icon: "🚗", key: "ie.eco.makers" },
+];
+
+/* ── Catégories de pièces détachées ── */
+const PART_CATEGORIES = [
+  "ie.part.engines", "ie.part.body", "ie.part.batteries",
+  "ie.part.tyres", "ie.part.access", "ie.svc.electronics",
 ];
 
 /* ── Formulaire de demande ── */
@@ -172,6 +132,7 @@ const INITIAL_FORM = {
 
 function RequestModal({ defaultPack, onClose }) {
   const { token } = useAuth();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [form, setForm]     = useState({ ...INITIAL_FORM, pack: defaultPack || "Silver" });
   const [sending, setSending] = useState(false);
@@ -195,7 +156,7 @@ function RequestModal({ defaultPack, onClose }) {
       });
       if (!res.ok) {
         const d = await res.json();
-        throw new Error(d.message || "Erreur serveur");
+        throw new Error(d.message || t("ie.serverError"));
       }
       setDone(true);
     } catch (err) {
@@ -203,7 +164,7 @@ function RequestModal({ defaultPack, onClose }) {
     } finally {
       setSending(false);
     }
-  }, [form, token, navigate]);
+  }, [form, token, navigate, t]);
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
@@ -213,103 +174,103 @@ function RequestModal({ defaultPack, onClose }) {
         {done ? (
           <div className={styles.modalSuccess}>
             <div className={styles.modalSuccessIcon}>✅</div>
-            <h3>Demande envoyée !</h3>
-            <p>Notre équipe vous contactera sous 24h à l'adresse <strong>{form.email}</strong>.</p>
-            <button className={styles.primaryBtn} onClick={onClose}>Fermer</button>
+            <h3>{t("ie.sent")}</h3>
+            <p>{t("ie.sentDesc")} <strong>{form.email}</strong>.</p>
+            <button className={styles.primaryBtn} onClick={onClose}>{t("ie.close")}</button>
           </div>
         ) : (
           <>
             <div className={styles.modalHeader}>
-              <span className={styles.modalBadge}>🌍 IMPORT / EXPORT</span>
-              <h2>Demande de devis gratuit</h2>
-              <p>Remplissez ce formulaire, notre équipe vous répond sous 24h.</p>
+              <span className={styles.modalBadge}>{t("ie.modalBadge")}</span>
+              <h2>{t("ie.quoteTitle")}</h2>
+              <p>{t("ie.formIntro")}</p>
             </div>
             {/* Datalists pour autocomplete */}
             <datalist id="dl-countries">
               {COUNTRIES_ALL.map((c) => <option key={c} value={c} />)}
             </datalist>
             <datalist id="dl-vehicle-types">
-              {VEHICLE_TYPES.map((t) => <option key={t} value={t} />)}
+              {VEHICLE_TYPES.map((t2) => <option key={t2} value={t2} />)}
             </datalist>
 
             <form onSubmit={submit} className={styles.requestForm} autoComplete="off">
               <div className={styles.formRow}>
                 <label>
-                  <span>Prénom *</span>
-                  <input autoComplete="given-name" value={form.firstName} onChange={(e) => set("firstName", e.target.value)} placeholder="Jean" required />
+                  <span>{t("ie.firstName")}</span>
+                  <input autoComplete="given-name" value={form.firstName} onChange={(e) => set("firstName", e.target.value)} placeholder={t("ie.firstNamePh")} required />
                 </label>
                 <label>
-                  <span>Nom *</span>
-                  <input autoComplete="family-name" value={form.lastName} onChange={(e) => set("lastName", e.target.value)} placeholder="Dupont" required />
+                  <span>{t("ie.lastName")}</span>
+                  <input autoComplete="family-name" value={form.lastName} onChange={(e) => set("lastName", e.target.value)} placeholder={t("ie.lastNamePh")} required />
                 </label>
               </div>
               <div className={styles.formRow}>
                 <label>
-                  <span>Email *</span>
-                  <input type="email" autoComplete="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="vous@exemple.com" required />
+                  <span>{t("ie.email")}</span>
+                  <input type="email" autoComplete="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder={t("ie.emailPh")} required />
                 </label>
                 <label>
-                  <span>Téléphone</span>
+                  <span>{t("ie.phone")}</span>
                   <input type="tel" autoComplete="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+225 07 00 00 00" />
                 </label>
               </div>
               <label className={styles.formFull}>
-                <span>Service</span>
+                <span>{t("ie.service")}</span>
                 <select value={form.serviceType} onChange={(e) => set("serviceType", e.target.value)}>
-                  <option value="import">Importation</option>
-                  <option value="export">Exportation</option>
-                  <option value="transit">Transit</option>
-                  <option value="pieces_detachees">Pièces détachées</option>
+                  <option value="import">{t("ie.opt.import")}</option>
+                  <option value="export">{t("ie.opt.export")}</option>
+                  <option value="transit">{t("ie.opt.transit")}</option>
+                  <option value="pieces_detachees">{t("ie.opt.parts")}</option>
                 </select>
               </label>
               <div className={styles.formRow}>
                 <label>
-                  <span>Pays d'origine</span>
+                  <span>{t("ie.sourceCountry")}</span>
                   <input
                     list="dl-countries"
                     value={form.sourceCountry}
                     onChange={(e) => set("sourceCountry", e.target.value)}
-                    placeholder="Chine, EAU, France…"
+                    placeholder={t("ie.sourcePh")}
                   />
                 </label>
                 <label>
-                  <span>Pays de destination</span>
+                  <span>{t("ie.destCountry")}</span>
                   <input
                     list="dl-countries"
                     value={form.destCountry}
                     onChange={(e) => set("destCountry", e.target.value)}
-                    placeholder="Côte d'Ivoire, Sénégal…"
+                    placeholder={t("ie.countryPh")}
                   />
                 </label>
               </div>
               <div className={styles.formRow}>
                 <label>
-                  <span>Type de véhicule</span>
+                  <span>{t("ie.vehicleType")}</span>
                   <input
                     list="dl-vehicle-types"
                     value={form.vehicleType}
                     onChange={(e) => set("vehicleType", e.target.value)}
-                    placeholder="SUV, berline, camion…"
+                    placeholder={t("ie.vehicleTypePh")}
                   />
                 </label>
                 <label>
-                  <span>Budget estimé (€)</span>
+                  <span>{t("ie.budget")}</span>
                   <input type="number" min="0" value={form.budget} onChange={(e) => set("budget", e.target.value)} placeholder="15 000" />
                 </label>
               </div>
               <label className={styles.formFull}>
-                <span>Marque &amp; modèle recherché</span>
+                <span>{t("ie.makeModel")}</span>
                 <input value={form.vehicleMake} onChange={(e) => set("vehicleMake", e.target.value)} placeholder="Toyota Land Cruiser, BYD Atto 3…" />
               </label>
               <label className={styles.formFull}>
-                <span>Message / précisions</span>
-                <textarea rows={3} value={form.message} onChange={(e) => set("message", e.target.value)} placeholder="Décrivez votre besoin en détail…" />
+                <span>{t("ie.message")}</span>
+                <textarea rows={3} value={form.message} onChange={(e) => set("message", e.target.value)} placeholder={t("ie.needPh")} />
               </label>
 
               {error && <p className={styles.formError}>❌ {error}</p>}
 
               <button type="submit" className={styles.primaryBtn} disabled={sending}>
-                {sending ? "Envoi en cours..." : "Envoyer ma demande →"}
+                {sending ? t("ie.sending") : t("ie.submit")}
               </button>
             </form>
           </>
@@ -320,18 +281,23 @@ function RequestModal({ defaultPack, onClose }) {
 }
 
 const ImportExport = () => {
+  // `t` d'abord : useDocumentMeta le lit, et lire une const déclarée plus bas
+  // plante toute la page (règle vit/lecture-avant-declaration).
+  const { t } = useI18n();
+  const { fmtUSD } = useCurrency();
+
   // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
   // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
   // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
   useDocumentMeta({
-    title: "Import / Export international",
-    description: "Importez ou exportez un véhicule entre l'Afrique, l'Europe, la Chine et le Moyen-Orient. Inspection, transport, dédouanement et livraison gérés de bout en bout.",
+    title: t("footer.svcIE"),
+    description: t("ie.metaDesc"),
+    traduite: true,
   });
 
   const [showModal, setShowModal] = useState(false);
   const [modalPack, setModalPack] = useState("Silver");
   const [pricing, setPricing] = useState(FALLBACK_PRICING);
-  const { fmtUSD } = useCurrency();
 
   useEffect(() => {
     fetch("/api/pricing/config")
@@ -351,8 +317,8 @@ const ImportExport = () => {
   const { minUSD, percent, maxUSD } = pricing.serviceFee;
   const exampleFee = Math.min(Math.max(minUSD, 15000 * percent), maxUSD);
   const COMMISSIONS = [
-    { range: "Standard",          rate: `${Math.round(stdRate * 1000) / 10} %`,  fee: fmtUSD(exampleFee) },
-    { range: "Abonné premium",    rate: `${Math.round(premRate * 1000) / 10} %`, fee: fmtUSD(exampleFee) },
+    { label: t("ie.standard"),        rate: `${Math.round(stdRate * 1000) / 10} %`,  fee: fmtUSD(exampleFee) },
+    { label: t("ie.svc.premiumSub"),  rate: `${Math.round(premRate * 1000) / 10} %`, fee: fmtUSD(exampleFee) },
   ];
 
   // Abonnements réels (Subscription.js) — les mêmes 3 paliers self-service que
@@ -361,10 +327,10 @@ const ImportExport = () => {
   const PLANS = [
     // Pas de « commission réduite » : depuis la grille du 2026-09-09, un
     // abonnement ouvre des outils et de la visibilité, jamais une remise.
-    { name: LIBELLE_PLAN.individuel_plus, price: `${fmtUSD(pricing.subscriptions.individuel_plus.priceUSD)}/mois`, features: ["Classement prioritaire", "Calculateur Incoterms", "Statistiques de performance"] },
-    { name: LIBELLE_PLAN.business,        price: `${fmtUSD(pricing.subscriptions.business.priceUSD)}/mois`,        features: ["Suivi de dossier complet", "Demandes clients en avance", "Équipe de 3 accès", "Mises en avant incluses"] },
-    { name: LIBELLE_PLAN.exportateur,     price: `${fmtUSD(pricing.subscriptions.exportateur.priceUSD)}/mois`,     highlight: true, features: ["Annonces illimitées", "CRM export multi-devises", "API catalogue", "Tous les secteurs", "10 accès"] },
-    { name: LIBELLE_PLAN.entreprise,      price: "Sur devis", features: [`Tout ${LIBELLE_PLAN.exportateur} inclus`, "Tarification personnalisée", "Fonctionnalités illimitées"] },
+    { name: LIBELLE_PLAN.individuel_plus, price: `${fmtUSD(pricing.subscriptions.individuel_plus.priceUSD)}${t("ie.perMonth")}`, features: ["ie.svc.topRank", "ie.svc.incoterms", "ie.svc.perfStats"] },
+    { name: LIBELLE_PLAN.business,        price: `${fmtUSD(pricing.subscriptions.business.priceUSD)}${t("ie.perMonth")}`,        features: ["ie.svc.fullTracking", "ie.svc.earlyLeads", "ie.svc.team3", "ie.svc.spotlights"] },
+    { name: LIBELLE_PLAN.exportateur,     price: `${fmtUSD(pricing.subscriptions.exportateur.priceUSD)}${t("ie.perMonth")}`,     highlight: true, features: ["ie.svc.unlimitedAds", "ie.svc.crmExport", "ie.svc.catalogApi", "ie.svc.allSectors", "ie.svc.seats10"] },
+    { name: LIBELLE_PLAN.entreprise,      price: t("ie.onQuote"), inherits: LIBELLE_PLAN.exportateur, features: ["ie.svc.customPricing", "ie.svc.unlimited"] },
   ];
 
   return (
@@ -376,15 +342,12 @@ const ImportExport = () => {
       <div className={styles.heroBubble2} />
       <div className={styles.heroGlobe} />
       <div className={styles.heroContent}>
-        <span className={styles.heroBadge}>🌍 IMPORT / EXPORT INTERNATIONAL</span>
-        <h1>La passerelle automobile<br />entre l'Afrique, l'Europe,<br />l'Asie & le Moyen-Orient</h1>
-        <p>
-          Achetez, vendez, importez ou exportez un véhicule partout dans le monde.
-          VIT AUTO gère tout : recherche, inspection, transport, dédouanement et livraison.
-        </p>
+        <span className={styles.heroBadge}>{t("ie.heroBadge")}</span>
+        <h1>{t("ie.h1a")}<br />{t("ie.h1b")}<br />{t("ie.h1c")}</h1>
+        <p>{t("ie.heroDesc")}</p>
         <div className={styles.heroBtns}>
-          <button className={styles.primaryBtn} onClick={() => openModal()}>Demander un devis gratuit</button>
-          <Link className={styles.secondaryBtn} to="/import-export/listings">Voir les annonces disponibles →</Link>
+          <button className={styles.primaryBtn} onClick={() => openModal()}>{t("ie.askQuote")}</button>
+          <Link className={styles.secondaryBtn} to="/import-export/listings">{t("ie.seeListings")}</Link>
         </div>
       </div>
     </section>
@@ -392,12 +355,12 @@ const ImportExport = () => {
     {/* ── PAYS COUVERTS ── */}
     <section className={styles.countriesBar}>
       <div className={styles.countriesInner}>
-        <span className={styles.countriesLabel}>Couverture mondiale :</span>
+        <span className={styles.countriesLabel}>{t("ie.coverage")}</span>
         <div className={styles.countriesScroll}>
           {COUNTRIES.map((c) => (
-            <div key={c.name} className={styles.countryChip}>
+            <div key={c.key} className={styles.countryChip}>
               <span>{c.flag}</span>
-              <span>{c.name}</span>
+              <span>{t(c.key)}</span>
             </div>
           ))}
         </div>
@@ -408,22 +371,22 @@ const ImportExport = () => {
     <section className={styles.zonesSection}>
       <div className={styles.inner}>
         <div className={styles.sectionHeader}>
-          <span className={styles.sectionTag}>🌐 ZONES STRATÉGIQUES</span>
-          <h2>Des marchés clés, un seul service</h2>
-          <p>VIT AUTO opère sur les 5 grands bassins du commerce automobile international.</p>
+          <span className={styles.sectionTag}>{t("ie.zonesTag")}</span>
+          <h2>{t("ie.zonesTitle")}</h2>
+          <p>{t("ie.zonesSub")}</p>
         </div>
         <div className={styles.zonesGrid}>
           {ZONES.map((z) => (
-            <div key={z.label} className={styles.zoneCard} style={{ borderColor: z.border || z.color + "33" }}>
+            <div key={z.nameKey} className={styles.zoneCard} style={{ borderColor: z.border || z.color + "33" }}>
               <div className={styles.zoneHeader} style={{ background: z.bg }}>
                 <span className={styles.zoneFlag}>{z.flag}</span>
-                <span className={styles.zoneName} style={{ color: z.color }}>{z.label}</span>
+                <span className={styles.zoneName} style={{ color: z.color }}>{t(z.nameKey)}</span>
               </div>
-              <p className={styles.zoneDesc}>{z.desc}</p>
+              <p className={styles.zoneDesc}>{t(z.descKey)}</p>
               <div className={styles.zoneTags}>
-                {z.tags.map((t) => (
-                  <span key={t} className={styles.zoneTag} style={{ color: z.color, background: z.bg }}>
-                    {t}
+                {z.tags.map((tag) => (
+                  <span key={tag} className={styles.zoneTag} style={{ color: z.color, background: z.bg }}>
+                    {t(tag)}
                   </span>
                 ))}
               </div>
@@ -437,9 +400,9 @@ const ImportExport = () => {
     <section className={styles.processSection}>
       <div className={styles.inner}>
         <div className={styles.sectionHeader}>
-          <span className={styles.sectionTag}>⚡ PROCESSUS</span>
-          <h2>De la recherche à la livraison</h2>
-          <p>Un accompagnement clé en main en 7 étapes pour votre importation ou exportation.</p>
+          <span className={styles.sectionTag}>{t("ie.stepsTag")}</span>
+          <h2>{t("ie.stepsTitle")}</h2>
+          <p>{t("ie.stepsSub")}</p>
         </div>
         <div className={styles.stepsGrid}>
           {STEPS.map((s, i) => (
@@ -447,8 +410,8 @@ const ImportExport = () => {
               <div className={styles.stepNumBadge}>{s.num}</div>
               {i < STEPS.length - 1 && <div className={styles.stepArrow}>→</div>}
               <div className={styles.stepIcon}>{s.icon}</div>
-              <h4 className={styles.stepTitle}>{s.title}</h4>
-              <p className={styles.stepDesc}>{s.desc}</p>
+              <h4 className={styles.stepTitle}>{t(s.key)}</h4>
+              <p className={styles.stepDesc}>{t(`${s.key}d`)}</p>
             </div>
           ))}
         </div>
@@ -459,9 +422,9 @@ const ImportExport = () => {
     <section className={styles.packsSection} id="packs">
       <div className={styles.inner}>
         <div className={styles.sectionHeader}>
-          <span className={styles.sectionTag}>🚀 IMPORT ASSIST</span>
-          <h2>Choisissez votre niveau d'accompagnement</h2>
-          <p>Des packs conciergerie automobile adaptés à chaque besoin, du simple achat à la gestion complète.</p>
+          <span className={styles.sectionTag}>{t("ie.packsTag")}</span>
+          <h2>{t("ie.packsTitle")}</h2>
+          <p>{t("ie.packsSub")}</p>
         </div>
         <div className={styles.packsGrid}>
           {PACKS.map((p) => (
@@ -470,17 +433,23 @@ const ImportExport = () => {
               className={`${styles.packCard} ${p.popular ? styles.packPopular : ""}`}
               style={{ borderColor: p.border }}
             >
-              {p.popular && <div className={styles.popularBadge}>⭐ Plus populaire</div>}
+              {p.popular && <div className={styles.popularBadge}>{t("ie.mostPopular")}</div>}
               <div className={styles.packTop} style={{ background: p.accent }}>
                 <span className={styles.packName} style={{ color: p.color }}>{p.name}</span>
                 <span className={styles.packPrice}>{p.price}</span>
-                <span className={styles.packPriceSub}>pack unique</span>
+                <span className={styles.packPriceSub}>{t("ie.onePack")}</span>
               </div>
               <ul className={styles.packFeatures}>
+                {p.inherits && (
+                  <li key="inherits">
+                    <span className={styles.packCheck} style={{ color: p.color }}>✓</span>
+                    {t("ie.allIncluded", { pack: p.inherits })}
+                  </li>
+                )}
                 {p.items.map((item) => (
                   <li key={item}>
                     <span className={styles.packCheck} style={{ color: p.color }}>✓</span>
-                    {item}
+                    {t(item)}
                   </li>
                 ))}
               </ul>
@@ -489,7 +458,7 @@ const ImportExport = () => {
                 style={{ background: p.color, boxShadow: `0 4px 16px ${p.color}33` }}
                 onClick={() => openModal(p.name)}
               >
-                Choisir {p.name} →
+                {t("ie.choose", { pack: p.name })}
               </button>
             </div>
           ))}
@@ -501,29 +470,29 @@ const ImportExport = () => {
     <section className={styles.econSection}>
       <div className={styles.inner}>
         <div className={styles.sectionHeader}>
-          <span className={styles.sectionTag}>💰 TARIFICATION</span>
-          <h2>Transparent & compétitif</h2>
-          <p>Des frais clairs sur chaque transaction internationale.</p>
+          <span className={styles.sectionTag}>{t("ie.feesTag")}</span>
+          <h2>{t("ie.feesTitle")}</h2>
+          <p>{t("ie.feesSub")}</p>
         </div>
         <div className={styles.econGrid}>
           {/* Commissions */}
           <div className={styles.econCard}>
             <div className={styles.econCardHeader}>
               <span className={styles.econIcon}>📊</span>
-              <h3>Commission sur transaction</h3>
+              <h3>{t("ie.commission")}</h3>
             </div>
             <table className={styles.econTable}>
               <thead>
                 <tr>
-                  <th>Profil</th>
-                  <th>Commission</th>
-                  <th>Frais de service (ex. 15 000$)</th>
+                  <th>{t("ie.profile")}</th>
+                  <th>{t("ie.commissionCol")}</th>
+                  <th>{t("ie.serviceFeeCol")}</th>
                 </tr>
               </thead>
               <tbody>
                 {COMMISSIONS.map((c) => (
-                  <tr key={c.range}>
-                    <td>{c.range}</td>
+                  <tr key={c.label}>
+                    <td>{c.label}</td>
                     <td className={styles.econRate}>{c.rate}</td>
                     <td>{c.fee}</td>
                   </tr>
@@ -536,19 +505,19 @@ const ImportExport = () => {
           <div className={styles.econCard}>
             <div className={styles.econCardHeader}>
               <span className={styles.econIcon}>🛠️</span>
-              <h3>Services additionnels</h3>
+              <h3>{t("ie.addlServices")}</h3>
             </div>
             <div className={styles.servicesList}>
               {[
-                { label: "Inspection standard",    price: "79 €" },
-                { label: "Inspection premium",     price: "199 €" },
-                { label: "Expertise complète",     price: "399 €" },
-                { label: "Transport international", price: "5–15 % marge" },
-                { label: "Assurance partenaire",   price: "10–25 % comm." },
-                { label: "Crédit auto",            price: "100–2 000 €/dossier" },
+                { key: "ie.svc.inspStd",        price: "79 €" },
+                { key: "ie.svc.inspPrem",       price: "199 €" },
+                { key: "ie.svc.fullExpertise",  price: "399 €" },
+                { key: "ie.svc.intlTransport",  price: t("ie.price.margin") },
+                { key: "ie.svc.partnerIns",     price: t("ie.price.comm") },
+                { key: "ie.svc.autoCredit",     price: t("ie.price.perFile") },
               ].map((s) => (
-                <div key={s.label} className={styles.servicesRow}>
-                  <span className={styles.servicesLabel}>{s.label}</span>
+                <div key={s.key} className={styles.servicesRow}>
+                  <span className={styles.servicesLabel}>{t(s.key)}</span>
                   <span className={styles.servicesPrice}>{s.price}</span>
                 </div>
               ))}
@@ -559,13 +528,15 @@ const ImportExport = () => {
       </div>
     </section>
 
-    {/* ── TARIFICATION TRANSPARENTE ── */}
+    {/* ── TARIFICATION TRANSPARENTE ──
+        Les montants repris ici sont ceux des packs ci-dessus : une seule
+        source affichée deux fois se contredit tôt ou tard. ── */}
     <section className={styles.pricingSection}>
       <div className={styles.inner}>
         <div className={styles.sectionHeader}>
-          <span className={styles.sectionTag}>💶 TARIFICATION TRANSPARENTE</span>
-          <h2>Des prix clairs, sans surprises</h2>
-          <p>Nous affichons nos tarifs publiquement. Vous savez exactement ce que vous payez avant de commencer.</p>
+          <span className={styles.sectionTag}>{t("ie.pricesTag")}</span>
+          <h2>{t("ie.pricesTitle")}</h2>
+          <p>{t("ie.pricesSub")}</p>
         </div>
 
         <div className={styles.pricingGrid}>
@@ -575,25 +546,19 @@ const ImportExport = () => {
             <div className={styles.pricingCardHeader} style={{ background: "rgba(99,102,241,.08)", borderColor: "rgba(99,102,241,.18)" }}>
               <span className={styles.pricingIcon}>🚘</span>
               <h3 style={{ color: "#6366f1" }}>Import Assist</h3>
-              <p>Accompagnement à l'achat international</p>
+              <p>{t("ie.buySupport")}</p>
             </div>
             <table className={styles.pricingTable}>
               <thead>
-                <tr><th>Formule</th><th>Prix</th></tr>
+                <tr><th>{t("ie.planCol")}</th><th>{t("ie.priceCol")}</th></tr>
               </thead>
               <tbody>
-                <tr>
-                  <td><span className={styles.pricingTier} style={{ color: "#94a3b8" }}>Silver</span></td>
-                  <td className={styles.pricingPrice}>À partir de <strong>299 €</strong></td>
-                </tr>
-                <tr>
-                  <td><span className={styles.pricingTier} style={{ color: "#f59e0b" }}>Gold</span></td>
-                  <td className={styles.pricingPrice}>À partir de <strong>599 €</strong></td>
-                </tr>
-                <tr>
-                  <td><span className={styles.pricingTier} style={{ color: "#6366f1" }}>Platinum</span></td>
-                  <td className={styles.pricingPrice}><strong>Sur devis</strong></td>
-                </tr>
+                {PACKS.map((p) => (
+                  <tr key={p.name}>
+                    <td><span className={styles.pricingTier} style={{ color: p.color }}>{p.name}</span></td>
+                    <td className={styles.pricingPrice}><strong>{p.price}</strong></td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -602,21 +567,21 @@ const ImportExport = () => {
           <div className={styles.pricingCard}>
             <div className={styles.pricingCardHeader} style={{ background: "rgba(16,185,129,.08)", borderColor: "rgba(16,185,129,.18)" }}>
               <span className={styles.pricingIcon}>🔬</span>
-              <h3 style={{ color: "#10b981" }}>Inspection</h3>
-              <p>Vérification technique avant achat</p>
+              <h3 style={{ color: "#10b981" }}>{t("ie.inspection")}</h3>
+              <p>{t("ie.techCheck")}</p>
             </div>
             <table className={styles.pricingTable}>
               <thead>
-                <tr><th>Service</th><th>Prix</th></tr>
+                <tr><th>{t("ie.service")}</th><th>{t("ie.priceCol")}</th></tr>
               </thead>
               <tbody>
                 <tr>
-                  <td><span className={styles.pricingTier} style={{ color: "#10b981" }}>Standard</span></td>
-                  <td className={styles.pricingPrice}>À partir de <strong>79 €</strong></td>
+                  <td><span className={styles.pricingTier} style={{ color: "#10b981" }}>{t("ie.standard")}</span></td>
+                  <td className={styles.pricingPrice}>{t("ie.priceFrom")} <strong>79 €</strong></td>
                 </tr>
                 <tr>
-                  <td><span className={styles.pricingTier} style={{ color: "#10b981" }}>Premium</span></td>
-                  <td className={styles.pricingPrice}>À partir de <strong>199 €</strong></td>
+                  <td><span className={styles.pricingTier} style={{ color: "#10b981" }}>{t("ie.premium")}</span></td>
+                  <td className={styles.pricingPrice}>{t("ie.priceFrom")} <strong>199 €</strong></td>
                 </tr>
               </tbody>
             </table>
@@ -626,21 +591,21 @@ const ImportExport = () => {
           <div className={styles.pricingCard}>
             <div className={styles.pricingCardHeader} style={{ background: "rgba(245,158,11,.08)", borderColor: "rgba(245,158,11,.18)" }}>
               <span className={styles.pricingIcon}>🚢</span>
-              <h3 style={{ color: "#f59e0b" }}>Livraison</h3>
-              <p>Transport du pays source jusqu'à vous</p>
+              <h3 style={{ color: "#f59e0b" }}>{t("ie.delivery")}</h3>
+              <p>{t("ie.transportTo")}</p>
             </div>
             <table className={styles.pricingTable}>
               <thead>
-                <tr><th>Service</th><th>Prix</th></tr>
+                <tr><th>{t("ie.service")}</th><th>{t("ie.priceCol")}</th></tr>
               </thead>
               <tbody>
                 <tr>
-                  <td><span className={styles.pricingTier} style={{ color: "#f59e0b" }}>Nationale</span></td>
-                  <td className={styles.pricingPrice}><strong>Sur devis</strong></td>
+                  <td><span className={styles.pricingTier} style={{ color: "#f59e0b" }}>{t("ie.national")}</span></td>
+                  <td className={styles.pricingPrice}><strong>{t("ie.onQuote")}</strong></td>
                 </tr>
                 <tr>
-                  <td><span className={styles.pricingTier} style={{ color: "#f59e0b" }}>Internationale</span></td>
-                  <td className={styles.pricingPrice}><strong>Sur devis</strong></td>
+                  <td><span className={styles.pricingTier} style={{ color: "#f59e0b" }}>{t("ie.international")}</span></td>
+                  <td className={styles.pricingPrice}><strong>{t("ie.onQuote")}</strong></td>
                 </tr>
               </tbody>
             </table>
@@ -648,10 +613,7 @@ const ImportExport = () => {
 
         </div>
 
-        <p className={styles.pricingNote}>
-          * Les prix varient selon le pays d'origine, le volume et les options choisies.
-          Demandez un devis personnalisé — réponse sous 24h.
-        </p>
+        <p className={styles.pricingNote}>{t("ie.pricesNote")}</p>
       </div>
     </section>
 
@@ -659,9 +621,9 @@ const ImportExport = () => {
     <section className={styles.subsSection}>
       <div className={styles.inner}>
         <div className={styles.sectionHeader}>
-          <span className={styles.sectionTag}>🏢 PROFESSIONNELS</span>
-          <h2>Abonnements pour vendeurs & importateurs</h2>
-          <p>Concessionnaires, garages et importateurs : gérez vos annonces à l'international.</p>
+          <span className={styles.sectionTag}>{t("ie.prosTag")}</span>
+          <h2>{t("ie.subsTitle")}</h2>
+          <p>{t("ie.subsSub")}</p>
         </div>
         <div className={styles.subsGrid}>
           {PLANS.map((p) => (
@@ -669,10 +631,11 @@ const ImportExport = () => {
               <h4 className={styles.subName}>{p.name}</h4>
               <div className={styles.subPrice}>{p.price}</div>
               <ul className={styles.subFeatures}>
-                {p.features.map((f) => <li key={f}><span>✓</span>{f}</li>)}
+                {p.inherits && <li key="inherits"><span>✓</span>{t("ie.allIncluded", { pack: p.inherits })}</li>}
+                {p.features.map((f) => <li key={f}><span>✓</span>{t(f)}</li>)}
               </ul>
               <Link to="/plans" className={`${styles.subBtn} ${p.highlight ? styles.subBtnPrimary : ""}`}>
-                Commencer →
+                {t("ie.start")}
               </Link>
             </div>
           ))}
@@ -685,17 +648,14 @@ const ImportExport = () => {
       <div className={styles.inner}>
         <div className={styles.partsBanner}>
           <div className={styles.partsBannerLeft}>
-            <span className={styles.sectionTag}>🔩 NOUVELLE ACTIVITÉ</span>
-            <h2>Pièces détachées internationales</h2>
-            <p>
-              Importation depuis la Chine, Dubaï et l'Europe. Distribution en Afrique de l'Ouest et au Maghreb.
-              Moteurs, carrosserie, pneumatiques, batteries, accessoires.
-            </p>
-            <button className={styles.primaryBtn} onClick={() => openModal("Silver")}>Demander un catalogue</button>
+            <span className={styles.sectionTag}>{t("ie.partsTag")}</span>
+            <h2>{t("ie.partsTitle")}</h2>
+            <p>{t("ie.partsDesc")}</p>
+            <button className={styles.primaryBtn} onClick={() => openModal("Silver")}>{t("ie.askCatalog")}</button>
           </div>
           <div className={styles.partsCategories}>
-            {["⚙️ Moteurs", "🚗 Carrosserie", "🔋 Batteries & VE", "🛞 Pneumatiques", "🔧 Accessoires", "💡 Électronique"].map((c) => (
-              <div key={c} className={styles.partChip}>{c}</div>
+            {PART_CATEGORIES.map((c) => (
+              <div key={c} className={styles.partChip}>{t(c)}</div>
             ))}
           </div>
         </div>
@@ -706,15 +666,15 @@ const ImportExport = () => {
     <section className={styles.partnersSection}>
       <div className={styles.inner}>
         <div className={styles.sectionHeader}>
-          <span className={styles.sectionTag}>🤝 ÉCOSYSTÈME</span>
-          <h2>Nos partenaires stratégiques</h2>
-          <p>Un réseau solide pour garantir chaque étape de votre transaction internationale.</p>
+          <span className={styles.sectionTag}>{t("ie.ecoTag")}</span>
+          <h2>{t("ie.ecoTitle")}</h2>
+          <p>{t("ie.ecoSub")}</p>
         </div>
         <div className={styles.partnersGrid}>
           {PARTNERS.map((p) => (
-            <div key={p.label} className={styles.partnerChip}>
+            <div key={p.key} className={styles.partnerChip}>
               <span className={styles.partnerIcon}>{p.icon}</span>
-              <span>{p.label}</span>
+              <span>{t(p.key)}</span>
             </div>
           ))}
         </div>
@@ -725,15 +685,12 @@ const ImportExport = () => {
     <section className={styles.ctaSection}>
       <div className={styles.ctaInner}>
         <div className={styles.ctaBubble} />
-        <span className={styles.ctaTag}>🌍 COMMENCEZ MAINTENANT</span>
-        <h2>Votre prochain véhicule, de n'importe où dans le monde</h2>
-        <p>
-          Contactez notre équipe pour un devis personnalisé. Import depuis la Chine, Dubaï, l'Europe —
-          livraison en Afrique ou partout ailleurs.
-        </p>
+        <span className={styles.ctaTag}>{t("ie.ctaTag")}</span>
+        <h2>{t("ie.finalTitle")}</h2>
+        <p>{t("ie.finalDesc")}</p>
         <div className={styles.ctaBtns}>
-          <button className={styles.primaryBtn} onClick={() => openModal()}>Demander un devis gratuit</button>
-          <Link className={styles.ghostBtn} to="/importer-apply">Devenir partenaire importateur →</Link>
+          <button className={styles.primaryBtn} onClick={() => openModal()}>{t("ie.askQuote")}</button>
+          <Link className={styles.ghostBtn} to="/importer-apply">{t("ie.becomeImporter")}</Link>
         </div>
       </div>
     </section>

@@ -113,7 +113,7 @@ const Navbar = () => {
 
         {/* Tableau de bord : clients uniquement */}
         {isAuthenticated && !isPartner && (
-          <li><NavLink to="/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>Tableau de bord</NavLink></li>
+          <li><NavLink to="/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>{t("nav.dashboard")}</NavLink></li>
         )}
 
         {/* Section Activités et Loisirs — ouverte à tous (pas de garde
@@ -127,7 +127,7 @@ const Navbar = () => {
             className={`${styles.activitiesTrigger} ${activitiesOpen ? styles.activitiesTriggerOpen : ""}`}
             onClick={() => setActivitiesOpen((o) => !o)}
           >
-            🎈 Loisirs
+            🎈 {t("nav.leisure")}
           </button>
           {activitiesOpen && (
             <>
@@ -168,7 +168,7 @@ const Navbar = () => {
             accessible uniquement en tapant l'URL ou depuis une transaction déjà
             ouverte, aucun lien de menu n'y menait. */}
         {isAuthenticated && !isPartner && (
-          <li><NavLink to="/import-export/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>📦 Mes achats</NavLink></li>
+          <li><NavLink to="/import-export/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>📦 {t("nav.myPurchases")}</NavLink></li>
         )}
 
         {/* ── Menu mobile, connecté : profil, aide, déconnexion — le badge
@@ -180,11 +180,11 @@ const Navbar = () => {
             <li className={styles.mobileDivider} />
             <li className={styles.mobileOnly}>
               <NavLink to="/profile" className={navLink} onClick={() => setMenuOpen(false)}>
-                {isPartner ? "🤝" : "👤"} Mon profil{user?.firstName ? ` · ${user.firstName}` : ""}
+                {isPartner ? "🤝" : "👤"} {t("nav.myProfile")}{user?.firstName ? ` · ${user.firstName}` : ""}
               </NavLink>
             </li>
             <li className={styles.mobileOnly}>
-              <NavLink to="/help" className={navLink} onClick={() => setMenuOpen(false)}>Centre d'aide</NavLink>
+              <NavLink to="/help" className={navLink} onClick={() => setMenuOpen(false)}>{t("nav.help")}</NavLink>
             </li>
             <li className={styles.mobileOnly}>
               <a href="/" className={styles.mobileLogout} onClick={(e) => { e.preventDefault(); setMenuOpen(false); logout(); }}>{t("nav.logout")}</a>
@@ -203,7 +203,7 @@ const Navbar = () => {
               <NavLink to="/register" className={navLink} onClick={() => setMenuOpen(false)}>{t("nav.register")}</NavLink>
             </li>
             <li className={styles.mobileOnly}>
-              <NavLink to="/help"     className={navLink} onClick={() => setMenuOpen(false)}>Centre d'aide</NavLink>
+              <NavLink to="/help"     className={navLink} onClick={() => setMenuOpen(false)}>{t("nav.help")}</NavLink>
             </li>
             <li className={`${styles.mobileOnly} ${styles.mobilePartner}`}>
               <NavLink to="/register?role=partenaire" className={navLink} onClick={() => setMenuOpen(false)}>Devenez partenaire</NavLink>
@@ -229,7 +229,7 @@ const Navbar = () => {
             <button
               className={isPartner ? styles.badgePartner : styles.userBadge}
               onClick={() => navigate("/profile")}
-              title="Voir mon profil"
+              title={t("nav.seeProfile")}
               style={{ cursor: "pointer", fontFamily: "inherit" }}
             >
               {isPartner ? "🤝 " : "👤 "}
@@ -248,7 +248,7 @@ const Navbar = () => {
               <span className={styles.dropdownLines}>
                 <span /><span /><span />
               </span>
-              <span className={styles.dropdownLabel}>Menu</span>
+              <span className={styles.dropdownLabel}>{t("nav.menu")}</span>
             </button>
 
             {dropdownOpen && (
@@ -263,7 +263,7 @@ const Navbar = () => {
                 <div className={styles.dropdownDivider} />
 
                 <button onClick={() => { navigate("/help");     setDropdownOpen(false); }}>
-                  <span className={styles.diIcon}>💬</span> Centre d'aide
+                  <span className={styles.diIcon}>💬</span> {t("nav.help")}
                 </button>
                 <button
                   className={styles.partnerItem}

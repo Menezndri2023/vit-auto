@@ -3,20 +3,27 @@ import { Link, useNavigate, useSearchParams, useLocation } from "react-router-do
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
+import { useI18n } from "../context/I18nContext";
 import GoogleAuthButton from "../components/GoogleAuthButton/GoogleAuthButton";
 import { WORLD_COUNTRIES } from "../data/worldCountries";
 import { ACTIVITIES, ACTIVITY_LABELS, ENTITY_TYPES, ENTITY_TYPE_LABELS, requiresBusinessDocs } from "../constants/partnerTaxonomy";
 import { resolveRequirements } from "../utils/partnerRequirements";
+import { libelleTraduit } from "../i18n/libelles";
 import styles from "./Auth.module.css";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const Register = () => {
+  // `t` d'abord : useDocumentMeta le lit, et lire une const déclarée plus bas
+  // plante toute la page (règle vit/lecture-avant-declaration).
+  const { t } = useI18n();
+
   // Métadonnées propres à cette page. Sans cet appel, elle hérite du titre
   // générique d'index.html — les 153 URLs du sitemap apparaissaient toutes
   // identiques dans les résultats de recherche (voir hooks/useDocumentMeta.js).
   useDocumentMeta({
-    title: "Créer un compte",
-    description: "Créez votre compte VIT AUTO en quelques minutes, où que vous soyez : location, achat, import ou publication d'annonces.",
+    title: t("reg.title"),
+    description: t("reg.metaDesc"),
+    traduite: true,
   });
 
   const { register, oauthGoogle, verifyEmailCode, resendEmailCode, user, isAuthenticated } = useAuth();
@@ -119,20 +126,20 @@ const Register = () => {
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!form.email.trim() || !form.password || !form.firstName || !form.lastName || !form.country || !form.birthDate) {
-      error("Veuillez remplir tous les champs obligatoires."); return;
+      error(t("reg.fillRequired")); return;
     }
     if (form.password !== form.confirmPassword) {
-      error("Les mots de passe ne correspondent pas."); return;
+      error(t("reg.pwdMismatch")); return;
     }
     if (form.password.length < 8) {
-      error("Le mot de passe doit contenir au moins 8 caractères."); return;
+      error(t("reg.pwdTooShort")); return;
     }
     if (form.role === "partenaire" && requiresBusinessDocs(form.entityType) && !form.rccm.trim()) {
-      error("Le numéro de Registre de Commerce (RC/RCCM) est obligatoire pour un compte professionnel ou entreprise."); return;
+      error(t("reg.rcRequired")); return;
     }
     const age = (Date.now() - new Date(form.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000);
     if (age < 18) {
-      error("Vous devez avoir au moins 18 ans pour créer un compte VIT AUTO."); return;
+      error(t("reg.under18")); return;
     }
     setSubmitting(true);
     setDuplicateAccount(false);
@@ -156,15 +163,15 @@ const Register = () => {
       // terminée tant que le code reçu par email n'est pas confirmé — on ne
       // redirige jamais directement vers l'app depuis ce formulaire.
       if (result?.emailVerificationCodeRequired) {
-        success(`Compte créé ! Un code de confirmation a été envoyé à ${form.email.trim()}.`);
+        success(t("reg.codeSentToast", { email: form.email.trim() }));
         setStep("code");
       } else {
         // Compte auto-vérifié (mode développement sans SMTP configuré).
-        success("Inscription réussie ! Redirection…");
+        success(t("reg.success"));
         setTimeout(() => navigate(getDest()), 1000);
       }
     } catch (err) {
-      error(err.message || "Impossible de créer votre compte.");
+      error(err.message || t("reg.cannotCreate"));
       if (err.code === "EMAIL_ALREADY_USED" || err.code === "PHONE_ALREADY_USED") {
         setDuplicateAccount(true);
       }
@@ -175,11 +182,11 @@ const Register = () => {
 
   const onVerifyCode = async (e) => {
     e.preventDefault();
-    if (emailCode.trim().length !== 6) { error("Le code contient 6 chiffres."); return; }
+    if (emailCode.trim().length !== 6) { error(t("reg.code6Chars")); return; }
     setCodeSubmitting(true);
     try {
       await verifyEmailCode(emailCode.trim());
-      success("Adresse e-mail confirmée ! Redirection…");
+      success(t("reg.emailOk"));
       setTimeout(() => navigate(getDest()), 1000);
     } catch (err) {
       error(err.message || "Code incorrect.");
@@ -194,7 +201,7 @@ const Register = () => {
       await resendEmailCode();
       success(`Nouveau code envoyé à ${pendingEmailDisplay}.`);
     } catch (err) {
-      error(err.message || "Impossible d'envoyer un nouveau code.");
+      error(err.message || t("reg.noNewCode"));
     } finally {
       setResending(false);
     }
@@ -207,7 +214,7 @@ const Register = () => {
   const googleDisabled = !form.birthDate || !form.country;
 
   const handleGoogleCredential = async (credential) => {
-    if (!credential) { error("Connexion Google annulée ou impossible."); return; }
+    if (!credential) { error(t("login.googleCancel")); return; }
     setSubmitting(true);
     try {
       const result = await oauthGoogle({
@@ -220,13 +227,13 @@ const Register = () => {
         rccm: form.role === "partenaire" && requiresBusinessDocs(form.entityType) ? form.rccm.trim() : undefined,
       });
       if (result?.requiresTwoFactor) {
-        error("Ce compte a la double authentification activée. Connectez-vous avec votre mot de passe.");
+        error(t("login.google2fa"));
         return;
       }
-      success("Inscription réussie ! Redirection…");
+      success(t("reg.success"));
       setTimeout(() => navigate(getDest()), 1000);
     } catch (err) {
-      error(err.message || "Impossible de continuer avec Google.");
+      error(err.message || t("reg.googleFail"));
     } finally {
       setSubmitting(false);
     }
@@ -238,13 +245,13 @@ const Register = () => {
         <div className={styles.card}>
           <div className={styles.logo}>
             <div className={styles.logoIcon}>✉️</div>
-            <h1>Confirmez votre e-mail</h1>
-            <p>Code envoyé à <strong>{pendingEmailDisplay}</strong> — valable 10 minutes</p>
+            <h1>{t("reg.confirmEmail")}</h1>
+            <p>{t("reg.codeSentTo")} <strong>{pendingEmailDisplay}</strong> {t("reg.codeValid")}</p>
           </div>
 
           <form className={styles.form} onSubmit={onVerifyCode}>
             <div className={styles.field}>
-              <label htmlFor="register-code">Code à 6 chiffres</label>
+              <label htmlFor="register-code">{t("reg.code6")}</label>
               <input
                 id="register-code"
                 name="emailCode"
@@ -261,12 +268,12 @@ const Register = () => {
             </div>
 
             <button type="submit" className={styles.submitBtn} disabled={codeSubmitting || emailCode.length !== 6}>
-              {codeSubmitting ? "Vérification…" : "Confirmer mon e-mail"}
+              {codeSubmitting ? t("reg.verifying") : t("reg.confirmMyEmail")}
             </button>
 
             <div className={styles.footerLink}>
               <button type="button" onClick={onResendCode} disabled={resending}>
-                {resending ? "Envoi…" : "Renvoyer le code"}
+                {resending ? "Envoi…" : t("reg.resendCode")}
               </button>
             </div>
           </form>
@@ -291,7 +298,7 @@ const Register = () => {
         <div className={styles.logo}>
           <div className={styles.logoIcon}>🚗</div>
           <h1>VIT AUTO</h1>
-          <p>Créez votre compte gratuitement</p>
+          <p>{t("reg.subtitle")}</p>
         </div>
 
         {/* Raccourci Google en tête : c'est le chemin le plus court vers un
@@ -310,11 +317,11 @@ const Register = () => {
           />
           {googleDisabled && (
             <div className={styles.googleChamps}>
-              <p className={styles.googleNote}>Pour continuer avec Google, indiquez :</p>
+              <p className={styles.googleNote}>{t("reg.googleNeeds")}</p>
               <div className={styles.row}>
                 {!form.birthDate && (
                   <div className={styles.field}>
-                    <label htmlFor="google-birthDate">Date de naissance</label>
+                    <label htmlFor="google-birthDate">{t("reg.birthDate")}</label>
                     <input
                       id="google-birthDate"
                       type="date"
@@ -328,9 +335,9 @@ const Register = () => {
                 )}
                 {!form.country && (
                   <div className={styles.field}>
-                    <label htmlFor="google-country">Pays</label>
+                    <label htmlFor="google-country">{t("auth.country")}</label>
                     <select id="google-country" name="country" value={form.country} onChange={handleChange} autoComplete="country">
-                      <option value="" disabled>Sélectionnez votre pays</option>
+                      <option value="" disabled>{t("reg.pickCountry")}</option>
                       {WORLD_COUNTRIES.map((c) => (
                         <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
                       ))}
@@ -338,19 +345,19 @@ const Register = () => {
                   </div>
                 )}
               </div>
-              <p className={styles.hint}>Vous publiez des annonces ? Choisissez votre profil (« Vous êtes ») dans le formulaire avant de continuer avec Google.</p>
+              <p className={styles.hint}>{t("reg.googleProfile")}.</p>
             </div>
           )}
         </div>
-        <div className={styles.divider}>ou remplissez le formulaire</div>
+        <div className={styles.divider}>{t("reg.orForm")}</div>
 
         <form className={styles.form} onSubmit={onSubmit} autoComplete="on">
           <fieldset className={styles.groupe}>
-            <legend className={styles.legende}>Votre identité</legend>
+            <legend className={styles.legende}>{t("reg.yourIdentity")}</legend>
 
             <div className={styles.row}>
               <div className={styles.field}>
-                <label htmlFor="register-firstName">Prénom <span className={styles.requis}>*</span></label>
+                <label htmlFor="register-firstName">{t("auth.firstName")} <span className={styles.requis}>*</span></label>
                 <input
                   id="register-firstName"
                   name="firstName"
@@ -369,7 +376,7 @@ const Register = () => {
                   autoComplete="family-name"
                   value={form.lastName}
                   onChange={handleChange}
-                  placeholder="Koné"
+                  placeholder={t("reg.lastNamePh")}
                   required
                 />
               </div>
@@ -377,7 +384,7 @@ const Register = () => {
 
             <div className={styles.row}>
               <div className={styles.field}>
-                <label htmlFor="register-birthDate">Date de naissance <span className={styles.requis}>*</span></label>
+                <label htmlFor="register-birthDate">{t("reg.birthDate")} <span className={styles.requis}>*</span></label>
                 <input
                   id="register-birthDate"
                   ref={champDateRef}
@@ -389,10 +396,10 @@ const Register = () => {
                   max={new Date(Date.now() - 18 * 365.25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)}
                   required
                 />
-                <p className={styles.hint}>Vous devez avoir 18 ans ou plus.</p>
+                <p className={styles.hint}>{t("reg.min18")}</p>
               </div>
               <div className={styles.field}>
-                <label htmlFor="register-country">Pays <span className={styles.requis}>*</span></label>
+                <label htmlFor="register-country">{t("auth.country")} <span className={styles.requis}>*</span></label>
                 <select
                   id="register-country"
                   ref={champPaysRef}
@@ -402,18 +409,18 @@ const Register = () => {
                   autoComplete="country"
                   required
                 >
-                  <option value="" disabled>Sélectionnez votre pays</option>
+                  <option value="" disabled>{t("reg.pickCountry")}</option>
                   {WORLD_COUNTRIES.map((c) => (
                     <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
                   ))}
                 </select>
-                <p className={styles.hint}>Détermine les annonces qui vous sont montrées.</p>
+                <p className={styles.hint}>{t("reg.birthHint")}</p>
               </div>
             </div>
           </fieldset>
 
           <fieldset className={styles.groupe}>
-            <legend className={styles.legende}>Vos coordonnées</legend>
+            <legend className={styles.legende}>{t("reg.yourContact")}</legend>
 
             <div className={styles.field}>
               <label htmlFor="register-email">Adresse e-mail <span className={styles.requis}>*</span></label>
@@ -424,14 +431,14 @@ const Register = () => {
                 autoComplete="email"
                 value={form.email}
                 onChange={handleChange}
-                placeholder="vous@exemple.com"
+                placeholder={t("login.emailPh")}
                 required
               />
-              <p className={styles.hint}>Un code de confirmation y sera envoyé.</p>
+              <p className={styles.hint}>{t("reg.codeHint")}</p>
             </div>
 
             <div className={styles.field}>
-              <label htmlFor="register-phone">Téléphone <span style={{ color: "#94a3b8", fontWeight: 600 }}>(facultatif)</span></label>
+              <label htmlFor="register-phone">{t("auth.phone")} <span style={{ color: "#94a3b8", fontWeight: 600 }}>{t("reg.optional")}</span></label>
               <input
                 id="register-phone"
                 type="tel"
@@ -445,16 +452,16 @@ const Register = () => {
           </fieldset>
 
           <fieldset className={styles.groupe}>
-            <legend className={styles.legende}>Vous êtes</legend>
+            <legend className={styles.legende}>{t("reg.youAre")}</legend>
 
             {/* C'était un menu déroulant : le choix le plus structurant de
                 l'inscription — il change la nature du compte et fait
                 apparaître trois champs — était caché derrière un contrôle
                 qu'il fallait ouvrir pour voir les deux options. */}
-            <div className={styles.choix} role="radiogroup" aria-label="Type de compte">
+            <div className={styles.choix} role="radiogroup" aria-label={t("reg.accountType")}>
               {[
-                { valeur: "client",     titre: "🧑 Client",     desc: "Louer, acheter, importer" },
-                { valeur: "partenaire", titre: "🤝 Partenaire", desc: "Publier des annonces" },
+                { valeur: "client",     titre: t("reg.roleClient"),  desc: t("reg.roleClientDesc") },
+                { valeur: "partenaire", titre: t("reg.rolePartner"), desc: t("reg.publishAds") },
               ].map((option) => (
                 <label
                   key={option.valeur}
@@ -477,18 +484,18 @@ const Register = () => {
               <>
                 <div className={styles.row}>
                   <div className={styles.field}>
-                    <label htmlFor="register-activity">Votre activité</label>
+                    <label htmlFor="register-activity">{t("reg.yourBusiness")}</label>
                     <select id="register-activity" name="activity" value={form.activity} onChange={handleChange} autoComplete="off">
                       {ACTIVITIES.map((a) => (
-                        <option key={a} value={a}>{ACTIVITY_LABELS[a]}</option>
+                        <option key={a} value={a}>{libelleTraduit(t, "metier", a, ACTIVITY_LABELS)}</option>
                       ))}
                     </select>
                   </div>
                   <div className={styles.field}>
-                    <label htmlFor="register-entityType">Vous exercez en tant que</label>
+                    <label htmlFor="register-entityType">{t("reg.entityType")}</label>
                     <select id="register-entityType" name="entityType" value={form.entityType} onChange={handleChange} autoComplete="off">
-                      {ENTITY_TYPES.map((t) => (
-                        <option key={t} value={t}>{ENTITY_TYPE_LABELS[t]}</option>
+                      {ENTITY_TYPES.map((type) => (
+                        <option key={type} value={type}>{libelleTraduit(t, "entite", type, ENTITY_TYPE_LABELS)}</option>
                       ))}
                     </select>
                   </div>
@@ -500,7 +507,7 @@ const Register = () => {
                     affiché puis ignoré. */}
                 {requiresBusinessDocs(form.entityType) && (
                   <div className={styles.field}>
-                    <label htmlFor="register-rccm">N° de Registre de Commerce (RC/RCCM) <span className={styles.requis}>*</span></label>
+                    <label htmlFor="register-rccm">{t("reg.rcNumber")} <span className={styles.requis}>*</span></label>
                     <input
                       id="register-rccm"
                       name="rccm"
@@ -515,23 +522,23 @@ const Register = () => {
 
                 <p className={styles.hint}>
                   {form.activity === "chauffeur"
-                    ? "📍 En tant que chauffeur, une pièce d'identité, un permis de conduire vérifié et un CV vous seront demandés avant de publier."
+                    ? t("reg.noteDriver")
                     : requiresBusinessDocs(form.entityType)
-                      ? "📍 Une vérification entreprise (documents légaux) sera nécessaire pour publier, en plus de votre pièce d'identité."
-                      : "📍 En tant que particulier, seule une vérification d'identité (pièce + selfie) vous sera demandée pour publier."}
+                      ? t("reg.noteCompany")
+                      : t("reg.notePerson")}
                 </p>
               </>
             )}
           </fieldset>
 
           <fieldset className={styles.groupe}>
-            <legend className={styles.legende}>Sécurité</legend>
+            <legend className={styles.legende}>{t("reg.security")}</legend>
 
             {/* Les deux mots de passe étaient côte à côte : sur téléphone comme
                 sur ordinateur, chaque champ tombait sous 200 px alors qu'il
                 faut y lire une saisie masquée. Ils sont désormais empilés. */}
             <div className={styles.pwField}>
-              <label htmlFor="register-password">Mot de passe <span className={styles.requis}>*</span></label>
+              <label htmlFor="register-password">{t("auth.password")} <span className={styles.requis}>*</span></label>
               <div className={styles.pwWrap}>
                 <input
                   id="register-password"
@@ -540,13 +547,13 @@ const Register = () => {
                   autoComplete="new-password"
                   value={form.password}
                   onChange={handleChange}
-                  placeholder="8 caractères minimum"
+                  placeholder={t("reg.pwdMin")}
                   required
                   minLength="8"
                 />
                 <button type="button" onClick={() => setShowPassword((p) => !p)}
                   className={styles.pwToggle}
-                  aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
+                  aria-label={showPassword ? t("login.hidePwd") : t("login.showPwd")}>
                   {showPassword ? "🙈" : "👁️"}
                 </button>
               </div>
@@ -561,11 +568,11 @@ const Register = () => {
                   </span>
                 </div>
               )}
-              <p className={styles.hint}>Au moins 8 caractères, une majuscule et un chiffre.</p>
+              <p className={styles.hint}>{t("reg.pwdRule")}</p>
             </div>
 
             <div className={styles.pwField}>
-              <label htmlFor="register-confirmPassword">Confirmer le mot de passe <span className={styles.requis}>*</span></label>
+              <label htmlFor="register-confirmPassword">{t("reg.pwdConfirm")} <span className={styles.requis}>*</span></label>
               <div className={styles.pwWrap}>
                 <input
                   id="register-confirmPassword"
@@ -574,12 +581,12 @@ const Register = () => {
                   autoComplete="new-password"
                   value={form.confirmPassword}
                   onChange={handleChange}
-                  placeholder="Retapez votre mot de passe"
+                  placeholder={t("reg.pwdRetype")}
                   required
                 />
                 <button type="button" onClick={() => setShowPassword((p) => !p)}
                   className={styles.pwToggle}
-                  aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}>
+                  aria-label={showPassword ? t("login.hidePwd") : t("login.showPwd")}>
                   {showPassword ? "🙈" : "👁️"}
                 </button>
               </div>
@@ -588,7 +595,7 @@ const Register = () => {
                   formulaire et de lire un toast générique. */}
               {form.confirmPassword && (
                 <p className={`${styles.concordance} ${form.password === form.confirmPassword ? styles.concordanceOk : styles.concordanceNon}`}>
-                  {form.password === form.confirmPassword ? "✓ Les mots de passe correspondent" : "✗ Les mots de passe ne correspondent pas"}
+                  {form.password === form.confirmPassword ? t("reg.pwdMatch") : t("reg.pwdNoMatch")}
                 </p>
               )}
             </div>
@@ -596,7 +603,7 @@ const Register = () => {
 
           {duplicateAccount && (
             <div className={`${styles.encart} ${styles.encartInfo}`}>
-              <p>Un compte existe déjà avec ces informations.</p>
+              <p>{t("reg.exists")}</p>
               <Link
                 className={styles.encartLien}
                 to={redirectParam ? `/login?redirect=${encodeURIComponent(redirectParam)}` : "/login"}
@@ -607,12 +614,12 @@ const Register = () => {
           )}
 
           <button type="submit" className={styles.submitBtn} disabled={submitting}>
-            {submitting ? "Création…" : "Créer mon compte"}
+            {submitting ? t("reg.creating") : t("reg.createBtn")}
           </button>
 
           <div className={styles.footerLink}>
-            <span>Déjà un compte ? </span>
-            <Link to="/login">Se connecter</Link>
+            <span>{t("auth.haveAccount")}</span>
+            <Link to="/login">{t("auth.loginBtn")}</Link>
           </div>
         </form>
       </div>

@@ -17,6 +17,8 @@ import aide from "./aide";
 import catalogue from "./catalogue";
 import partenaires from "./partenaires";
 import importExport from "./importExport";
+import tarifs from "./tarifs";
+import connexion from "./connexion";
 
 const translations = {
 
@@ -733,7 +735,7 @@ const translations = {
   // ─── Plans / Abonnements ─────────────────────────────────────────────────
   "plans.hero.tag":      { fr: "💼 PARTENAIRES VIT AUTO",             en: "💼 VIT AUTO PARTNERS",          ar: "💼 شركاء فيت أوتو",     es: "💼 SOCIOS VIT AUTO",       zh: "💼 VIT AUTO合作商" },
   "plans.hero.title":    { fr: "Tarifs & Abonnements",                en: "Pricing & Plans",               ar: "الأسعار والاشتراكات",   es: "Precios y Planes",         zh: "价格与套餐"     },
-  "plans.hero.sub":      { fr: "Publiez vos véhicules, réduisez vos commissions et développez votre activité. Passez au plan supérieur à tout moment.", en: "Publish your vehicles, reduce your commissions and grow your business. Upgrade anytime.", ar: "انشر سياراتك وقلل عمولاتك وطوّر نشاطك. قم بالترقية في أي وقت.", es: "Publica tus vehículos, reduce comisiones y haz crecer tu negocio. Sube de plan cuando quieras.", zh: "发布车辆、降低佣金、发展业务，随时升级套餐。" },
+  "plans.hero.sub":      { fr: "Publiez vos véhicules, gagnez en visibilité et développez votre activité. Changez de plan à tout moment.", en: "Publish your vehicles, gain visibility and grow your business. Change plan at any time.", ar: "انشر سياراتك، اكسب ظهوراً أكبر وطوّر نشاطك. غيّر خطتك في أي وقت.", es: "Publica tus vehículos, gana visibilidad y haz crecer tu negocio. Cambia de plan cuando quieras.", zh: "发布您的车辆，提升曝光，发展您的业务。随时更换套餐。" },
   "plans.hero.pill1":    { fr: "✅ Sans engagement",                  en: "✅ No commitment",              ar: "✅ بدون التزام",         es: "✅ Sin compromiso",        zh: "✅ 无需承诺"    },
   "plans.hero.pill2":    { fr: "🌍 20+ pays couverts",                en: "🌍 20+ countries covered",      ar: "🌍 أكثر من 20 دولة",    es: "🌍 20+ países cubiertos",  zh: "🌍 覆盖20+国家" },
   "plans.hero.pill3":    { fr: "💳 Paiement sécurisé",               en: "💳 Secure payment",             ar: "💳 دفع آمن",            es: "💳 Pago seguro",           zh: "💳 安全支付"    },
@@ -757,7 +759,7 @@ const translations = {
   "plans.how.title":     { fr: "Comment ça marche ?",                 en: "How does it work?",             ar: "كيف يعمل؟",             es: "¿Cómo funciona?",          zh: "如何运作？"     },
   "plans.cta.tag":       { fr: "🤝 DEVENEZ PARTENAIRE",               en: "🤝 BECOME A PARTNER",           ar: "🤝 كن شريكاً",          es: "🤝 SÉ SOCIO",             zh: "🤝 成为合作商"  },
   "plans.cta.title":     { fr: "Prêt à publier votre première annonce ?", en: "Ready to publish your first listing?", ar: "مستعد لنشر إعلانك الأول؟", es: "¿Listo para publicar tu primer anuncio?", zh: "准备好发布第一个车辆了吗？" },
-  "plans.cta.sub":       { fr: "Rejoignez des milliers de partenaires actifs sur 20+ pays — Afrique, Maghreb, Moyen-Orient, Europe et Asie.", en: "Join thousands of active partners across 20+ countries — Africa, Maghreb, Middle East, Europe and Asia.", ar: "انضم إلى آلاف الشركاء النشطين في 20+ دولة — أفريقيا والمغرب العربي والشرق الأوسط وأوروبا وآسيا.", es: "Únete a miles de socios activos en 20+ países — África, Magreb, Oriente Medio, Europa y Asia.", zh: "加入20多个国家数千名活跃合作商——非洲、马格里布、中东、欧洲和亚洲。" },
+  "plans.cta.sub":       { fr: "Rejoignez les partenaires VIT AUTO sur 20+ pays — Afrique, Maghreb, Moyen-Orient, Europe et Asie.", en: "Join the VIT AUTO partners across 20+ countries — Africa, the Maghreb, the Middle East, Europe and Asia.", ar: "انضم إلى شركاء VIT AUTO في أكثر من ٢٠ دولة — أفريقيا والمغرب العربي والشرق الأوسط وأوروبا وآسيا.", es: "Únete a los socios de VIT AUTO en más de 20 países — África, Magreb, Oriente Medio, Europa y Asia.", zh: "加入 VIT AUTO 遍布 20 多个国家的合作伙伴 — 非洲、马格里布、中东、欧洲与亚洲。" },
   "plans.cta.publish":   { fr: "Publier une annonce",                 en: "Publish a listing",             ar: "انشر إعلاناً",          es: "Publicar un anuncio",      zh: "发布车辆"       },
   "plans.cta.faq":       { fr: "Lire la FAQ",                         en: "Read the FAQ",                  ar: "اقرأ الأسئلة الشائعة",  es: "Leer la FAQ",              zh: "查看常见问题"   },
   "plans.currency":      { fr: "Devise :",                            en: "Currency:",                     ar: "العملة:",               es: "Divisa:",                  zh: "货币："         },
@@ -822,4 +824,4 @@ const translations = {
 // Fusion des vagues. En cas de clé en double, le module le plus récent gagne —
 // mais i18n.completude.test.js refuse les doublons : deux définitions d'une
 // même clé, c'est une traduction qu'on croit corriger sans effet.
-export default { ...translations, ...accueil, ...pagesPubliques, ...LIBELLES_METIER, ...services, ...pourquoi, ...chrome, ...faq, ...aide, ...catalogue, ...partenaires, ...importExport };
+export default { ...translations, ...accueil, ...pagesPubliques, ...LIBELLES_METIER, ...services, ...pourquoi, ...chrome, ...faq, ...aide, ...catalogue, ...partenaires, ...importExport, ...tarifs, ...connexion };

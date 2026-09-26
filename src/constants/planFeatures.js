@@ -105,52 +105,52 @@ export const FIN_IMMUNITE_QUOTAS = new Date("2027-09-10T00:00:00Z");
 export const OUTILS_PAR_SECTEUR = {
   loueur: {
     individuel_plus: [
-      { text: "Tarifs saisonniers et promotions multi-paliers" },
+      { key: "outil.seasonalRates" },
     ],
     business: [
-      { text: "Import de flotte par fichier (CSV, Excel, Google Sheets)" },
-      { text: "Gestion de parc : planning, entretien, journal de chaque véhicule" },
+      { key: "outil.fleetImport" },
+      { key: "outil.fleetMgmt" },
     ],
     exportateur: [
-      { text: "Synchronisation du parc par API depuis votre logiciel" },
+      { key: "outil.fleetApi" },
     ],
   },
   vendeur: {
     individuel_plus: [
-      { text: "Prix face au marché sur chaque annonce" },
+      { key: "outil.marketPrice" },
     ],
     business: [
-      { text: "CRM intégré : demandes d'essai, leads et devis" },
-      { text: "Showroom public personnalisé" },
-      { text: "Bilan mensuel des ventes et des essais par e-mail" },
+      { key: "outil.crmSales" },
+      { key: "outil.showroom" },
+      { key: "outil.salesReport" },
     ],
     exportateur: [
-      { text: "Synchronisation du stock par API" },
-      { text: "Dossier financement et crédit intégré à la vente" },
+      { key: "outil.stockApi" },
+      { key: "outil.financeFile" },
     ],
   },
   exportateur: {
     individuel_plus: [
-      { text: "Calculateur Incoterms 2020 sur chaque annonce" },
+      { key: "outil.incoterms" },
     ],
     business: [
-      { text: "Suivi de dossier complet : inspection, séquestre, transport" },
-      { text: "Demandes import/export des visiteurs reçues en avance" },
-      { text: "Documents LOI et accord partenaire" },
+      { key: "outil.fileTracking" },
+      { key: "outil.earlyIeLeads" },
+      { key: "outil.loiDocs" },
     ],
     exportateur: [
-      { text: "CRM export multi-devises" },
-      { text: "API catalogue pour vos revendeurs" },
-      { text: "Estimation du coût d'import affichée au client" },
+      { key: "outil.crmExport" },
+      { key: "outil.resellerApi" },
+      { key: "outil.importCost" },
     ],
   },
   chauffeur: {
     individuel_plus: [
-      { text: "Profil mis en avant dans la rubrique Chauffeurs" },
-      { text: "Planning et indisponibilités" },
+      { key: "outil.driverSpotlight" },
+      { key: "outil.driverPlanning" },
     ],
     business: [
-      { text: "Société de chauffeurs : plusieurs chauffeurs sous un même compte" },
+      { key: "outil.driverCompany" },
     ],
     exportateur: [],
   },
@@ -158,13 +158,13 @@ export const OUTILS_PAR_SECTEUR = {
   pieces: { individuel_plus: [], business: [], exportateur: [] },
   loisirs: {
     individuel_plus: [
-      { text: "Mise en avant dans la rubrique Loisirs" },
-      { text: "Créneaux et capacité par séance" },
+      { key: "outil.leisureSpotlight" },
+      { key: "outil.leisureSlots" },
     ],
     business: [
-      { text: "Fermeture automatique selon la météo" },
-      { text: "Tarifs de groupe et de saison" },
-      { text: "Équipe de moniteurs sous un même compte" },
+      { key: "outil.weatherClose" },
+      { key: "outil.groupRates" },
+      { key: "outil.instructorTeam" },
     ],
     exportateur: [
     ],

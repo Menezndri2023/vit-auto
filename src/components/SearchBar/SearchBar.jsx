@@ -90,7 +90,7 @@ const SearchBar = memo(() => {
               className={styles.gpsBtn}
               onClick={handleUseGPS}
               disabled={geoLoading}
-              title="Utiliser ma position GPS"
+              title={t("search.useGps")}
             >
               {geoLoading ? "⏳" : "🎯"}
             </button>
