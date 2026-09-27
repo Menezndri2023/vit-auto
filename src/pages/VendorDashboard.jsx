@@ -270,11 +270,57 @@ const InfoLine = ({ label, value, color, mono }) => value ? (
 /* ══════════════════════════════════════════════════════════════════════════════
    MODAL GÉRER — Gestion complète, identité intégrée, workflow par type VIT-AUTO
    ══════════════════════════════════════════════════════════════════════════════ */
+// Compression et lecture d'image — HISSÉES au niveau module (2026-09-27) :
+// elles étaient locales au composant parent, donc invisibles depuis
+// GererModal, qui en a besoin pour les photos d'état des lieux. Les
+// redéclarer là-bas aurait fait deux implémentations à maintenir.
+//
+// Bug réel corrigé (audit) : appelée aussi sur `images[0]` déjà existant
+// (URL externe — ImageKit ou autre), pas seulement un nouvel upload en data
+// URI. Sans `crossOrigin` ni try/catch, un canvas "tainted" (hôte sans CORS)
+// fait lever toDataURL() une SecurityError SYNCHRONE dans img.onload, jamais
+// catchée — la Promise (resolve-only) ne se réglait alors JAMAIS : le
+// formulaire d'édition restait bloqué sur "Enregistrement…" indéfiniment.
+const compressImageEdit = (dataUrl, maxDim, quality) =>
+  new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width  = Math.round(img.width  * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      } catch {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+
+const readFileEdit = (file) =>
+  new Promise((resolve) => {
+    if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) return resolve(null);
+    const reader = new FileReader();
+    reader.onload = async (e) => resolve(await compressImageEdit(e.target.result, 1600, 0.78));
+    reader.readAsDataURL(file);
+  });
+
 function GererModal({ order, orderDetail, detailLoading, detailError, onClose, onConfirm, onPrepare, onReady, onInProgress,
   onClientArrived, onClientAbsent, onRecordTransaction, onPartnerConfirm, onReject, onTransactionNotConcluded, onRespondToDispute, onContactClient,
-  onClaimCaution, onRateClient, onShipPart, onDeliverPart, commRates = DEFAULT_COMM_RATE }) {
+  onClaimCaution, onRateClient, onShipPart, onDeliverPart,
+  onEtatDesLieux, onReportSeance, onReglerEcheance, commRates = DEFAULT_COMM_RATE }) {
   // Pièce détachée : suivi d'expédition saisi à l'expédition, acompte déclaré reçu.
   const [shipForm, setShipForm] = useState({ carrier: "", trackingNumber: "", depositReceived: false });
+  // ── Outils de palier (2026-09-27) ──────────────────────────────────────
+  const [edlForm, setEdlForm] = useState({ moment: "depart", photos: [], kilometrage: "", carburant: "", notes: "" });
+  const [edlBusy, setEdlBusy] = useState(false);
+  const [reportForm, setReportForm] = useState({ nouvelleDate: "", motif: "meteo", note: "" });
+  const [reportBusy, setReportBusy] = useState(false);
+  const [echeanceBusy, setEcheanceBusy] = useState(null);
   // Tous les hooks AVANT tout return conditionnel (règles des hooks React)
   const { fmt: fmtXOF } = useCurrency();
   const [cautionForm, setCautionForm] = useState({ retain: false, amount: "", reason: "" });
@@ -773,6 +819,204 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
                 )}
                 <li>Imprimez ou ayez sous la main le <Link to={`/contract/${order.id}`} target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb", fontWeight: 600 }}>reçu de réservation</Link> — à faire signer par le client {subType === "location_agence" ? "à l'agence" : "à la livraison"}.</li>
               </ul>
+            </div>
+          )}
+
+          {/* ── État des lieux photo (outil du palier Business) ───────────
+              La caution est le premier motif de friction de la location :
+              sans preuve horodatée, une retenue se discute parole contre
+              parole. Proposé au départ dès que le véhicule est prêt, et au
+              retour une fois la transaction conclue. ──────────────────── */}
+          {(subType === "location_agence" || subType === "location_domicile")
+            && ["ready", "in_progress", "client_arrived", "transaction_concluded", "waiting_client_validation", "completed"].includes(order.status) && (
+            <div className={styles.sectionCard}>
+              <div className={styles.sectionCardTitle}>📸 État des lieux</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                {["depart", "retour"].map((m) => {
+                  const fait = orderDetail?.etatDesLieux?.[m]?.faitLe;
+                  return (
+                    <button key={m} type="button"
+                      onClick={() => setEdlForm((f) => ({ ...f, moment: m }))}
+                      style={{ flex: 1, padding: "7px 10px", borderRadius: 8, fontSize: ".82rem", fontWeight: 600, cursor: "pointer",
+                        border: edlForm.moment === m ? "1.5px solid #2563eb" : "1.5px solid #e2e8f0",
+                        background: edlForm.moment === m ? "#eff6ff" : "#fff",
+                        color: fait ? "#059669" : "#334155" }}>
+                      {fait ? "✓ " : ""}{m === "depart" ? "Départ" : "Retour"}
+                      {fait && <span style={{ display: "block", fontWeight: 400, fontSize: ".72rem" }}>{new Date(fait).toLocaleDateString("fr-FR")}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              {orderDetail?.etatDesLieux?.[edlForm.moment]?.faitLe ? (
+                <div style={{ fontSize: ".84rem", color: "#334155" }}>
+                  <p style={{ margin: "0 0 8px" }}>
+                    Enregistré — {orderDetail.etatDesLieux[edlForm.moment].photos?.length || 0} photo(s).
+                    {orderDetail.etatDesLieux[edlForm.moment].kilometrage != null && ` ${orderDetail.etatDesLieux[edlForm.moment].kilometrage} km.`}
+                    {orderDetail.etatDesLieux[edlForm.moment].carburant != null && ` Carburant ${orderDetail.etatDesLieux[edlForm.moment].carburant} %.`}
+                  </p>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {(orderDetail.etatDesLieux[edlForm.moment].photos || []).map((u, i) => (
+                      <a key={i} href={u} target="_blank" rel="noopener noreferrer">
+                        <img src={u} alt={`État des lieux ${i + 1}`} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid #e2e8f0" }} />
+                      </a>
+                    ))}
+                  </div>
+                  <p style={{ margin: "8px 0 0", fontSize: ".78rem", color: "#6d7a95" }}>
+                    Un état des lieux ne se refait pas : il ferait foi contre le premier.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p className={styles.decisionHelp}>
+                    Photographiez le véhicule sous tous les angles. Sans preuve horodatée,
+                    une retenue sur caution se discute parole contre parole.
+                  </p>
+                  <input type="file" accept="image/*" multiple capture="environment"
+                    onChange={async (e) => {
+                      const fichiers = [...e.target.files].slice(0, 12 - edlForm.photos.length);
+                      const lues = (await Promise.all(fichiers.map(readFileEdit))).filter(Boolean);
+                      setEdlForm((f) => ({ ...f, photos: [...f.photos, ...lues].slice(0, 12) }));
+                      e.target.value = "";
+                    }}
+                    style={{ fontSize: ".82rem", marginBottom: 8 }} />
+                  {edlForm.photos.length > 0 && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                      {edlForm.photos.map((u, i) => (
+                        <div key={i} style={{ position: "relative" }}>
+                          <img src={u} alt={`Photo ${i + 1}`} style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6 }} />
+                          <button type="button" onClick={() => setEdlForm((f) => ({ ...f, photos: f.photos.filter((_, idx) => idx !== i) }))}
+                            style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: "50%", border: "none", background: "#dc2626", color: "#fff", fontSize: ".7rem", cursor: "pointer" }}
+                            aria-label="Retirer la photo">✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    <label style={{ flex: 1, fontSize: ".8rem", color: "#334155" }}>Kilométrage
+                      <input type="number" min="0" value={edlForm.kilometrage} onChange={(e) => setEdlForm((f) => ({ ...f, kilometrage: e.target.value }))} style={MI} placeholder="Ex : 84 500" />
+                    </label>
+                    <label style={{ flex: 1, fontSize: ".8rem", color: "#334155" }}>Carburant (%)
+                      <input type="number" min="0" max="100" value={edlForm.carburant} onChange={(e) => setEdlForm((f) => ({ ...f, carburant: e.target.value }))} style={MI} placeholder="Ex : 75" />
+                    </label>
+                  </div>
+                  <textarea value={edlForm.notes} onChange={(e) => setEdlForm((f) => ({ ...f, notes: e.target.value }))} rows={2} maxLength={1000}
+                    style={MI} placeholder="Rayures constatées, accessoires remis…" />
+                  <button type="button" className={styles.primaryBtn} style={{ marginTop: 8 }}
+                    disabled={edlBusy || edlForm.photos.length === 0}
+                    onClick={async () => {
+                      setEdlBusy(true);
+                      const ok = await onEtatDesLieux(order.id, { ...edlForm });
+                      setEdlBusy(false);
+                      if (ok) setEdlForm((f) => ({ ...f, photos: [], kilometrage: "", carburant: "", notes: "" }));
+                    }}>
+                    {edlBusy ? "Enregistrement…" : `Enregistrer l'état des lieux de ${edlForm.moment === "depart" ? "départ" : "retour"}`}
+                  </button>
+                  {edlForm.photos.length === 0 && (
+                    <p style={{ margin: "6px 0 0", fontSize: ".78rem", color: "#6d7a95" }}>
+                      Au moins une photo est requise : c'est tout l'objet d'un état des lieux.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── Report de séance (outil du palier Business) ────────────────
+              Une sortie annulée ne rapporte rien ; une sortie reportée se
+              facture. Le partenaire PROPOSE, le client accepte ou refuse —
+              déplacer une séance payée sans son accord reviendrait à
+              confisquer son paiement. ─────────────────────────────────── */}
+          {order.type === "activite" && ["pending", "confirmed", "preparing", "ready"].includes(order.status) && (
+            <div className={styles.sectionCard}>
+              <div className={styles.sectionCardTitle}>📅 Reporter la séance</div>
+              {orderDetail?.activite?.report?.proposeLe && !orderDetail.activite.report.accepteLe && !orderDetail.activite.report.refuseLe ? (
+                <p style={{ fontSize: ".84rem", color: "#334155", margin: 0 }}>
+                  Report proposé au {new Date(orderDetail.activite.report.nouvelleDate).toLocaleString("fr-FR")} —
+                  en attente de la réponse du client. Une seule proposition à la fois.
+                </p>
+              ) : (
+                <>
+                  <p className={styles.decisionHelp}>
+                    Météo, matériel, effectif : proposez une date plutôt que d'annuler.
+                    Une sortie annulée est remboursée ; une sortie reportée se facture.
+                  </p>
+                  {orderDetail?.activite?.report?.refuseLe && (
+                    <p style={{ fontSize: ".8rem", color: "#b45309", margin: "0 0 8px" }}>
+                      Le client a refusé la date précédente. Vous pouvez en proposer une autre.
+                    </p>
+                  )}
+                  <label style={{ fontSize: ".8rem", color: "#334155" }}>Nouvelle date et heure
+                    <input type="datetime-local" value={reportForm.nouvelleDate} onChange={(e) => setReportForm((f) => ({ ...f, nouvelleDate: e.target.value }))} style={MI} />
+                  </label>
+                  <label style={{ fontSize: ".8rem", color: "#334155", display: "block", marginTop: 8 }}>Motif
+                    <select value={reportForm.motif} onChange={(e) => setReportForm((f) => ({ ...f, motif: e.target.value }))} style={MI}>
+                      <option value="meteo">Météo</option>
+                      <option value="materiel">Matériel</option>
+                      <option value="effectif">Effectif</option>
+                      <option value="autre">Autre</option>
+                    </select>
+                  </label>
+                  <textarea value={reportForm.note} onChange={(e) => setReportForm((f) => ({ ...f, note: e.target.value }))} rows={2} maxLength={500}
+                    style={{ ...MI, marginTop: 8 }} placeholder="Un mot d'explication pour le client — mer agitée, vent trop fort…" />
+                  <button type="button" className={styles.primaryBtn} style={{ marginTop: 8 }}
+                    disabled={reportBusy || !reportForm.nouvelleDate}
+                    onClick={async () => {
+                      setReportBusy(true);
+                      const ok = await onReportSeance(order.id, { ...reportForm, nouvelleDate: new Date(reportForm.nouvelleDate).toISOString() });
+                      setReportBusy(false);
+                      if (ok) setReportForm({ nouvelleDate: "", motif: "meteo", note: "" });
+                    }}>
+                    {reportBusy ? "Envoi…" : "Proposer cette date au client"}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── Échéancier d'une mise à disposition (outil du palier Business)
+              L'échéancier DÉCOUPE le montant de la commande, il ne s'y ajoute
+              pas. Constater un règlement n'est pas verrouillé : sans cela,
+              l'argent rentrerait sans trace. ──────────────────────────── */}
+          {order.type === "chauffeur" && orderDetail?.chauffeur?.contrat?.dureeMois > 0 && (
+            <div className={styles.sectionCard}>
+              <div className={styles.sectionCardTitle}>
+                🧾 Contrat de mise à disposition — {orderDetail.chauffeur.contrat.dureeMois} mois
+              </div>
+              <p className={styles.decisionHelp}>
+                {fmtXOF(orderDetail.chauffeur.contrat.mensualiteUSD)} par mois
+                {orderDetail.chauffeur.contrat.remisePourcent > 0 && ` · remise d'engagement de ${orderDetail.chauffeur.contrat.remisePourcent} %`}.
+                Marquez chaque échéance encaissée au fur et à mesure.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {(orderDetail.chauffeur.contrat.echeances || []).map((e) => {
+                  const reglee = !!e.regleeLe;
+                  const due = !reglee && new Date(e.dateEcheance) <= new Date();
+                  return (
+                    <div key={e.numero} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", borderRadius: 8,
+                      background: reglee ? "#f0fdf4" : due ? "#fffbeb" : "#f8fafc",
+                      border: `1px solid ${reglee ? "#bbf7d0" : due ? "#fde68a" : "#e2e8f0"}` }}>
+                      <span style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", minWidth: 28 }}>#{e.numero}</span>
+                      <span style={{ fontSize: ".8rem", color: "#6d7a95", flex: 1 }}>
+                        {new Date(e.dateEcheance).toLocaleDateString("fr-FR")}
+                      </span>
+                      <strong style={{ fontSize: ".84rem" }}>{fmtXOF(e.montantUSD)}</strong>
+                      {reglee ? (
+                        <span style={{ fontSize: ".78rem", color: "#059669", fontWeight: 600 }}>✓ réglée</span>
+                      ) : (
+                        <button type="button" className={styles.secondaryBtn} style={{ padding: "4px 10px", fontSize: ".78rem" }}
+                          disabled={echeanceBusy === e.numero}
+                          onClick={async () => {
+                            setEcheanceBusy(e.numero);
+                            await onReglerEcheance(order.id, e.numero, "");
+                            setEcheanceBusy(null);
+                          }}>
+                          {echeanceBusy === e.numero ? "…" : "Marquer réglée"}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -2067,33 +2311,6 @@ export default function VendorDashboard() {
   // fait lever toDataURL() une SecurityError SYNCHRONE dans img.onload, jamais
   // catchée — la Promise (resolve-only) ne se réglait alors JAMAIS : le
   // formulaire d'édition restait bloqué sur "Enregistrement…" indéfiniment.
-  const compressImageEdit = (dataUrl, maxDim, quality) =>
-    new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        try {
-          const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-          const canvas = document.createElement("canvas");
-          canvas.width  = Math.round(img.width  * scale);
-          canvas.height = Math.round(img.height * scale);
-          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL("image/jpeg", quality));
-        } catch {
-          resolve(dataUrl);
-        }
-      };
-      img.onerror = () => resolve(dataUrl);
-      img.src = dataUrl;
-    });
-
-  const readFileEdit = (file) =>
-    new Promise((resolve) => {
-      if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) return resolve(null);
-      const reader = new FileReader();
-      reader.onload = async (e) => resolve(await compressImageEdit(e.target.result, 1600, 0.78));
-      reader.readAsDataURL(file);
-    });
 
   const addEditPhotos = async (files) => {
     const remaining = MAX_PHOTOS_EDIT - editPhotos.length;
@@ -2624,6 +2841,42 @@ export default function VendorDashboard() {
       if (r.ok) { toastSuccess("💳 Caution traitée."); setTimeout(() => refreshOrders(), 500); }
       else toastError(d.message || "Erreur.");
     } catch { toastError("Erreur réseau."); }
+  }, [token, toastSuccess, toastError, refreshOrders]);
+
+  // ── Outils de palier : état des lieux, report de séance, échéancier ──────
+  // Même forme que les handlers voisins : un PATCH, un toast, un rafraîchi.
+  // Le serveur reverrouille chacun — le tableau de bord n'autorise rien.
+  const handleEtatDesLieux = useCallback(async (id, payload) => {
+    if (!token) return false;
+    try {
+      const r = await fetch(`/api/bookings/${id}/etat-des-lieux`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+      const d = await r.json();
+      if (r.ok) { toastSuccess(`📸 État des lieux de ${payload.moment === "depart" ? "départ" : "retour"} enregistré.`); setTimeout(() => refreshOrders(), 500); return true; }
+      toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
+    return false;
+  }, [token, toastSuccess, toastError, refreshOrders]);
+
+  const handleReportSeance = useCallback(async (id, payload) => {
+    if (!token) return false;
+    try {
+      const r = await fetch(`/api/bookings/${id}/report-seance`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+      const d = await r.json();
+      if (r.ok) { toastSuccess("📅 Nouvelle date proposée — le client doit l'accepter."); setTimeout(() => refreshOrders(), 500); return true; }
+      toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
+    return false;
+  }, [token, toastSuccess, toastError, refreshOrders]);
+
+  const handleReglerEcheance = useCallback(async (id, numero, moyenPaiement) => {
+    if (!token) return false;
+    try {
+      const r = await fetch(`/api/bookings/${id}/echeance/${numero}`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ moyenPaiement }) });
+      const d = await r.json();
+      if (r.ok) { toastSuccess(`🧾 Échéance ${numero} marquée réglée.`); setTimeout(() => refreshOrders(), 500); return true; }
+      toastError(d.message || "Erreur.");
+    } catch { toastError("Erreur réseau."); }
+    return false;
   }, [token, toastSuccess, toastError, refreshOrders]);
 
   const handlePartnerConfirm = useCallback(async (id, payload) => {
@@ -4313,6 +4566,9 @@ export default function VendorDashboard() {
           onReady={handleReady}
           onInProgress={handleInProgress}
           onClientArrived={handleClientArrived}
+          onEtatDesLieux={handleEtatDesLieux}
+          onReportSeance={handleReportSeance}
+          onReglerEcheance={handleReglerEcheance}
           onClientAbsent={handleClientAbsent}
           onRecordTransaction={handleRecordTransaction}
           onPartnerConfirm={handlePartnerConfirm}

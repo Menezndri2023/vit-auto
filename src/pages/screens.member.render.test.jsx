@@ -5,6 +5,7 @@ import { renderPage, connecter, utilisateurTest, surveillerErreurs, MOTIFS_DE_PL
 import Dashboard from "./Dashboard";
 import Profile from "./Profile";
 import VendorDashboard from "./VendorDashboard";
+import BilletScan from "./BilletScan";
 
 // Écrans réservés aux comptes connectés, un par rôle.
 //
@@ -33,6 +34,19 @@ describe("Écrans membres — rendu", () => {
     connecter(utilisateurTest("client"));
     renderPage(<Profile />, { route: "/profile" });
     verifier("Profil");
+  });
+
+  // Le partenaire y arrive depuis l'appareil photo de son téléphone : si
+  // cette page plante, il a le client devant lui et aucun recours.
+  it("Validation d'un billet — partenaire connecté", () => {
+    connecter(utilisateurTest("partenaire"));
+    renderPage(<BilletScan />, { route: "/billet/" + "a".repeat(64) });
+    verifier("Validation d'un billet");
+  });
+
+  it("Validation d'un billet — visiteur non connecté", () => {
+    renderPage(<BilletScan />, { route: "/billet/" + "a".repeat(64) });
+    verifier("Validation d'un billet (visiteur)");
   });
 
   it("Espace partenaire", () => {

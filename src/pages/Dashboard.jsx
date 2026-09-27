@@ -86,6 +86,13 @@ const normalizeBooking = (b) => {
     chauffeurDuree:       libelleDureeChauffeur(b.chauffeur),
     chauffeurLieuDepart:  b.chauffeur?.lieuDepart,
     chauffeurDestination: b.chauffeur?.destination,
+    // Activité — le sous-document ENTIER, et non des champs aplatis un par un :
+    // il porte le billet à QR code et le report de séance (2026-09-27), et ce
+    // mappeur est une liste blanche — un champ oublié ici disparaît sans un
+    // mot, comme les paliers de groupe côté serveur.
+    activite:      b.activite || null,
+    // Contrat de mise à disposition longue durée (échéancier).
+    chauffeurContrat: b.chauffeur?.contrat?.dureeMois ? b.chauffeur.contrat : null,
     // Pièce détachée (livrée)
     piece:         b.piece || null,
     partId:        prt?._id?.toString() || (typeof b.part === "string" ? b.part : null),
@@ -1164,6 +1171,41 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
   const { token } = useAuth();
   const [contacting, setContacting] = useState(false);
   const [payingNow, setPayingNow] = useState(false);
+  // ── Outils de palier côté client (2026-09-27) ──────────────────────────
+  // Le billet n'est PAS chargé d'office : le générer demande au serveur une
+  // image PNG par réservation, et la plupart des cartes ne seront jamais
+  // dépliées. Il est demandé au clic.
+  const [billet, setBillet] = useState(null);
+  const [billetEtat, setBilletEtat] = useState("repos"); // repos | charge | erreur
+  const [billetErreur, setBilletErreur] = useState("");
+  const [reportBusy, setReportBusy] = useState(false);
+
+  const demanderBillet = async () => {
+    if (!token || billetEtat === "charge") return;
+    setBilletEtat("charge"); setBilletErreur("");
+    try {
+      const r = await fetch(`/api/bookings/${booking.id}/billet`, { headers: { Authorization: `Bearer ${token}` } });
+      const d = await r.json();
+      if (r.ok) { setBillet(d); setBilletEtat("repos"); }
+      else { setBilletErreur(d.message || "Billet indisponible."); setBilletEtat("erreur"); }
+    } catch { setBilletErreur("Réseau indisponible."); setBilletEtat("erreur"); }
+  };
+
+  const repondreAuReport = async (accepte) => {
+    if (!token) return;
+    setReportBusy(true);
+    try {
+      const r = await fetch(`/api/bookings/${booking.id}/report-seance/reponse`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ accepte }),
+      });
+      const d = await r.json();
+      if (r.ok) { toastSuccessModify(accepte ? "✅ Nouvelle date acceptée." : "Report refusé."); setTimeout(() => window.location.reload(), 900); }
+      else toastErr(d.message || "Erreur.");
+    } catch { toastErr("Réseau indisponible."); }
+    setReportBusy(false);
+  };
 
   // ── Modification des dates (location uniquement) ──────────────────────────
   // Jusqu'ici seule l'annulation était possible — un client devait tout annuler
@@ -1551,6 +1593,100 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
             transaction_concluded, waiting_client_validation) et en cas de
             litige : le client arrivait à l'agence, le partenaire le marquait
             « arrivé », et le document à présenter s'évanouissait de son écran. */}
+        {/* ── Report de séance proposé par le partenaire ────────────────
+            Le partenaire propose, le CLIENT tranche : déplacer une séance
+            payée sans son accord reviendrait à confisquer son paiement. */}
+        {booking.activite?.report?.proposeLe && !booking.activite.report.accepteLe && !booking.activite.report.refuseLe && (
+          <div style={{ margin: "10px 0", padding: 12, borderRadius: 10, background: "#eff6ff", border: "1.5px solid #bfdbfe" }}>
+            <strong style={{ display: "block", fontSize: ".9rem", color: "#1e40af" }}>📅 Nouvelle date proposée</strong>
+            <p style={{ margin: "6px 0", fontSize: ".86rem", color: "#334155" }}>
+              Le partenaire propose de reporter votre séance au{" "}
+              <strong>{new Date(booking.activite.report.nouvelleDate).toLocaleString("fr-FR")}</strong>
+              {booking.activite.report.motif && ` (${{ meteo: "météo", materiel: "matériel", effectif: "effectif", autre: "autre motif" }[booking.activite.report.motif] || booking.activite.report.motif})`}.
+            </p>
+            {booking.activite.report.note && (
+              <p style={{ margin: "0 0 8px", fontSize: ".84rem", color: "#475569", fontStyle: "italic" }}>« {booking.activite.report.note} »</p>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" className={styles.btnContract} disabled={reportBusy} onClick={() => repondreAuReport(true)}>
+                {reportBusy ? "…" : "✅ J'accepte cette date"}
+              </button>
+              <button type="button" className={styles.btnContract}
+                style={{ background: "transparent", border: "1.5px solid currentColor", cursor: "pointer", font: "inherit" }}
+                disabled={reportBusy} onClick={() => repondreAuReport(false)}>
+                Refuser
+              </button>
+            </div>
+            <p style={{ margin: "8px 0 0", fontSize: ".78rem", color: "#6d7a95" }}>
+              En refusant, votre séance reste à la date d'origine — vous pourrez l'annuler si elle ne vous convient plus.
+            </p>
+          </div>
+        )}
+
+        {/* ── Billet à QR code (séances de loisirs) ─────────────────────── */}
+        {booking.type === "activite" && ["confirmed", "preparing", "ready", "in_progress"].includes(booking.status) && booking.id && (
+          <div style={{ margin: "10px 0", padding: 12, borderRadius: 10, background: "#fafafa", border: "1.5px solid #e2e8f0" }}>
+            <strong style={{ display: "block", fontSize: ".9rem", color: "#0f1b3f" }}>🎟️ Votre billet</strong>
+            {booking.activite?.billet?.scanneLe ? (
+              <p style={{ margin: "6px 0 0", fontSize: ".86rem", color: "#059669" }}>
+                ✓ Présenté le {new Date(booking.activite.billet.scanneLe).toLocaleString("fr-FR")}.
+              </p>
+            ) : billet ? (
+              <div style={{ textAlign: "center", marginTop: 8 }}>
+                <img src={billet.qr} alt="QR code de votre billet" style={{ width: 200, height: 200, maxWidth: "100%" }} />
+                <p style={{ margin: "6px 0 0", fontSize: ".82rem", color: "#475569" }}>
+                  {billet.participants} participant{billet.participants > 1 ? "s" : ""} · {billet.reference}
+                </p>
+                <p style={{ margin: "4px 0 0", fontSize: ".78rem", color: "#6d7a95" }}>
+                  À présenter à l'arrivée. Il ne sert qu'une fois — ne le partagez pas.
+                </p>
+              </div>
+            ) : (
+              <>
+                <p style={{ margin: "6px 0", fontSize: ".84rem", color: "#475569" }}>
+                  Présentez-le à l'arrivée plutôt qu'une liste papier.
+                </p>
+                <button type="button" className={styles.btnContract} disabled={billetEtat === "charge"} onClick={demanderBillet}>
+                  {billetEtat === "charge" ? "…" : "Afficher mon billet"}
+                </button>
+                {billetEtat === "erreur" && (
+                  <p style={{ margin: "6px 0 0", fontSize: ".82rem", color: "#b45309" }}>{billetErreur}</p>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── Échéancier d'une mise à disposition longue durée ───────────
+            En lecture seule : c'est le partenaire qui encaisse et constate. */}
+        {booking.chauffeurContrat && (
+          <div style={{ margin: "10px 0", padding: 12, borderRadius: 10, background: "#fafafa", border: "1.5px solid #e2e8f0" }}>
+            <strong style={{ display: "block", fontSize: ".9rem", color: "#0f1b3f" }}>
+              🧾 Contrat de {booking.chauffeurContrat.dureeMois} mois
+            </strong>
+            <p style={{ margin: "6px 0", fontSize: ".84rem", color: "#475569" }}>
+              {fmt(booking.chauffeurContrat.mensualiteUSD)} par mois
+              {booking.chauffeurContrat.remisePourcent > 0 && ` — remise d'engagement de ${booking.chauffeurContrat.remisePourcent} %`}.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {(booking.chauffeurContrat.echeances || []).map((e) => {
+                const reglee = !!e.regleeLe;
+                const due = !reglee && new Date(e.dateEcheance) <= new Date();
+                return (
+                  <div key={e.numero} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: ".82rem", padding: "4px 0", borderTop: "1px solid #e9eef5" }}>
+                    <span style={{ minWidth: 26, fontWeight: 700, color: "#334155" }}>#{e.numero}</span>
+                    <span style={{ flex: 1, color: "#6d7a95" }}>{new Date(e.dateEcheance).toLocaleDateString("fr-FR")}</span>
+                    <strong>{fmt(e.montantUSD)}</strong>
+                    <span style={{ minWidth: 68, textAlign: "right", fontWeight: 600, color: reglee ? "#059669" : due ? "#b45309" : "#6d7a95" }}>
+                      {reglee ? "✓ réglée" : due ? "à régler" : "à venir"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Pièce détachée : pas de contrat de location — seul le reçu (après
             réception) a un sens. */}
         {!isPiece && ["confirmed", "preparing", "ready", "in_progress", "client_arrived", "client_absent",

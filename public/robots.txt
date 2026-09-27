@@ -12,6 +12,7 @@ Disallow: /verify-email
 Disallow: /payment/
 Disallow: /sign/
 Disallow: /stats
+Disallow: /billet/
 
 # Les mêmes espaces sous préfixe de langue (/en/, /ar/, /es/, /zh/).
 # Depuis que la langue est dans l'URL (2026-09-25), /en/admin et /ar/kyc
@@ -28,6 +29,7 @@ Disallow: /*/reset-password
 Disallow: /*/verify-email
 Disallow: /*/payment/
 Disallow: /*/sign/
+Disallow: /*/billet/
 Disallow: /*/stats
 
 Sitemap: https://vit-auto.com/sitemap.xml

@@ -58,6 +58,7 @@ const ServiceRequest        = lazy(() => import("./pages/ServiceRequest"));
 const Favorites             = lazy(() => import("./pages/Favorites"));
 const Help                  = lazy(() => import("./pages/Help"));
 const ContractPage          = lazy(() => import("./pages/ContractPage"));
+const BilletScan   = lazy(() => import("./pages/BilletScan"));
 const Loyalty                = lazy(() => import("./pages/Loyalty"));
 const Privacy               = lazy(() => import("./pages/Privacy"));
 const FAQ                   = lazy(() => import("./pages/FAQ"));
@@ -204,6 +205,9 @@ function AppRoutes({ splashDone, onSplashDone }) {
           <Route path="/loyalty"                element={<ErrorBoundary><Loyalty /></ErrorBoundary>} />
           <Route path="/kyc"                    element={<ErrorBoundary><KYC /></ErrorBoundary>} />
           <Route path="/contract/:bookingId"    element={<ErrorBoundary><ContractPage /></ErrorBoundary>} />
+          {/* Billet de séance : l'adresse encodée dans le QR code. L'appareil
+              photo du téléphone la lit et l'ouvre — aucun scanner embarqué. */}
+          <Route path="/billet/:jeton"          element={<ErrorBoundary><BilletScan /></ErrorBoundary>} />
 
           {/* ── Espace partenaire (PartnerRoute = auth + rôle partenaire/admin) ── */}
           <Route path="/vendor"           element={<PartnerRoute><ErrorBoundary><VendorSubmit /></ErrorBoundary></PartnerRoute>} />
