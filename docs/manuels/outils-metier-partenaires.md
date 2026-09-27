@@ -688,8 +688,51 @@ Les neuf outils du §5 sont livrés. Reste hors périmètre, documenté et assum
   réseau de confrères, donc un nombre de partenaires que nous n'avons pas
   encore atteint.
 
-**À reprendre.** Les tests de verrou des outils livrés avant le 27/09 ne
-simulent pas la fin de l'immunité de lancement (`FIN_IMMUNITE_QUOTAS`,
-10/09/2027) : ils sont verts en ne vérifiant rien, et la fuite n'apparaîtrait
-qu'à cette date. Les deux derniers outils avancent l'horloge ; les sept autres
-doivent suivre.
+## 16. Décision de l'exploitant du 2026-09-27 — le verrou est actif
+
+> « Pour les outils en abonnement, mets le verrou. Tous les outils ne font pas
+> partie de l'offre partenaire ; pour l'instant tout partenaire doit utiliser
+> les outils strictement nécessaires et offerts comme offre partenaire. »
+
+`FIN_IMMUNITE_OUTILS` (2026-09-27) sépare ce qui était confondu :
+
+| Immunité | Portée | Échéance |
+|---|---|---|
+| `FIN_IMMUNITE_OUTILS` | outils d'abonnement | **échue** — verrou actif |
+| `FIN_IMMUNITE_QUOTAS` | quotas d'annonces, cumul de secteurs | 10/09/2027 |
+
+Deux promesses distinctes : on ne retire pas des annonces déjà en ligne, mais
+un outil vendu doit être vendu. Restent deux passe-droits — l'administrateur,
+et le Partenaire Fondateur en cours, qui est l'offre signée.
+
+**Ce qui reste offert à tous** n'est pas une exception : c'est l'absence
+d'entrée dans `FEATURE_MIN_PLAN`. Aucune garde ne ferme le socle — planning et
+indisponibilités d'un chauffeur, créneaux et capacité d'une séance, suivi de
+stock, page de vitrine publique, tarif au mois.
+
+**La dette de la §15 est soldée**, et autrement que prévu. Les tests de verrou
+n'ont plus besoin d'avancer l'horloge : la règle de production est celle qu'ils
+exercent. Surtout, `tests/planOutils.test.js` ne teste plus une liste recopiée
+mais parcourt **toute la matrice** — un outil ajouté demain sans verrou, ou
+ouvert à un compte gratuit, fait rougir la garde sans que personne y pense.
+Vérifié en posant `billetQrCode: "free"` : la garde le nomme.
+
+**Ce que la bascule a révélé** : 21 tests passaient grâce à l'immunité, dont
+ceux du billet, du contrat longue durée, des zones chauffeur et de la vitrine.
+Ils croyaient vérifier un outil ouvert par le palier ; ils vérifiaient un outil
+ouvert par la date. `createUser({ isFounder: true })` n'y était pour rien —
+`fondateurActif` lit un dossier `PartnerOnboarding`, pas ce champ. D'où les
+fixtures `donnerPalier()` et `rendreFondateur()`, qui donnent un palier RÉEL.
+
+⚠️ **Effet sur les configurations déjà posées** : le verrou s'applique là où il
+a toujours été, au moment de POSER ou MODIFIER. Une zone tarifaire déjà
+enregistrée continue de s'appliquer ; le partenaire ne peut plus en ajouter, et
+peut toujours les retirer. Neutraliser l'existant changerait le prix de
+commandes en cours sous les clients — cela demanderait une décision explicite.
+L'exposition est nulle en pratique : les outils n'avaient aucun écran avant ce
+jour-là.
+
+⚠️ **Conséquence à traiter** : un partenaire non abonné découvre le refus AU
+CLIC. Les formulaires livrés en septembre annoncent le palier requis à côté du
+champ ; les outils plus anciens — promotions, tarifs saisonniers, import de
+flotte, showroom, CRM — ne le font pas encore.

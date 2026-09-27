@@ -3,7 +3,8 @@
 Rédigé le 2026-09-14, d'après l'état réel de la plateforme à cette date.
 Décisions de l'exploitant du même jour : un partenaire ne voit et ne publie
 que dans son secteur ; le cumul de secteurs est un avantage de plan ; les
-quotas existent, adaptés au plan, avec immunité de lancement ; le socle
+quotas existent, adaptés au plan, avec immunité de lancement jusqu'au
+10/09/2027 — les OUTILS, eux, sont verrouillés depuis le 27/09/2026 ; le socle
 gratuit se limite au strict nécessaire.
 
 ## Trois axes, jamais mélangés
@@ -139,21 +140,47 @@ créé :
 | Showroom personnalisé | Business | `PUT /api/pms/showroom/me`, `POST …/publish` |
 | CRM leads et devis | Business | écritures `/api/pms/leads*`, `/api/pms/quotes*` |
 
-Trois passe-droits, dans cet ordre : administrateur ; **immunité de lancement
-jusqu'au 10 septembre 2027** (même date que les quotas — aucun partenaire ne
-perd aujourd'hui un outil qu'il utilise, la règle prend effet à la date
-prévue) ; **Partenaire Fondateur en cours** (dossier signé, douze mois). Un
-membre d'équipe hérite du plan du titulaire. Refus : `403`, code
-`PLAN_REQUIS`, message avec le nom commercial du palier ; l'interface affiche
-ce message tel quel (toast) et renvoie vers la page Tarifs.
+⚠️ **Les verrous d'outils sont ACTIFS depuis le 27 septembre 2026**
+(`FIN_IMMUNITE_OUTILS`), décision de l'exploitant : « tous les outils ne font
+pas partie de l'offre partenaire ; pour l'instant tout partenaire doit
+utiliser les outils strictement nécessaires et offerts ». L'immunité de
+lancement ne couvre donc PLUS les outils — elle continue de couvrir les
+quotas d'annonces jusqu'au 10 septembre 2027 (`FIN_IMMUNITE_QUOTAS`). Deux
+promesses distinctes, deux constantes distinctes : on ne retire pas des
+annonces déjà en ligne, mais un outil vendu doit être vendu.
+
+Restent **deux** passe-droits, dans cet ordre : administrateur (il agit sur
+les annonces de n'importe quel partenaire et n'a pas d'abonnement) ;
+**Partenaire Fondateur en cours** (dossier signé, `lockedAt` posé, douze
+mois — c'est l'offre signée). Un membre d'équipe hérite du plan du titulaire.
+Refus : `403`, code `PLAN_REQUIS`, message avec le nom commercial du palier ;
+l'interface affiche ce message tel quel (toast) et renvoie vers la page
+Tarifs.
+
+**Ce qui reste offert à tous** n'est pas une exception au verrou : c'est
+l'ABSENCE d'entrée dans `FEATURE_MIN_PLAN`. Aucune garde ne ferme le socle —
+planning et indisponibilités d'un chauffeur, créneaux et capacité d'une
+séance, suivi de stock d'une pièce, page de vitrine publique, tarif au mois.
+Voir `SOCLE_GRATUIT` et `GRATUIT_PAR_SECTEUR` (miroir d'affichage).
+
+⚠️ **Effet sur les configurations déjà posées** : le verrou s'applique là où
+il a toujours été — au moment de POSER ou de MODIFIER une configuration. Une
+zone tarifaire ou un palier de groupe déjà enregistré continue de s'appliquer
+au calcul ; le partenaire ne peut simplement plus en ajouter, et peut toujours
+les retirer. Neutraliser rétroactivement l'existant changerait le prix de
+commandes en cours sous les clients : ce n'est pas fait, et cela demanderait
+une décision explicite.
 
 Les avantages transversaux (statistiques, export, équipe, API, assistance,
 demandes en avance, bilan mensuel) restent régis par `exigeFonctionnalite`,
 sans immunité : ils n'ont jamais été ouverts aux comptes gratuits.
 
-Pour activer les verrous plus tôt que la date : avancer `FIN_IMMUNITE_QUOTAS`
-(`server/constants/planFeatures.js` et son miroir `src/`), ce qui active
-quotas ET verrous d'outils en même temps — les deux vont ensemble.
+Les deux immunités sont désormais INDÉPENDANTES : `FIN_IMMUNITE_OUTILS`
+(échue) gouverne les outils, `FIN_IMMUNITE_QUOTAS` (10/09/2027) les quotas
+d'annonces. Pour activer les quotas plus tôt, avancer la seconde — et son
+miroir `src/`. La garde `tests/planOutils.test.js` parcourt la matrice
+ENTIÈRE : tout outil ajouté sans verrou, ou ouvert à un compte gratuit, la
+fait rougir.
 
 ## Documents demandés — adaptés au service et à l'entité (2026-09-15)
 
@@ -193,5 +220,11 @@ Source : `server/utils/publishingGate.js` (`refusDePublication`), `driverControl
 - **Quota vu depuis le formulaire de publication** : le refus arrive à
   l'envoi, avec le message du serveur ; un compteur avant saisie serait plus
   aimable.
-- **Verrous visibles avant le clic** : après l'immunité, les boutons des
-  outils non inclus devraient afficher un cadenas plutôt qu'un refus au clic.
+- **Verrous visibles avant le clic** ⚠️ *devenu réel le 27/09/2026* : les
+  verrous étant actifs, un partenaire non abonné découvre le refus AU CLIC
+  (toast `PLAN_REQUIS` + renvoi vers Tarifs). Les formulaires livrés en
+  septembre annoncent le palier requis à côté du champ (« inclus à partir de
+  Business ») ; les outils plus anciens — promotions, tarifs saisonniers,
+  import de flotte, showroom, CRM — ne le font pas encore. Le front ignore
+  volontairement le palier réel (immunité, exemption fondateur, équipe
+  rattachée) : afficher un cadenas demande de le LIRE, pas de le deviner.

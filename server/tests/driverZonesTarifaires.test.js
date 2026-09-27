@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createBooking } from "../controllers/bookingController.js";
 import { updateDriver } from "../controllers/driverController.js";
 import Driver from "../models/Driver.js";
-import { createUser, createDriverDoc } from "./helpers/fixtures.js";
+import { createUser, createDriverDoc, donnerPalier } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 // ── Zones tarifaires chauffeur (2026-09-26) ────────────────────────────────
@@ -32,7 +32,11 @@ const reserver = async (driver, chauffeur) => {
 
 describe("Chauffeur — supplément par zone", () => {
   const avecZones = async (zones) => {
+    // ⚠️ Depuis le 2026-09-27, définir des zones demande le palier Essentiel
+    // RÉEL : l'immunité de lancement ne couvre plus les outils.
     const owner = await createUser({ role: "partenaire", isFounder: true });
+    await donnerPalier(owner, "individuel_plus");
+    await donnerPalier(owner, "individuel_plus");
     const driver = await createDriverDoc({ owner: owner._id, tarifHeure: 100 });
     await Driver.updateOne({ _id: driver._id }, { $set: { zonesTarifaires: zones } });
     return { owner, driver };
@@ -75,6 +79,7 @@ describe("Chauffeur — supplément par zone", () => {
 
   it("refuse deux zones de même nom, et une zone sans nom", async () => {
     const owner = await createUser({ role: "partenaire", isFounder: true });
+    await donnerPalier(owner, "individuel_plus");
     const driver = await createDriverDoc({ owner: owner._id });
 
     const doublon = mockReqRes({ user: owner, params: { id: driver._id.toString() }, body: {
@@ -99,6 +104,7 @@ describe("Chauffeur — supplément par zone", () => {
 
   it("enregistre des zones valides et permet toujours de les retirer", async () => {
     const owner = await createUser({ role: "partenaire", isFounder: true });
+    await donnerPalier(owner, "individuel_plus");
     const driver = await createDriverDoc({ owner: owner._id });
 
     const pose = mockReqRes({ user: owner, params: { id: driver._id.toString() }, body: {

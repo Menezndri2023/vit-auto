@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createListing as createListingCtrl, updateListing } from "../controllers/importExportController.js";
 import ImportExportListing from "../models/ImportExportListing.js";
-import { createUser, createImporterProfile } from "./helpers/fixtures.js";
+import { createUser, createImporterProfile, donnerPalier } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 // Prix par Incoterm — persistance jusqu'en base.
@@ -29,8 +29,15 @@ const baseListing = (over = {}) => ({
 });
 
 async function exportateur() {
+  // ⚠️ Plusieurs prix pour un même véhicule, un par Incoterm, est l'outil
+  // `incotermsMultiples` (palier Essentiel). Depuis le 2026-09-27 l'immunité
+  // de lancement ne couvre plus les outils : il faut un palier RÉEL —
+  // `isFounder: true` n'ouvre rien, `fondateurActif` lisant un dossier
+  // PartnerOnboarding. Le palier gratuit garde UN prix et UN Incoterm, ce qui
+  // suffit pour vendre.
   const user = await createUser({ role: "partenaire", isFounder: true });
   await createImporterProfile(user._id, { status: "verified" });
+  await donnerPalier(user, "individuel_plus");
   return user;
 }
 

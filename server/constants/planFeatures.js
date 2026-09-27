@@ -167,6 +167,31 @@ export const PLAN_QUOTA_ANNONCES = {
 // Partenaires Fondateurs restent exemptés pendant leurs douze mois.
 export const FIN_IMMUNITE_QUOTAS = new Date("2027-09-10T00:00:00Z");
 
+// ── Fin de l'immunité sur les OUTILS — décision de l'exploitant, 2026-09-27 ─
+//
+// Distincte de l'immunité sur les quotas ci-dessus, et volontairement :
+//  · les QUOTAS d'annonces restent immunisés jusqu'au 10/09/2027 — on ne
+//    retire pas à un partenaire des annonces déjà en ligne ;
+//  · les OUTILS d'abonnement sont verrouillés DÈS MAINTENANT. « Tous les
+//    outils ne font pas partie de l'offre partenaire : pour l'instant tout
+//    partenaire doit utiliser les outils strictement nécessaires et offerts. »
+//
+// Ce qui reste ouvert à tous n'est pas défini ici mais par ABSENCE de
+// `FEATURE_MIN_PLAN` : le socle (voir src/constants/planFeatures.js,
+// SOCLE_GRATUIT et GRATUIT_PAR_SECTEUR) n'a aucune entrée dans la matrice,
+// donc aucune garde ne le ferme. Le planning et les indisponibilités d'un
+// chauffeur, les créneaux et la capacité d'une séance, le suivi de stock, la
+// page de vitrine publique : toujours gratuits.
+//
+// Les deux autres passe-droits d'`outilOuvert` demeurent : un administrateur
+// agit sur les annonces de n'importe quel partenaire, et un Partenaire
+// Fondateur en cours a tout — c'est l'offre signée.
+//
+// ⚠️ La date reste une CONSTANTE plutôt qu'une suppression du mécanisme :
+// elle documente la décision, et les tests peuvent encore exercer la période
+// d'immunité en injectant une date antérieure (`{ maintenant: () => … }`).
+export const FIN_IMMUNITE_OUTILS = new Date("2026-09-27T00:00:00Z");
+
 export const secteursDuPlan      = (plan) => (plan in PLAN_SECTEURS ? PLAN_SECTEURS[plan] : PLAN_SECTEURS.free);
 export const quotaAnnoncesDuPlan = (plan) => (plan in PLAN_QUOTA_ANNONCES ? PLAN_QUOTA_ANNONCES[plan] : PLAN_QUOTA_ANNONCES.free);
 

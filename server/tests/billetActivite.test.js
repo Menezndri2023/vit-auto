@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { createBooking, emettreBillet, scannerBillet } from "../controllers/bookingController.js";
 import Booking from "../models/Booking.js";
 import Subscription from "../models/Subscription.js";
 import { nouveauJeton, refusDeScan, horsCreneau } from "../services/billetActivite.js";
-import { createUser, createActivityDoc } from "./helpers/fixtures.js";
+import { createUser, createActivityDoc, donnerPalier } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 // ── Billet à QR code (2026-09-27) ──────────────────────────────────────────
@@ -19,7 +19,11 @@ import { mockReqRes } from "./helpers/mockReqRes.js";
 const clientInfo = { firstName: "Jean", lastName: "Client", email: "jean.client@example.test", passportNumber: "P1234567" };
 
 async function seanceReservee({ date = "2027-05-01T09:00:00.000Z", participants = 2 } = {}) {
+  // ⚠️ Depuis le 2026-09-27 l'immunité ne couvre plus les outils : émettre un
+  // billet demande le palier Premium RÉEL du PARTENAIRE (c'est lui qui achète
+  // l'outil, pas le client).
   const owner = await createUser({ role: "partenaire", isFounder: true });
+  await donnerPalier(owner, "exportateur");
   const activity = await createActivityDoc({ owner: owner._id, price: 50, priceUnit: "per_person", capacity: 10 });
   const client = await createUser({ role: "client", emailVerified: true });
   const { req, res } = mockReqRes({
@@ -181,12 +185,9 @@ describe("Billet — qui a le droit", () => {
 });
 
 describe("Billet — verrou de palier", () => {
-  // ⚠️ L'immunité de lancement (FIN_IMMUNITE_QUOTAS, 10/09/2027) ouvre tous
-  // les outils à tous jusqu'à cette date : sans avancer l'horloge, ce test
-  // serait vert en ne vérifiant rien.
-  const APRES_IMMUNITE = new Date("2027-10-01T00:00:00Z");
-  afterEach(() => vi.useRealTimers());
-
+  // ⚠️ Ces tests avançaient l'horloge au-delà de l'immunité de lancement,
+  // faute de quoi ils étaient verts sans rien vérifier. Décision de
+  // l'exploitant du 2026-09-27 : le verrou des outils est actif maintenant.
   const seanceChezPartenaireOrdinaire = async () => {
     const owner = await createUser({ role: "partenaire" });
     const activity = await createActivityDoc({ owner: owner._id, price: 50, priceUnit: "per_person", capacity: 10 });
@@ -202,8 +203,6 @@ describe("Billet — verrou de palier", () => {
 
   it("sans le palier Premium, aucun billet n'est émis", async () => {
     const { client, booking } = await seanceChezPartenaireOrdinaire();
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(APRES_IMMUNITE);
     const res = await emettre(client, booking);
     expect(res.statusCode).toBe(403);
     expect(res.body.feature).toBe("billetQrCode");
@@ -213,24 +212,21 @@ describe("Billet — verrou de palier", () => {
     // Un client au palier gratuit chez un partenaire Premium obtient son
     // billet : c'est le partenaire qui achète l'outil, pas lui.
     const { owner, client, booking } = await seanceChezPartenaireOrdinaire();
-    await Subscription.create({
-      vendor: owner._id, plan: "exportateur",
-      planDetails: { isActive: true, startDate: new Date("2027-01-01"), endDate: new Date("2028-06-01") },
-    });
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(APRES_IMMUNITE);
+    await donnerPalier(owner, "exportateur");
     expect((await emettre(client, booking)).statusCode).toBe(200);
   });
 
   it("scanner n'est PAS verrouillé : un billet déjà émis reste honoré", async () => {
     // Un partenaire redescendu d'abonnement laisserait sinon à la porte des
-    // clients munis du QR code qu'il leur a lui-même envoyé.
+    // clients munis du QR code qu'il leur a lui-même envoyé. On émet donc AVEC
+    // le palier, puis on le retire avant de scanner.
     const { owner, client, booking } = await seanceChezPartenaireOrdinaire();
-    await emettre(client, booking); // émis pendant l'immunité
+    await donnerPalier(owner, "exportateur");
+    await emettre(client, booking);
     const jeton = await jetonDe(booking);
 
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(APRES_IMMUNITE);
-    expect((await scanner(owner, jeton)).statusCode).toBe(200);
+    await Subscription.updateOne({ vendor: owner._id }, { $set: { plan: "free", "planDetails.isActive": false } });
+    expect((await emettre(client, booking)).statusCode).toBe(403); // plus d'émission…
+    expect((await scanner(owner, jeton)).statusCode).toBe(200);    // …mais le billet émis vaut toujours
   });
 });

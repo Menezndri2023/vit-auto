@@ -4,7 +4,7 @@ import { createBooking, updateBookingStatus, validateTransaction, cancelBookingB
 import SparePart from "../models/SparePart.js";
 import Booking from "../models/Booking.js";
 import Notification from "../models/Notification.js";
-import { createUser } from "./helpers/fixtures.js";
+import { createUser, donnerPalier } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 import { calculerLivraisonPiece } from "../services/partShipping.js";
 import CountryConfig from "../models/CountryConfig.js";
@@ -433,7 +433,11 @@ describe("Pièces détachées — import du catalogue", () => {
   const base64 = "data:text/csv;base64," + Buffer.from(CSV, "utf-8").toString("base64");
 
   it("lit la colonne « seuil_alerte » et la pose sur la pièce", async () => {
+    // ⚠️ Deux outils verrouillés d'un coup : l'import de catalogue (Business)
+    // et le seuil d'alerte (Essentiel). Business ouvre les deux. Depuis le
+    // 2026-09-27, l'immunité de lancement ne les couvre plus.
     const owner = await partenaire();
+    await donnerPalier(owner, "business");
     const { req, res } = mockReqRes({ user: owner, body: { fileBase64: base64, fileName: "catalogue.csv" } });
     await importParts(req, res);
     expect(res.statusCode).toBe(201); // créé
@@ -529,7 +533,9 @@ describe("Pièces détachées — frais de port par zone", () => {
   });
 
   it("des zones valides sont enregistrées", async () => {
+    // Les zones tarifaires de livraison sont un outil Business.
     const owner = await partenaire();
+    await donnerPalier(owner, "business");
     const piece = await publier(owner);
     const { req, res } = mockReqRes({
       user: owner, params: { id: piece._id.toString() },

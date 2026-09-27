@@ -6,6 +6,8 @@ import Vehicle from "../../models/Vehicle.js";
 import Activity from "../../models/Activity.js";
 import Driver from "../../models/Driver.js";
 import PartnerBusiness from "../../models/PartnerBusiness.js";
+import Subscription from "../../models/Subscription.js";
+import PartnerOnboarding from "../../models/PartnerOnboarding.js";
 
 let counter = 0;
 const uniq = (prefix) => `${prefix}${++counter}`;
@@ -31,6 +33,45 @@ export async function createUser(overrides = {}) {
     role: "client",
     ...overrides,
   });
+}
+
+/**
+ * Donne un palier d'abonnement RÉEL à un partenaire.
+ *
+ * ⚠️ Nécessaire depuis le 2026-09-27 : les outils d'abonnement ne bénéficient
+ * plus de l'immunité de lancement (voir FIN_IMMUNITE_OUTILS). Avant cette
+ * date, tout partenaire passait les gardes `exigeOutil` sans rien souscrire —
+ * et `createUser({ isFounder: true })` n'y était pour rien : `fondateurActif`
+ * lit un dossier PartnerOnboarding, pas ce champ de User. Les tests qui
+ * exerçaient un outil verrouillé passaient donc uniquement grâce à l'immunité.
+ *
+ * `plan` : "individuel_plus" | "business" | "exportateur".
+ */
+export async function donnerPalier(user, plan = "business", { mois = 12 } = {}) {
+  const id = user?._id || user;
+  const debut = new Date();
+  const fin = new Date(debut.getTime() + mois * 30.4375 * 24 * 3600 * 1000);
+  await Subscription.findOneAndUpdate(
+    { vendor: id },
+    { $set: { vendor: id, plan, planDetails: { isActive: true, startDate: debut, endDate: fin, priceUSD: 0 } } },
+    { upsert: true, new: true },
+  );
+  return plan;
+}
+
+/**
+ * Statut Partenaire Fondateur RÉEL — dossier signé, douze mois en cours.
+ *
+ * `createUser({ isFounder: true })` ne suffit pas : `services/fondateur.js`
+ * exige un PartnerOnboarding `isFoundingPartner` avec `commissions.lockedAt`.
+ */
+export async function rendreFondateur(user, { signeLe = new Date() } = {}) {
+  const id = user?._id || user;
+  await PartnerOnboarding.findOneAndUpdate(
+    { userId: id },
+    { $set: { userId: id, isFoundingPartner: true, "commissions.lockedAt": signeLe } },
+    { upsert: true, new: true },
+  );
 }
 
 export async function createImporterProfile(userId, overrides = {}) {

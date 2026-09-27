@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { createBooking, reglerEcheance, consulterEcheancier } from "../controllers/bookingController.js";
 import { updateDriver, createDriver } from "../controllers/driverController.js";
 import Booking from "../models/Booking.js";
@@ -8,7 +8,7 @@ import {
   ajouterMois, remiseApplicable, montantContrat,
   construireEcheancier, statutEcheance, resteAEncaisser,
 } from "../services/miseADisposition.js";
-import { createUser, createDriverDoc } from "./helpers/fixtures.js";
+import { createUser, createDriverDoc, donnerPalier } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 // ── Mise à disposition longue durée (2026-09-27) ───────────────────────────
@@ -30,7 +30,11 @@ const OFFRE = {
 };
 
 async function chauffeurSousContrat(offre = OFFRE, driverOverrides = {}) {
+  // ⚠️ Depuis le 2026-09-27 l'immunité ne couvre plus les outils : configurer
+  // une mise à disposition demande un palier Business RÉEL. `isFounder: true`
+  // n'y suffit pas — `fondateurActif` lit un dossier PartnerOnboarding.
   const owner = await createUser({ role: "partenaire", isFounder: true });
+  await donnerPalier(owner, "business");
   const driver = await createDriverDoc({ owner: owner._id, tarifMois: 1000, ...driverOverrides });
   await Driver.updateOne({ _id: driver._id }, { $set: { miseADisposition: offre } });
   return { owner, driver: await Driver.findById(driver._id) };
@@ -239,15 +243,11 @@ describe("Mise à disposition — règlement des échéances", () => {
 });
 
 describe("Mise à disposition — verrou de palier", () => {
-  // ⚠️ L'immunité de lancement (FIN_IMMUNITE_QUOTAS, 10/09/2027) ouvre TOUS
-  // les outils à tous les partenaires jusqu'à cette date : sans avancer
-  // l'horloge, un test de verrou passerait au vert en ne vérifiant rien —
-  // exactement le genre de garde qui s'endort et laisse fuiter la fonction le
-  // jour où l'immunité tombe. Seule la date est simulée, pas les minuteries :
-  // mongodb-memory-server a besoin des vraies.
-  const APRES_IMMUNITE = new Date("2027-10-01T00:00:00Z");
-  afterEach(() => vi.useRealTimers());
-
+  // ⚠️ Ces tests avançaient l'horloge au-delà de l'immunité de lancement,
+  // faute de quoi ils passaient au vert SANS RIEN VÉRIFIER. Décision de
+  // l'exploitant du 2026-09-27 : l'immunité ne couvre plus les outils, le
+  // verrou est actif maintenant. L'horloge simulée n'est donc plus nécessaire,
+  // et les tests vérifient enfin la règle réellement servie en production.
   const activer = async (user, driver, offre) => {
     const { req, res } = mockReqRes({
       user, params: { id: driver._id.toString() },
@@ -261,8 +261,6 @@ describe("Mise à disposition — verrou de palier", () => {
     // `isFounder: false` et aucun abonnement : le compte est au palier gratuit.
     const owner = await createUser({ role: "partenaire" });
     const driver = await createDriverDoc({ owner: owner._id, tarifMois: 1000 });
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(APRES_IMMUNITE);
     const res = await activer(owner, driver, OFFRE);
     expect(res.statusCode).toBe(403);
     expect(res.body.feature).toBe("miseADisposition");
@@ -271,23 +269,25 @@ describe("Mise à disposition — verrou de palier", () => {
   it("le palier Business l'ouvre, le gratuit ne l'ouvre pas", async () => {
     const owner = await createUser({ role: "partenaire" });
     const driver = await createDriverDoc({ owner: owner._id, tarifMois: 1000 });
-    await Subscription.create({
-      vendor: owner._id, plan: "business",
-      planDetails: { isActive: true, startDate: new Date("2027-01-01"), endDate: new Date("2028-01-01") },
-    });
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(APRES_IMMUNITE);
+    await donnerPalier(owner, "business");
     const res = await activer(owner, driver, OFFRE);
     expect(res.statusCode).toBe(200);
   });
 
-  it("jusqu'à la fin de l'immunité de lancement, l'outil reste ouvert à tous", async () => {
-    // Règle du produit : on ne retire pas du jour au lendemain un outil à un
-    // partenaire gratuit qui s'en sert déjà.
+  it("le tarif au mois, lui, reste GRATUIT : seul le contrat est vendu", async () => {
+    // Ce qui est offert n'a aucune entrée dans FEATURE_MIN_PLAN, donc aucune
+    // garde ne le ferme. Le tarif au mois existe depuis le 2026-09-16 et le
+    // verrou ne doit pas le reprendre : c'est la remise d'engagement et
+    // l'échéancier qui s'achètent, pas le fait de louer au mois.
     const owner = await createUser({ role: "partenaire" });
     const driver = await createDriverDoc({ owner: owner._id, tarifMois: 1000 });
-    const res = await activer(owner, driver, OFFRE);
+    const { req, res } = mockReqRes({
+      user: owner, params: { id: driver._id.toString() },
+      body: { tarifMois: 1200, profilePhoto: driver.profilePhoto },
+    });
+    await updateDriver(req, res);
     expect(res.statusCode).toBe(200);
+    expect((await Driver.findById(driver._id)).tarifMois).toBe(1200);
   });
 
   it("désactiver reste libre : on n'enferme pas un partenaire dans une promesse", async () => {
@@ -301,6 +301,7 @@ describe("Mise à disposition — verrou de palier", () => {
 
   it("pas de tarif au mois, pas d'offre : un contrat sans prix n'est pas un contrat", async () => {
     const owner = await createUser({ role: "partenaire", isFounder: true });
+    await donnerPalier(owner, "business");
     const driver = await createDriverDoc({ owner: owner._id, tarifMois: null });
     const res = await activer(owner, driver, OFFRE);
     expect(res.statusCode).toBe(400);
@@ -308,6 +309,7 @@ describe("Mise à disposition — verrou de palier", () => {
 
   it("un palier de remise au-delà de la durée maximale est refusé", async () => {
     const owner = await createUser({ role: "partenaire", isFounder: true });
+    await donnerPalier(owner, "business");
     const driver = await createDriverDoc({ owner: owner._id, tarifMois: 1000 });
     const res = await activer(owner, driver, { ...OFFRE, dureeMaxMois: 6, paliers: [{ aPartirDeMois: 12, remisePourcent: 20 }] });
     expect(res.statusCode).toBe(400);
@@ -336,6 +338,7 @@ describe("Outils saisis dès la PUBLICATION", () => {
 
   it("l'offre saisie à la publication est bien enregistrée", async () => {
     const owner = await createUser({ role: "partenaire", isFounder: true, sellerType: "particulier" });
+    await donnerPalier(owner, "business");
     const res = await publier(owner, { miseADisposition: OFFRE });
     expect(res.statusCode).toBe(201);
     const driver = await Driver.findById(res.body.driver?._id || res.body._id);
@@ -345,6 +348,7 @@ describe("Outils saisis dès la PUBLICATION", () => {
 
   it("les zones tarifaires saisies à la publication sont bien enregistrées", async () => {
     const owner = await createUser({ role: "partenaire", isFounder: true, sellerType: "particulier" });
+    await donnerPalier(owner, "individuel_plus");
     const res = await publier(owner, { zonesTarifaires: [{ nom: "Aéroport", supplementUSD: 50 }] });
     expect(res.statusCode).toBe(201);
     const driver = await Driver.findById(res.body.driver?._id || res.body._id);
@@ -353,11 +357,10 @@ describe("Outils saisis dès la PUBLICATION", () => {
   });
 
   it("le verrou de palier s'applique AUSSI à la publication", async () => {
+    // Plus besoin d'avancer l'horloge : le verrou est actif en production
+    // depuis le 2026-09-27.
     const owner = await createUser({ role: "partenaire", sellerType: "particulier" });
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2027-10-01T00:00:00Z"));
     const res = await publier(owner, { miseADisposition: OFFRE });
-    vi.useRealTimers();
     expect(res.statusCode).toBe(403);
     expect(res.body.feature).toBe("miseADisposition");
   });

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import User from "../models/User.js";
 import { maVitrine, vitrineDunPartenaire, resoudreSlug, origineSite, SITE_PUBLIC } from "../controllers/vitrinePartenaireController.js";
-import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
+import { createUser, createVehicleDoc, donnerPalier } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -31,11 +31,12 @@ describe("Vitrine partenaire — le lien partageable", () => {
   });
 
   // La page reste publique à tous les paliers — c'est le lien COURT qui
-  // s'achète. Jusqu'à FIN_IMMUNITE_QUOTAS, tout partenaire garde ses outils :
-  // le lien court est donc ouvert AUJOURD'HUI, et le test le constate plutôt
-  // que de le supposer.
+  // s'achète. ⚠️ Depuis le 2026-09-27 l'immunité de lancement ne couvre plus
+  // les outils : le lien court demande donc un palier Essentiel RÉEL, et les
+  // tests le donnent explicitement au lieu de compter sur l'immunité.
   it("fournit un lien court et un QR code quand l'outil est ouvert", async () => {
     const p = await createUser({ role: "partenaire", business: { companyName: "Rent à Car Côte d'Azur" } });
+    await donnerPalier(p, "individuel_plus");
     const res = await appeler(maVitrine, { user: p });
 
     expect(res.body.lienCourtOuvert).toBe(true);
@@ -47,6 +48,7 @@ describe("Vitrine partenaire — le lien partageable", () => {
   // Une adresse publique ne bouge pas : un partenaire peut l'avoir imprimée.
   it("ne réattribue jamais un slug déjà donné, même si le nom change", async () => {
     const p = await createUser({ role: "partenaire", business: { companyName: "Atlas Location" } });
+    await donnerPalier(p, "individuel_plus");
     const premier = (await appeler(maVitrine, { user: p })).body.slug;
 
     await User.updateOne({ _id: p._id }, { $set: { "business.companyName": "Atlas Premium" } });
@@ -58,7 +60,9 @@ describe("Vitrine partenaire — le lien partageable", () => {
 
   it("deux partenaires de même nom obtiennent deux adresses distinctes", async () => {
     const a = await createUser({ role: "partenaire", business: { companyName: "Auto Plus" } });
+    await donnerPalier(a, "individuel_plus");
     const b = await createUser({ role: "partenaire", business: { companyName: "Auto Plus" } });
+    await donnerPalier(b, "individuel_plus");
 
     const sa = (await appeler(maVitrine, { user: a })).body.slug;
     const sb = (await appeler(maVitrine, { user: b })).body.slug;
@@ -72,6 +76,7 @@ describe("Vitrine partenaire — le lien partageable", () => {
   // et sans repli le partenaire obtiendrait une adresse `/p/` sans nom.
   it("une raison sociale non latine obtient tout de même une adresse", async () => {
     const p = await createUser({ role: "partenaire", business: { companyName: "شركة تأجير السيارات" } });
+    await donnerPalier(p, "individuel_plus");
     const res = await appeler(maVitrine, { user: p });
     expect(res.body.slug).toMatch(/^partenaire-[0-9a-f]{6}$/);
     expect(res.body.lienCourt).toBe(`${SITE_PUBLIC}/p/${res.body.slug}`);
@@ -81,6 +86,7 @@ describe("Vitrine partenaire — le lien partageable", () => {
     it("l'admin obtient le lien de n'importe quel partenaire", async () => {
       const admin = await createUser({ role: "admin" });
       const p = await createUser({ role: "partenaire", business: { companyName: "Boyzone Car" } });
+      await donnerPalier(p, "individuel_plus");
 
       const res = await appeler(vitrineDunPartenaire, { user: admin, params: { id: String(p._id) } });
       expect(res.body.lien).toBe(`${SITE_PUBLIC}/partner/${p._id}`);
@@ -117,6 +123,7 @@ describe("Vitrine partenaire — le lien partageable", () => {
   describe("Résolution publique du lien court", () => {
     it("traduit l'adresse lisible en identifiant", async () => {
       const p = await createUser({ role: "partenaire", business: { companyName: "Nemo Diving" } });
+      await donnerPalier(p, "individuel_plus");
       await appeler(maVitrine, { user: p });
 
       const res = await appeler(resoudreSlug, { params: { slug: "nemo-diving" } });
@@ -125,6 +132,7 @@ describe("Vitrine partenaire — le lien partageable", () => {
 
     it("accepte la casse et les espaces d'un lien recopié à la main", async () => {
       const p = await createUser({ role: "partenaire", business: { companyName: "Nemo Diving" } });
+      await donnerPalier(p, "individuel_plus");
       await appeler(maVitrine, { user: p });
 
       const res = await appeler(resoudreSlug, { params: { slug: "  NEMO-Diving " } });
@@ -132,7 +140,7 @@ describe("Vitrine partenaire — le lien partageable", () => {
     });
 
     it("rend 404 sur un slug inconnu — jamais un partenaire au hasard", async () => {
-      await createUser({ role: "partenaire", business: { companyName: "Nemo Diving" } });
+      await donnerPalier(await createUser({ role: "partenaire", business: { companyName: "Nemo Diving" } }), "individuel_plus");
       const res = await appeler(resoudreSlug, { params: { slug: "concurrent-inconnu" } });
       expect(res.statusCode).toBe(404);
       expect(res.body.id).toBeUndefined();
@@ -143,6 +151,7 @@ describe("Vitrine partenaire — le lien partageable", () => {
     // de toute façon à un profil introuvable.
     it("un compte fermé ne se résout plus", async () => {
       const p = await createUser({ role: "partenaire", business: { companyName: "Fermé Bientôt" } });
+      await donnerPalier(p, "individuel_plus");
       await appeler(maVitrine, { user: p });
       await User.updateOne({ _id: p._id }, { $set: { isActive: false } });
 

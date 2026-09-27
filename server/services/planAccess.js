@@ -5,7 +5,7 @@
 // équipe, API, export) posent tous la même question ; la poser à deux endroits
 // différents finirait par donner deux réponses.
 import Subscription from "../models/Subscription.js";
-import { planOuvre, seatsDuPlan, slaHeuresDuPlan, FEATURE_MIN_PLAN, FIN_IMMUNITE_QUOTAS } from "../constants/planFeatures.js";
+import { planOuvre, seatsDuPlan, slaHeuresDuPlan, FEATURE_MIN_PLAN, FIN_IMMUNITE_OUTILS } from "../constants/planFeatures.js";
 import { fondateurActif } from "./fondateur.js";
 
 // Un abonnement compte comme actif seulement s'il est payant, marqué actif ET
@@ -67,11 +67,13 @@ export function exigeFonctionnalite(feature) {
 // Middleware : exige un plan ouvrant l'OUTIL `feature`, avec trois passes-
 // droits que `exigeFonctionnalite` n'a pas — parce qu'un outil se distingue
 // d'un avantage : (1) un administrateur agit sur les annonces de n'importe
-// quel partenaire, il n'a pas d'abonnement ; (2) jusqu'à FIN_IMMUNITE_QUOTAS,
-// tout partenaire garde ses outils, comme il garde ses annonces sans quota ;
-// (3) un Partenaire Fondateur en cours a tout, c'est l'offre signée.
-// Sans ces trois cas, activer la règle retirerait aujourd'hui l'import de
-// flotte ou le showroom à des comptes qui s'en servent.
+// quel partenaire, il n'a pas d'abonnement ; (2) jusqu'à FIN_IMMUNITE_OUTILS
+// — échue depuis le 2026-09-27 (décision de l'exploitant) — tout partenaire
+// gardait ses outils ; (3) un Partenaire Fondateur en cours a tout, c'est
+// l'offre signée.
+// ⚠️ Le passe-droit (2) ne s'applique PLUS : les outils d'abonnement sont
+// verrouillés, seul le socle offert reste ouvert à tous (il n'a simplement
+// aucune entrée dans FEATURE_MIN_PLAN, donc aucune garde ne le ferme).
 // `maintenant` est injectable pour les tests : la règle dépend d'une date.
 export function exigeOutil(feature, { maintenant = () => new Date() } = {}) {
   return async (req, res, next) => {
@@ -106,7 +108,7 @@ export async function outilOuvert(user, feature, { maintenant = () => new Date()
   if (user?.role === "admin") return { ouvert: true, raison: "admin", proprietaireId: user?._id };
   const proprietaireId = user?.teamOf || user?._id;
   const now = maintenant();
-  if (now < FIN_IMMUNITE_QUOTAS) return { ouvert: true, raison: "immunite", proprietaireId };
+  if (now < FIN_IMMUNITE_OUTILS) return { ouvert: true, raison: "immunite", proprietaireId };
   if (await fondateurActif(proprietaireId, now)) return { ouvert: true, raison: "fondateur", proprietaireId };
   const plan = await planEffectif(proprietaireId);
   return planOuvre(plan, feature)
