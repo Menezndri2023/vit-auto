@@ -76,6 +76,14 @@ router.patch("/:id/etat-des-lieux",      vid, authenticate, exigeOutil("etatDesL
 // répondre à une proposition qu'on lui fait ne s'achète pas).
 router.patch("/:id/report-seance",       vid, authenticate, exigeOutil("reportSeance"), b.proposerReportSeance);
 router.patch("/:id/report-seance/reponse", vid, authenticate, b.repondreReportSeance);
+// Mise à disposition longue durée — outil du palier Business. Le contrat et
+// sa remise se CONFIGURENT sur le profil chauffeur (verrouillé là, voir
+// driverController.normaliserMiseADisposition) ; ici on ne fait que lire
+// l'échéancier et constater un règlement, ce qui ne s'achète pas : un
+// partenaire redescendu d'abonnement doit pouvoir tenir la comptabilité des
+// contrats déjà signés.
+router.get("/:id/echeancier",            vid, authenticate, b.consulterEcheancier);
+router.patch("/:id/echeance/:numero",    vid, authenticate, b.reglerEcheance);
 router.patch("/:id/partner-kyc-verify",  vid, authenticate, b.partnerVerifyKyc);
 // Booking Engine (2026-09) — alternative proposée par le partenaire, réponse
 // du client (voir server/services/bookingActionService.js).

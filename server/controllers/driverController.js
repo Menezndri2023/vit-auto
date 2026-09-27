@@ -572,6 +572,61 @@ async function normaliserZonesTarifaires(user, brut) {
   return { zones };
 }
 
+/**
+ * Valide l'offre de mise à disposition longue durée et vérifie le palier.
+ *
+ * Comme pour les zones tarifaires : ACTIVER l'offre demande le palier, la
+ * DÉSACTIVER reste libre. Un partenaire qui redescend d'abonnement doit
+ * pouvoir retirer une promesse qu'il ne veut plus tenir — l'enfermer dedans
+ * serait le punir d'avoir été client.
+ */
+async function normaliserMiseADisposition(user, brut, driver) {
+  if (brut === undefined) return {};
+  if (typeof brut !== "object" || brut === null) return { error: "Offre de mise à disposition invalide." };
+
+  const active = Boolean(brut.active);
+  const etaitActive = Boolean(driver?.miseADisposition?.active);
+  if (active && !etaitActive) {
+    const verdict = await outilOuvert(user, "miseADisposition");
+    if (!verdict.ouvert) {
+      return { refus: { message: messageRefus("miseADisposition"), code: "PLAN_REQUIS", feature: "miseADisposition" } };
+    }
+  }
+  if (!active) return { offre: { ...(driver?.miseADisposition?.toObject?.() || {}), active: false } };
+
+  if (!(Number(driver?.tarifMois) > 0) && !(Number(brut.tarifMois) > 0)) {
+    return { error: "Un tarif au mois est nécessaire avant de proposer une mise à disposition longue durée." };
+  }
+
+  const dureeMin = Math.floor(Number(brut.dureeMinMois));
+  const dureeMax = Math.floor(Number(brut.dureeMaxMois));
+  if (!Number.isFinite(dureeMin) || dureeMin < 1 || dureeMin > 24) return { error: "Durée minimale d'engagement invalide (1 à 24 mois)." };
+  if (!Number.isFinite(dureeMax) || dureeMax < dureeMin || dureeMax > 36) return { error: "Durée maximale invalide : elle doit aller de la durée minimale à 36 mois." };
+
+  const paliers = [];
+  const seuils = new Set();
+  for (const p of Array.isArray(brut.paliers) ? brut.paliers.slice(0, 6) : []) {
+    const seuil  = Math.floor(Number(p?.aPartirDeMois));
+    const remise = Number(p?.remisePourcent);
+    if (!Number.isFinite(seuil) || seuil < 1) return { error: "Chaque palier de remise doit partir d'un nombre de mois." };
+    if (!Number.isFinite(remise) || remise < 0 || remise > 100) return { error: `Remise invalide pour le palier « à partir de ${seuil} mois ».` };
+    if (seuil > dureeMax) return { error: `Le palier « à partir de ${seuil} mois » dépasse la durée maximale du contrat.` };
+    if (seuils.has(seuil)) return { error: `Deux paliers partent de ${seuil} mois — la remise deviendrait ambiguë.` };
+    seuils.add(seuil);
+    paliers.push({ aPartirDeMois: seuil, remisePourcent: Math.round(remise * 100) / 100 });
+  }
+
+  return {
+    offre: {
+      active: true,
+      dureeMinMois: dureeMin,
+      dureeMaxMois: dureeMax,
+      paliers,
+      conditions: brut.conditions ? String(brut.conditions).trim().slice(0, 600) : null,
+    },
+  };
+}
+
 export const updateDriver = async (req, res) => {
   try {
     const driver = await Driver.findById(req.params.id);
@@ -586,7 +641,7 @@ export const updateDriver = async (req, res) => {
       "firstName", "lastName", "phone", "profilePhoto", "cv", "title", "description",
       "tarif", "tarifDemiJournee", "tarifHeure", "tarifMois",
       "tarifEntered", "tarifDemiJourneeEntered", "tarifHeureEntered", "tarifMoisEntered", "priceEntryCurrency", "currency",
-      "disponibilite", "zone", "ville", "zonesTarifaires",
+      "disponibilite", "zone", "ville", "zonesTarifaires", "miseADisposition",
       "experience", "langues", "permisCategorie", "vehiculePersonnel", "typeVehicule",
       "images",
     ];
@@ -607,6 +662,11 @@ export const updateDriver = async (req, res) => {
     if (zonesTarif.error) return res.status(400).json({ message: zonesTarif.error });
     if (zonesTarif.refus) return res.status(403).json(zonesTarif.refus);
     if (zonesTarif.zones !== undefined) safeUpdate.zonesTarifaires = zonesTarif.zones;
+
+    const dispo = await normaliserMiseADisposition(req.user, safeUpdate.miseADisposition, driver);
+    if (dispo.error) return res.status(400).json({ message: dispo.error });
+    if (dispo.refus) return res.status(403).json(dispo.refus);
+    if (dispo.offre !== undefined) safeUpdate.miseADisposition = dispo.offre;
 
     // Cohérence photos si l'un des deux champs est modifié (voir createDriver)
     const nextProfilePhoto = safeUpdate.profilePhoto !== undefined ? safeUpdate.profilePhoto : driver.profilePhoto;

@@ -8,6 +8,7 @@ import Activity from "../models/Activity.js";
 import SparePart from "../models/SparePart.js";
 import { calculerLivraisonPiece, fraisImportationPiece } from "../services/partShipping.js";
 import { prixParPersonne } from "../services/tarifGroupe.js";
+import { montantContrat, construireEcheancier, echeancierAvecStatuts, statutEcheance } from "../services/miseADisposition.js";
 import { reserverStockPiece, restituerStockPiece, enregistrerVentePiece } from "../services/partStock.js";
 import { MAX_PART_QUANTITY } from "../constants/spareParts.js";
 import Payment from "../models/Payment.js";
@@ -779,12 +780,46 @@ export const createBooking = async (req, res) => {
       const zoneTarifaire = zoneDemandee
         ? (driver.zonesTarifaires || []).find((z) => String(z.nom).trim().toLowerCase() === zoneDemandee.toLowerCase())
         : null;
-      if (zoneTarifaire) montantBase += Number(zoneTarifaire.supplementUSD) || 0;
+      const supplementZone = zoneTarifaire ? (Number(zoneTarifaire.supplementUSD) || 0) : 0;
+      montantBase += supplementZone;
+
+      // ── Mise à disposition longue durée (outil `miseADisposition`) ──────
+      // Un engagement qui atteint la durée minimale du chauffeur devient un
+      // CONTRAT : remise par palier, et découpage du total en échéances
+      // mensuelles. En dessous du minimum — ou si l'offre n'est pas active —
+      // la mission reste facturée au mois comme avant, sans rien changer.
+      let contrat = null;
+      const offre = driver.miseADisposition;
+      if (unite === "mois" && offre?.active && quantite >= (Number(offre.dureeMinMois) || 1)) {
+        if (quantite > (Number(offre.dureeMaxMois) || 12)) {
+          return res.status(400).json({
+            message: `Ce chauffeur s'engage au maximum ${offre.dureeMaxMois} mois.`,
+            code: "CONTRACT_TOO_LONG",
+          });
+        }
+        const devis = montantContrat(driver, quantite);
+        // Le total du contrat REMPLACE le calcul tarif × quantité : c'est le
+        // même montant, remise déduite. Le supplément de zone reste ajouté une
+        // fois, comme pour toute mission.
+        montantBase = Math.round((devis.totalUSD + supplementZone) * 100) / 100;
+        contrat = {
+          dureeMois: devis.dureeMois,
+          mensualiteUSD: devis.mensualiteUSD,
+          remisePourcent: devis.remisePourcent,
+          echeances: construireEcheancier({
+            debut: chauffeur?.date ? new Date(chauffeur.date) : new Date(),
+            dureeMois: devis.dureeMois,
+            mensualiteUSD: devis.mensualiteUSD,
+            supplementInitialUSD: supplementZone,
+          }),
+        };
+      }
 
       if (chauffeur) {
         chauffeur.unite = unite; chauffeur.quantite = quantite; chauffeur.heures = quantite * UNITES[unite].heuresParUnite;
         chauffeur.zone = zoneTarifaire ? zoneTarifaire.nom : null;
-        chauffeur.supplementZoneUSD = zoneTarifaire ? (Number(zoneTarifaire.supplementUSD) || 0) : 0;
+        chauffeur.supplementZoneUSD = supplementZone;
+        chauffeur.contrat = contrat;
       }
       ownerId = driver.owner;
 
@@ -4748,5 +4783,104 @@ export const getAllBookingsEnhanced = async (req, res) => {
   } catch (err) {
     logger.error("getAllBookingsEnhanced:", err);
     res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Échéancier d'une mise à disposition longue durée ────────────────────────
+//
+// Le rail de paiement n'est pas touché : une échéance est un dû daté que le
+// partenaire marque encaissé, exactement comme il constate aujourd'hui un
+// règlement en espèces. Construire ici un prélèvement récurrent aurait
+// demandé Stripe, les relances et le traitement des impayés — un chantier à
+// part, qui n'était pas ce qui manquait pour vendre du long terme.
+
+/** Le contrat et ses échéances, statuts calculés — partenaire, client ou admin. */
+export const consulterEcheancier = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Identifiant de réservation invalide." });
+    }
+    const booking = await Booking.findById(id).populate("driver", "owner firstName lastName");
+    if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
+
+    const ownerId = booking.driver?.owner?._id?.toString() || booking.driver?.owner?.toString();
+    const estClient = booking.client?.toString() === req.user._id.toString();
+    if (req.user.role !== "admin" && !estClient && ownerId !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+    if (!booking.chauffeur?.contrat?.dureeMois) {
+      return res.status(404).json({ message: "Cette mission n'est pas un contrat de mise à disposition." });
+    }
+
+    res.json({
+      contrat: {
+        dureeMois: booking.chauffeur.contrat.dureeMois,
+        mensualiteUSD: booking.chauffeur.contrat.mensualiteUSD,
+        remisePourcent: booking.chauffeur.contrat.remisePourcent,
+      },
+      echeances: echeancierAvecStatuts(booking),
+    });
+  } catch (err) {
+    logger.error("consulterEcheancier:", err);
+    res.status(500).json({ message: "Erreur lors de la lecture de l'échéancier." });
+  }
+};
+
+/**
+ * Le partenaire constate le règlement d'une échéance.
+ *
+ * Volontairement NON verrouillé par le palier, à la différence de la
+ * configuration de l'offre : encaisser sur un contrat déjà signé n'est pas un
+ * achat. Un partenaire qui redescend d'abonnement doit pouvoir tenir la
+ * comptabilité de ses contrats en cours — sinon l'argent rentre sans trace,
+ * et c'est la plateforme qui perd la commission.
+ */
+export const reglerEcheance = async (req, res) => {
+  try {
+    const { id, numero } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Identifiant de réservation invalide." });
+    }
+    const n = Number(numero);
+    const booking = await Booking.findById(id).populate("driver", "owner firstName lastName");
+    if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
+
+    const ownerId = booking.driver?.owner?._id?.toString() || booking.driver?.owner?.toString();
+    if (req.user.role !== "admin" && ownerId !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+    if (!assertPartnerCanAct(booking, req, res)) return;
+
+    const echeance = (booking.chauffeur?.contrat?.echeances || []).find((e) => e.numero === n);
+    if (!echeance) return res.status(404).json({ message: "Échéance introuvable." });
+    if (echeance.regleeLe) {
+      return res.status(409).json({ message: `L'échéance ${n} est déjà marquée réglée.` });
+    }
+    // Une échéance annulée avec le contrat ne se règle plus : la marquer
+    // encaissée ferait apparaître une recette qui n'existe pas.
+    const statut = statutEcheance(echeance, booking);
+    if (statut === "annulee") {
+      return res.status(409).json({ message: "Ce contrat est annulé : ses échéances restantes ne sont plus dues." });
+    }
+
+    echeance.regleeLe = new Date();
+    echeance.regleePar = req.user._id;
+    echeance.moyenPaiement = String(req.body?.moyenPaiement || "").trim().slice(0, 40) || null;
+    booking.markModified("chauffeur.contrat.echeances");
+    await booking.save();
+
+    await Notification.create({
+      user: booking.client,
+      type: "system",
+      titre: "🧾 Échéance réglée",
+      message: `Le règlement de l'échéance ${n}/${booking.chauffeur.contrat.dureeMois} de votre mise à disposition a été enregistré.`,
+      lien: "/dashboard",
+    }).catch((e) => logger.error("notification échéance (non bloquant) :", e.message));
+
+    res.json({ echeances: echeancierAvecStatuts(booking) });
+  } catch (err) {
+    logger.error("reglerEcheance:", err);
+    res.status(500).json({ message: "Erreur lors de l'enregistrement du règlement." });
   }
 };

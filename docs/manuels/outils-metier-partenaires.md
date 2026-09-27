@@ -556,3 +556,70 @@ report voyant moins de réservations que la création.
 
 Cinq tests dans `server/tests/reportSeance.test.js`, vérifiés en neutralisant
 le contrôle de capacité : le test correspondant passe au rouge.
+
+## 13. Livré le 2026-09-27 — Mise à disposition longue durée (Business, secteur Chauffeur)
+
+**L'audit d'abord.** Le tarif au mois (`Driver.tarifMois`) et l'unité « mois »
+à la réservation existaient depuis le 2026-09-16 : un client pouvait déjà
+réserver un chauffeur six mois, conflits de planning et congés compris. Il
+aurait été facile de reconstruire tout cela sous un nouveau nom — c'est
+exactement l'erreur commise avec l'import de pièces (§7, 394 lignes jetées).
+
+Ce qui manquait réellement, et qui est le seul vrai frein à vendre du long
+terme, tient en deux points :
+
+1. **Le contrat se payait d'un bloc.** Six mois de chauffeur exigés d'avance —
+   aucune entreprise ne signe à ces conditions.
+2. **S'engager ne valait rien au client.** Douze mois coûtaient exactement
+   douze fois un mois : le chauffeur n'avait aucun levier pour transformer des
+   missions ponctuelles en revenu récurrent.
+
+D'où deux mécanismes, et deux seulement.
+
+| Où | Quoi |
+|---|---|
+| `Driver.miseADisposition` | L'offre : durée min/max, paliers de remise, conditions |
+| `Booking.chauffeur.contrat` | Le contrat signé : durée, mensualité, remise, échéances |
+| `services/miseADisposition.js` | Remise, devis, échéancier, statut — toutes pures |
+| `GET /bookings/:id/echeancier` | Lecture, partenaire ou client |
+| `PATCH /bookings/:id/echeance/:n` | Le partenaire constate un règlement |
+
+Décisions :
+
+- **Le rail de paiement n'est pas touché.** Une échéance est un dû daté que le
+  partenaire marque encaissé, comme il constate déjà un règlement de la main à
+  la main. Construire ici un prélèvement récurrent aurait demandé Stripe, les
+  relances et le traitement des impayés : un autre chantier, et ce n'était pas
+  ce qui manquait pour vendre.
+- **L'échéancier DÉCOUPE le montant, il ne s'y ajoute pas.** La somme des
+  échéances vaut exactement `montantBase` — un test le vérifie. Le supplément
+  de zone est porté par la première échéance, jamais réparti : il est dû au
+  départ.
+- **La mensualité est arrondie AVANT d'être multipliée.** L'inverse (arrondir
+  le total puis le diviser) laisse un reliquat de centimes sur la dernière
+  échéance, que personne ne sait expliquer au client.
+- **Le statut d'une échéance est CALCULÉ, jamais stocké.** Un statut stocké
+  demanderait un planificateur nocturne, et surtout il faudrait penser à
+  éteindre les échéances à venir à chaque annulation — l'oubli classique. Ici,
+  annuler la commande suffit : ce qui restait dû cesse de l'être, ce qui fut
+  réglé le reste.
+- **Mensualité et remise sont figées sur la commande**, jamais relues depuis le
+  chauffeur : une remise retirée six mois plus tard ne doit pas renchérir un
+  contrat déjà signé.
+- **Configurer l'offre est verrouillé, encaisser ne l'est pas.** Un partenaire
+  redescendu d'abonnement doit pouvoir tenir la comptabilité de ses contrats en
+  cours — sinon l'argent rentre sans trace, et c'est la plateforme qui perd sa
+  commission. Désactiver l'offre reste libre pour la même raison qu'ailleurs :
+  on n'enferme personne dans une promesse qu'il ne veut plus tenir.
+- **Sous la durée minimale, ou offre inactive : rien ne change.** Le tarif au
+  mois continue de fonctionner comme avant. Un outil de palier n'enlève jamais
+  ce qui était déjà gratuit.
+- **Le 31 janvier + 1 mois tombe au 28 février**, pas au 3 mars : le
+  débordement natif de JavaScript ferait purement sauter l'échéance de février.
+
+Vingt-quatre tests dans `server/tests/miseADisposition.test.js`, vérifiés en
+neutralisant le contrat : six passent au rouge. Le test de verrou avance
+l'horloge au-delà de `FIN_IMMUNITE_QUOTAS` — sans cela il serait vert en ne
+vérifiant rien, et la fonction fuirait le jour où l'immunité tombe.
+
+**Reste un outil** du §5 : le billet à QR code (Premium, Loisirs).

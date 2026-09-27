@@ -85,6 +85,37 @@ const driverSchema = new mongoose.Schema({
     }],
     default: [],
   },
+  // ── Mise à disposition longue durée (outil de palier, 2026-09-27) ────────
+  //
+  // Le tarif au mois existait depuis le 2026-09-16, mais s'engager douze mois
+  // coûtait exactement douze fois un mois et se payait d'un bloc : aucune
+  // entreprise ne signe à ces conditions, et le chauffeur n'avait aucun moyen
+  // de transformer des missions ponctuelles en revenu récurrent.
+  //
+  // L'offre ne peut être ACTIVÉE qu'avec le palier qui l'ouvre
+  // (`miseADisposition`) ; une fois posée, elle vit sa vie, et les contrats
+  // déjà signés restent gérables quoi qu'il arrive ensuite à l'abonnement.
+  miseADisposition: {
+    active:       { type: Boolean, default: false },
+    // Durée minimale d'engagement, en mois. En dessous, le client réserve au
+    // mois comme avant, sans contrat ni échéancier.
+    dureeMinMois: { type: Number, min: 1, max: 24, default: 3 },
+    dureeMaxMois: { type: Number, min: 1, max: 36, default: 12 },
+    // Remise par palier d'engagement — « à partir de 6 mois, −10 % ». Le plus
+    // long palier atteint l'emporte (voir services/miseADisposition.js).
+    paliers: {
+      type: [{
+        _id:            false,
+        aPartirDeMois:  { type: Number, required: true, min: 1 },
+        remisePourcent: { type: Number, required: true, min: 0, max: 100 },
+      }],
+      default: [],
+    },
+    // Ce que le chauffeur s'engage à fournir — affiché sur l'annonce, sans
+    // effet sur le calcul : c'est l'argument commercial du contrat.
+    conditions:   { type: String, trim: true, maxlength: 600, default: null },
+  },
+
   ville:       { type: String, trim: true },
   // Hérité du pays du partenaire propriétaire (jamais depuis le body) — même
   // usage que Vehicle.country pour le filtrage international du catalogue.

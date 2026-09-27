@@ -296,6 +296,37 @@ const bookingSchema = new mongoose.Schema({
     lieuDepart:  { type: String },
     destination: { type: String },
     notes:       { type: String },
+
+    // ── Contrat de mise à disposition (outil de palier, 2026-09-27) ───────
+    //
+    // Rempli seulement quand la mission est prise au mois, pour une durée qui
+    // atteint l'engagement minimum du chauffeur. Le montant total de la
+    // commande ne change pas de nature : l'échéancier le DÉCOUPE, il ne s'y
+    // ajoute pas — la somme des échéances vaut exactement `montantBase`.
+    //
+    // Mensualité et remise sont FIGÉES ici, jamais relues depuis le chauffeur :
+    // une remise retirée six mois plus tard ne doit pas renchérir un contrat
+    // déjà signé (même principe que zone/supplementZoneUSD ci-dessus).
+    contrat: {
+      dureeMois:      { type: Number, default: null },
+      mensualiteUSD:  { type: Number, default: 0 },
+      remisePourcent: { type: Number, default: 0 },
+      echeances: {
+        type: [{
+          _id:           false,
+          numero:        { type: Number, required: true },
+          dateEcheance:  { type: Date, required: true },
+          montantUSD:    { type: Number, required: true, min: 0 },
+          // Le statut n'est PAS stocké : il se calcule (voir
+          // services/miseADisposition.statutEcheance). Seul le fait du
+          // règlement l'est, parce que lui seul est un événement.
+          regleeLe:      { type: Date, default: null },
+          regleePar:     { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+          moyenPaiement: { type: String, default: null },
+        }],
+        default: [],
+      },
+    },
   },
 
   // ── Champs spécifiques : ACTIVITE (Quad, Surf, Montgolfière, Jetski, Jet

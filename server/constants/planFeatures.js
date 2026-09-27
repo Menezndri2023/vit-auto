@@ -89,6 +89,12 @@ export const FEATURE_MIN_PLAN = {
   // intra-ville, donc refusé ou perdu. Premier outil du secteur au palier
   // Essentiel, qui n'avait rien.
   zonesTarifairesChauffeur: "individuel_plus", // chauffeur
+  // Contrat de mise à disposition : remise par palier d'engagement et
+  // découpage du total en échéances mensuelles. Le tarif au mois existait
+  // depuis le 2026-09-16, mais douze mois coûtaient douze fois un mois et se
+  // payaient d'un bloc — aucune entreprise ne signe à ces conditions. C'est le
+  // revenu récurrent, ce que cherche tout chauffeur professionnel.
+  miseADisposition:   "business",        // chauffeur
 };
 
 // Sièges d'équipe INCLUS, titulaire compris. `business` en ouvre trois : un

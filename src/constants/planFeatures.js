@@ -169,7 +169,8 @@ export const OUTILS_PAR_SECTEUR = {
       { key: "outil.driverZones", feature: "zonesTarifairesChauffeur" },
     ],
     business: [
-      { key: "outil.driverCompany", feature: "multiUtilisateurs" },
+      { key: "outil.driverLongTerm", feature: "miseADisposition" },
+      { key: "outil.driverCompany",  feature: "multiUtilisateurs" },
     ],
     exportateur: [],
   },
