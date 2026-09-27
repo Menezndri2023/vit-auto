@@ -123,6 +123,7 @@ export const createActivity = async (req, res) => {
       durationMinutes, capacity,
       essaiDisponible, essaiDurationMinutes, essaiPrice, weatherDependent,
       images, thumbnail, ville, adresse, coordonnees,
+      tarifsGroupe,
     } = req.body;
 
     if (!ACTIVITY_TYPES.includes(activityType)) {
@@ -149,6 +150,15 @@ export const createActivity = async (req, res) => {
       if (!business) return res.status(400).json({ message: "Entreprise introuvable." });
     }
 
+    // Les paliers de groupe passent par le MÊME normaliseur qu'à l'édition
+    // (2026-09-27). Ils étaient jusqu'ici absents de la création : le
+    // partenaire les saisissait au formulaire de publication et ils
+    // disparaissaient sans un mot — une écriture perdue en silence, faute
+    // d'être déclarée. Le verrou de palier s'applique donc aussi ici.
+    const groupe = await normaliserTarifsGroupe(req.user, tarifsGroupe);
+    if (groupe.error) return res.status(400).json({ message: groupe.error });
+    if (groupe.refus) return res.status(403).json(groupe.refus);
+
     const uploadedImages = await uploadBase64Images(images, FOLDERS.activities);
     const [uploadedThumb] = thumbnail ? await uploadBase64Images([thumbnail], FOLDERS.activities) : [null];
 
@@ -168,6 +178,7 @@ export const createActivity = async (req, res) => {
       weatherDependent: weatherDependent === true || weatherDependent === "true" ? true : weatherDependent === false || weatherDependent === "false" ? false : null,
       images: uploadedImages,
       thumbnail: uploadedThumb,
+      ...(groupe.paliers !== undefined ? { tarifsGroupe: groupe.paliers } : {}),
       ville, adresse, coordonnees,
       // Champs serveur — jamais depuis req.body
       owner:    req.user._id,

@@ -35,6 +35,13 @@ const compressImage = (dataUrl) =>
     img.src = dataUrl;
   });
 
+// Montant saisi → USD (pivot de stockage). Même helper que PartSubmit.jsx :
+// `null` quand la saisie est vide, pour distinguer « pas de prix » de « zéro ».
+const toUSD = (entry, currency, rateFromUSD) =>
+  entry !== "" && !isNaN(Number(entry))
+    ? (currency === "USD" ? Number(entry) : Math.round((Number(entry) / rateFromUSD(currency)) * 100) / 100)
+    : null;
+
 const ActivitySubmit = () => {
   const { token } = useAuth();
   const { addActivity } = useVehicles();
@@ -65,6 +72,12 @@ const ActivitySubmit = () => {
   const [weatherDependent, setWeatherDependent] = useState(null);
   const [essaiDurationMinutes, setEssaiDurationMinutes] = useState(30);
   const [essaiPriceEntry, setEssaiPriceEntry] = useState("");
+  // ── Paliers de groupe (outil du palier Business) ────────────────────────
+  // Vide = un prix unique par personne, exactement comme avant. Le serveur
+  // refuse de POSER des paliers sans le palier d'abonnement qui les ouvre.
+  const [paliers, setPaliers] = useState([]);
+  const setPalierField = (i, champ, valeur) =>
+    setPaliers((prev) => prev.map((p, idx) => (idx === i ? { ...p, [champ]: valeur } : p)));
   const [ville,        setVille]        = useState("");
   const [adresse,      setAdresse]      = useState("");
   const [photos,       setPhotos]       = useState([]); // [{ id, preview }]
@@ -72,12 +85,8 @@ const ActivitySubmit = () => {
   const [submitting,   setSubmitting]   = useState(false);
   const [result,       setResult]       = useState(null);
 
-  const priceUSD = priceEntry !== "" && !isNaN(Number(priceEntry))
-    ? (priceCurrency === "USD" ? Number(priceEntry) : Math.round((Number(priceEntry) / rateFromUSD(priceCurrency)) * 100) / 100)
-    : 0;
-  const essaiPriceUSD = essaiPriceEntry !== "" && !isNaN(Number(essaiPriceEntry))
-    ? (priceCurrency === "USD" ? Number(essaiPriceEntry) : Math.round((Number(essaiPriceEntry) / rateFromUSD(priceCurrency)) * 100) / 100)
-    : null;
+  const priceUSD      = toUSD(priceEntry, priceCurrency, rateFromUSD) ?? 0;
+  const essaiPriceUSD = toUSD(essaiPriceEntry, priceCurrency, rateFromUSD);
 
   const readFile = (file) =>
     new Promise((resolve) => {
@@ -127,6 +136,16 @@ const ActivitySubmit = () => {
         weatherDependent,
         essaiDurationMinutes: Number(essaiDurationMinutes) || 30,
         essaiPrice: essaiDisponible && essaiPriceUSD != null ? essaiPriceUSD : null,
+        // Seulement par personne : un forfait par sortie ne se dégresse pas au
+        // nombre de participants, et le serveur ignore les paliers dans ce cas.
+        tarifsGroupe: priceUnit === "per_person"
+          ? paliers
+              .filter((p) => p.aPartirDe !== "" && p.prixEntry !== "")
+              .map((p) => ({
+                aPartirDe: Number(p.aPartirDe),
+                prixParPersonne: toUSD(p.prixEntry, priceCurrency, rateFromUSD),
+              }))
+          : [],
         ville: ville.trim(), adresse: adresse.trim(),
         images: photos.map((p) => p.preview),
         thumbnail: photos[0]?.preview || null,
@@ -250,7 +269,39 @@ const ActivitySubmit = () => {
           </label>
         </div>
         {errors.priceEntry && <p className={styles.err}>{errors.priceEntry}</p>}
-        <div className={styles.grid2}>
+        {priceUnit === "per_person" && (
+          <>
+            <h3 style={{ fontSize: ".9rem", color: "#0f1b3f", margin: "18px 0 6px" }}>
+              Tarifs de groupe{" "}
+              <small style={{ fontWeight: 400, color: "#6d7a95" }}>(inclus à partir de Business)</small>
+            </h3>
+            <p style={{ fontSize: ".82rem", color: "#6d7a95", margin: "0 0 10px" }}>
+              Sans palier, deux plongeurs paient le même prix par personne que quinze.
+              Le palier le plus élevé atteint l'emporte ; un prix supérieur au tarif
+              normal est ignoré — un groupe ne doit jamais coûter plus qu'une somme
+              d'individus.
+            </p>
+            {paliers.map((p, i) => (
+              <div key={i} className={styles.grid2} style={{ gridTemplateColumns: "1fr 1fr auto", alignItems: "end" }}>
+                <label className={styles.field}>
+                  <span>À partir de (participants)</span>
+                  <input type="number" min="2" value={p.aPartirDe} onChange={(e) => setPalierField(i, "aPartirDe", e.target.value)} placeholder="Ex : 6" />
+                </label>
+                <label className={styles.field}>
+                  <span>Prix par personne ({priceCurrency})</span>
+                  <input type="number" min="0" value={p.prixEntry} onChange={(e) => setPalierField(i, "prixEntry", e.target.value)} placeholder="Ex : 40" />
+                </label>
+                <button type="button" className={styles.secondaryBtn} onClick={() => setPaliers((prev) => prev.filter((_, idx) => idx !== i))} aria-label="Retirer le palier">✕</button>
+              </div>
+            ))}
+            <button type="button" className={styles.secondaryBtn}
+              onClick={() => setPaliers((prev) => [...prev, { aPartirDe: "", prixEntry: "" }])}
+              disabled={paliers.length >= 6}>
+              + Ajouter un palier de groupe
+            </button>
+          </>
+        )}
+        <div className={styles.grid2} style={{ marginTop: 14 }}>
           <label className={styles.field}>
             <span>Durée de la session (minutes)</span>
             <input type="number" min="1" value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)} />

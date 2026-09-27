@@ -287,6 +287,17 @@ const VendorSubmit = () => {
   };
 
   // ── Données chauffeur
+  // ── Outils de palier du secteur chauffeur ───────────────────────────────
+  // Vides = comportement d'avant, à l'identique. Le serveur refuse de les
+  // POSER sans le palier qui les ouvre, et son message nomme ce palier :
+  // inutile de masquer les champs ici, où l'on ignore le palier réel.
+  const [zonesTarif, setZonesTarif] = useState([]);
+  const setZoneTarifField = (i, champ, valeur) =>
+    setZonesTarif((prev) => prev.map((z, idx) => (idx === i ? { ...z, [champ]: valeur } : z)));
+  const [dispo, setDispo] = useState({ active: false, dureeMinMois: 3, dureeMaxMois: 12, paliers: [], conditions: "" });
+  const setPalierDispo = (i, champ, valeur) =>
+    setDispo((p) => ({ ...p, paliers: p.paliers.map((x, idx) => (idx === i ? { ...x, [champ]: valeur } : x)) }));
+
   const [driver, setDriver] = useState({
     firstName: "", lastName: "", title: "", telephone: "",
     tarif: "", tarifDemiJournee: "", tarifHeure: "", tarifMois: "",
@@ -733,6 +744,26 @@ const VendorSubmit = () => {
             tarifHeureEntered:       tarifHeureEntry       !== "" && !isNaN(Number(tarifHeureEntry))       ? Number(tarifHeureEntry)       : null,
             tarifMoisEntered:        tarifMoisEntry        !== "" && !isNaN(Number(tarifMoisEntry))        ? Number(tarifMoisEntry)        : null,
             priceEntryCurrency: priceCurrency,
+            // Une zone sans nom ou sans supplément ne désigne rien : écartée
+            // ici plutôt qu'envoyée, sinon le serveur refuserait la
+            // publication entière pour une ligne restée vide.
+            zonesTarifaires: zonesTarif
+              .filter((z) => z.nom.trim() && z.supplementEntry !== "")
+              .map((z) => ({
+                nom: z.nom.trim(),
+                supplementUSD: priceCurrency === "USD"
+                  ? Number(z.supplementEntry)
+                  : Math.round((Number(z.supplementEntry) / rateFromUSD(priceCurrency)) * 100) / 100,
+              })),
+            miseADisposition: {
+              active: dispo.active,
+              dureeMinMois: Number(dispo.dureeMinMois) || 1,
+              dureeMaxMois: Number(dispo.dureeMaxMois) || 12,
+              paliers: dispo.paliers
+                .filter((p) => p.aPartirDeMois !== "" && p.remisePourcent !== "")
+                .map((p) => ({ aPartirDeMois: Number(p.aPartirDeMois), remisePourcent: Number(p.remisePourcent) })),
+              conditions: dispo.conditions.trim() || null,
+            },
           }),
         });
         if (res.ok) {
@@ -1371,6 +1402,87 @@ const VendorSubmit = () => {
                   </div>
                 )}
               </div>
+              <h3 className={styles.cardTitle} style={{ fontSize: ".95rem", marginTop: 18 }}>
+                📍 Zones tarifaires <small style={{ fontWeight: 400, color: "#6d7a95" }}>(inclus à partir d'Essentiel)</small>
+              </h3>
+              <span className={styles.hint}>
+                Sans zone, un transfert aéroport est facturé comme une course intra-ville.
+                Le supplément s'ajoute une fois par mission, jamais multiplié par la durée.
+              </span>
+              {zonesTarif.map((z, i) => (
+                <div key={i} className={styles.grid2} style={{ gridTemplateColumns: "1.4fr 1fr auto", alignItems: "end", marginTop: 8 }}>
+                  <div className={styles.field}>
+                    <label>Nom de la zone</label>
+                    <input value={z.nom} onChange={(e) => setZoneTarifField(i, "nom", e.target.value)} placeholder="Ex : Aéroport" maxLength={60} />
+                  </div>
+                  <div className={styles.field}>
+                    <label>Supplément ({priceCurrency})</label>
+                    <input type="number" min="0" value={z.supplementEntry} onChange={(e) => setZoneTarifField(i, "supplementEntry", e.target.value)} placeholder="Ex : 15000" />
+                  </div>
+                  <button type="button" className={styles.secondaryBtn} onClick={() => setZonesTarif((prev) => prev.filter((_, idx) => idx !== i))} aria-label="Retirer la zone">✕</button>
+                </div>
+              ))}
+              <button type="button" className={styles.secondaryBtn} style={{ marginTop: 8 }}
+                onClick={() => setZonesTarif((prev) => [...prev, { nom: "", supplementEntry: "" }])}
+                disabled={zonesTarif.length >= 12}>
+                + Ajouter une zone
+              </button>
+
+              {driver.tarifMois > 0 && (
+                <>
+                  <h3 className={styles.cardTitle} style={{ fontSize: ".95rem", marginTop: 18 }}>
+                    📄 Mise à disposition longue durée <small style={{ fontWeight: 400, color: "#6d7a95" }}>(inclus à partir de Business)</small>
+                  </h3>
+                  <span className={styles.hint}>
+                    Sans contrat, douze mois coûtent douze fois un mois et se paient d'un bloc —
+                    aucune entreprise ne signe à ces conditions. Activez pour proposer une remise
+                    d'engagement et un règlement mois par mois.
+                  </span>
+                  <label className={styles.field} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
+                    <input type="checkbox" checked={dispo.active} onChange={(e) => setDispo((p) => ({ ...p, active: e.target.checked }))} />
+                    <span>Proposer un contrat de mise à disposition</span>
+                  </label>
+                  {dispo.active && (
+                    <>
+                      <div className={styles.grid2}>
+                        <div className={styles.field}>
+                          <label>Engagement minimum (mois)</label>
+                          <input type="number" min="1" max="24" value={dispo.dureeMinMois} onChange={(e) => setDispo((p) => ({ ...p, dureeMinMois: e.target.value }))} />
+                          <span className={styles.hint}>En dessous, le client réserve au mois comme avant.</span>
+                        </div>
+                        <div className={styles.field}>
+                          <label>Engagement maximum (mois)</label>
+                          <input type="number" min="1" max="36" value={dispo.dureeMaxMois} onChange={(e) => setDispo((p) => ({ ...p, dureeMaxMois: e.target.value }))} />
+                        </div>
+                      </div>
+                      {dispo.paliers.map((p, i) => (
+                        <div key={i} className={styles.grid2} style={{ gridTemplateColumns: "1fr 1fr auto", alignItems: "end", marginTop: 8 }}>
+                          <div className={styles.field}>
+                            <label>À partir de (mois)</label>
+                            <input type="number" min="1" value={p.aPartirDeMois} onChange={(e) => setPalierDispo(i, "aPartirDeMois", e.target.value)} placeholder="Ex : 6" />
+                          </div>
+                          <div className={styles.field}>
+                            <label>Remise (%)</label>
+                            <input type="number" min="0" max="100" value={p.remisePourcent} onChange={(e) => setPalierDispo(i, "remisePourcent", e.target.value)} placeholder="Ex : 10" />
+                          </div>
+                          <button type="button" className={styles.secondaryBtn} onClick={() => setDispo((prev) => ({ ...prev, paliers: prev.paliers.filter((_, idx) => idx !== i) }))} aria-label="Retirer le palier">✕</button>
+                        </div>
+                      ))}
+                      <button type="button" className={styles.secondaryBtn} style={{ marginTop: 8 }}
+                        onClick={() => setDispo((p) => ({ ...p, paliers: [...p.paliers, { aPartirDeMois: "", remisePourcent: "" }] }))}
+                        disabled={dispo.paliers.length >= 6}>
+                        + Ajouter un palier de remise
+                      </button>
+                      <div className={styles.field} style={{ marginTop: 8 }}>
+                        <label>Ce que vous vous engagez à fournir — optionnel</label>
+                        <textarea value={dispo.conditions} onChange={(e) => setDispo((p) => ({ ...p, conditions: e.target.value }))} rows={3} maxLength={600}
+                          placeholder="Ex : véhicule fourni, carburant à la charge du client, remplaçant en cas d'absence…" />
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
               {(driver.tarif > 0 || driver.tarifDemiJournee > 0 || driver.tarifHeure > 0) && (
                 <div className={styles.pricePreview}>
                   {driver.tarif > 0 && <div className={styles.priceItem}><span>Tarif journée</span><strong>{fmt(driver.tarif)}</strong></div>}

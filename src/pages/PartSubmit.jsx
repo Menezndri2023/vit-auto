@@ -86,6 +86,13 @@ const PartSubmit = () => {
   const [deliveryDaysMin, setDeliveryDaysMin] = useState(1);
   const [deliveryDaysMax, setDeliveryDaysMax] = useState(5);
   const [shipCountries,   setShipCountries]   = useState([]);
+  // ── Zones tarifaires de livraison (outil du palier Business) ────────────
+  // Vide = un seul forfait pour tout le corridor, exactement comme avant.
+  // Le serveur refuse de POSER des zones sans le palier qui les ouvre, et son
+  // message nomme ce palier — inutile de masquer le champ ici.
+  const [zones, setZones] = useState([]);
+  const setZoneField = (i, champ, valeur) =>
+    setZones((prev) => prev.map((z, idx) => (idx === i ? { ...z, [champ]: valeur } : z)));
 
   const [ville,      setVille]      = useState("");
   const [adresse,    setAdresse]    = useState("");
@@ -158,6 +165,18 @@ const PartSubmit = () => {
           mode: shippingMode, forfaitUSD: forfaitUSD ?? 0, freeAboveUSD: freeAboveUSD,
           deliveryDaysMin: Number(deliveryDaysMin) || 0, deliveryDaysMax: Number(deliveryDaysMax) || 0,
           countries: shipCountries,
+          // Une zone sans aucun pays ne désigne rien : elle est écartée
+          // plutôt qu'envoyée, sinon le serveur la refuserait en bloc et le
+          // partenaire perdrait toute sa saisie pour une ligne restée vide.
+          zones: zones
+            .filter((z) => (z.countries || []).length > 0)
+            .map((z) => ({
+              countries: z.countries,
+              forfaitUSD: toUSD(z.forfaitEntry, priceCurrency, rateFromUSD) ?? 0,
+              freeAboveUSD: toUSD(z.freeAboveEntry, priceCurrency, rateFromUSD),
+              deliveryDaysMin: z.deliveryDaysMin === "" ? null : Number(z.deliveryDaysMin),
+              deliveryDaysMax: z.deliveryDaysMax === "" ? null : Number(z.deliveryDaysMax),
+            })),
         },
         ville: ville.trim(), adresse: adresse.trim(),
         images: photos.map((p) => p.preview),
@@ -422,7 +441,51 @@ const PartSubmit = () => {
                 {COUNTRIES_CONFIG.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
               </select>
             </label>
-            <label className={styles.field}>
+            <h3 style={{ fontSize: ".9rem", color: "#0f1b3f", margin: "18px 0 6px" }}>
+              Zones tarifaires de livraison{" "}
+              <small style={{ fontWeight: 400, color: "#6d7a95" }}>(inclus à partir de Business)</small>
+            </h3>
+            <p style={{ fontSize: ".82rem", color: "#6d7a95", margin: "0 0 10px" }}>
+              Sans zone, un seul forfait s'applique à tous les pays desservis : livrer
+              dans votre ville coûte au client le même prix qu'à l'autre bout du
+              corridor. Une zone l'emporte sur le forfait unique pour les pays qu'elle
+              couvre ; un pays qui n'est dans aucune zone garde le forfait unique.
+            </p>
+            {zones.map((z, i) => (
+              <div key={i} className={styles.grid2} style={{ gridTemplateColumns: "1.6fr .9fr .9fr .6fr .6fr auto", alignItems: "end" }}>
+                <label className={styles.field}>
+                  <span>Pays de la zone</span>
+                  <select multiple value={z.countries}
+                    onChange={(e) => setZoneField(i, "countries", [...e.target.selectedOptions].map((o) => o.value))}
+                    style={{ minHeight: 80 }}>
+                    {COUNTRIES_CONFIG.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
+                  </select>
+                </label>
+                <label className={styles.field}>
+                  <span>Forfait ({priceCurrency})</span>
+                  <input type="number" min="0" value={z.forfaitEntry} onChange={(e) => setZoneField(i, "forfaitEntry", e.target.value)} placeholder="Ex : 15" />
+                </label>
+                <label className={styles.field}>
+                  <span>Offerte dès ({priceCurrency})</span>
+                  <input type="number" min="0" value={z.freeAboveEntry} onChange={(e) => setZoneField(i, "freeAboveEntry", e.target.value)} placeholder="Facultatif" />
+                </label>
+                <label className={styles.field}>
+                  <span>Délai min.</span>
+                  <input type="number" min="0" max="120" value={z.deliveryDaysMin} onChange={(e) => setZoneField(i, "deliveryDaysMin", e.target.value)} placeholder="j" />
+                </label>
+                <label className={styles.field}>
+                  <span>Délai max.</span>
+                  <input type="number" min="0" max="120" value={z.deliveryDaysMax} onChange={(e) => setZoneField(i, "deliveryDaysMax", e.target.value)} placeholder="j" />
+                </label>
+                <button type="button" className={styles.secondaryBtn} onClick={() => setZones((prev) => prev.filter((_, idx) => idx !== i))} aria-label="Retirer la zone">✕</button>
+              </div>
+            ))}
+            <button type="button" className={styles.secondaryBtn}
+              onClick={() => setZones((prev) => [...prev, { countries: [], forfaitEntry: "", freeAboveEntry: "", deliveryDaysMin: "", deliveryDaysMax: "" }])}
+              disabled={zones.length >= 8}>
+              + Ajouter une zone de livraison
+            </button>
+            <label className={styles.field} style={{ marginTop: 14 }}>
               <span>Adresse d'expédition</span>
               <input value={adresse} onChange={(e) => setAdresse(e.target.value)} />
             </label>

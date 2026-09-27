@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createBooking, reglerEcheance, consulterEcheancier } from "../controllers/bookingController.js";
-import { updateDriver } from "../controllers/driverController.js";
+import { updateDriver, createDriver } from "../controllers/driverController.js";
 import Booking from "../models/Booking.js";
 import Driver from "../models/Driver.js";
 import Subscription from "../models/Subscription.js";
@@ -311,5 +311,54 @@ describe("Mise à disposition — verrou de palier", () => {
     const driver = await createDriverDoc({ owner: owner._id, tarifMois: 1000 });
     const res = await activer(owner, driver, { ...OFFRE, dureeMaxMois: 6, paliers: [{ aPartirDeMois: 12, remisePourcent: 20 }] });
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe("Outils saisis dès la PUBLICATION", () => {
+  // ⚠️ Trou réel trouvé le 2026-09-27 en câblant les écrans : les
+  // normaliseurs n'étaient appelés qu'à l'ÉDITION. Un partenaire saisissait
+  // ses zones ou son offre au formulaire de publication et elles
+  // disparaissaient sans un mot — le champ n'était pas déclaré dans la
+  // création, donc Mongoose l'ignorait. Écriture perdue en silence.
+  const publier = async (user, corps) => {
+    const { req, res } = mockReqRes({ user, body: {
+      firstName: "Ama", lastName: "Koné", title: "Chauffeur pro",
+      profilePhoto: IMG, cv: "https://cdn.example.test/cv.pdf",
+      disponibilite: "Temps plein", zone: "Abidjan", experience: "5 ans",
+      tarifHeure: 100, tarifMois: 1000,
+      identityDocument: { type: "cni", frontImage: IMG },
+      licenseDocument: { frontImage: IMG },
+      ...corps,
+    } });
+    await createDriver(req, res);
+    return res;
+  };
+
+  it("l'offre saisie à la publication est bien enregistrée", async () => {
+    const owner = await createUser({ role: "partenaire", isFounder: true, sellerType: "particulier" });
+    const res = await publier(owner, { miseADisposition: OFFRE });
+    expect(res.statusCode).toBe(201);
+    const driver = await Driver.findById(res.body.driver?._id || res.body._id);
+    expect(driver.miseADisposition.active).toBe(true);
+    expect(driver.miseADisposition.paliers).toHaveLength(2);
+  });
+
+  it("les zones tarifaires saisies à la publication sont bien enregistrées", async () => {
+    const owner = await createUser({ role: "partenaire", isFounder: true, sellerType: "particulier" });
+    const res = await publier(owner, { zonesTarifaires: [{ nom: "Aéroport", supplementUSD: 50 }] });
+    expect(res.statusCode).toBe(201);
+    const driver = await Driver.findById(res.body.driver?._id || res.body._id);
+    expect(driver.zonesTarifaires).toHaveLength(1);
+    expect(driver.zonesTarifaires[0].supplementUSD).toBe(50);
+  });
+
+  it("le verrou de palier s'applique AUSSI à la publication", async () => {
+    const owner = await createUser({ role: "partenaire", sellerType: "particulier" });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2027-10-01T00:00:00Z"));
+    const res = await publier(owner, { miseADisposition: OFFRE });
+    vi.useRealTimers();
+    expect(res.statusCode).toBe(403);
+    expect(res.body.feature).toBe("miseADisposition");
   });
 });

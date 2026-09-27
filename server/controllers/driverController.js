@@ -163,7 +163,7 @@ export const createDriver = async (req, res) => {
       tarifEntered, tarifDemiJourneeEntered, tarifHeureEntered, tarifMoisEntered, priceEntryCurrency,
       disponibilite, zone, ville,
       experience, langues, permisCategorie, vehiculePersonnel, typeVehicule,
-      images,
+      images, zonesTarifaires, miseADisposition,
     } = req.body;
 
     const phone = telephone || contactTel || phoneRaw;
@@ -193,6 +193,20 @@ export const createDriver = async (req, res) => {
     // ── CV obligatoire ──────────────────────────────────────────────────────
     const cvError = validateCv(cv);
     if (cvError) return res.status(400).json({ message: cvError });
+
+    // ── Outils de palier saisis dès la publication (2026-09-27) ────────────
+    // Ils passent par les MÊMES normaliseurs qu'à l'édition. Ils étaient
+    // absents de la création : le partenaire saisissait ses zones au
+    // formulaire de publication et elles disparaissaient sans un mot — une
+    // écriture perdue en silence, faute d'être déclarée. Le verrou de palier
+    // s'applique donc aussi ici.
+    const zonesTarif = await normaliserZonesTarifaires(req.user, zonesTarifaires);
+    if (zonesTarif.error) return res.status(400).json({ message: zonesTarif.error });
+    if (zonesTarif.refus) return res.status(403).json(zonesTarif.refus);
+
+    const dispo = await normaliserMiseADisposition(req.user, miseADisposition, { tarifMois });
+    if (dispo.error) return res.status(400).json({ message: dispo.error });
+    if (dispo.refus) return res.status(403).json(dispo.refus);
 
     // ── Entreprise du partenaire (facultatif) — même principe que Vehicle ───
     let business = null;
@@ -225,6 +239,8 @@ export const createDriver = async (req, res) => {
       priceEntryCurrency: priceEntryCurrency || null,
       currency: req.body.currency || null,
       disponibilite, zone, ville,
+      ...(zonesTarif.zones !== undefined ? { zonesTarifaires: zonesTarif.zones } : {}),
+      ...(dispo.offre !== undefined ? { miseADisposition: dispo.offre } : {}),
       experience,
       langues: langues || ["Français"],
       permisCategorie: Array.isArray(permisCategorie) && permisCategorie.length ? permisCategorie : ["B"],
