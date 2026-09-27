@@ -1639,6 +1639,20 @@ export default function VendorDashboard() {
       firstName: drv.firstName || "", lastName: drv.lastName || "", phone: drv.phone || "",
       title: drv.title || "", description: drv.description || "",
       tarif: drv.tarif ?? "", tarifDemiJournee: drv.tarifDemiJournee ?? "", tarifHeure: drv.tarifHeure ?? "",
+      // `tarifMois` existait depuis le 2026-09-16 mais manquait ICI : il était
+      // saisissable à la publication et plus jamais modifiable ensuite.
+      tarifMois: drv.tarifMois ?? "",
+      // Outils de palier (2026-09-27) — jusqu'ici configurables seulement à la
+      // publication : un partenaire ne pouvait pas ajouter une zone à un
+      // profil déjà en ligne sans le republier.
+      zonesTarifaires: Array.isArray(drv.zonesTarifaires) ? drv.zonesTarifaires.map((z) => ({ ...z })) : [],
+      miseADisposition: {
+        active: !!drv.miseADisposition?.active,
+        dureeMinMois: drv.miseADisposition?.dureeMinMois ?? 3,
+        dureeMaxMois: drv.miseADisposition?.dureeMaxMois ?? 12,
+        paliers: Array.isArray(drv.miseADisposition?.paliers) ? drv.miseADisposition.paliers.map((x) => ({ ...x })) : [],
+        conditions: drv.miseADisposition?.conditions || "",
+      },
       currency: drv.currency || "",
       disponibilite: drv.disponibilite || "", zone: drv.zone || "", ville: drv.ville || "",
       experience: drv.experience ?? "",
@@ -1708,6 +1722,22 @@ export default function VendorDashboard() {
         tarif: Number(driverEditForm.tarif) || undefined,
         tarifDemiJournee: Number(driverEditForm.tarifDemiJournee) || undefined,
         tarifHeure: Number(driverEditForm.tarifHeure) || undefined,
+        tarifMois: Number(driverEditForm.tarifMois) || undefined,
+        // Les montants sont déjà en USD ici (le formulaire d'édition affiche
+        // et renvoie le pivot, contrairement à la publication qui convertit
+        // depuis la devise de saisie).
+        zonesTarifaires: driverEditForm.zonesTarifaires
+          .filter((z) => String(z.nom || "").trim() && z.supplementUSD !== "")
+          .map((z) => ({ nom: String(z.nom).trim(), supplementUSD: Number(z.supplementUSD) || 0 })),
+        miseADisposition: {
+          active: driverEditForm.miseADisposition.active,
+          dureeMinMois: Number(driverEditForm.miseADisposition.dureeMinMois) || 1,
+          dureeMaxMois: Number(driverEditForm.miseADisposition.dureeMaxMois) || 12,
+          paliers: driverEditForm.miseADisposition.paliers
+            .filter((x) => x.aPartirDeMois !== "" && x.remisePourcent !== "")
+            .map((x) => ({ aPartirDeMois: Number(x.aPartirDeMois), remisePourcent: Number(x.remisePourcent) })),
+          conditions: String(driverEditForm.miseADisposition.conditions || "").trim() || null,
+        },
         currency: driverEditForm.currency || null,
         disponibilite: driverEditForm.disponibilite, zone: driverEditForm.zone, ville: driverEditForm.ville,
         experience: Number(driverEditForm.experience) || undefined,
@@ -1763,6 +1793,10 @@ export default function VendorDashboard() {
       weatherDependent: isWeatherDependent(act),
       images: Array.isArray(act.images) ? act.images : [],
       thumbnail: act.thumbnail || null,
+      // Paliers de groupe (2026-09-27) — jusqu'ici configurables seulement à
+      // la publication. Les montants sont en USD ici, comme le reste de cette
+      // modale d'édition.
+      tarifsGroupe: Array.isArray(act.tarifsGroupe) ? act.tarifsGroupe.map((x) => ({ ...x })) : [],
     });
     const entryCurrency = act.priceEntryCurrency || act.currency || "USD";
     setActivityEditPriceCurrency(entryCurrency);
@@ -1813,6 +1847,13 @@ export default function VendorDashboard() {
         essaiPrice: activityEditForm.essaiDisponible ? essaiPriceUSD : null,
         images: activityEditForm.images,
         thumbnail: activityEditForm.thumbnail,
+        // Un forfait par sortie ne se dégresse pas au nombre de participants :
+        // le serveur les ignorerait, autant ne pas les envoyer.
+        tarifsGroupe: activityEditForm.priceUnit === "per_person"
+          ? activityEditForm.tarifsGroupe
+              .filter((x) => x.aPartirDe !== "" && x.prixParPersonne !== "")
+              .map((x) => ({ aPartirDe: Number(x.aPartirDe), prixParPersonne: Number(x.prixParPersonne) }))
+          : [],
       };
       const r = await fetch(`/api/activities/${activityEditModal._id}`, {
         method: "PATCH",
@@ -2964,6 +3005,10 @@ export default function VendorDashboard() {
       condition: part.condition || "neuf", saleMode: part.saleMode || "direct",
       priceEntry: part.priceEntered != null ? String(part.priceEntered) : String(part.price ?? ""), priceCurrency: part.priceEntryCurrency || part.currency || "USD",
       stock: part.stock == null ? "" : String(part.stock), minOrderQty: part.minOrderQty || 1,
+      // Manquait ici (2026-09-27) : le seuil d'alerte se posait à la
+      // publication et n'était plus jamais modifiable — même trou que
+      // `tarifMois` côté chauffeur.
+      seuilStockBas: part.seuilStockBas == null ? "" : String(part.seuilStockBas),
       shippingMode: part.shipping?.mode || "forfait", forfaitUSD: part.shipping?.forfaitUSD ?? 0, freeAboveUSD: part.shipping?.freeAboveUSD ?? "",
       // Zones tarifaires : saisies en texte (« MA,EH: 5 » une par ligne), la
       // forme la plus rapide à remplir et à relire. Un tableau de champs pour
@@ -2993,6 +3038,7 @@ export default function VendorDashboard() {
           title: f.title, description: f.description, brand: f.brand, reference: f.reference, condition: f.condition, saleMode: f.saleMode,
           price: priceUSD, currency: f.priceCurrency !== "USD" ? f.priceCurrency : null, priceEntered: priceNum, priceEntryCurrency: f.priceCurrency,
           stock: f.stock === "" ? null : Number(f.stock), minOrderQty: Number(f.minOrderQty) || 1,
+          seuilStockBas: f.seuilStockBas === "" ? null : Number(f.seuilStockBas),
           shipping: { mode: f.shippingMode, forfaitUSD: Number(f.forfaitUSD) || 0, freeAboveUSD: f.freeAboveUSD === "" ? null : Number(f.freeAboveUSD), deliveryDaysMin: Number(f.deliveryDaysMin) || 0, deliveryDaysMax: Number(f.deliveryDaysMax) || 0, countries: partEditModal.shipping?.countries || [], zones: lireZones(f.zonesTexte) },
           importInfo: f.saleMode === "import" ? { originCountry: f.originCountry, leadTimeDays: Number(f.leadTimeDays) || 21, feesUSD: Number(f.importFeesUSD) || 0, customsIncluded: !!f.customsIncluded, depositPercent: Number(f.depositPercent) || 0 } : undefined,
           compatibilityText: f.compatibilityText, ville: f.ville, images: f.images, thumbnail: f.images[0] || null,
@@ -5106,7 +5152,90 @@ export default function VendorDashboard() {
                 <input type="number" value={driverEditForm.tarifHeure} onChange={(e) => setDriverEditForm((p) => ({ ...p, tarifHeure: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
               </div>
+              <div>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>Tarif / mois</label>
+                <input type="number" value={driverEditForm.tarifMois} onChange={(e) => setDriverEditForm((p) => ({ ...p, tarifMois: e.target.value }))}
+                  style={MI} />
+              </div>
             </div>
+
+            {/* ── Zones tarifaires (outil du palier Essentiel) ───────────── */}
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: ".78rem", color: "#64748b" }}>
+                📍 Zones tarifaires <span style={{ color: "#94a3b8" }}>(inclus à partir d'Essentiel)</span>
+              </label>
+              <p style={{ fontSize: ".75rem", color: "#94a3b8", margin: "2px 0 6px" }}>
+                Un transfert aéroport ne vaut pas une course intra-ville. Le supplément
+                s'ajoute une fois par mission, jamais multiplié par la durée.
+              </p>
+              {driverEditForm.zonesTarifaires.map((z, i) => (
+                <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+                  <input value={z.nom} placeholder="Aéroport" maxLength={60}
+                    onChange={(e) => setDriverEditForm((p) => ({ ...p, zonesTarifaires: p.zonesTarifaires.map((x, idx) => idx === i ? { ...x, nom: e.target.value } : x) }))}
+                    style={{ ...MI, marginTop: 0, flex: 2 }} />
+                  <input type="number" min="0" value={z.supplementUSD} placeholder="USD"
+                    onChange={(e) => setDriverEditForm((p) => ({ ...p, zonesTarifaires: p.zonesTarifaires.map((x, idx) => idx === i ? { ...x, supplementUSD: e.target.value } : x) }))}
+                    style={{ ...MI, marginTop: 0, flex: 1 }} />
+                  <button type="button" onClick={() => setDriverEditForm((p) => ({ ...p, zonesTarifaires: p.zonesTarifaires.filter((_, idx) => idx !== i) }))}
+                    style={{ border: "none", background: "transparent", color: "#dc2626", cursor: "pointer", fontSize: ".9rem" }} aria-label="Retirer la zone">✕</button>
+                </div>
+              ))}
+              <button type="button" disabled={driverEditForm.zonesTarifaires.length >= 12}
+                onClick={() => setDriverEditForm((p) => ({ ...p, zonesTarifaires: [...p.zonesTarifaires, { nom: "", supplementUSD: "" }] }))}
+                style={{ padding: "5px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#fff", fontSize: ".78rem", cursor: "pointer" }}>
+                + Ajouter une zone
+              </button>
+            </div>
+
+            {/* ── Mise à disposition longue durée (palier Business) ──────── */}
+            {Number(driverEditForm.tarifMois) > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>
+                  📄 Mise à disposition longue durée <span style={{ color: "#94a3b8" }}>(inclus à partir de Business)</span>
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: ".82rem", margin: "6px 0" }}>
+                  <input type="checkbox" checked={driverEditForm.miseADisposition.active}
+                    onChange={(e) => setDriverEditForm((p) => ({ ...p, miseADisposition: { ...p.miseADisposition, active: e.target.checked } }))} />
+                  Proposer un contrat avec remise d'engagement et règlement mensuel
+                </label>
+                {driverEditForm.miseADisposition.active && (
+                  <>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: ".75rem", color: "#94a3b8" }}>Engagement min. (mois)</label>
+                        <input type="number" min="1" max="24" value={driverEditForm.miseADisposition.dureeMinMois}
+                          onChange={(e) => setDriverEditForm((p) => ({ ...p, miseADisposition: { ...p.miseADisposition, dureeMinMois: e.target.value } }))} style={MI} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: ".75rem", color: "#94a3b8" }}>Engagement max. (mois)</label>
+                        <input type="number" min="1" max="36" value={driverEditForm.miseADisposition.dureeMaxMois}
+                          onChange={(e) => setDriverEditForm((p) => ({ ...p, miseADisposition: { ...p.miseADisposition, dureeMaxMois: e.target.value } }))} style={MI} />
+                      </div>
+                    </div>
+                    {driverEditForm.miseADisposition.paliers.map((x, i) => (
+                      <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+                        <input type="number" min="1" value={x.aPartirDeMois} placeholder="À partir de (mois)"
+                          onChange={(e) => setDriverEditForm((p) => ({ ...p, miseADisposition: { ...p.miseADisposition, paliers: p.miseADisposition.paliers.map((y, idx) => idx === i ? { ...y, aPartirDeMois: e.target.value } : y) } }))}
+                          style={{ ...MI, marginTop: 0, flex: 1 }} />
+                        <input type="number" min="0" max="100" value={x.remisePourcent} placeholder="Remise %"
+                          onChange={(e) => setDriverEditForm((p) => ({ ...p, miseADisposition: { ...p.miseADisposition, paliers: p.miseADisposition.paliers.map((y, idx) => idx === i ? { ...y, remisePourcent: e.target.value } : y) } }))}
+                          style={{ ...MI, marginTop: 0, flex: 1 }} />
+                        <button type="button" onClick={() => setDriverEditForm((p) => ({ ...p, miseADisposition: { ...p.miseADisposition, paliers: p.miseADisposition.paliers.filter((_, idx) => idx !== i) } }))}
+                          style={{ border: "none", background: "transparent", color: "#dc2626", cursor: "pointer", fontSize: ".9rem" }} aria-label="Retirer le palier">✕</button>
+                      </div>
+                    ))}
+                    <button type="button" disabled={driverEditForm.miseADisposition.paliers.length >= 6}
+                      onClick={() => setDriverEditForm((p) => ({ ...p, miseADisposition: { ...p.miseADisposition, paliers: [...p.miseADisposition.paliers, { aPartirDeMois: "", remisePourcent: "" }] } }))}
+                      style={{ padding: "5px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#fff", fontSize: ".78rem", cursor: "pointer" }}>
+                      + Ajouter un palier de remise
+                    </button>
+                    <textarea value={driverEditForm.miseADisposition.conditions} rows={2} maxLength={600}
+                      onChange={(e) => setDriverEditForm((p) => ({ ...p, miseADisposition: { ...p.miseADisposition, conditions: e.target.value } }))}
+                      style={MI} placeholder="Ce que vous fournissez : véhicule, carburant, remplaçant en cas d'absence…" />
+                  </>
+                )}
+              </div>
+            )}
 
             <div style={{ marginBottom: 10 }}>
               <label style={{ fontSize: ".78rem", color: "#64748b" }}>Devise d'affichage de l'annonce</label>
@@ -5255,6 +5384,13 @@ export default function VendorDashboard() {
                 <label style={{ fontSize: ".78rem", color: "#64748b" }}>Qté min.
                   <input type="number" min="1" value={partEditForm.minOrderQty} onChange={(e) => setPartEditForm((p) => ({ ...p, minOrderQty: e.target.value }))} style={MI} /></label>
               </div>
+              {partEditForm.stock !== "" && (
+                <label style={{ fontSize: ".78rem", color: "#64748b", display: "block", marginBottom: 10 }}>
+                  M'alerter sous <span style={{ color: "#94a3b8" }}>(vide = pas d'alerte · inclus à partir d'Essentiel)</span>
+                  <input type="number" min="0" value={partEditForm.seuilStockBas} placeholder="Ex : 3"
+                    onChange={(e) => setPartEditForm((p) => ({ ...p, seuilStockBas: e.target.value }))} style={MI} />
+                </label>
+              )}
               <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10 }}>
                 <label style={{ fontSize: ".78rem", color: "#64748b" }}>Livraison
                   <select value={partEditForm.shippingMode} onChange={(e) => setPartEditForm((p) => ({ ...p, shippingMode: e.target.value }))} style={MI}>
@@ -5403,6 +5539,36 @@ export default function VendorDashboard() {
                   style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
               </div>
             </div>
+
+            {/* ── Tarifs de groupe (outil du palier Business) ───────────── */}
+            {activityEditForm.priceUnit === "per_person" && (
+              <div style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: ".78rem", color: "#64748b" }}>
+                  👥 Tarifs de groupe <span style={{ color: "#94a3b8" }}>(inclus à partir de Business)</span>
+                </label>
+                <p style={{ fontSize: ".75rem", color: "#94a3b8", margin: "2px 0 6px" }}>
+                  Le palier le plus élevé atteint l'emporte. Un prix supérieur au tarif normal
+                  est ignoré : un groupe ne doit jamais coûter plus qu'une somme d'individus.
+                </p>
+                {activityEditForm.tarifsGroupe.map((x, i) => (
+                  <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+                    <input type="number" min="2" value={x.aPartirDe} placeholder="À partir de (pers.)"
+                      onChange={(e) => setActivityEditForm((p) => ({ ...p, tarifsGroupe: p.tarifsGroupe.map((y, idx) => idx === i ? { ...y, aPartirDe: e.target.value } : y) }))}
+                      style={{ ...MI, marginTop: 0, flex: 1 }} />
+                    <input type="number" min="0" value={x.prixParPersonne} placeholder="Prix / pers. (USD)"
+                      onChange={(e) => setActivityEditForm((p) => ({ ...p, tarifsGroupe: p.tarifsGroupe.map((y, idx) => idx === i ? { ...y, prixParPersonne: e.target.value } : y) }))}
+                      style={{ ...MI, marginTop: 0, flex: 1 }} />
+                    <button type="button" onClick={() => setActivityEditForm((p) => ({ ...p, tarifsGroupe: p.tarifsGroupe.filter((_, idx) => idx !== i) }))}
+                      style={{ border: "none", background: "transparent", color: "#dc2626", cursor: "pointer", fontSize: ".9rem" }} aria-label="Retirer le palier">✕</button>
+                  </div>
+                ))}
+                <button type="button" disabled={activityEditForm.tarifsGroupe.length >= 6}
+                  onClick={() => setActivityEditForm((p) => ({ ...p, tarifsGroupe: [...p.tarifsGroupe, { aPartirDe: "", prixParPersonne: "" }] }))}
+                  style={{ padding: "5px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#fff", fontSize: ".78rem", cursor: "pointer" }}>
+                  + Ajouter un palier de groupe
+                </button>
+              </div>
+            )}
 
             <label style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, fontSize: ".85rem", cursor: "pointer" }}>
               <input type="checkbox" checked={!!activityEditForm.weatherDependent}
