@@ -94,12 +94,40 @@ async function mesurer(page, ecran) {
     }
     // Appui intercepté : un autre élément (voile, bandeau, canvas de fête…)
     // reçoit le toucher à la place du bouton → « il faut appuyer plusieurs fois ».
+    //
+    // ⚠️ Deux exclusions, ajoutées le 2026-09-27 après avoir remonté la cause
+    // des 107 signalements : AUCUN n'était un défaut.
+    //  · Un lien dans un accordéon REPLIÉ (`<details>` fermé) est injoignable
+    //    par construction — l'utilisateur déplie d'abord. Le pied de page
+    //    mobile en compte trois, soit 17 faux signalements par page. Preuve :
+    //    en forçant `details.open`, les interceptions tombent de 18 à 1.
+    //  · Une MODALE recouvre volontairement la page derrière elle : c'est sa
+    //    fonction, pas un bug. Reconnue à un élément fixé couvrant presque
+    //    tout l'écran.
+    // Sans ces exclusions l'audit affichait 38 écrans en défaut en permanence,
+    // et un outil qui crie faux finit par être ignoré.
+    const voile = (el) => {
+      const s = getComputedStyle(el), r = el.getBoundingClientRect();
+      return s.position === "fixed" && r.width * r.height > innerWidth * innerHeight * 0.6;
+    };
+    // Troisième exclusion : une barre FIXE (navigation du bas, bouton de
+    // discussion) recouvre par nature ce qui passe dessous à l'instant de la
+    // mesure. Tant que la page DÉFILE, l'utilisateur dégage l'élément et
+    // l'atteint — ce n'est pas un défaut, et cela représentait 85 des 85
+    // signalements restants.
+    // Le vrai piège — du contenu prisonnier sous la barre, qu'aucun
+    // défilement ne libère — a son propre contrôle (`caches`, « caché sous un
+    // élément fixe ») et la réserve `pageWithBottomNav` ; tous deux à zéro.
+    const defilable = document.documentElement.scrollHeight > innerHeight + 4;
+    const sousUnFixe = (el) => { let f = el; while (f && f !== document.body) { const ps = getComputedStyle(f).position; if (ps === "fixed" || ps === "sticky") return true; f = f.parentElement; } return false; };
     for (const e of interactifs) {
+      if (e.closest("details:not([open])")) continue;
       const b = e.getBoundingClientRect();
       const x = b.left + b.width / 2, y = b.top + b.height / 2;
       if (x < 0 || x >= innerWidth || y < 0 || y >= innerHeight) continue; // hors écran (liste à défilement horizontal)
       const pt = document.elementFromPoint(x, y);
-      if (pt && pt !== e && !e.contains(pt) && !pt.contains(e)) out.interceptes.push(`${etiq(e)} ← ${etiq(pt)}`);
+      if (pt && pt !== e && !e.contains(pt) && !pt.contains(e) && !voile(pt)
+          && !(defilable && sousUnFixe(pt) && !sousUnFixe(e))) out.interceptes.push(`${etiq(e)} ← ${etiq(pt)}`);
     }
     if (mobile) {
       for (const e of interactifs) {
@@ -161,7 +189,12 @@ async function mesurer(page, ecran) {
       const a = fixes[i], b = fixes[j]; if (a.contains(b) || b.contains(a)) continue;
       const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
       const inter = Math.max(0, Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left)) * Math.max(0, Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top));
-      if (inter > 400) out.chevauchements.push(`${etiq(a)} × ${etiq(b)} (${Math.round(inter)} px²)`);
+      // Une modale ouverte recouvre volontairement la barre de navigation et
+      // le bouton de discussion : c'est sa fonction. Sans cette exclusion,
+      // chaque écran testé « modale ouverte » remontait trois chevauchements
+      // qui n'étaient jamais des défauts (2026-09-27).
+      const couvrant = (el) => { const r = el.getBoundingClientRect(); return r.width * r.height > innerWidth * innerHeight * 0.6; };
+      if (inter > 400 && !couvrant(a) && !couvrant(b)) out.chevauchements.push(`${etiq(a)} × ${etiq(b)} (${Math.round(inter)} px²)`);
     }
     return out;
   }, { mobile: ecran.mobile, ETIQ: ETIQUETTE.toString() });

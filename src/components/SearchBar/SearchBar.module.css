@@ -576,7 +576,14 @@
    dépasser du cadre. */
 @media (max-width: 640px) {
   .etatToggle { flex-wrap: wrap; }
-  .etatBtn { flex: 1 1 auto; min-width: 0; white-space: nowrap; }
+  /* ⚠️ `min-width: 0` était posé ici pour laisser les boutons rétrécir — mais
+     cette règle vient APRÈS le bloc tactile ci-dessus, donc elle écrasait son
+     `min-width: 44px` : mesuré 37 px de large sur iPhone (audit 2026-09-27).
+     Deux correctifs bien intentionnés qui se contredisaient.
+     Le rétrécissement n'est plus nécessaire : `flex-wrap: wrap` ci-dessus fait
+     passer un bouton à la ligne au lieu de le comprimer, donc 44 px de large
+     ne débordent plus. */
+  .etatBtn { flex: 1 1 auto; min-width: 44px; white-space: nowrap; }
 }
 
 /* ── Classes citées par le JSX sans jamais exister (2026-09-27) ─────────────

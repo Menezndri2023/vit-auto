@@ -29,7 +29,11 @@ const anomalies = [];
 const ok = (m) => console.log(`✓ ${m}`);
 const ko = (m) => { anomalies.push(m); console.log(`✗ ${m}`); };
 const titre = (m) => console.log(`\n── ${m} ──`);
-const jours = (n) => new Date(Date.now() + n * 86400000).toISOString();
+// Décalage aléatoire par exécution : la base locale persiste, et deux
+// réservations aux mêmes dates sur le même véhicule se bloqueraient (409) —
+// un faux échec, comme dans scripts/parcoursServices.mjs.
+const DECALAGE = 20 + Math.floor(Math.random() * 300);
+const jours = (n) => new Date(Date.now() + (n + DECALAGE) * 86400000).toISOString();
 
 async function connexion(id, pwd = PWD) {
   const r = await fetch(`${API}/api/auth/login`, {
@@ -65,7 +69,7 @@ titre("Pièces — alerte de stock bas, frais de port par zone");
   const creation = await partenaire("/api/parts", {
     method: "POST",
     body: {
-      category: "Freinage", title: "Plaquettes de frein — vérification outils",
+      category: "FREINAGE", title: "Plaquettes de frein — vérification outils",
       price: 60, priceEntered: 60, priceEntryCurrency: "USD",
       stock: 4, seuilStockBas: 3, minOrderQty: 1,
       shipping: {
@@ -86,10 +90,18 @@ titre("Pièces — alerte de stock bas, frais de port par zone");
     else ko(`zone de livraison perdue : ${JSON.stringify(piece.shipping?.zones)}`);
 
     // Le devis de livraison doit appliquer la ZONE, pas le forfait unique.
-    const devisZone = await client(`/api/parts/${piece._id}/shipping-quote?destCountry=CI&quantity=1`);
-    const devisHors = await client(`/api/parts/${piece._id}/shipping-quote?destCountry=MA&quantity=1`);
-    const fZone = devisZone.data?.shippingUSD ?? devisZone.data?.livraisonUSD;
-    const fHors = devisHors.data?.shippingUSD ?? devisHors.data?.livraisonUSD;
+    // Le devis public ne sert QUE les annonces approuvées (404 sinon) — sans
+    // cette approbation, l'absence de réponse ressemble à s'y méprendre à
+    // « la zone est ignorée ».
+    await approuver(admin, `/api/parts/${piece._id}/status`);
+
+    // ⚠️ le paramètre s'appelle `country` et le montant vit sous
+    // `shipping.feeUSD` — lire à côté rend `undefined`, qui ressemble
+    // exactement à « la zone est ignorée ».
+    const devisZone = await client(`/api/parts/${piece._id}/shipping-quote?country=CI&quantity=1`);
+    const devisHors = await client(`/api/parts/${piece._id}/shipping-quote?country=MA&quantity=1`);
+    const fZone = devisZone.data?.shipping?.feeUSD;
+    const fHors = devisHors.data?.shipping?.feeUSD;
     if (fZone === 5) ok("frais de port par zone appliqués (5 $ en CI au lieu de 20 $)");
     else ko(`zone ignorée : CI facturé ${JSON.stringify(fZone)} au lieu de 5`);
     if (fHors === 20) ok("un pays hors zone garde le forfait unique — comportement d'avant préservé");
@@ -143,7 +155,9 @@ titre("Loisirs — tarifs de groupe, report de séance, billet à QR code");
       else ko(`billet non émis (${billet.status} ${billet.data?.message || ""})`);
 
       const detail = await client(`/api/bookings/${b._id}/detail`);
-      const jeton = detail.data?.activite?.billet?.jeton;
+      // ⚠️ getBookingDetail répond { booking: … } — lire un niveau trop haut
+      // rend `undefined` et ferait croire à un champ non exposé.
+      const jeton = detail.data?.booking?.activite?.billet?.jeton;
       if (!jeton) ko("le jeton du billet n'est pas exposé au client — le QR ne mène à rien");
       else {
         const un = await partenaire("/api/bookings/billet/scan", { method: "POST", body: { jeton } });
@@ -267,10 +281,10 @@ titre("Import de catalogue de pièces");
 // ════════════════════════════════════════════════════════════════════════════
 {
   const csv = "titre;categorie;prix;devise;stock;seuil_alerte;qte_min;mode;livraison;forfait_livraison;delai_min;delai_max;ville\n"
-    + "Filtre à huile — vérification;Moteur;18;USD;12;4;1;direct;forfait;10;1;3;Casablanca\n";
+    + "Filtre à huile — vérification;FILTRES_ENTRETIEN;18;USD;12;4;1;direct;forfait;10;1;3;Casablanca\n";
   const r = await partenaire("/api/parts/import", {
     method: "POST",
-    body: { fileName: "verif.csv", fileContent: Buffer.from(csv, "utf8").toString("base64"), dryRun: false },
+    body: { fileName: "verif.csv", fileBase64: Buffer.from(csv, "utf8").toString("base64"), dryRun: false },
   });
   if (r.status < 400) ok(`import de catalogue accepté (${r.status})`);
   else if (r.status === 403 && r.data?.code === "PLAN_REQUIS") ok("import de catalogue verrouillé par le palier — verrou actif");

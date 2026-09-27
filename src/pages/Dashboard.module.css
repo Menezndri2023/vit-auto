@@ -450,7 +450,10 @@
 .timelineLineDone { background: #10b981; }
 
 .timelineLabel {
-  font-size: 0.68rem;
+  /* 0,68rem valait 10,9 px — sous le minimum de 11 px (audit 2026-09-27).
+     L'audit du 15/09 avait relevé les libellés de champs à 0,7rem et oublié
+     ceux de la frise de suivi. */
+  font-size: 0.7rem;
   color: #94a3b8;
   margin-top: 0.4rem;
   text-align: center;
@@ -461,7 +464,10 @@
    (« ReçueAcceptéeExpédiée… ») : on les laisse passer à la ligne et on
    réduit légèrement la taille. */
 @media (max-width: 480px) {
-  .timelineLabel { white-space: normal; font-size: 0.6rem; line-height: 1.15; max-width: 56px; overflow-wrap: anywhere; }
+  /* 0,6rem valait 9,6 px. Le retour à la ligne et `max-width` suffisent à
+     empêcher le chevauchement qui avait motivé cette réduction — inutile de
+     descendre sous le minimum lisible. */
+  .timelineLabel { white-space: normal; font-size: 0.7rem; line-height: 1.15; max-width: 56px; overflow-wrap: anywhere; }
 }
 
 .timelineLabelActive {
@@ -588,6 +594,11 @@
 .btnDangerSm,
 .btnGhost {
   display: inline-flex;
+  /* Ces classes habillent aussi des <a> (« Voir le véhicule ») : la règle
+     globale `button { min-height: 44px }` d'index.css ne les atteint donc
+     pas, et l'un d'eux mesurait 42 px sur iPad (audit 2026-09-27). Hauteur
+     IMPOSÉE, jamais additionnée par du padding. */
+  min-height: 44px;
   align-items: center;
   justify-content: center;
   padding: 0.6rem 1.2rem;
