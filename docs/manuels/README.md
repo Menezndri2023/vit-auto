@@ -7,6 +7,7 @@ Rédigés le 2026-07-16, basés sur l'état réel vérifié de la plateforme à 
 - [Administrateurs](./admin.md) — tour complet de l'Admin Panel
 - [Modérateurs](./moderateurs.md) — modération de contenu, avis, vérification partenaires
 - [Commercial](./commercial.md) — argumentaire de vente aux partenaires, ce qu'il ne faut pas promettre
+- [Outils métier partenaires](./outils-metier-partenaires.md) — les neuf outils vendus par palier et par secteur, ce que chacun fait et pourquoi il se vend
 - [Accès partenaires](./acces-partenaires.md) — secteurs, plans, quotas, cumul de secteurs, ce que chaque métier voit et peut publier
 - [Fiche App Store](./fiche-app-store.md) — textes prêts à coller (nom, description, mots-clés, notes de review), captures, étiquettes de confidentialité, compte de démonstration
 - [Search Console](./search-console.md) — soumettre le sitemap, lire le rapport Pages, vérifier une version linguistique, IndexNow pour Bing/Yandex
