@@ -4,7 +4,6 @@ import { useSocket } from "./SocketContext";
 
 const ChatContext = createContext(null);
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useChat = () => {
   const ctx = useContext(ChatContext);
   if (!ctx) throw new Error("useChat must be used within ChatProvider");
@@ -149,7 +148,6 @@ export const ChatProvider = ({ children }) => {
   // Polling liste des chats toutes les 20s
   useEffect(() => {
     if (!authReady || !isAuthenticated || !token) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setChats([]);
       setUnreadTotal(0);
       return;

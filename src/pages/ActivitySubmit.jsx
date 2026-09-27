@@ -282,7 +282,7 @@ const ActivitySubmit = () => {
               d'individus.
             </p>
             {paliers.map((p, i) => (
-              <div key={i} className={styles.grid2} style={{ gridTemplateColumns: "1fr 1fr auto", alignItems: "end" }}>
+              <div key={i} className={styles.ligneRepetable}>
                 <label className={styles.field}>
                   <span>À partir de (participants)</span>
                   <input type="number" min="2" value={p.aPartirDe} onChange={(e) => setPalierField(i, "aPartirDe", e.target.value)} placeholder="Ex : 6" />

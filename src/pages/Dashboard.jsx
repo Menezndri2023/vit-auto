@@ -517,7 +517,6 @@ function ReviewModal({ booking, token, onClose, onSuccess }) {
     setLoading(true);
     try {
       for (const s of STEPS) {
-        // eslint-disable-next-line no-await-in-loop
         const ok = await submitStep(s);
         if (!ok) { setLoading(false); return; }
       }

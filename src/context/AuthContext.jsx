@@ -194,7 +194,7 @@ export const AuthProvider = ({ children }) => {
 
     validate();
     return undefined;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Méthodes publiques ─────────────────────────────────────────────────────
   const register = async ({ firstName, lastName, email, password, phone, role, country, birthDate, activity, entityType, rccm, referralCode }) => {

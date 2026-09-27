@@ -200,7 +200,7 @@ export default function Booking() {
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d?.blockedDays) setBlockedDays(d.blockedDays); })
       .catch(() => {});
-  }, [vehicle]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [vehicle]);
 
   /* ── Créneaux d'essai déjà pris (véhicule en vente) ───────────────── */
   const [essaiOccupiedSlots, setEssaiOccupiedSlots] = useState([]);

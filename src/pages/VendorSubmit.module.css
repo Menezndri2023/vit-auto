@@ -1154,3 +1154,23 @@
 }
 .input:focus { border-color: #6366f1; background: #fff; }
 .resultRef { font-size: 0.8rem; color: #64748b; text-align: center; margin: 4px 0 0; }
+
+/* ── Rangée répétable : zone tarifaire, palier de groupe, compatibilité ─────
+   ⚠️ Ces rangées utilisaient un `gridTemplateColumns` EN LIGNE (5 ou 6
+   colonnes). Un style en ligne bat toute media query : la règle
+   `@media (max-width: 768px) { .grid2 { grid-template-columns: 1fr } }`
+   ci-dessus ne s'appliquait donc jamais à elles, et six colonnes débordaient
+   de l'écran d'un téléphone.
+   Ici, plus de colonnes fixes du tout : chaque champ demande 140 px et passe
+   à la ligne quand il ne tient plus. Responsive par construction, sans
+   media query à maintenir. */
+.ligneRepetable {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 4px;
+}
+.ligneRepetable > * { flex: 1 1 140px; min-width: 0; }
+/* Le bouton de retrait ne s'étire pas : il reste à sa taille, en bout de rangée. */
+.ligneRepetable > button { flex: 0 0 auto; }

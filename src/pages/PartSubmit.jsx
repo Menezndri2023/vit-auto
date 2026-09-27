@@ -402,7 +402,7 @@ const PartSubmit = () => {
             </label>
             <h3 style={{ fontSize: ".9rem", color: "#0f1b3f", margin: "14px 0 6px" }}>Compatibilité détaillée</h3>
             {compat.map((c, i) => (
-              <div key={i} className={styles.grid2} style={{ gridTemplateColumns: "1.2fr 1.2fr .7fr .7fr auto", alignItems: "end" }}>
+              <div key={i} className={styles.ligneRepetable}>
                 <label className={styles.field}><span>Marque</span><input value={c.marque} onChange={(e) => setCompatField(i, "marque", e.target.value)} placeholder="Volkswagen" /></label>
                 <label className={styles.field}><span>Modèle</span><input value={c.modele} onChange={(e) => setCompatField(i, "modele", e.target.value)} placeholder="Golf" /></label>
                 <label className={styles.field}><span>De</span><input type="number" min="1950" max="2100" value={c.anneeDebut} onChange={(e) => setCompatField(i, "anneeDebut", e.target.value)} placeholder="2004" /></label>
@@ -452,7 +452,7 @@ const PartSubmit = () => {
               couvre ; un pays qui n'est dans aucune zone garde le forfait unique.
             </p>
             {zones.map((z, i) => (
-              <div key={i} className={styles.grid2} style={{ gridTemplateColumns: "1.6fr .9fr .9fr .6fr .6fr auto", alignItems: "end" }}>
+              <div key={i} className={styles.ligneRepetable}>
                 <label className={styles.field}>
                   <span>Pays de la zone</span>
                   <select multiple value={z.countries}

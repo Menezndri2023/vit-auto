@@ -1410,7 +1410,7 @@ const VendorSubmit = () => {
                 Le supplément s'ajoute une fois par mission, jamais multiplié par la durée.
               </span>
               {zonesTarif.map((z, i) => (
-                <div key={i} className={styles.grid2} style={{ gridTemplateColumns: "1.4fr 1fr auto", alignItems: "end", marginTop: 8 }}>
+                <div key={i} className={styles.ligneRepetable} style={{ marginTop: 8 }}>
                   <div className={styles.field}>
                     <label>Nom de la zone</label>
                     <input value={z.nom} onChange={(e) => setZoneTarifField(i, "nom", e.target.value)} placeholder="Ex : Aéroport" maxLength={60} />
@@ -1456,7 +1456,7 @@ const VendorSubmit = () => {
                         </div>
                       </div>
                       {dispo.paliers.map((p, i) => (
-                        <div key={i} className={styles.grid2} style={{ gridTemplateColumns: "1fr 1fr auto", alignItems: "end", marginTop: 8 }}>
+                        <div key={i} className={styles.ligneRepetable} style={{ marginTop: 8 }}>
                           <div className={styles.field}>
                             <label>À partir de (mois)</label>
                             <input type="number" min="1" value={p.aPartirDeMois} onChange={(e) => setPalierDispo(i, "aPartirDeMois", e.target.value)} placeholder="Ex : 6" />

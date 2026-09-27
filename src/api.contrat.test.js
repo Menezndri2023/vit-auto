@@ -3,8 +3,6 @@ import { readFileSync, readdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
-/* global process */
-
 // ── Le front appelle-t-il des routes qui existent ? ────────────────────────
 //
 // Une URL mal tapée dans un `fetch` ne casse ni le build, ni le lint, ni les

@@ -151,7 +151,6 @@ const normalizeVehicle = (v) => {
   };
 };
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useVehicles = () => {
   const ctx = useContext(VehicleContext);
   if (!ctx) throw new Error("useVehicles must be used within VehicleProvider");

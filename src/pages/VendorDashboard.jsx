@@ -5169,7 +5169,7 @@ export default function VendorDashboard() {
                 s'ajoute une fois par mission, jamais multiplié par la durée.
               </p>
               {driverEditForm.zonesTarifaires.map((z, i) => (
-                <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+                <div key={i} style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6, alignItems: "center" }}>
                   <input value={z.nom} placeholder="Aéroport" maxLength={60}
                     onChange={(e) => setDriverEditForm((p) => ({ ...p, zonesTarifaires: p.zonesTarifaires.map((x, idx) => idx === i ? { ...x, nom: e.target.value } : x) }))}
                     style={{ ...MI, marginTop: 0, flex: 2 }} />
@@ -5213,7 +5213,7 @@ export default function VendorDashboard() {
                       </div>
                     </div>
                     {driverEditForm.miseADisposition.paliers.map((x, i) => (
-                      <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+                      <div key={i} style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6, alignItems: "center" }}>
                         <input type="number" min="1" value={x.aPartirDeMois} placeholder="À partir de (mois)"
                           onChange={(e) => setDriverEditForm((p) => ({ ...p, miseADisposition: { ...p.miseADisposition, paliers: p.miseADisposition.paliers.map((y, idx) => idx === i ? { ...y, aPartirDeMois: e.target.value } : y) } }))}
                           style={{ ...MI, marginTop: 0, flex: 1 }} />
@@ -5551,7 +5551,7 @@ export default function VendorDashboard() {
                   est ignoré : un groupe ne doit jamais coûter plus qu'une somme d'individus.
                 </p>
                 {activityEditForm.tarifsGroupe.map((x, i) => (
-                  <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+                  <div key={i} style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6, alignItems: "center" }}>
                     <input type="number" min="2" value={x.aPartirDe} placeholder="À partir de (pers.)"
                       onChange={(e) => setActivityEditForm((p) => ({ ...p, tarifsGroupe: p.tarifsGroupe.map((y, idx) => idx === i ? { ...y, aPartirDe: e.target.value } : y) }))}
                       style={{ ...MI, marginTop: 0, flex: 1 }} />

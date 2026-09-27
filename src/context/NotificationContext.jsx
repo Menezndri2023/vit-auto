@@ -7,7 +7,6 @@ import { useSocket } from "./SocketContext";
 
 const NotificationContext = createContext(null);
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useNotifications = () => {
   const ctx = useContext(NotificationContext);
   if (!ctx) throw new Error("useNotifications must be used within NotificationProvider");

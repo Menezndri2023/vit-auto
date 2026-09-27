@@ -2504,7 +2504,7 @@ export default function AdminPanel() {
     setKycDetailUser(null);
     setPvDetail(null);
     setPvCreateModal(false);
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   // ── Actions utilisateurs ────────────────────────────────────────────────────
   const toggleBlock = useCallback(async (uid) => {
