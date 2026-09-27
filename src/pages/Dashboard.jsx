@@ -13,6 +13,7 @@ import PriceTag from "../components/PriceTag/PriceTag";
 import LoyaltyTierBadge from "../components/LoyaltyTierBadge/LoyaltyTierBadge";
 import MyTestDriveLeads from "../components/MyTestDriveLeads/MyTestDriveLeads";
 import { libelleDureeChauffeur } from "../constants/chauffeur";
+import { statutEcheance, LIBELLE_ECHEANCE, COULEUR_ECHEANCE } from "../constants/echeancier";
 import { downloadAuthFile } from "../utils/downloadAuthFile";
 import styles from "./Dashboard.module.css";
 
@@ -1669,15 +1670,17 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {(booking.chauffeurContrat.echeances || []).map((e) => {
-                const reglee = !!e.regleeLe;
-                const due = !reglee && new Date(e.dateEcheance) <= new Date();
+                // Même règle que le serveur et que le tableau de bord
+                // partenaire (src/constants/echeancier.js) : recomparer les
+                // dates ici ferait une troisième implémentation.
+                const statut = statutEcheance(e, booking.status);
                 return (
                   <div key={e.numero} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: ".82rem", padding: "4px 0", borderTop: "1px solid #e9eef5" }}>
                     <span style={{ minWidth: 26, fontWeight: 700, color: "#334155" }}>#{e.numero}</span>
                     <span style={{ flex: 1, color: "#6d7a95" }}>{new Date(e.dateEcheance).toLocaleDateString("fr-FR")}</span>
-                    <strong>{fmt(e.montantUSD)}</strong>
-                    <span style={{ minWidth: 68, textAlign: "right", fontWeight: 600, color: reglee ? "#059669" : due ? "#b45309" : "#6d7a95" }}>
-                      {reglee ? "✓ réglée" : due ? "à régler" : "à venir"}
+                    <strong style={{ textDecoration: statut === "annulee" ? "line-through" : "none" }}>{fmt(e.montantUSD)}</strong>
+                    <span style={{ minWidth: 68, textAlign: "right", fontWeight: 600, color: COULEUR_ECHEANCE[statut] }}>
+                      {LIBELLE_ECHEANCE[statut]}
                     </span>
                   </div>
                 );

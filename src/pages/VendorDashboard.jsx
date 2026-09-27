@@ -13,6 +13,7 @@ import PartnerCalendar from "../components/PartnerCalendar/PartnerCalendar";
 import PartnerBusinessManager from "../components/PartnerBusinessManager/PartnerBusinessManager";
 import PartnerOpportunities from "../components/PartnerOpportunities/PartnerOpportunities";
 import { libelleDureeChauffeur } from "../constants/chauffeur";
+import { statutEcheance, LIBELLE_ECHEANCE, COULEUR_ECHEANCE } from "../constants/echeancier";
 import { geocodeAddress } from "../utils/geo";
 import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import { LICENSE_CATEGORIES, LICENSE_CATEGORY_LABELS } from "../constants/licenseCategories";
@@ -989,20 +990,22 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {(orderDetail.chauffeur.contrat.echeances || []).map((e) => {
-                  const reglee = !!e.regleeLe;
-                  const due = !reglee && new Date(e.dateEcheance) <= new Date();
+                  // Statut calculé par le miroir de la règle serveur — jamais
+                  // recomparé ici : une commande annulée n'a plus d'échéance
+                  // due, et l'oublier afficherait de l'argent à encaisser qui
+                  // ne l'est plus.
+                  const statut = statutEcheance(e, order.status);
+                  const fond = { reglee: "#f0fdf4", due: "#fffbeb", a_venir: "#f8fafc", annulee: "#f8fafc" }[statut];
+                  const bord = { reglee: "#bbf7d0", due: "#fde68a", a_venir: "#e2e8f0", annulee: "#e2e8f0" }[statut];
                   return (
                     <div key={e.numero} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", borderRadius: 8,
-                      background: reglee ? "#f0fdf4" : due ? "#fffbeb" : "#f8fafc",
-                      border: `1px solid ${reglee ? "#bbf7d0" : due ? "#fde68a" : "#e2e8f0"}` }}>
+                      background: fond, border: `1px solid ${bord}` }}>
                       <span style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", minWidth: 28 }}>#{e.numero}</span>
                       <span style={{ fontSize: ".8rem", color: "#6d7a95", flex: 1 }}>
                         {new Date(e.dateEcheance).toLocaleDateString("fr-FR")}
                       </span>
-                      <strong style={{ fontSize: ".84rem" }}>{fmtXOF(e.montantUSD)}</strong>
-                      {reglee ? (
-                        <span style={{ fontSize: ".78rem", color: "#059669", fontWeight: 600 }}>✓ réglée</span>
-                      ) : (
+                      <strong style={{ fontSize: ".84rem", textDecoration: statut === "annulee" ? "line-through" : "none" }}>{fmtXOF(e.montantUSD)}</strong>
+                      {statut === "due" ? (
                         <button type="button" className={styles.btnSecondary} style={{ padding: "4px 10px", fontSize: ".78rem" }}
                           disabled={echeanceBusy === e.numero}
                           onClick={async () => {
@@ -1012,6 +1015,10 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
                           }}>
                           {echeanceBusy === e.numero ? "…" : "Marquer réglée"}
                         </button>
+                      ) : (
+                        <span style={{ fontSize: ".78rem", fontWeight: 600, color: COULEUR_ECHEANCE[statut] }}>
+                          {LIBELLE_ECHEANCE[statut]}
+                        </span>
                       )}
                     </div>
                   );
