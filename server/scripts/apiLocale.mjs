@@ -83,7 +83,7 @@ async function semer(uri) {
   process.env.MONGO_URI = uri;
   Object.assign(process.env, { JWT_SECRET: ENV.JWT_SECRET, REFRESH_TOKEN_SECRET: ENV.REFRESH_TOKEN_SECRET, FIELD_ENCRYPTION_KEY: ENV.FIELD_ENCRYPTION_KEY });
   await mongoose.connect(uri);
-  const { createUser, createVehicleDoc, createActivityDoc, makeTestPartnerBusiness } = await import("../tests/helpers/fixtures.js");
+  const { createUser, createVehicleDoc, createActivityDoc, makeTestPartnerBusiness, donnerPalier, rendreFondateur } = await import("../tests/helpers/fixtures.js");
 
   const admin = await createUser({ role: "admin", email: ADMIN.email, password: await bcrypt.hash(ADMIN.password, 10),
     emailVerified: true, firstName: "Admin", lastName: "Vérification", adminScope: ["super_admin"], country: "MA" });
@@ -96,6 +96,22 @@ async function semer(uri) {
     try { await makeTestPartnerBusiness(p._id, { companyName: nom }); } catch { /* signature différente : sans entité */ }
     partenaires.push(p);
   }
+
+  // ── Droits réels sur les outils (2026-09-27) ────────────────────────────
+  //
+  // ⚠️ `isFounder: true` ci-dessus ne donnait AUCUN droit : `fondateurActif`
+  // lit un dossier PartnerOnboarding signé, pas ce champ de User. Tant que
+  // l'immunité de lancement couvrait les outils, personne ne s'en apercevait —
+  // le balayage navigateur passait par la date, pas par le palier. Le verrou
+  // devenu actif, le parcours PMS a été refusé en 403 et la garde a bloqué le
+  // push : elle a fait exactement son travail.
+  //
+  // Les deux partenaires représentent désormais les DEUX chemins d'accès, pour
+  // que le balayage exerce l'un et l'autre :
+  //  · partenaire1 — abonnement Business réel, le chemin normal (plan → outil) ;
+  //  · partenaire2 — Partenaire Fondateur réel, le passe-droit de l'offre signée.
+  await donnerPalier(partenaires[0], "business");
+  await rendreFondateur(partenaires[1]);
 
   const modeles = [["Toyota", "Corolla"], ["Dacia", "Duster"], ["Renault", "Clio"], ["Hyundai", "Tucson"],
     ["Kia", "Sportage"], ["Peugeot", "208"], ["Volkswagen", "Touareg"], ["Mercedes", "Classe C"]];

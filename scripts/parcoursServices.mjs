@@ -325,9 +325,45 @@ async function partenaire(browser) {
     attendu(await admin(`/api/partner-sectors/admin/requests/${dem.demande._id}`, { method: "PATCH", body: { decision: "approve" } }), 200, "approbation Location");
     ok("secteurs : « Location » demandé puis accordé par l'admin (compte sans secteur déclaré)");
   }
+  // ⚠️ Le partenaire semé porte désormais un abonnement Business RÉEL (voir
+  // server/scripts/apiLocale.mjs) : depuis que le verrou des outils est actif
+  // (2026-09-27), un compte sans palier ne peut plus rien exercer, et le
+  // parcours PMS plus bas serait refusé. Le cumul de secteurs DOIT donc lui
+  // être accordé — c'est précisément ce que son plan achète.
+  // Idempotent comme le reste du script : la base locale persiste entre deux
+  // exécutions, et une demande déjà déposée (409 DEMANDE_EN_COURS) prouve la
+  // même chose qu'une demande acceptée — le palier n'a pas refusé le cumul.
   const cumul = await partner("/api/partner-sectors/requests", { method: "POST", body: { secteur: "vendeur", motif: "Vérification locale" } });
-  if (!(cumul.status === 403 && cumul.data.code === "PLAN_REQUIS")) throw new Error(`cumul sur plan gratuit : attendu 403 PLAN_REQUIS, obtenu ${cumul.status} ${JSON.stringify(cumul.data).slice(0, 120)}`);
-  ok("secteurs : un second secteur est refusé au plan Gratuit (PLAN_REQUIS)");
+  if (!(cumul.status === 201 || cumul.data?.code === "DEMANDE_EN_COURS")) {
+    throw new Error(`cumul sur plan Business : attendu 201 ou DEMANDE_EN_COURS, obtenu ${cumul.status} ${JSON.stringify(cumul.data).slice(0, 120)}`);
+  }
+  ok("secteurs : un second secteur n'est pas refusé au plan Business");
+
+  // Et le refus, lui, se vérifie sur un compte RÉELLEMENT gratuit — inscrit à
+  // l'instant. Le vérifier sur un abonné ne prouverait rien.
+  const emailGratuit = `partenaire-gratuit-${DECALAGE}-${Date.now()}@vitauto-fixtures.fr`;
+  const inscritGratuit = await fetch(`${API}/api/auth/register`, {
+    method: "POST", headers: { "Content-Type": "application/json", Origin: "https://vit-auto.com" },
+    body: JSON.stringify({ firstName: "Partenaire", lastName: "Gratuit", email: emailGratuit, password: "Verif-Locale-2026!",
+      phone: `+2250702${String(100000 + (DECALAGE * 71) % 900000)}`, role: "partenaire", country: "CI", birthDate: "1990-04-04",
+      // Un partenaire déclare son activité et son type de compte à
+      // l'inscription (« Activité et type de compte requis pour un partenaire »).
+      activity: "loueur", entityType: "particulier" }),
+  });
+  if (![200, 201].includes(inscritGratuit.status)) throw new Error(`inscription partenaire gratuit : ${inscritGratuit.status}`);
+  const gratuit = await apiAs(emailGratuit, "Verif-Locale-2026!");
+  // L'activité déclarée à l'inscription DONNE déjà le premier secteur : le
+  // demander à nouveau rendrait 409. On enchaîne donc sur le second.
+  const second = await gratuit("/api/partner-sectors/requests", { method: "POST", body: { secteur: "vendeur", motif: "Vérification locale" } });
+  if (!(second.status === 403 && second.data.code === "PLAN_REQUIS")) throw new Error(`cumul sur plan gratuit : attendu 403 PLAN_REQUIS, obtenu ${second.status} ${JSON.stringify(second.data).slice(0, 120)}`);
+  ok("secteurs : un second secteur est refusé à un compte RÉELLEMENT gratuit (PLAN_REQUIS)");
+
+  // Le verrou des outils, sur ce même compte gratuit : un outil vendu doit être
+  // refusé, et le refus doit nommer le palier. C'est la règle entrée en
+  // vigueur le 2026-09-27, vérifiée ici de bout en bout et non en test unitaire.
+  const outilFerme = await gratuit("/api/pms/leads", { method: "POST", body: { firstName: "Test", lastName: "Verrou", phone: "+2250700000000" } });
+  if (!(outilFerme.status === 403 && outilFerme.data.code === "PLAN_REQUIS")) throw new Error(`outil verrouillé : attendu 403 PLAN_REQUIS, obtenu ${outilFerme.status} ${JSON.stringify(outilFerme.data).slice(0, 120)}`);
+  ok("outils : un outil d'abonnement est refusé à un compte gratuit, avec le palier nommé");
   const { ctx, page } = await contexte(browser, "partenaire", journal);
   await connecter(page, PARTNER);
   // 1. Assistant de publication (7 étapes), annonce de location.
