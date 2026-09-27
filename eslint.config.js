@@ -38,6 +38,18 @@ export default defineConfig([
       // (hoistée) appelée plus haut dans le composant n'est pas une TDZ.
       'react-hooks/preserve-manual-memoization': 'off',
       'react-hooks/immutability': 'off',
+      // Même famille (2026-09-27) : « set-state-in-effect » signale le motif
+      // « charger au montage » — `useEffect(() => { charger(); }, [charger])`
+      // où `charger` est async et n'écrit qu'APRÈS son await. La règle ne
+      // peut pas le voir et marque les 20 occurrences de l'application, dont
+      // aucune n'est un rendu en cascade réel. Elle vise ce que le
+      // compilateur ne saurait pas optimiser, pas un défaut à l'exécution.
+      //
+      // ⚠️ Elle a tout de même servi une fois : en l'examinant sur
+      // BilletScan.jsx, on a trouvé qu'un double montage (StrictMode)
+      // consommait le billet DEUX fois — corrigé par un garde-fou `useRef`.
+      // Désactiver la règle n'est donc pas la classer sans suite.
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
   {

@@ -901,7 +901,7 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
                   </div>
                   <textarea value={edlForm.notes} onChange={(e) => setEdlForm((f) => ({ ...f, notes: e.target.value }))} rows={2} maxLength={1000}
                     style={MI} placeholder="Rayures constatées, accessoires remis…" />
-                  <button type="button" className={styles.primaryBtn} style={{ marginTop: 8 }}
+                  <button type="button" className={styles.btnPrimary} style={{ marginTop: 8 }}
                     disabled={edlBusy || edlForm.photos.length === 0}
                     onClick={async () => {
                       setEdlBusy(true);
@@ -958,7 +958,7 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
                   </label>
                   <textarea value={reportForm.note} onChange={(e) => setReportForm((f) => ({ ...f, note: e.target.value }))} rows={2} maxLength={500}
                     style={{ ...MI, marginTop: 8 }} placeholder="Un mot d'explication pour le client — mer agitée, vent trop fort…" />
-                  <button type="button" className={styles.primaryBtn} style={{ marginTop: 8 }}
+                  <button type="button" className={styles.btnPrimary} style={{ marginTop: 8 }}
                     disabled={reportBusy || !reportForm.nouvelleDate}
                     onClick={async () => {
                       setReportBusy(true);
@@ -1003,7 +1003,7 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
                       {reglee ? (
                         <span style={{ fontSize: ".78rem", color: "#059669", fontWeight: 600 }}>✓ réglée</span>
                       ) : (
-                        <button type="button" className={styles.secondaryBtn} style={{ padding: "4px 10px", fontSize: ".78rem" }}
+                        <button type="button" className={styles.btnSecondary} style={{ padding: "4px 10px", fontSize: ".78rem" }}
                           disabled={echeanceBusy === e.numero}
                           onClick={async () => {
                             setEcheanceBusy(e.numero);
@@ -4197,7 +4197,7 @@ export default function VendorDashboard() {
                     </div>
                     {reqm.status === "pending" && (
                       <div className={styles.vehicleCardActions}>
-                        <button className={styles.btnApprove} disabled={employmentDeclining === reqm._id}
+                        <button className={styles.btnPrimary} disabled={employmentDeclining === reqm._id}
                           onClick={() => respondToEmployment(reqm._id, "accept")}>Accepter</button>
                         <button className={styles.btnDanger} disabled={employmentDeclining === reqm._id}
                           onClick={() => { const reason = prompt("Motif du refus (optionnel) :") || ""; respondToEmployment(reqm._id, "decline", reason); }}>Refuser</button>
@@ -4833,7 +4833,7 @@ export default function VendorDashboard() {
             <input value={boostPromoCode} onChange={(e) => setBoostPromoCode(e.target.value)} placeholder="Ex : LAUNCH50"
               style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem", marginBottom: 14 }} />
             <div className={styles.rejectActions}>
-              <button className={styles.btnApprove} disabled={boostTarget === boostModal.vehicleId}
+              <button className={styles.btnPrimary} disabled={boostTarget === boostModal.vehicleId}
                 onClick={() => handleBoost(boostModal.vehicleId, boostTier, boostPromoCode)}>
                 {boostTarget === boostModal.vehicleId ? "…" : "Confirmer"}
               </button>

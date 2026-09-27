@@ -578,3 +578,11 @@
   .etatToggle { flex-wrap: wrap; }
   .etatBtn { flex: 1 1 auto; min-width: 0; white-space: nowrap; }
 }
+
+/* ── Classes citées par le JSX sans jamais exister (2026-09-27) ─────────────
+   Repérées par un balayage de toutes les références `styles.X` confrontées
+   aux modules CSS. Un `className={undefined}` ne casse rien et ne prévient
+   personne : l'élément sort simplement sans style. */
+/* Modificateur appliqué au bouton pendant la recherche : le curseur dit que
+   ça travaille, et le bouton cesse d'inviter au clic. */
+.loading { opacity: 0.65; cursor: wait; pointer-events: none; }

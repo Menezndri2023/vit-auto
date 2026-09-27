@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
@@ -19,7 +19,12 @@ export default function BilletScan() {
   const { jeton } = useParams();
   const { user, token } = useAuth();
   const navigate = useNavigate();
-  const [etat, setEtat] = useState("attente"); // attente | encours | valide | refus
+  // « encours » dès le départ : la page valide toujours à l'arrivée. Partir
+  // d'un état d'attente aurait obligé l'effet à le faire basculer lui-même,
+  // c'est-à-dire un setState synchrone dans un effet — un rendu en cascade
+  // que React signale, et une image qui clignote sur un téléphone.
+  const [etat, setEtat] = useState("encours"); // encours | valide | refus
+  const lance = useRef(false);
   const [billet, setBillet] = useState(null);
   const [message, setMessage] = useState("");
 
@@ -32,7 +37,6 @@ export default function BilletScan() {
 
   const valider = useCallback(async () => {
     if (!token) return;
-    setEtat("encours");
     try {
       const r = await fetch("/api/bookings/billet/scan", {
         method: "POST",
@@ -52,7 +56,15 @@ export default function BilletScan() {
   // lui, un clic de plus ne sert à rien. Un billet ne se scanne qu'une fois,
   // donc rejouer la page après coup affiche « déjà présenté » — ce qui est
   // exactement l'information utile, pas une erreur.
-  useEffect(() => { if (token && etat === "attente") valider(); }, [token, etat, valider]);
+  //
+  // Le garde-fou `lance` évite un DOUBLE scan : en développement React monte
+  // deux fois, et sans lui le billet serait consommé puis aussitôt déclaré
+  // « déjà présenté » au partenaire qui a le client devant lui.
+  useEffect(() => {
+    if (!token || lance.current) return;
+    lance.current = true;
+    valider();
+  }, [token, valider]);
 
   const carte = { maxWidth: 480, margin: "40px auto", padding: "0 16px" };
   const bloc = (bg, bord) => ({ background: bg, border: `1.5px solid ${bord}`, borderRadius: 14, padding: 20, textAlign: "center" });
@@ -113,7 +125,7 @@ export default function BilletScan() {
           <div style={{ fontSize: "2.4rem" }}>⛔</div>
           <h1 style={{ fontSize: "1.15rem", margin: "6px 0 8px", color: "#991b1b" }}>Billet refusé</h1>
           <p style={{ fontSize: ".9rem", color: "#7f1d1d", margin: 0 }}>{message}</p>
-          <button onClick={() => setEtat("attente")}
+          <button onClick={() => { lance.current = false; setEtat("encours"); valider(); }}
             style={{ marginTop: 14, padding: "8px 16px", borderRadius: 10, border: "1.5px solid #fca5a5", background: "#fff", color: "#991b1b", fontWeight: 600, cursor: "pointer" }}>
             Réessayer
           </button>

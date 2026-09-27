@@ -55,8 +55,8 @@ export function AdsSection({ ads, loading, form, setForm, saving, onSave, onTogg
       )}
 
       {form && (
-        <div className={styles.modalBackdrop} onClick={() => setForm(null)}>
-          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+        <div className={styles.overlay} onClick={() => setForm(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <h3>{form._id ? "✏️ Modifier l'annonce" : "+ Nouvelle annonce"}</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, margin: "14px 0" }}>
               <input placeholder="Titre *" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -78,9 +78,9 @@ export function AdsSection({ ads, loading, form, setForm, saving, onSave, onTogg
                 Active immédiatement
               </label>
             </div>
-            <div className={styles.rejectActions}>
-              <button className={styles.btnAccept} onClick={onSave} disabled={saving}>{saving ? "Envoi…" : "Enregistrer"}</button>
-              <button className={styles.btnSecondary} onClick={() => setForm(null)}>Annuler</button>
+            <div className={styles.confirmActions}>
+              <button className={styles.btnApprove} onClick={onSave} disabled={saving}>{saving ? "Envoi…" : "Enregistrer"}</button>
+              <button className={styles.btnGhost} onClick={() => setForm(null)}>Annuler</button>
             </div>
           </div>
         </div>

@@ -5753,7 +5753,7 @@ export default function AdminPanel() {
           {/* ── Panneau de détail dossier ── */}
           {certDetail && (
             <div className={styles.overlay} onClick={() => { setCertDetail(null); setCertReviewLevel(null); setCertReviewMsg(""); }}>
-              <div className={styles.modal} onClick={e => e.stopPropagation()} style={{ maxWidth:680, width:"95%", maxHeight:"85vh", overflow:"auto" }}>
+              <div className={styles.confirmBox} onClick={e => e.stopPropagation()} style={{ maxWidth:680, width:"95%", maxHeight:"85vh", overflow:"auto" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                   <div>
                     <h3 style={{ margin:0, fontWeight:900, fontSize:"1.05rem", color:"#0f1b3f" }}>
@@ -6060,8 +6060,8 @@ export default function AdminPanel() {
       )}
 
       {ieTxModal && (
-        <div className={styles.modalBackdrop} onClick={() => setIeTxModal(null)}>
-          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.overlay} onClick={() => setIeTxModal(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
             {ieTxModal.mode === "dispute" ? (
               <>
                 <h3>⚖️ Trancher le litige</h3>
@@ -6073,18 +6073,18 @@ export default function AdminPanel() {
                   Libérer les fonds au fournisseur (sinon : annuler et rembourser le client)
                 </label>
                 <textarea className={styles.rejectTextarea} placeholder="Résolution / justification..." value={ieTxNote} onChange={(e) => setIeTxNote(e.target.value)} />
-                <div className={styles.rejectActions}>
-                  <button className={styles.btnAccept} onClick={handleResolveIeDispute} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "✅ Confirmer la décision"}</button>
-                  <button className={styles.btnSecondary} onClick={() => setIeTxModal(null)}>Annuler</button>
+                <div className={styles.confirmActions}>
+                  <button className={styles.btnApprove} onClick={handleResolveIeDispute} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "✅ Confirmer la décision"}</button>
+                  <button className={styles.btnGhost} onClick={() => setIeTxModal(null)}>Annuler</button>
                 </div>
               </>
             ) : ieTxModal.mode === "inspection" ? (
               <>
                 <h3>🔍 Compléter l'inspection indépendante</h3>
                 <textarea className={styles.rejectTextarea} placeholder="Notes du rapport d'inspection..." value={ieTxNote} onChange={(e) => setIeTxNote(e.target.value)} />
-                <div className={styles.rejectActions}>
-                  <button className={styles.btnAccept} onClick={handleCompleteIeInspection} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "✅ Marquer complétée"}</button>
-                  <button className={styles.btnSecondary} onClick={() => setIeTxModal(null)}>Annuler</button>
+                <div className={styles.confirmActions}>
+                  <button className={styles.btnApprove} onClick={handleCompleteIeInspection} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "✅ Marquer complétée"}</button>
+                  <button className={styles.btnGhost} onClick={() => setIeTxModal(null)}>Annuler</button>
                 </div>
               </>
             ) : (
@@ -6098,10 +6098,10 @@ export default function AdminPanel() {
                   Vérifiez la réception réelle des fonds (relevé bancaire, mobile money, etc.) avant de confirmer.
                 </p>
                 <textarea className={styles.rejectTextarea} placeholder="Motif (si rejet)..." value={ieTxNote} onChange={(e) => setIeTxNote(e.target.value)} />
-                <div className={styles.rejectActions}>
-                  <button className={styles.btnAccept} onClick={() => handleVerifyIePayment(true)} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "✅ Fonds reçus — sécuriser"}</button>
-                  <button className={styles.btnRefuseModal} onClick={() => handleVerifyIePayment(false)} disabled={ieTxSaving}>❌ Rejeter</button>
-                  <button className={styles.btnSecondary} onClick={() => setIeTxModal(null)}>Annuler</button>
+                <div className={styles.confirmActions}>
+                  <button className={styles.btnApprove} onClick={() => handleVerifyIePayment(true)} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "✅ Fonds reçus — sécuriser"}</button>
+                  <button className={styles.btnReject} onClick={() => handleVerifyIePayment(false)} disabled={ieTxSaving}>❌ Rejeter</button>
+                  <button className={styles.btnGhost} onClick={() => setIeTxModal(null)}>Annuler</button>
                 </div>
               </>
             )}
@@ -6332,7 +6332,7 @@ export default function AdminPanel() {
               resurgissait plus tard en changeant d'onglet, avec le mauvais
               chauffeur. La voici, dans la portée où le bouton vit réellement. */}
           {driverRejectModal && (
-            <div className={styles.confirmOverlay} onClick={() => { setDriverRejectModal(null); setDriverRejectReason(""); }}>
+            <div className={styles.overlay} onClick={() => { setDriverRejectModal(null); setDriverRejectReason(""); }}>
               <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
                 <p className={styles.confirmMsg}>Raison du refus pour « {driverRejectModal.name} »</p>
                 <textarea className={styles.textarea} rows={3} value={driverRejectReason}
@@ -6439,7 +6439,7 @@ export default function AdminPanel() {
                         <td>{a.noteMoyenne > 0 ? `⭐ ${a.noteMoyenne.toFixed(1)}` : "—"}</td>
                         <td>
                           <div className={styles.actionBtns}>
-                            <button className={styles.btnSecondary} title="Transférer vers un autre compte/entreprise/pays/ville"
+                            <button className={styles.btnGhost} title="Transférer vers un autre compte/entreprise/pays/ville"
                               onClick={() => openActivityTransfer(a._id, a.title, a.country, a.ville)}>
                               🔀 Transférer
                             </button>
@@ -7448,13 +7448,13 @@ export default function AdminPanel() {
       )}
 
       {financingModal && (
-        <div className={styles.modalBackdrop} onClick={() => setFinancingModal(null)}>
-          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.overlay} onClick={() => setFinancingModal(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
             <h3>{financingModal.decision === "accepte" ? "✅ Accepter le financement" : "❌ Refuser le financement"}</h3>
             <textarea className={styles.rejectTextarea} placeholder="Note pour le client (optionnel)…" value={financingNote} onChange={(e) => setFinancingNote(e.target.value)} />
-            <div className={styles.rejectActions}>
-              <button className={styles.btnAccept} onClick={submitFinancingDecision} disabled={financingSaving}>{financingSaving ? "Envoi…" : "Confirmer"}</button>
-              <button className={styles.btnSecondary} onClick={() => setFinancingModal(null)}>Annuler</button>
+            <div className={styles.confirmActions}>
+              <button className={styles.btnApprove} onClick={submitFinancingDecision} disabled={financingSaving}>{financingSaving ? "Envoi…" : "Confirmer"}</button>
+              <button className={styles.btnGhost} onClick={() => setFinancingModal(null)}>Annuler</button>
             </div>
           </div>
         </div>
@@ -7474,8 +7474,8 @@ export default function AdminPanel() {
       )}
 
       {insuranceModal && (
-        <div className={styles.modalBackdrop} onClick={() => setInsuranceModal(null)}>
-          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.overlay} onClick={() => setInsuranceModal(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
             <h3>{insuranceModal.status === "approved" ? "✅ Approuver la demande" : "❌ Refuser la demande"}</h3>
             {insuranceModal.status === "approved" && (
               <input type="number" placeholder="Prime proposée (USD)" value={insurancePremium}
@@ -7483,9 +7483,9 @@ export default function AdminPanel() {
                 style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem", marginBottom: 10 }} />
             )}
             <textarea className={styles.rejectTextarea} placeholder="Note pour le client (optionnel)…" value={insuranceNote} onChange={(e) => setInsuranceNote(e.target.value)} />
-            <div className={styles.rejectActions}>
-              <button className={styles.btnAccept} onClick={submitInsuranceDecision} disabled={insuranceSaving}>{insuranceSaving ? "Envoi…" : "Confirmer"}</button>
-              <button className={styles.btnSecondary} onClick={() => setInsuranceModal(null)}>Annuler</button>
+            <div className={styles.confirmActions}>
+              <button className={styles.btnApprove} onClick={submitInsuranceDecision} disabled={insuranceSaving}>{insuranceSaving ? "Envoi…" : "Confirmer"}</button>
+              <button className={styles.btnGhost} onClick={() => setInsuranceModal(null)}>Annuler</button>
             </div>
           </div>
         </div>
@@ -7503,7 +7503,7 @@ export default function AdminPanel() {
             <button className={styles.btnRefresh} onClick={loadPayouts}>↻ Actualiser</button>
           </div>
 
-          <div className={styles.filterRow} style={{ marginBottom: 16 }}>
+          <div className={styles.filterBar} style={{ marginBottom: 16 }}>
             {["pending", "paid", ""].map((s) => (
               <button key={s || "all"}
                 className={`${styles.filterBtn} ${payoutsFilter === s ? styles.filterActive : ""}`}
@@ -7571,8 +7571,8 @@ export default function AdminPanel() {
       )}
 
       {svcReqModal && (
-        <div className={styles.modalBackdrop} onClick={() => setSvcReqModal(null)}>
-          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.overlay} onClick={() => setSvcReqModal(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
             <h3>{svcReqModal.status === "approved" ? "✅ Approuver la demande" : "❌ Refuser la demande"}</h3>
             {svcReqModal.status === "approved" && (
               <input type="number" placeholder="Devis proposé (USD)" value={svcReqAmount}
@@ -7580,9 +7580,9 @@ export default function AdminPanel() {
                 style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem", marginBottom: 10 }} />
             )}
             <textarea className={styles.rejectTextarea} placeholder="Note pour le client (optionnel)…" value={svcReqNote} onChange={(e) => setSvcReqNote(e.target.value)} />
-            <div className={styles.rejectActions}>
-              <button className={styles.btnAccept} onClick={submitServiceRequestDecision} disabled={svcReqSaving}>{svcReqSaving ? "Envoi…" : "Confirmer"}</button>
-              <button className={styles.btnSecondary} onClick={() => setSvcReqModal(null)}>Annuler</button>
+            <div className={styles.confirmActions}>
+              <button className={styles.btnApprove} onClick={submitServiceRequestDecision} disabled={svcReqSaving}>{svcReqSaving ? "Envoi…" : "Confirmer"}</button>
+              <button className={styles.btnGhost} onClick={() => setSvcReqModal(null)}>Annuler</button>
             </div>
           </div>
         </div>

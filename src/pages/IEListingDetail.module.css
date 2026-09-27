@@ -201,3 +201,13 @@
 .modalActions .btnGhost { flex: 1; }
 .modalActions .btnPrimary { flex: 2; }
 @media (max-width: 500px) { .formRow { grid-template-columns: 1fr; } .modalActions { flex-direction: column; } }
+
+/* ── Classes citées par le JSX sans jamais exister (2026-09-27) ─────────────
+   Repérées par un balayage de toutes les références `styles.X` confrontées
+   aux modules CSS. Un `className={undefined}` ne casse rien et ne prévient
+   personne : l'élément sort simplement sans style. */
+/* Conteneur du bloc « défauts déclarés » (le détail des lignes est porté par
+   .defectsList / .defectItem / .defectSeverity, déjà définis). */
+.defects { margin: 20px 0; }
+/* Colonne de contenu principale à l'intérieur de « .page ». */
+.main { min-width: 0; display: flex; flex-direction: column; gap: 20px; }

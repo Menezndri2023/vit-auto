@@ -1817,8 +1817,8 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
       )}
 
       {seasonalModal && (
-        <div className={styles.modalBackdrop} onClick={() => setSeasonalModal(null)}>
-          <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
+        <div className={styles.overlay} onClick={() => setSeasonalModal(null)}>
+          <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
             <h3>🗓️ Tarifs saisonniers — {seasonalModal.title || seasonalModal.name}</h3>
             <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
               Périodes de l'année (récurrentes chaque année) où un prix/jour différent s'applique automatiquement.
@@ -1890,15 +1890,15 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
               </div>
             ))}
 
-            <button type="button" className={styles.btnSecondary} style={{ marginBottom: 14 }} onClick={addSeasonalRule}>
+            <button type="button" className={styles.btnGhost} style={{ marginBottom: 14 }} onClick={addSeasonalRule}>
               ➕ Ajouter une période
             </button>
 
-            <div className={styles.rejectActions}>
-              <button className={styles.btnAccept} onClick={handleSaveSeasonal} disabled={seasonalSaving}>
+            <div className={styles.confirmActions}>
+              <button className={styles.btnApprove} onClick={handleSaveSeasonal} disabled={seasonalSaving}>
                 {seasonalSaving ? "Envoi…" : "✅ Enregistrer"}
               </button>
-              <button className={styles.btnSecondary} onClick={() => setSeasonalModal(null)}>Annuler</button>
+              <button className={styles.btnGhost} onClick={() => setSeasonalModal(null)}>Annuler</button>
             </div>
           </div>
         </div>

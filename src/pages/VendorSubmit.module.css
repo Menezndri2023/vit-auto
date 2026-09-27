@@ -1139,3 +1139,18 @@
 @media (hover: none) and (pointer: coarse) {
   .photoRemove { opacity: 1; }
 }
+
+/* ── Classes citées par le JSX sans jamais exister (2026-09-27) ─────────────
+   Repérées par un balayage de toutes les références `styles.X` confrontées
+   aux modules CSS. Un `className={undefined}` ne casse rien et ne prévient
+   personne : l'élément sort simplement sans style. */
+/* Même rendu que « .field input/select/textarea » ci-dessus, pour les rares
+   champs placés hors d'un « .field » (sélecteur de type de pièce d'identité). */
+.input {
+  padding: 11px 15px; border: 1.5px solid #e5e9f4; border-radius: 12px;
+  font-size: 0.95rem; color: #0f1b3f; background: #f8faff; outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  width: 100%; box-sizing: border-box; font-family: inherit;
+}
+.input:focus { border-color: #6366f1; background: #fff; }
+.resultRef { font-size: 0.8rem; color: #64748b; text-align: center; margin: 4px 0 0; }

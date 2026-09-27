@@ -921,7 +921,7 @@ const Dashboard = () => {
             type="button"
             onClick={handleRefresh}
             disabled={refreshing}
-            className={styles.refreshBtn || ""}
+            className={styles.btnGhost}
             style={{
               background: "transparent",
               border: "2px solid #d8dfef",

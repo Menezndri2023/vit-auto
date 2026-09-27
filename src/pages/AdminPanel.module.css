@@ -763,3 +763,44 @@
   min-width: 16px; text-align: center;
 }
 .notifBar { display: flex; flex-direction: column; gap: 14px; }
+
+/* ── Classes référencées par le JSX mais jamais définies (2026-09-27) ───────
+   Repérées par un balayage de toutes les références `styles.X` du projet
+   confrontées aux modules CSS : 39 classes étaient citées sans exister, donc
+   rendues SANS AUCUN style — un `className={undefined}` ne casse rien et ne
+   prévient personne. La plupart étaient des noms inversés (`.primaryBtn` cité
+   contre `.btnPrimary` défini) et ont été recâblées vers l'existant ; les
+   suivantes n'avaient pas d'équivalent et manquaient vraiment. */
+.textarea, .rejectTextarea {
+  width: 100%; box-sizing: border-box;
+  border: 1px solid #e2e8f0; border-radius: 0.6rem;
+  padding: 0.55rem 0.875rem; font-size: 0.875rem; font-family: inherit;
+  color: #1e293b; background: #f8fafc; outline: none;
+  transition: border-color 0.2s; resize: vertical;
+}
+.textarea:focus, .rejectTextarea:focus { border-color: #2563eb; background: #fff; }
+
+/* Filtres en pastilles (suivi des reversements) — l'état actif doit se voir
+   d'un coup d'œil, sinon on ne sait plus ce qu'on regarde. */
+.filterBtn {
+  border: 1px solid #e2e8f0; border-radius: 999px;
+  padding: 0.35rem 0.85rem; font-size: 0.8rem; font-weight: 600;
+  font-family: inherit; color: #475569; background: #fff;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.filterBtn:hover { background: #f1f5f9; }
+.filterActive { background: #2563eb; border-color: #2563eb; color: #fff; }
+.filterActive:hover { background: #1d4ed8; }
+
+/* Barre d'outils / en-tête de section — une rangée qui respire, alignée sur
+   l'espacement des autres blocs de l'administration. */
+.sectionToolbar, .sectionHeaderRow {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;
+}
+
+/* Le panneau latéral est `flex-shrink: 0` dans une rangée flex et `.content`
+   est déjà `flex: 1` : la zone s'élargit d'elle-même quand le panneau est
+   masqué. Ce modificateur rend l'intention explicite plutôt que de laisser
+   une classe citée dans le JSX pointer vers le vide. */
+.contentExpanded { width: 100%; }

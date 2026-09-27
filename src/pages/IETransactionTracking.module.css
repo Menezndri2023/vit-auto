@@ -208,3 +208,6 @@
 .inlineTextarea { width: 100%; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; font-size: 14px; font-family: inherit; outline: none; resize: vertical; box-sizing: border-box; }
 .inlineTextarea:focus { border-color: #6366f1; }
 .disputeWarning { font-size: 13px; font-weight: 600; color: #b45309; margin: 0; }
+/* Classe citée par le JSX sans jamais exister (2026-09-27) — colonne de
+   contenu principale à l'intérieur de « .page ». */
+.main { min-width: 0; display: flex; flex-direction: column; gap: 20px; }

@@ -173,7 +173,7 @@ function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfil
                 onClick={() => { call(`${base}/cancel`, "PATCH", { reason: cancelReason }); setCancelReason(null); }}>
                 Confirmer l'annulation
               </button>
-              <button className={styles.btnGhost} onClick={() => setCancelReason(null)}>Fermer</button>
+              <button className={styles.btnSecondary} onClick={() => setCancelReason(null)}>Fermer</button>
             </div>
           </div>
         ) : (
@@ -279,7 +279,7 @@ function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfil
                 onClick={() => { call(`${base}/cancel`, "PATCH", { reason: cancelReason }); setCancelReason(null); }}>
                 Confirmer le refus
               </button>
-              <button className={styles.btnGhost} onClick={() => setCancelReason(null)}>Fermer</button>
+              <button className={styles.btnSecondary} onClick={() => setCancelReason(null)}>Fermer</button>
             </div>
           </div>
         ) : (
@@ -513,7 +513,7 @@ function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfil
                 onClick={() => { call(`${base}/dispute`, "POST", { reason: disputeReason }); setDisputeReason(null); }}>
                 Confirmer le litige
               </button>
-              <button className={styles.btnGhost} onClick={() => setDisputeReason(null)}>Annuler</button>
+              <button className={styles.btnSecondary} onClick={() => setDisputeReason(null)}>Annuler</button>
             </div>
           </div>
         ) : (
@@ -556,7 +556,7 @@ function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfil
                 onClick={() => { call(`${base}/dispute`, "POST", { reason: disputeReason }); setDisputeReason(null); }}>
                 Confirmer le litige
               </button>
-              <button className={styles.btnGhost} onClick={() => setDisputeReason(null)}>Annuler</button>
+              <button className={styles.btnSecondary} onClick={() => setDisputeReason(null)}>Annuler</button>
             </div>
           </div>
         ) : (
