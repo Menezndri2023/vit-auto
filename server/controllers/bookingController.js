@@ -9,6 +9,9 @@ import SparePart from "../models/SparePart.js";
 import { calculerLivraisonPiece, fraisImportationPiece } from "../services/partShipping.js";
 import { prixParPersonne } from "../services/tarifGroupe.js";
 import { montantContrat, construireEcheancier, echeancierAvecStatuts, statutEcheance } from "../services/miseADisposition.js";
+import QRCode from "qrcode";
+import { nouveauJeton, refusDeScan, horsCreneau } from "../services/billetActivite.js";
+import { outilOuvert, messageRefus } from "../services/planAccess.js";
 import { reserverStockPiece, restituerStockPiece, enregistrerVentePiece } from "../services/partStock.js";
 import { MAX_PART_QUANTITY } from "../constants/spareParts.js";
 import Payment from "../models/Payment.js";
@@ -4882,5 +4885,142 @@ export const reglerEcheance = async (req, res) => {
   } catch (err) {
     logger.error("reglerEcheance:", err);
     res.status(500).json({ message: "Erreur lors de l'enregistrement du règlement." });
+  }
+};
+
+// ── Billet à QR code d'une séance de loisirs ────────────────────────────────
+//
+// ⚠️ La machine à états n'est PAS touchée. Six services la partagent et
+// `confirmed → client_arrived` n'y est pas une transition valide : l'ouvrir
+// pour les loisirs changerait le comportement des cinq autres. Le billet
+// répond à la seule question qu'on lui pose — qui s'est présenté, et quand.
+
+/**
+ * Émet (ou réémet) le billet d'une séance et rend son QR code.
+ *
+ * Le palier lu est celui du PARTENAIRE, jamais celui du demandeur : sans
+ * cela, un client au palier gratuit n'aurait pas de billet chez un partenaire
+ * Premium, ce qui n'a aucun sens — c'est le partenaire qui achète l'outil.
+ * Même règle que le lien court de vitrine (vitrinePartenaireController).
+ */
+export const emettreBillet = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Identifiant de réservation invalide." });
+    }
+    const booking = await Booking.findById(id).populate("activity", "owner title");
+    if (!booking) return res.status(404).json({ message: "Réservation introuvable." });
+    if (booking.type !== "activite") {
+      return res.status(400).json({ message: "Le billet ne s'applique qu'aux séances de loisirs." });
+    }
+
+    const ownerId = booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString();
+    const estClient = booking.client?.toString() === req.user._id.toString();
+    if (req.user.role !== "admin" && !estClient && ownerId !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Accès refusé." });
+    }
+    if (["cancelled", "transaction_not_concluded"].includes(booking.status)) {
+      return res.status(409).json({ message: "Cette réservation est annulée : aucun billet ne peut être émis." });
+    }
+
+    const acces = await outilOuvert({ _id: ownerId, role: "partenaire" }, "billetQrCode");
+    if (!acces.ouvert) {
+      // Dire ce qui manque plutôt qu'« indisponible » : le client n'y peut
+      // rien, mais le partenaire qui regarde la même page, si.
+      return res.status(403).json({ message: messageRefus("billetQrCode"), code: "PLAN_REQUIS", feature: "billetQrCode", planRequis: acces.planRequis });
+    }
+
+    // Réémettre RÉVOQUE le précédent : c'est le seul moyen de reprendre la
+    // main sur un billet transmis par erreur. Un billet déjà scanné, en
+    // revanche, ne se réémet pas — ce serait effacer la preuve de présence.
+    if (booking.activite?.billet?.scanneLe) {
+      return res.status(409).json({ message: "Ce billet a déjà été présenté : il ne peut plus être réémis." });
+    }
+    if (!booking.activite.billet?.jeton) {
+      booking.activite.billet = { jeton: nouveauJeton(), emisLe: new Date(), scanneLe: null, scannePar: null, refus: 0 };
+    } else if (req.body?.reemettre === true && (req.user.role === "admin" || estClient)) {
+      booking.activite.billet.jeton = nouveauJeton();
+      booking.activite.billet.emisLe = new Date();
+    }
+    await booking.save();
+
+    const origine = (process.env.APP_URL || "https://vit-auto.com").replace(/\/+$/, "");
+    const lien = `${origine}/billet/${booking.activite.billet.jeton}`;
+    res.json({
+      reference: booking.reference,
+      activite: booking.activity?.title || null,
+      date: booking.activite?.date || null,
+      participants: booking.activite?.participants || 1,
+      emisLe: booking.activite.billet.emisLe,
+      // Un QR code n'a d'intérêt qu'imprimé ou affiché à l'écran du client.
+      qr: await QRCode.toDataURL(lien, { margin: 1, width: 512 }),
+    });
+  } catch (err) {
+    logger.error("emettreBillet:", err);
+    res.status(500).json({ message: "Erreur lors de l'émission du billet." });
+  }
+};
+
+/**
+ * Le partenaire scanne un billet à l'arrivée.
+ *
+ * Volontairement NON verrouillé par le palier, comme le règlement d'une
+ * échéance : honorer un billet déjà émis n'est pas un achat. Un partenaire
+ * redescendu d'abonnement laisserait sinon à la porte des clients munis d'un
+ * QR code que lui-même leur a envoyé.
+ */
+export const scannerBillet = async (req, res) => {
+  try {
+    const jeton = String(req.body?.jeton || "").trim();
+    if (!/^[0-9a-f]{64}$/.test(jeton)) {
+      return res.status(400).json({ message: "Billet illisible." });
+    }
+    const booking = await Booking.findOne({ "activite.billet.jeton": jeton }).populate("activity", "owner title");
+    if (!booking) return res.status(404).json({ message: "Billet inconnu." });
+
+    // L'autorisation AVANT le verdict : sans cela, un partenaire pourrait
+    // apprendre qu'un billet existe, et s'il a déjà servi, chez un confrère.
+    const ownerId = booking.activity?.owner?._id?.toString() || booking.activity?.owner?.toString();
+    if (req.user.role !== "admin" && ownerId !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Ce billet ne concerne pas l'une de vos séances." });
+    }
+
+    const refus = refusDeScan(booking);
+    if (refus) {
+      // Une présentation refusée se compte : c'est ce que le partenaire veut
+      // voir quand il conteste une entrée — un billet photographié et passé
+      // à un ami se repère à ses tentatives.
+      if (refus.dejaScanne) {
+        await Booking.updateOne({ _id: booking._id }, { $inc: { "activite.billet.refus": 1 } });
+      }
+      return res.status(refus.statut).json({ message: refus.message, ...(refus.scanneLe ? { scanneLe: refus.scanneLe } : {}) });
+    }
+
+    // Écriture conditionnelle sur `scanneLe: null` : deux portiques qui
+    // scannent le même billet en même temps ne valident qu'une entrée.
+    const pose = await Booking.updateOne(
+      { _id: booking._id, "activite.billet.scanneLe": null },
+      { $set: { "activite.billet.scanneLe": new Date(), "activite.billet.scannePar": req.user._id } }
+    );
+    if (pose.modifiedCount !== 1) {
+      return res.status(409).json({ message: "Billet déjà présenté." });
+    }
+
+    res.json({
+      valide: true,
+      reference: booking.reference,
+      client: `${booking.clientInfo?.firstName || ""} ${booking.clientInfo?.lastName || ""}`.trim(),
+      activite: booking.activity?.title || null,
+      participants: booking.activite?.participants || 1,
+      date: booking.activite?.date || null,
+      // Information, jamais refus : un groupe qui embarque la veille au soir
+      // ou une sortie de deux jours sont des cas réels. Le partenaire est sur
+      // place et voit le client ; il tranche.
+      horsCreneau: horsCreneau(booking),
+    });
+  } catch (err) {
+    logger.error("scannerBillet:", err);
+    res.status(500).json({ message: "Erreur lors de la lecture du billet." });
   }
 };

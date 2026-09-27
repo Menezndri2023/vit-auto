@@ -193,7 +193,9 @@ export const OUTILS_PAR_SECTEUR = {
       { key: "outil.sessionReschedule", feature: "reportSeance" },
       { key: "outil.instructorTeam", feature: "multiUtilisateurs" },
     ],
-    exportateur: [],
+    exportateur: [
+      { key: "outil.qrTicket", feature: "billetQrCode" },
+    ],
   },
 };
 

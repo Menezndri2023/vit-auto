@@ -622,4 +622,74 @@ neutralisant le contrat : six passent au rouge. Le test de verrou avance
 l'horloge au-delà de `FIN_IMMUNITE_QUOTAS` — sans cela il serait vert en ne
 vérifiant rien, et la fonction fuirait le jour où l'immunité tombe.
 
-**Reste un outil** du §5 : le billet à QR code (Premium, Loisirs).
+## 14. Livré le 2026-09-27 — Billet à QR code (Premium, secteur Loisirs)
+
+Le client reçoit un QR code, le partenaire le scanne à l'arrivée. Fin des
+listes papier — et surtout fin du litige de présence, qui se tranche
+aujourd'hui parole contre parole : le partenaire rembourse une place qu'il a
+tenue libre, ou il garde un client mécontent.
+
+Premier outil du palier **Premium** hors avantages transversaux : la case
+Loisirs × Premium était vide, ce que la règle directrice du §2 interdit.
+
+| Où | Quoi |
+|---|---|
+| `Booking.activite.billet` | Jeton, émission, scan, compteur de refus |
+| `services/billetActivite.js` | Jeton, verdict de scan, hors-créneau |
+| `GET /bookings/:id/billet` | Émet et rend le QR code (verrouillé) |
+| `POST /bookings/billet/scan` | Le partenaire présente un jeton (libre) |
+
+Décisions :
+
+- **La machine à états n'est PAS touchée.** Six services la partagent
+  (location, essai, chauffeur, leasing, activité, pièce) et
+  `confirmed → client_arrived` n'y est pas une transition valide. L'ouvrir pour
+  les loisirs aurait changé le comportement des cinq autres services pour un
+  gain nul : le billet répond à la seule question qu'on lui pose — qui s'est
+  présenté, et quand. Le partenaire pilote le statut comme avant.
+- **Le jeton est aléatoire et stocké, pas une signature de la référence.** Une
+  référence signée reste valable pour toujours ; un jeton se REMPLACE. C'est le
+  seul moyen de reprendre la main sur un billet transmis par erreur.
+- **Un billet déjà présenté ne se réémet pas** : ce serait effacer la preuve de
+  présence, c'est-à-dire l'objet même de l'outil.
+- **Deux couches contre la double entrée** — le verdict applicatif, et une
+  écriture conditionnelle sur `scanneLe: null`. La seconde attrape le cas que
+  la première ne voit pas : deux portiques qui scannent en même temps.
+- **Les présentations refusées sont comptées.** Un QR code photographié et
+  passé à un ami se repère à ses tentatives : c'est ce que le partenaire veut
+  voir quand il conteste une entrée.
+- **L'autorisation passe AVANT le verdict.** Sinon un concurrent apprendrait
+  qu'un billet existe, et s'il a déjà servi.
+- **Hors créneau informe, jamais ne refuse.** Un groupe qui embarque la veille
+  au soir, une sortie de deux jours, un décalage de fuseau : poser une règle
+  ici déciderait à la place de quelqu'un qui est sur place et voit le client.
+  Même philosophie que le motif déclaratif du report (§12).
+- **Le palier lu est celui du PARTENAIRE**, jamais celui du demandeur : c'est
+  le partenaire qui achète l'outil. Un client gratuit chez un partenaire
+  Premium a son billet. Même règle que le lien court de vitrine.
+- **Émettre est verrouillé, scanner ne l'est pas.** Un partenaire redescendu
+  d'abonnement laisserait sinon à la porte des clients munis d'un QR code qu'il
+  leur a lui-même envoyé.
+
+Dix-huit tests dans `server/tests/billetActivite.test.js`, vérifiés en
+neutralisant le contrôle d'unicité : deux passent au rouge — et l'écriture
+conditionnelle continue de bloquer la double entrée, ce qui confirme que les
+deux couches sont réelles et non redondantes sur le papier.
+
+## 15. Le chantier des outils est terminé
+
+Les neuf outils du §5 sont livrés. Reste hors périmètre, documenté et assumé :
+
+- **Devis multi-pièces** (§5) — une commande porte UNE pièce ; un panier
+  multi-références touche le modèle Booking, le panier et le paiement.
+- **Compatibilité par immatriculation** (Premium, Pièces) — suppose une base
+  d'immatriculations par pays, que nous n'avons pas.
+- **Relais de mission entre chauffeurs** (Premium, Chauffeur) — suppose un
+  réseau de confrères, donc un nombre de partenaires que nous n'avons pas
+  encore atteint.
+
+**À reprendre.** Les tests de verrou des outils livrés avant le 27/09 ne
+simulent pas la fin de l'immunité de lancement (`FIN_IMMUNITE_QUOTAS`,
+10/09/2027) : ils sont verts en ne vérifiant rien, et la fuite n'apparaîtrait
+qu'à cette date. Les deux derniers outils avancent l'horloge ; les sept autres
+doivent suivre.

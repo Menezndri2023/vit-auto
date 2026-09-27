@@ -49,6 +49,7 @@ export default {
   "outil.weatherClose":   { fr: "Fermeture automatique selon la météo", en: "Automatic closure based on the weather", ar: "إغلاق تلقائي حسب الطقس", es: "Cierre automático según la meteorología", zh: "依天气自动关闭" },
   "outil.sessionReschedule": { fr: "Report de séance au lieu d'annulation (météo, matériel)", en: "Session postponement instead of cancellation (weather, equipment)", ar: "تأجيل الجلسة بدل الإلغاء (الطقس، المعدات)", es: "Aplazamiento de la sesión en lugar de cancelación (tiempo, material)", zh: "改期而非取消（天气、装备）" },
   "outil.groupRates":     { fr: "Tarifs de groupe dégressifs", en: "Tiered group rates", ar: "أسعار مجموعات تنازلية", es: "Tarifas de grupo decrecientes", zh: "团体阶梯优惠价" },
+  "outil.qrTicket":       { fr: "Billet à QR code scanné à l'arrivée : fin des listes papier", en: "QR-code ticket scanned on arrival: no more paper lists", ar: "تذكرة برمز QR تُمسح عند الوصول: نهاية القوائم الورقية", es: "Billete con código QR escaneado a la llegada: fin de las listas en papel", zh: "到场扫码验票：告别纸质名单" },
   "outil.instructorTeam": { fr: "Équipe de moniteurs sous un même compte", en: "Team of instructors under one account", ar: "فريق مدرّبين تحت حساب واحد", es: "Equipo de monitores en una sola cuenta", zh: "一个账户管理教练团队" },
 
   // ─── Page Tarifs : descriptions des plans ─────────────────────────────────

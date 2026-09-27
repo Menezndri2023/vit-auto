@@ -95,6 +95,11 @@ export const FEATURE_MIN_PLAN = {
   // payaient d'un bloc — aucune entreprise ne signe à ces conditions. C'est le
   // revenu récurrent, ce que cherche tout chauffeur professionnel.
   miseADisposition:   "business",        // chauffeur
+  // Billet à QR code scanné à l'arrivée. Un litige de présence se tranche
+  // aujourd'hui parole contre parole, et le partenaire perd des deux côtés :
+  // il rembourse une place qu'il a tenue libre, ou il garde un client
+  // mécontent. Premier outil du palier Premium hors avantages transversaux.
+  billetQrCode:       "exportateur",     // loisirs
 };
 
 // Sièges d'équipe INCLUS, titulaire compris. `business` en ouvre trois : un

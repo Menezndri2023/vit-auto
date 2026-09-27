@@ -84,6 +84,13 @@ router.patch("/:id/report-seance/reponse", vid, authenticate, b.repondreReportSe
 // contrats déjà signés.
 router.get("/:id/echeancier",            vid, authenticate, b.consulterEcheancier);
 router.patch("/:id/echeance/:numero",    vid, authenticate, b.reglerEcheance);
+// Billet à QR code — outil du palier Premium. ÉMETTRE lit le palier du
+// PARTENAIRE (le client n'achète rien) ; SCANNER n'est pas verrouillé :
+// honorer un billet déjà émis n'est pas un achat, et un partenaire redescendu
+// d'abonnement laisserait sinon à la porte des clients munis du QR code qu'il
+// leur a lui-même envoyé. Le scan cherche par jeton, donc hors de /:id.
+router.post("/billet/scan",              authenticate, b.scannerBillet);
+router.get("/:id/billet",                vid, authenticate, b.emettreBillet);
 router.patch("/:id/partner-kyc-verify",  vid, authenticate, b.partnerVerifyKyc);
 // Booking Engine (2026-09) — alternative proposée par le partenaire, réponse
 // du client (voir server/services/bookingActionService.js).

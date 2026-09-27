@@ -369,6 +369,28 @@ const bookingSchema = new mongoose.Schema({
       // ne sait qu'il y a eu report, ni depuis quand.
       dateInitiale: { type: Date, default: null },
     },
+
+    // ── Billet à QR code (outil de palier, 2026-09-27) ───────────────────
+    //
+    // Fin des listes papier. Un litige de présence — « j'étais là », « non » —
+    // se tranche aujourd'hui parole contre parole, et le partenaire perd des
+    // deux côtés : il rembourse une place qu'il a tenue libre, ou il garde un
+    // client mécontent.
+    //
+    // Le jeton est ALÉATOIRE et stocké, pas une signature de la référence :
+    // une référence signée reste valable pour toujours, un jeton se remplace.
+    // Réémettre un billet révoque le précédent.
+    billet: {
+      jeton:     { type: String, default: null },
+      emisLe:    { type: Date, default: null },
+      // Le scan est unique par construction : c'est lui qui attrape la photo
+      // d'un QR code passée à un ami.
+      scanneLe:  { type: Date, default: null },
+      scannePar: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      // Présentations refusées après le premier scan — ce que le partenaire
+      // veut voir quand il conteste une entrée.
+      refus:     { type: Number, default: 0 },
+    },
   },
 
   // ── Commande de pièce détachée (type "piece") ─────────────
@@ -667,6 +689,9 @@ bookingSchema.index({ status: 1 });
 bookingSchema.index({ type: 1 });
 bookingSchema.index({ createdAt: -1 });
 // Index pour la vérification de chevauchement de dates
+// Le scan d'un billet cherche par jeton et rien d'autre : sans index, chaque
+// entrée de groupe balaierait la collection entière.
+bookingSchema.index({ "activite.billet.jeton": 1 }, { sparse: true });
 bookingSchema.index({ vehicle: 1, status: 1, "location.startDate": 1, "location.endDate": 1 });
 bookingSchema.index({ driver: 1, status: 1, "chauffeur.date": 1, "chauffeur.dateFin": 1 });
 bookingSchema.index({ vehicle: 1, status: 1, "essai.preferredDate": 1, "essai.dateFin": 1 });
