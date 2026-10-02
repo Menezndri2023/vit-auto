@@ -2838,6 +2838,14 @@ export default function VendorDashboard() {
     if (r.ok) toastError("❌ Transaction non conclue enregistrée."); else toastError(r.message || "Impossible d'enregistrer.");
   }, [doUpdateStatus, toastError]);
 
+  const loadTransactions = useCallback(async () => {
+    if (!token) return;
+    setTxLoading(true);
+    try { const r = await fetch("/api/invoices/transactions", { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setTransactions(d.transactions || []); } }
+    catch { /* ignore */ }
+    setTxLoading(false);
+  }, [token]);
+
   const handleRecordTransaction = useCallback(async (id, txData) => {
     if (!token) return;
     try {
@@ -2846,7 +2854,7 @@ export default function VendorDashboard() {
       if (r.ok) { toastSuccess("💰 Transaction enregistrée."); setGererModalId(null); setTimeout(() => { refreshOrders(); loadTransactions(); }, 800); }
       else toastError(d.message || "Erreur.");
     } catch { toastError("Erreur réseau."); }
-  }, [token, toastSuccess, toastError, refreshOrders]);
+  }, [token, toastSuccess, toastError, refreshOrders, loadTransactions]);
 
   // Téléchargement PDF authentifié (Bearer) — le lien <a href="/api/contracts/:id/pdf">
   // ne fonctionnait en réalité jamais : ces routes exigent un header
@@ -2939,7 +2947,7 @@ export default function VendorDashboard() {
         setTimeout(() => { refreshOrders(); loadTransactions(); }, 800);
       } else toastError(d.message || "Erreur.");
     } catch { toastError("Erreur réseau."); }
-  }, [token, toastSuccess, toastError, refreshOrders]);
+  }, [token, toastSuccess, toastError, refreshOrders, loadTransactions]);
 
   const loadInvoices = useCallback(async () => {
     if (!token) return;
@@ -2957,14 +2965,6 @@ export default function VendorDashboard() {
     try { const r = await fetch("/api/service-invoices/mine", { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setServiceInvoices(d.invoices || []); } }
     catch { /* ignore */ }
     setServiceInvoiceLoading(false);
-  }, [token]);
-
-  const loadTransactions = useCallback(async () => {
-    if (!token) return;
-    setTxLoading(true);
-    try { const r = await fetch("/api/invoices/transactions", { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) { const d = await r.json(); setTransactions(d.transactions || []); } }
-    catch { /* ignore */ }
-    setTxLoading(false);
   }, [token]);
 
   const loadPayouts = useCallback(async () => {
@@ -3249,7 +3249,7 @@ export default function VendorDashboard() {
     await Promise.all([refreshOrders(), loadPartnerVehicles(), loadMyDrivers(), loadMyActivities(), loadInvoices(), loadTransactions(), loadContracts(), loadPartnerStats(), loadAnalytics()]);
     setRefreshing(false);
     toastSuccess("Données actualisées.");
-  }, [refreshOrders, loadPartnerVehicles, loadMyDrivers, loadInvoices, loadTransactions, loadPartnerStats, loadAnalytics, toastSuccess]);
+  }, [refreshOrders, loadPartnerVehicles, loadMyDrivers, loadMyActivities, loadInvoices, loadTransactions, loadContracts, loadPartnerStats, loadAnalytics, toastSuccess]);
 
   useEffect(() => { loadMyDrivers(); }, [loadMyDrivers]);
   useEffect(() => { loadMyActivities(); }, [loadMyActivities]);

@@ -211,7 +211,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
   useEffect(() => {
     if (subTab !== "drivers" || !token) return;
     loadEmploymentAdminList();
-  }, [subTab, token, headers]);
+  }, [subTab, token, headers, loadEmploymentAdminList]);
 
   const openTransfer = (type, id, label, currentCountry, currentVille) => {
     setTransferModal({ type, id, label });

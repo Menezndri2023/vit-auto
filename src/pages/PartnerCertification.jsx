@@ -153,22 +153,6 @@ export default function PartnerCertification() {
     setTimeout(() => setToast(null), 4000);
   }, []);
 
-  // ── Chargement du statut ───────────────────────────────────────────────────
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const r = await api.get("/api/certification/status");
-        if (r.ok) {
-          const { certification } = await r.json();
-          setCert(certification);
-          prefillForms(certification);
-        }
-      } catch { /* ignore */ }
-      setLoading(false);
-    })();
-  }, []);
-
   // Strip base64 data from prefilled doc objects — affichage du nom seulement.
   // Lors d'une re-soumission sans changement de fichier, le champ n'a pas de
   // propriété `data`, donc le backend conserve le fichier déjà stocké.
@@ -185,9 +169,7 @@ export default function PartnerCertification() {
     return result;
   };
 
-  // Déclaration de fonction (hissée) : l'effet de chargement, plus haut, l'appelle
-  // avant sa position dans le fichier.
-  function prefillForms(c) {
+  const prefillForms = useCallback((c) => {
     if (!c) return;
     if (c.level1) setL1((p) => ({ ...p, ...stripDocData(c.level1) }));
     if (c.level2) setL2((p) => ({ ...p, ...stripDocData(c.level2) }));
@@ -196,7 +178,23 @@ export default function PartnerCertification() {
     if (c.level5) setL5((p) => ({ ...p, ...stripDocData(c.level5) }));
     if (c.level6) setL6((p) => ({ ...p, ...stripDocData(c.level6) }));
     if (c.level7) setL7((p) => ({ ...p, ...stripDocData(c.level7) }));
-  }
+  }, []);
+
+  // ── Chargement du statut ───────────────────────────────────────────────────
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const r = await api.get("/api/certification/status");
+        if (r.ok) {
+          const { certification } = await r.json();
+          setCert(certification);
+          prefillForms(certification);
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    })();
+  }, [prefillForms]);
 
   // ── Soumission d'un niveau ─────────────────────────────────────────────────
   // Les doc prefillés n'ont pas de propriété `data` — on les exclut pour éviter

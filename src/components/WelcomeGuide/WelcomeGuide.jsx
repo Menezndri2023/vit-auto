@@ -49,7 +49,7 @@ export default function WelcomeGuide() {
 
     const appearTimer = setTimeout(() => setVisible(true), APPEAR_DELAY_MS);
     return () => clearTimeout(appearTimer);
-  }, [isAuthenticated, user?.id]);
+  }, [isAuthenticated, user?.id, user?.role]);
 
   const dismiss = () => {
     setVisible(false);

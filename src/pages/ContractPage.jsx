@@ -51,7 +51,7 @@ export default function ContractPage() {
       })
       .catch(() => setError("Impossible de charger le contrat."))
       .finally(() => setLoading(false));
-  }, [bookingId, token]);
+  }, [bookingId, token, navigate]);
 
   // ── Canvas signature ───────────────────────────────────────────────────
   const getPos = (e, canvas) => {

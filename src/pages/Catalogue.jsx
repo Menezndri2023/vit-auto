@@ -471,14 +471,14 @@ const Catalogue = () => {
   // Calculé sur le jeu de données de la section affichée, et pas globalement :
   // il peut y avoir des véhicules dans son pays mais aucune activité de loisir,
   // et chaque section doit répondre pour elle-même.
-  const jeuCourant = isChauffeurMode ? drivers : isOthersMode ? activities : isPartsMode ? (parts || []) : vehicles;
   // La règle elle-même vit dans src/utils/repliInternational.js — pure, donc
   // testable ; le composant ne garde que ce qui lui appartient : une recherche
   // explicite et le mode international désactivent tout filtrage pays.
   const repliMondial = useMemo(() => {
+    const jeuCourant = isChauffeurMode ? drivers : isOthersMode ? activities : isPartsMode ? (parts || []) : vehicles;
     if (searchTerm.trim() || catalogCountry === COUNTRY_INTERNATIONAL) return false;
     return repliInternational(jeuCourant, catalogCountry);
-  }, [jeuCourant, searchTerm, catalogCountry, COUNTRY_INTERNATIONAL]);
+  }, [isChauffeurMode, drivers, isOthersMode, activities, isPartsMode, parts, vehicles, searchTerm, catalogCountry, COUNTRY_INTERNATIONAL]);
 
   const paysOk = useCallback(
     (paysAnnonce) =>

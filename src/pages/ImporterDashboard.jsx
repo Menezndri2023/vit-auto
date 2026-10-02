@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import styles from "./ImporterDashboard.module.css";
@@ -466,7 +466,7 @@ export default function ImporterDashboard() {
   const [editingListing, setEditingListing] = useState(null); // annonce complète en édition (getMyListings tronque `photos`)
   const [toast, setToast]           = useState(null);
 
-  const headers = { Authorization: `Bearer ${token}` };
+  const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
   const showMsg = (msg, type = "success") => {
     setToast({ msg, type });
@@ -489,7 +489,7 @@ export default function ImporterDashboard() {
       if (aRes.ok)  { const d = await aRes.json();  setIeAnalytics(d.byCurrency || []); }
     } catch { /* ignoré volontairement */ }
     setLoading(false);
-  }, [token]);
+  }, [token, headers]);
 
   useEffect(() => { if (isAuthenticated) load(); }, [isAuthenticated, load]);
 

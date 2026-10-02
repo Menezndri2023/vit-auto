@@ -379,7 +379,7 @@ const VendorSubmit = () => {
       success("📝 Brouillon restauré — pensez à réajouter vos photos.");
     } catch { /* brouillon corrompu — ignoré silencieusement */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [DRAFT_KEY, userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -392,7 +392,7 @@ const VendorSubmit = () => {
       } catch { /* quota plein — tant pis, brouillon simplement pas sauvegardé */ }
     }, 600);
     return () => clearTimeout(t);
-  }, [userId, step, adType, identity, selectedBusinessId, leasing, credit, vehicle, priceCurrency, priceEntryPerDay, priceEntryForSale, cautionEntry, pricePerMonthEntry, pricePerWeekEntry, tarifMoisEntry, driver]);
+  }, [userId, DRAFT_KEY, step, adType, identity, selectedBusinessId, leasing, credit, vehicle, priceCurrency, priceEntryPerDay, priceEntryForSale, cautionEntry, pricePerMonthEntry, pricePerWeekEntry, tarifMoisEntry, driver]);
 
   const clearDraft = () => {
     try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }

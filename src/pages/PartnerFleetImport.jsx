@@ -255,7 +255,7 @@ const PartnerFleetImport = () => {
     tick();
 
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [batchId, step, pollBatch, success]);
+  }, [batchId, step, pollBatch, success, error]);
 
   const resetAll = () => {
     setStep(1);

@@ -2374,7 +2374,7 @@ export default function AdminPanel() {
     if (activeTab === "whatsapp")          loadWaConversations();
     if (activeTab === "business_config")   loadBusinessConfig();
     if (activeTab === "reversements")      loadPayouts();
-  }, [activeTab, loadDriversList, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadPartnerCrm, loadSupportChats, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadServiceRequests, loadImportCostData, loadReports, loadWaConversations, loadBusinessConfig, loadPayouts, loadPendingValidation, loadClientPartnerChats, loadSystemHealth]);
+  }, [activeTab, loadDriversList, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadPartnerCrm, loadSupportChats, loadTickets, loadServiceInvoicesAdmin, loadEmailDelivery, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadServiceRequests, loadImportCostData, loadReports, loadWaConversations, loadBusinessConfig, loadPayouts, loadPendingValidation, loadClientPartnerChats, loadSystemHealth, loadContracts]);
 
   // Chargé indépendamment de l'onglet actif (contrairement au bloc ci-dessus,
   // conditionné par activeTab === "business_config") : le message d'invitation

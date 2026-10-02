@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { estPartenaireAbonne, LIBELLE_BADGE_ABONNE, INFOBULLE_BADGE_ABONNE } from "../../constants/subscriptionPlans";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useCurrency } from "../../context/CurrencyContext";
@@ -24,13 +24,13 @@ const VehicleCard = React.memo(({ car, compact }) => {
       if (r.needsAuth) navigate("/login", { state: { from: { pathname: location.pathname, search: location.search } } });
     });
   }, [toggleFavorite, carId, navigate, location]);
-  const imgs = (() => {
+  const imgs = useMemo(() => {
     const arr = [];
     if (car.thumbnail) arr.push(car.thumbnail);
     else if (Array.isArray(car.images) && car.images.length > 0) arr.push(...car.images);
     else if (car.image) arr.push(car.image);
     return arr.length > 0 ? arr : null;
-  })();
+  }, [car.thumbnail, car.image, car.images]);
 
   const [imgIdx, setImgIdx] = useState(0);
   const [fading, setFading] = useState(false);
@@ -55,7 +55,7 @@ const VehicleCard = React.memo(({ car, compact }) => {
       }, 250);
     }, 3000);
     return () => clearInterval(t);
-  }, [imgs?.length]);
+  }, [imgs]);
 
   const goImg = useCallback((e, dir) => {
     e.stopPropagation();
