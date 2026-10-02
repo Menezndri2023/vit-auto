@@ -33,6 +33,31 @@
 set -e
 cd "$(git rev-parse --show-toplevel)"
 
+# Ce que git annonce pousser (« <réf locale> <sha local> <réf distante> <sha
+# distant> » par ligne). Lu ICI, avant que quoi que ce soit ne touche l'entrée.
+REFS_POUSSEES=""
+[ -t 0 ] || REFS_POUSSEES=$(cat)
+
+# ⚠️ Corrigé le 2026-10-02 : les étapes 1, 2 et 6 étaient écrites
+# `commande | tail -3`. Sans `pipefail` (absent de /bin/sh POSIX), le code de
+# sortie d'un tube est celui de `tail` — toujours 0. Un test front en échec,
+# un build cassé ou un test serveur rouge n'ont JAMAIS bloqué un push ; et
+# `tail -3` coupait même la ligne « Test Files » de l'étape 6, qui n'affichait
+# plus que l'heure et la durée. Chaque étape passe désormais par ici : journal
+# complet sur disque, résumé à l'écran, refus si la commande échoue.
+etape() {
+  NOM_ETAPE=$1; shift
+  JOURNAL_ETAPE=$(mktemp "${TMPDIR:-/tmp}/vit-auto-garde.XXXXXX")
+  if "$@" > "$JOURNAL_ETAPE" 2>&1; then
+    grep -E "Test Files|Tests  |built in" "$JOURNAL_ETAPE" || tail -3 "$JOURNAL_ETAPE"
+    rm -f "$JOURNAL_ETAPE"
+  else
+    tail -40 "$JOURNAL_ETAPE"
+    echo "✗ $NOM_ETAPE en échec — push refusé (journal complet : $JOURNAL_ETAPE)"
+    exit 1
+  fi
+}
+
 VERROU="$(git rev-parse --git-common-dir)/vit-auto-garde.lock"
 if [ -f "$VERROU" ] && kill -0 "$(cat "$VERROU" 2>/dev/null)" 2>/dev/null; then
   echo "✗ une autre garde avant push tourne déjà (PID $(cat "$VERROU")) — réessayez quand elle sera terminée."
@@ -45,10 +70,10 @@ echo "── 0/6  lecture avant déclaration (TDZ au rendu) ──"
 node scripts/verifierTDZ.mjs
 
 echo "── 1/6  tests front ──"
-npx vitest run --reporter=dot 2>&1 | tail -3
+etape "tests front" npx vitest run --reporter=dot
 
 echo "── 2/6  build ──"
-npm run build 2>&1 | tail -1
+etape "build" npm run build
 
 echo "── 3/6  API locale (MongoDB en mémoire) + serveur avec la CSP de production ──"
 # Tout est LOCAL : rien ne touche la production ni son limiteur de débit, et
@@ -86,14 +111,33 @@ API_LOCALE_URL=http://localhost:5001 node scripts/parcoursServices.mjs http://lo
 echo "── 6/6  tests serveur ciblés ──"
 # Fichiers serveur dans les commits poussés : on relie chaque nom de fichier
 # aux tests qui le citent, plus un socle fixe.
-FICHIERS=$(git diff --name-only "@{push}"...HEAD 2>/dev/null | grep '^server/' | grep -vE '^server/tests/' || true)
+#
+# ⚠️ Corrigé le 2026-10-02 : la base était `@{push}` seul, avec `|| true`.
+# Depuis une branche sans amont (un worktree qui pousse `branche:main`), il ne
+# se résout pas, la liste revenait VIDE et l'étape affichait « aucun fichier
+# serveur dans ce push » sur un push qui en contenait quatre. Base, dans
+# l'ordre : le sha distant annoncé par git, puis @{push}, puis origin/main ;
+# aucune → refus, jamais une liste vide par défaut.
+BASE=""
+SHA_DISTANT=$(echo "$REFS_POUSSEES" | awk 'NF==4 {print $4; exit}')
+case "$SHA_DISTANT" in ""|*[!0]*) ;; *) SHA_DISTANT="" ;; esac  # 000…0 = branche distante nouvelle
+[ -n "$SHA_DISTANT" ] && BASE=$(git rev-parse -q --verify "$SHA_DISTANT^{commit}" || true)
+[ -n "$BASE" ] || BASE=$(git rev-parse -q --verify "@{push}" 2>/dev/null || true)
+[ -n "$BASE" ] || BASE=$(git rev-parse -q --verify origin/main || true)
+if [ -z "$BASE" ]; then
+  echo "✗ impossible de savoir ce que ce push contient (ni sha distant, ni @{push}, ni origin/main) — push refusé."
+  exit 1
+fi
+FICHIERS=$(git diff --name-only "$BASE"...HEAD | grep '^server/' | grep -vE '^server/tests/' || true)
 if [ -n "$FICHIERS" ]; then
   MOTS=$(echo "$FICHIERS" | xargs -n1 basename | sed 's/\.[a-z]*$//' | sort -u)
   CIBLES=$(for m in $MOTS; do grep -l "$m" server/tests/*.test.js 2>/dev/null || true; done | sort -u)
   SOCLE="server/tests/auth.security.test.js server/tests/adminGlobalScope.test.js server/tests/listesAdminSansBase64.test.js server/tests/signerDocuments.test.js"
   LISTE=$(echo "$CIBLES $SOCLE" | tr ' ' '\n' | sort -u | sed 's|^server/||' | tr '\n' ' ')
   echo "   $(echo $LISTE | wc -w | tr -d ' ') fichier(s) de test"
-  (cd server && npx vitest run $LISTE --maxWorkers=1 --reporter=dot 2>&1 | tail -3)
+  tests_serveur() { (cd server && npx vitest run "$@" --maxWorkers=1 --reporter=dot); }
+  # $LISTE non citée exprès : un argument par fichier de test.
+  etape "tests serveur" tests_serveur $LISTE
 else
   echo "   aucun fichier serveur dans ce push"
 fi
