@@ -472,7 +472,8 @@
 .decisionHelp { font-size: .85rem; color: var(--vd-sub); margin: 0 0 12px; }
 .decisionBtns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .btnAccept { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #d1fae5; border: 2px solid #6ee7b7; border-radius: 12px; cursor: pointer; text-align: left; font-family: inherit; transition: background .12s; }
-.btnAccept:hover { background: #a7f3d0; }
+.btnAccept:hover:not(:disabled) { background: #a7f3d0; }
+.btnAccept:disabled { opacity: .5; cursor: not-allowed; }
 .btnAccept > span:first-child { font-size: 1.4rem; flex-shrink: 0; }
 .btnAccept div { display: flex; flex-direction: column; gap: 2px; }
 .btnAccept strong { font-size: .88rem; color: #065f46; }

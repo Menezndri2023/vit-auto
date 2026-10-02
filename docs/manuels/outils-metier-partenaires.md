@@ -736,3 +736,36 @@ jour-là.
 CLIC. Les formulaires livrés en septembre annoncent le palier requis à côté du
 champ ; les outils plus anciens — promotions, tarifs saisonniers, import de
 flotte, showroom, CRM — ne le font pas encore.
+
+## 17. Soldé le 2026-10-02 — le cadenas se lit AVANT le clic
+
+`GET /api/subscriptions/outils` rend, pour le compte connecté, le verdict de
+chaque outil d'abonnement : `{ plan, outils: { <feature>: { ouvert, raison,
+planRequis? } } }`. Il passe par la MÊME fonction que la garde `exigeOutil`
+(`planAccess.contexteOutils` → `verdictOutil`) : administrateur, fondateur,
+membre d'équipe et palier y sont traités une seule fois. Les sept avantages
+transversaux (statistiques, équipe, API…) n'y figurent pas — leur garde,
+`exigeFonctionnalite`, n'accorde ni l'admin ni le fondateur.
+
+Côté interface : `useOutils()` (un appel par compte et par page) et
+`<VerrouOutil>`. Branchés sur promotions, tarifs saisonniers et journal du
+véhicule (cartes + fenêtres de l'espace partenaire), import de flotte, leads
+et devis, showroom. Le partenaire voit 🔒 sur le bouton de la carte, la
+fenêtre s'ouvre (il voit ce que l'outil fait), le palier requis est nommé
+avec un lien vers les plans, et l'enregistrement est désactivé. Les
+lectures restent ouvertes, comme côté serveur.
+
+⚠️ **Échec de lecture = aucun cadenas** : on retombe sur le refus explicite au
+clic, jamais sur un outil fermé à tort à quelqu'un qui le paie.
+
+⚠️ **Garde** : `planOutils.test.js` compare, pour six profils de compte, le
+verdict affiché à ce que la garde laisse passer, outil par outil (plancher de
+90 comparaisons). Un écart dans l'un ou l'autre sens rougit.
+
+⚠️ **Trouvé en le faisant** : le bouton « Tarifs saisonniers » n'était apparu à
+AUCUN partenaire depuis sa création (juillet). Il testait `vehicle.type ===
+"location"` ; après `normalizeVehicle`, `type` porte la catégorie
+(« Berline ») et le type d'annonce est dans `listingType`. Outil vendu au
+palier Essentiel, introuvable — et le balayage ne le voyait pas : il vérifie
+qu'un écran se rend, pas qu'un bouton y figure. Verrouillé par
+`VendorDashboard.outils.test.jsx`.

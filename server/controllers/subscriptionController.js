@@ -8,7 +8,7 @@ import Booking from "../models/Booking.js";
 import Favorite from "../models/Favorite.js";
 // Définition unique de « abonnement actif », partagée avec les paliers
 // (support prioritaire, équipe, API) : deux copies finiraient par diverger.
-import { planActifDe as planActif, planEffectif, planOuvre, messageRefus } from "../services/planAccess.js";
+import { planActifDe as planActif, planEffectif, planOuvre, messageRefus, verdictsOutils } from "../services/planAccess.js";
 import { invokeController } from "../utils/invokeController.js";
 import { accorderEssai, recompenserParrain, consommerCreditParrainage, DUREE_ESSAI_JOURS } from "../services/subscriptionRewards.js";
 import { csvRow } from "../utils/csv.js";
@@ -69,6 +69,19 @@ export const getMySubscription = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: "Erreur récupération abonnement.", error: err.message });
+  }
+};
+
+// Outils d'abonnement ouverts ou fermés pour CE compte — même règle que la
+// garde `exigeOutil` (admin, fondateur, membre d'équipe, palier), lue avant le
+// clic plutôt qu'apprise au refus. Lecture seule : n'autorise rien, chaque
+// route revérifie.
+export const getMesOutils = async (req, res) => {
+  try {
+    res.json(await verdictsOutils(req.user));
+  } catch (err) {
+    logger.error("getMesOutils:", err);
+    res.status(500).json({ message: "Impossible de lire vos outils." });
   }
 };
 

@@ -23,6 +23,8 @@ import { estUniquementLoisirs, estUniquementPieces, couvreSecteur } from "../con
 import PartnerSectors from "../components/PartnerSectors/PartnerSectors";
 import styles from "./VendorDashboard.module.css";
 import VitrinePartage from "../components/VitrinePartage/VitrinePartage.jsx";
+import VerrouOutil from "../components/VerrouOutil/VerrouOutil.jsx";
+import { useOutils } from "../hooks/useOutils";
 
 /* ── Utilitaires ────────────────────────────────────────────────────────── */
 // fmtXOF n'existe plus en tant que constante module — chaque composant qui en
@@ -1468,6 +1470,9 @@ export default function VendorDashboard() {
   const { partnerVehicles: myVehicles, partnerBookings, bookings, updateBookingStatus, updateVehicle, loadPartnerVehicles, loadPartnerOrders } = useVehicles();
   const { success: toastSuccess, error: toastError } = useToast();
   const { on } = useSocket();
+  // Cadenas des outils d'abonnement, lus avant le clic (promotions, tarifs
+  // saisonniers, journal du véhicule).
+  const outils = useOutils();
   const { openOrCreateChat } = useChat();
   const { COUNTRIES_CONFIG, fmt: fmtXOF, CURRENCIES, rateFromUSD, formatLiteral } = useCurrency();
   // Le partenaire voit SON prix, tel qu'il l'a saisi (65 € — pas « 704 DH »
@@ -2232,7 +2237,7 @@ export default function VendorDashboard() {
 
   const handleOpenSeasonal = (vehicle) => {
     const existing = Array.isArray(vehicle.seasonalRates) ? vehicle.seasonalRates : [];
-    setSeasonalCurrency(existing[0]?.priceEntryCurrency || vehicle.priceEntryCurrency || "USD");
+    setSeasonalCurrency(existing[0]?.priceEntryCurrency || vehicle.priceEntryCurrency || vehicle.currency || "USD");
     setSeasonalRules(existing.map((r) => ({
       label: r.label || "",
       startMonth: r.startMonth || 6, startDay: r.startDay || 15,
@@ -3894,14 +3899,17 @@ export default function VendorDashboard() {
                       <button className={styles.btnSecondary} onClick={() => handleOpenEdit(vehicle)}>✏️ Modifier</button>
                       <Link to={`/vehicle/${vid}`} className={styles.btnSecondary}>Voir</Link>
                       <button className={styles.btnSecondary} onClick={() => handleOpenPromo(vehicle)}>
-                        {(vehicle.promotions || []).some((r) => r.active) ? "🏷️ Promos actives" : "🏷️ Promo"}
+                        {(vehicle.promotions || []).some((r) => r.active) ? "🏷️ Promos actives" : "🏷️ Promo"}{outils.ferme("promotions") && " 🔒"}
                       </button>
-                      {vehicle.type === "location" && (
+                      {/* `type` porte la CATÉGORIE du véhicule après normalizeVehicle (VehicleContext) ;
+                          le type d'annonce est dans `listingType`. Testé sur `type`, ce
+                          bouton n'est apparu à AUCUN partenaire depuis sa création. */}
+                      {vehicle.listingType === "location" && (
                         <button className={styles.btnSecondary} onClick={() => handleOpenSeasonal(vehicle)}>
-                          {(vehicle.seasonalRates || []).some((r) => r.active) ? "🗓️ Saisons actives" : "🗓️ Tarifs saisonniers"}
+                          {(vehicle.seasonalRates || []).some((r) => r.active) ? "🗓️ Saisons actives" : "🗓️ Tarifs saisonniers"}{outils.ferme("tarifsSaisonniers") && " 🔒"}
                         </button>
                       )}
-                      <button className={styles.btnSecondary} onClick={() => handleOpenMaintenance(vehicle)}>🔧 Journal</button>
+                      <button className={styles.btnSecondary} onClick={() => handleOpenMaintenance(vehicle)}>🔧 Journal{outils.ferme("journalVehicule") && " 🔒"}</button>
                       {/* Actif même paiements fermés : la demande ne prélève
                           rien, elle part au support qui l'active. */}
                       {!isBoosted && (
@@ -4854,6 +4862,7 @@ export default function VendorDashboard() {
         <div className={styles.modalBackdrop} onClick={() => setPromoModal(null)}>
           <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
             <h3>🏷️ Promotions — {promoModal.name}</h3>
+            <VerrouOutil outils={outils} feature="promotions" nom="Promotions" />
             <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
               Configurez autant de règles que vous voulez (ex. "-15% dès 3 jours de location" ET "-25% dès 7 jours" ET
               "-10&nbsp;000 dès 2 jours pour un règlement comptant"). Au moment de la réservation, la règle la plus
@@ -4936,7 +4945,7 @@ export default function VendorDashboard() {
             </button>
 
             <div className={styles.rejectActions}>
-              <button className={styles.btnAccept} onClick={handleSavePromo} disabled={promoSaving}>
+              <button className={styles.btnAccept} onClick={handleSavePromo} disabled={promoSaving || outils.ferme("promotions")}>
                 {promoSaving ? "Envoi…" : "✅ Enregistrer"}
               </button>
               <button className={styles.btnSecondary} onClick={() => setPromoModal(null)}>Annuler</button>
@@ -4949,6 +4958,7 @@ export default function VendorDashboard() {
         <div className={styles.modalBackdrop} onClick={() => setSeasonalModal(null)}>
           <div className={styles.rejectModal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
             <h3>🗓️ Tarifs saisonniers — {seasonalModal.name}</h3>
+            <VerrouOutil outils={outils} feature="tarifsSaisonniers" nom="Tarifs saisonniers" />
             <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
               Définissez des périodes de l'année (ex. "haute saison" du 15 juin au 5 septembre) où un prix/jour
               différent s'applique automatiquement — la période se répète chaque année, pas besoin de la ressaisir.
@@ -5025,7 +5035,7 @@ export default function VendorDashboard() {
             </button>
 
             <div className={styles.rejectActions}>
-              <button className={styles.btnAccept} onClick={handleSaveSeasonal} disabled={seasonalSaving}>
+              <button className={styles.btnAccept} onClick={handleSaveSeasonal} disabled={seasonalSaving || outils.ferme("tarifsSaisonniers")}>
                 {seasonalSaving ? "Envoi…" : "✅ Enregistrer"}
               </button>
               <button className={styles.btnSecondary} onClick={() => setSeasonalModal(null)}>Annuler</button>
@@ -5038,6 +5048,8 @@ export default function VendorDashboard() {
         <div className={styles.modalBackdrop} onClick={() => setMaintenanceModal(null)}>
           <div className={styles.rejectModal} style={{ maxWidth: 560, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
             <h3>🔧 Journal du véhicule — {maintenanceModal.name}</h3>
+            <VerrouOutil outils={outils} feature="journalVehicule" nom="Journal du véhicule"
+              lecture="Les entrées déjà saisies restent consultables." />
             <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
               Entretiens réalisés, incidents ou dommages constatés (utile pour justifier une retenue sur caution).
             </p>
@@ -5060,7 +5072,7 @@ export default function VendorDashboard() {
               <textarea placeholder="Description (obligatoire)" value={maintenanceForm.description}
                 onChange={(e) => setMaintenanceForm((p) => ({ ...p, description: e.target.value }))}
                 className={styles.rejectTextarea} style={{ width: "100%", boxSizing: "border-box", minHeight: 60 }} />
-              <button className={styles.btnAccept} disabled={maintenanceSubmitting || !maintenanceForm.description.trim()}
+              <button className={styles.btnAccept} disabled={maintenanceSubmitting || !maintenanceForm.description.trim() || outils.ferme("journalVehicule")}
                 onClick={handleAddMaintenanceLog} style={{ marginTop: 8 }}>
                 {maintenanceSubmitting ? "Envoi…" : "+ Ajouter au journal"}
               </button>
@@ -5078,7 +5090,7 @@ export default function VendorDashboard() {
                       <strong>
                         {{ entretien: "🛠️ Entretien", incident: "⚠️ Incident", dommage: "💥 Dommage" }[log.type]} — {new Date(log.date).toLocaleDateString("fr-FR")}
                       </strong>
-                      <button onClick={() => handleDeleteMaintenanceLog(log._id)} style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: ".8rem" }}>🗑️</button>
+                      <button onClick={() => handleDeleteMaintenanceLog(log._id)} disabled={outils.ferme("journalVehicule")} aria-label="Supprimer l'entrée" style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: ".8rem" }}>🗑️</button>
                     </div>
                     <p style={{ margin: "4px 0 0", color: "#334155" }}>{log.description}</p>
                     <div style={{ display: "flex", gap: 12, marginTop: 4, color: "#64748b", fontSize: ".78rem" }}>

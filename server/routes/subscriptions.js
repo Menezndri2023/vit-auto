@@ -1,6 +1,7 @@
 import express from "express";
 import {
   getMySubscription,
+  getMesOutils,
   activatePlan,
   purchaseBoost,
   getPendingSubscriptionRequests,
@@ -21,6 +22,8 @@ const router = express.Router();
 
 // Protégé (vendeur connecté)
 router.get("/me",            protect, getMySubscription);
+// Cadenas des outils, lus AVANT le clic (voir planAccess.verdictsOutils).
+router.get("/outils",        protect, getMesOutils);
 // Statistiques de performance — le contrôleur vérifie lui-même l'abonnement
 // actif et répond 403 avec un message explicite, plutôt qu'un middleware
 // générique : le partenaire doit savoir CE QUI l'en sépare.

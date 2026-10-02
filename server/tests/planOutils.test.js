@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { exigeOutil, planEffectif } from "../services/planAccess.js";
+import { exigeOutil, planEffectif, verdictsOutils } from "../services/planAccess.js";
+import { getMesOutils } from "../controllers/subscriptionController.js";
 import { fondateurActif } from "../services/fondateur.js";
 import { FEATURE_MIN_PLAN, FIN_IMMUNITE_OUTILS, planOuvre } from "../constants/planFeatures.js";
 import Subscription from "../models/Subscription.js";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
-import { createUser } from "./helpers/fixtures.js";
+import { createUser, donnerPalier, rendreFondateur } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 // Outils par secteur vendus par palier (2026-09-14). La règle dépend d'une
@@ -182,5 +183,60 @@ describe("Prix par Incoterm — verrou du secteur Export", () => {
     const abonne = await createUser({ role: "partenaire" });
     await abonner(abonne, "individuel_plus");
     expect((await passer(abonne, "incotermsMultiples", APRES)).suivant).toBe(true);
+  });
+});
+
+// Le cadenas affiché AVANT le clic (GET /api/subscriptions/outils). Il ne vaut
+// que s'il dit exactement ce que la garde fera : un cadenas sur un outil que
+// la route laisse passer prive le partenaire d'un outil qu'il paie ; l'inverse
+// le ramène au refus au clic, ce que ce verdict devait justement supprimer.
+describe("Verdict des outils lu avant le clic", () => {
+  it("pour chaque profil de compte, le verdict affiché = ce que la garde laisse passer", async () => {
+    const gratuit = await createUser({ role: "partenaire" });
+    const essentiel = await createUser({ role: "partenaire" });
+    await donnerPalier(essentiel, "individuel_plus");
+    const business = await createUser({ role: "partenaire" });
+    await donnerPalier(business, "business");
+    const fondateur = await createUser({ role: "partenaire" });
+    await rendreFondateur(fondateur);
+    // Un membre d'équipe hérite du plan du titulaire, à l'affichage aussi.
+    const agent = await createUser({ role: "partenaire", teamOf: business._id });
+    const admin = await createUser({ role: "admin" });
+
+    const comptes = { gratuit, essentiel, business, fondateur, agent, admin };
+    let compares = 0;
+    for (const [nom, user] of Object.entries(comptes)) {
+      const { outils } = await verdictsOutils(user);
+      expect(Object.keys(outils).length, `aucun outil pour ${nom}`).toBeGreaterThan(15);
+      for (const [feature, verdict] of Object.entries(outils)) {
+        const { suivant } = await passer(user, feature, MAINTENANT);
+        expect(verdict.ouvert, `${nom} / ${feature} : affiché ${verdict.ouvert}, garde ${suivant}`).toBe(suivant);
+        if (!verdict.ouvert) expect(verdict.planRequis).toBe(FEATURE_MIN_PLAN[feature]);
+        compares++;
+      }
+    }
+    // Plancher : sans lui, une boucle vide passerait au vert sans rien comparer.
+    expect(compares).toBeGreaterThan(90);
+  });
+
+  it("les avantages transversaux n'y figurent pas : leur garde n'accorde ni l'admin ni le fondateur", async () => {
+    const fondateur = await createUser({ role: "partenaire" });
+    await rendreFondateur(fondateur);
+    const { outils } = await verdictsOutils(fondateur);
+    for (const avantage of ["statistiques", "multiUtilisateurs", "accesApi", "rapportMensuel"]) {
+      expect(outils[avantage], `« ${avantage} » annoncé comme outil`).toBeUndefined();
+    }
+  });
+
+  it("la route renvoie le plan et les verdicts, sans identifiant de propriétaire", async () => {
+    const p = await createUser({ role: "partenaire" });
+    await donnerPalier(p, "individuel_plus");
+    const { req, res } = mockReqRes({ user: p });
+    await getMesOutils(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.plan).toBe("individuel_plus");
+    expect(res.body.outils.promotions).toEqual({ ouvert: true, raison: "plan" });
+    expect(res.body.outils.importFlotte).toEqual({ ouvert: false, raison: "plan_insuffisant", planRequis: "business" });
+    expect(JSON.stringify(res.body)).not.toMatch(/proprietaireId/);
   });
 });

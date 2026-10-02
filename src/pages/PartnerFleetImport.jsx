@@ -4,6 +4,8 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { api } from "../utils/apiClient";
 import styles from "./PartnerFleetImport.module.css";
+import VerrouOutil from "../components/VerrouOutil/VerrouOutil.jsx";
+import { useOutils } from "../hooks/useOutils";
 
 const METHODS = (isExport) => [
   {
@@ -59,6 +61,10 @@ const PartnerFleetImport = () => {
   const isExport = searchParams.get("type") === "export";
   const { user } = useAuth();
   const { success, error } = useToast();
+  // Sans le palier, le partenaire préparait son fichier, l'envoyait, et
+  // apprenait le refus à l'analyse : le cadenas est désormais lu avant.
+  const outils = useOutils();
+  const importFerme = outils.ferme("importFlotte");
 
   const [step, setStep] = useState(1); // 1: méthode, 2: saisie, "mapping": correspondance colonnes, 3: progression/résultats
   const [method, setMethod] = useState(null);
@@ -332,6 +338,9 @@ const PartnerFleetImport = () => {
         </p>
       </div>
 
+      <VerrouOutil outils={outils} feature="importFlotte" nom="Import de flotte"
+        lecture="Vous pouvez publier vos véhicules un par un depuis votre tableau de bord." />
+
       {step === 1 && (
         <div className={styles.methodGrid}>
           {METHODS(isExport).map((m) => (
@@ -340,7 +349,7 @@ const PartnerFleetImport = () => {
               type="button"
               className={`${styles.methodCard} ${m.soon ? styles.methodCardSoon : ""}`}
               onClick={() => chooseMethod(m)}
-              disabled={m.soon}
+              disabled={m.soon || importFerme}
             >
               <span className={styles.methodIcon}>{m.icon}</span>
               <strong>
@@ -394,7 +403,7 @@ const PartnerFleetImport = () => {
           <button
             type="button"
             className={styles.primaryBtn}
-            disabled={!file || analyzing}
+            disabled={!file || analyzing || importFerme}
             onClick={handleSubmitFile}
           >
             {analyzing ? "Analyse en cours..." : "Analyser mon fichier →"}
@@ -420,7 +429,7 @@ const PartnerFleetImport = () => {
           <button
             type="button"
             className={styles.primaryBtn}
-            disabled={!googleSheetUrl.trim() || analyzing}
+            disabled={!googleSheetUrl.trim() || analyzing || importFerme}
             onClick={handleSubmitGoogleSheet}
           >
             {analyzing ? "Analyse en cours..." : "Analyser cette feuille →"}

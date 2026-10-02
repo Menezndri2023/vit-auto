@@ -264,7 +264,13 @@
   transition: background 0.15s;
   white-space: nowrap;
 }
-.btnPrimary:hover { background: #1e3a6e; }
+.btnPrimary:hover:not(:disabled) { background: #1e3a6e; }
+/* Aucun état désactivé n'existait : un bouton fermé par le palier (ou en
+   cours d'envoi) restait identique à un bouton actif, et le partenaire
+   cliquait sans que rien ne se passe. */
+.btnPrimary:disabled, .btnSecondary:disabled, .btnSmPrimary:disabled {
+  opacity: .5; cursor: not-allowed;
+}
 
 .btnSecondary {
   background: #fff;
@@ -282,7 +288,7 @@
   transition: border-color 0.15s, background 0.15s;
   white-space: nowrap;
 }
-.btnSecondary:hover { border-color: #94a3b8; background: #f8fafc; }
+.btnSecondary:hover:not(:disabled) { border-color: #94a3b8; background: #f8fafc; }
 
 .btnDanger {
   background: #fef2f2;

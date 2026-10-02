@@ -1,0 +1,10 @@
+/* Même langage visuel que le cadenas de la vitrine partageable
+   (VitrinePartage.module.css .verrou) : une information, pas une alerte. */
+.verrou {
+  margin: 0 0 14px; padding: 12px 14px;
+  border: 1px dashed var(--border, #d1d5db); border-radius: 10px;
+  background: var(--surface-2, #f9fafb);
+  font-size: .86rem; line-height: 1.45; color: var(--text-muted, #4b5563);
+}
+.verrou strong { color: var(--text, #111827); }
+.verrou a { font-weight: 600; white-space: nowrap; }

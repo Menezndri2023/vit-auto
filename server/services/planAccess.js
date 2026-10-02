@@ -105,15 +105,51 @@ export function exigeOutil(feature, { maintenant = () => new Date() } = {}) {
 // `raison` sert à l'interface : « inclus à partir d'Essentiel » ne se dit pas
 // de la même façon qu'un accès déjà acquis.
 export async function outilOuvert(user, feature, { maintenant = () => new Date() } = {}) {
-  if (user?.role === "admin") return { ouvert: true, raison: "admin", proprietaireId: user?._id };
+  return verdictOutil(await contexteOutils(user, { maintenant }), feature);
+}
+
+// Ce qui ne dépend pas de l'outil — rôle, date, dossier fondateur, plan —
+// lu UNE fois. `outilOuvert` et `verdictsOutils` passent tous deux par ici :
+// la règle des passe-droits n'existe qu'à un seul endroit.
+async function contexteOutils(user, { maintenant = () => new Date() } = {}) {
   const proprietaireId = user?.teamOf || user?._id;
+  if (user?.role === "admin") return { raison: "admin", proprietaireId: user?._id };
   const now = maintenant();
-  if (now < FIN_IMMUNITE_OUTILS) return { ouvert: true, raison: "immunite", proprietaireId };
-  if (await fondateurActif(proprietaireId, now)) return { ouvert: true, raison: "fondateur", proprietaireId };
-  const plan = await planEffectif(proprietaireId);
+  if (now < FIN_IMMUNITE_OUTILS) return { raison: "immunite", proprietaireId };
+  if (await fondateurActif(proprietaireId, now)) return { raison: "fondateur", proprietaireId };
+  return { raison: "plan", plan: await planEffectif(proprietaireId), proprietaireId };
+}
+
+function verdictOutil(ctx, feature) {
+  if (ctx.raison !== "plan") return { ouvert: true, raison: ctx.raison, proprietaireId: ctx.proprietaireId };
+  const { plan, proprietaireId } = ctx;
   return planOuvre(plan, feature)
     ? { ouvert: true, raison: "plan", plan, proprietaireId }
     : { ouvert: false, raison: "plan_insuffisant", plan, planRequis: FEATURE_MIN_PLAN[feature], proprietaireId };
+}
+
+// Avantages transversaux : gardés par `exigeFonctionnalite`, qui n'accorde NI
+// le passe-droit fondateur NI celui de l'administrateur. Les inclure ci-dessous
+// annoncerait « ouvert » à un fondateur que la route refuse ensuite.
+const AVANTAGES_TRANSVERSAUX = new Set([
+  "statistiques", "exportStatistiques", "assistancePremium", "multiUtilisateurs",
+  "accesApi", "demandesPrioritaires", "rapportMensuel",
+]);
+
+// Verdict de CHAQUE outil d'abonnement pour ce compte, pour que l'interface
+// annonce le cadenas AVANT le clic. Elle le lisait auparavant au refus : le
+// partenaire remplissait un formulaire de promotions pour apprendre, à
+// l'enregistrement, qu'il ne pouvait pas l'utiliser.
+// Ne renvoie que ce que l'interface affiche — jamais `proprietaireId`.
+export async function verdictsOutils(user, { maintenant = () => new Date() } = {}) {
+  const ctx = await contexteOutils(user, { maintenant });
+  const outils = {};
+  for (const feature of Object.keys(FEATURE_MIN_PLAN)) {
+    if (AVANTAGES_TRANSVERSAUX.has(feature)) continue;
+    const { ouvert, raison, planRequis } = verdictOutil(ctx, feature);
+    outils[feature] = ouvert ? { ouvert, raison } : { ouvert, raison, planRequis };
+  }
+  return { plan: ctx.plan ?? null, outils };
 }
 
 export { seatsDuPlan, slaHeuresDuPlan, planOuvre };

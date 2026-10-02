@@ -33,6 +33,8 @@
   .methodCard:hover:not(:disabled) { border-color: #0f1b3f; transform: translateY(-2px); }
 }
 .methodCard:disabled { cursor: default; }
+/* Méthode fermée par le palier : même retrait visuel que « Bientôt ». */
+.methodCard:disabled:not(.methodCardSoon) { opacity: 0.6; cursor: not-allowed; }
 
 .methodCardSoon { opacity: 0.6; }
 

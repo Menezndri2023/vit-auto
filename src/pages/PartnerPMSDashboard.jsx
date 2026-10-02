@@ -3,6 +3,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import styles from "./PartnerPMSDashboard.module.css";
+import VerrouOutil from "../components/VerrouOutil/VerrouOutil.jsx";
+import { useOutils } from "../hooks/useOutils";
 
 const API = (path, token, opts = {}) =>
   fetch(`/api/pms${path}`, {
@@ -197,6 +199,11 @@ function HomeSection({ token, user, onNav, businessId }) {
 // SECTION: LEADS
 // ══════════════════════════════════════════════════════════════════════════════
 function LeadsSection({ token, showToast, businessId, businesses = [] }) {
+  // Les LECTURES restent ouvertes (un partenaire rétrogradé garde ses leads) ;
+  // seules les écritures exigent le palier — d'où des boutons désactivés et
+  // non une section masquée.
+  const outils = useOutils();
+  const crmFerme = outils.ferme("crmLeadsDevis");
   const [leads, setLeads]     = useState([]);
   const [total, setTotal]     = useState(0);
   const [loading, setLoading] = useState(true);
@@ -292,8 +299,10 @@ function LeadsSection({ token, showToast, businessId, businesses = [] }) {
           <h2 className={styles.sectionTitle}>🎯 Gestion des Leads</h2>
           <p className={styles.sectionSub}>{fmtNum(total)} prospect{total > 1 ? "s" : ""}</p>
         </div>
-        <button className={styles.btnPrimary} onClick={() => openNewLeadForm()}>+ Nouveau lead</button>
+        <button className={styles.btnPrimary} onClick={() => openNewLeadForm()} disabled={crmFerme}>+ Nouveau lead</button>
       </div>
+      <VerrouOutil outils={outils} feature="crmLeadsDevis" nom="Leads et devis"
+        lecture="Vos leads existants restent consultables." />
 
       {/* Filtres */}
       <div className={styles.filterRow}>
@@ -318,7 +327,7 @@ function LeadsSection({ token, showToast, businessId, businesses = [] }) {
             <div className={styles.emptyState}>
               <span>🎯</span>
               <p>Aucun lead</p>
-              <button className={styles.btnPrimary} onClick={() => openNewLeadForm()}>Créer le premier lead</button>
+              <button className={styles.btnPrimary} onClick={() => openNewLeadForm()} disabled={crmFerme}>Créer le premier lead</button>
             </div>
           ) : leads.map((l) => (
             <div
@@ -441,7 +450,7 @@ function LeadsSection({ token, showToast, businessId, businesses = [] }) {
                   onChange={(e) => setFollowUpNote(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addFollowUp(selected._id)}
                 />
-                <button onClick={() => addFollowUp(selected._id)}>+</button>
+                <button onClick={() => addFollowUp(selected._id)} disabled={crmFerme} aria-label="Ajouter la note de suivi">+</button>
               </div>
             </div>
           </div>
@@ -527,6 +536,8 @@ function LeadsSection({ token, showToast, businessId, businesses = [] }) {
 // SECTION: DEVIS (Quotation Builder)
 // ══════════════════════════════════════════════════════════════════════════════
 function QuotesSection({ token, showToast, businessId, businesses = [] }) {
+  const outils = useOutils();
+  const crmFerme = outils.ferme("crmLeadsDevis");
   const [quotes, setQuotes]   = useState([]);
   // Bug réel corrigé (audit) : ce composant n'envoyait jamais `page`/`limit` —
   // le backend (pmsController.getQuotes) plafonne alors à 20 résultats, page 1
@@ -629,8 +640,10 @@ function QuotesSection({ token, showToast, businessId, businesses = [] }) {
           <h2 className={styles.sectionTitle}>📄 Générateur de Devis</h2>
           <p className={styles.sectionSub}>{quotesTotal || quotes.length} devis créés</p>
         </div>
-        <button className={styles.btnPrimary} onClick={openBuilder}>+ Nouveau devis</button>
+        <button className={styles.btnPrimary} onClick={openBuilder} disabled={crmFerme}>+ Nouveau devis</button>
       </div>
+      <VerrouOutil outils={outils} feature="crmLeadsDevis" nom="Leads et devis"
+        lecture="Vos devis existants restent consultables." />
 
       {/* Liste devis */}
       {loading ? (
@@ -639,7 +652,7 @@ function QuotesSection({ token, showToast, businessId, businesses = [] }) {
         <div className={styles.emptyState}>
           <span>📄</span>
           <p>Aucun devis créé</p>
-          <button className={styles.btnPrimary} onClick={openBuilder}>Créer mon premier devis</button>
+          <button className={styles.btnPrimary} onClick={openBuilder} disabled={crmFerme}>Créer mon premier devis</button>
         </div>
       ) : (
         <div className={styles.quoteGrid}>
@@ -654,7 +667,7 @@ function QuotesSection({ token, showToast, businessId, businesses = [] }) {
               <div className={styles.quoteCardDate}>{fmtDate(q.createdAt)}</div>
               <div className={styles.quoteCardActions}>
                 {q.status === "brouillon" && (
-                  <button className={styles.btnSmPrimary} onClick={(e) => { e.stopPropagation(); sendQuote(q._id); }}>
+                  <button className={styles.btnSmPrimary} disabled={crmFerme} onClick={(e) => { e.stopPropagation(); sendQuote(q._id); }}>
                     📨 Envoyer
                   </button>
                 )}
@@ -782,6 +795,8 @@ function QuotesSection({ token, showToast, businessId, businesses = [] }) {
 // SECTION: SHOWROOM (Builder)
 // ══════════════════════════════════════════════════════════════════════════════
 function ShowroomSection({ token, showToast }) {
+  const outils = useOutils();
+  const showroomFerme = outils.ferme("showroom");
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
@@ -842,9 +857,9 @@ function ShowroomSection({ token, showToast }) {
           </p>
         </div>
         <div style={{ display:"flex", gap:8 }}>
-          <button className={styles.btnSecondary} onClick={save} disabled={saving}>💾 Sauvegarder</button>
+          <button className={styles.btnSecondary} onClick={save} disabled={saving || showroomFerme}>💾 Sauvegarder</button>
           {!data?.isPublished && (
-            <button className={styles.btnPrimary} onClick={publish} disabled={saving}>🚀 Publier</button>
+            <button className={styles.btnPrimary} onClick={publish} disabled={saving || showroomFerme}>🚀 Publier</button>
           )}
           {data?.isPublished && (
             <Link to={`/showroom/${data.partnerId}`} target="_blank" className={styles.btnSecondary}>
@@ -853,6 +868,8 @@ function ShowroomSection({ token, showToast }) {
           )}
         </div>
       </div>
+
+      <VerrouOutil outils={outils} feature="showroom" nom="Showroom personnalisé" />
 
       {/* Onglets */}
       <div className={styles.tabRow}>
