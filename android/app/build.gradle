@@ -7,8 +7,11 @@ android {
         applicationId "com.vitauto.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // Le workflow android-release.yml fournit le numéro d'exécution
+        // (strictement croissant : Google Play refuse un versionCode déjà
+        // envoyé) et la version affichée saisie au lancement.
+        versionCode((System.getenv("ANDROID_VERSION_CODE") ?: "1").toInteger())
+        versionName(System.getenv("ANDROID_VERSION_NAME") ?: "1.0")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +19,26 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Clé d'ENVOI (upload key) : Google Play re-signe l'app avec sa propre clé
+    // (Play App Signing), donc une clé d'envoi perdue se remplace via le
+    // support Play — mais la garder précieusement (~/vit-auto-signing/android).
+    // Absente en local et dans mobile.yml : le build release reste alors non
+    // signé, sans faire échouer les builds debug.
+    def keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+    signingConfigs {
+        if (keystorePath) {
+            release {
+                storeFile file(keystorePath)
+                storeType "pkcs12"
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (keystorePath) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

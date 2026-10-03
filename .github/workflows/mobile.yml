@@ -17,9 +17,8 @@ name: VIT AUTO — Mobile Build (Android/iOS)
 # Le projet iOS est en Swift Package Manager (ios/App/CapApp-SPM), PAS en
 # CocoaPods : on compile le .xcodeproj directement, sans `pod install`.
 # Capacitor 8 exige Node ≥ 22 — avec Node 20, `cap sync` refuse de démarrer.
-# Passer à des builds Android publiables nécessitera une
-# vraie keystore de release Android (signingConfigs dans android/app/build.gradle,
-# absent aujourd'hui).
+# Les builds Android publiables (AAB signé, Google Play) passent par
+# `android-release.yml` ; ici la signature de release reste absente.
 
 on:
   push:

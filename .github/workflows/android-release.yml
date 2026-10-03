@@ -1,0 +1,128 @@
+name: VIT AUTO — Publication Android (Google Play)
+
+# Compile et SIGNE l'app Android au format AAB (le seul accepté par Google
+# Play) depuis le runner Ubuntu : ni Java ni Android Studio ne sont requis sur
+# la machine de dev. L'AAB est toujours publié comme artefact du run ; il est
+# en plus envoyé à la Play Console si le secret du compte de service existe.
+#
+# Secrets GitHub (préparés par docs/manuels/publication-google-play.md) :
+#   ANDROID_KEYSTORE_BASE64     clé d'envoi, ~/vit-auto-signing/android/upload-keystore.p12 en base64
+#   ANDROID_KEYSTORE_PASSWORD   contenu de keystore.password (même dossier)
+#   ANDROID_KEY_ALIAS           contenu de key.alias (vitauto-upload)
+#   PLAY_SERVICE_ACCOUNT_JSON   facultatif — clé JSON d'un compte de service
+#                               Google Cloud invité dans la Play Console
+#
+# ⚠️ Google Play refuse qu'une API crée l'app : le TOUT PREMIER AAB se
+# téléverse à la main dans la Play Console (télécharger l'artefact du run).
+# Les suivants partent seuls si PLAY_SERVICE_ACCOUNT_JSON est posé.
+#
+# Le versionCode est le numéro d'exécution du workflow : strictement croissant,
+# donc jamais refusé pour doublon. Contrairement à Apple, Google Play ne ferme
+# pas un nom de version — seul le versionCode doit monter.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version affichée aux utilisateurs (versionName, ex. 1.1)"
+        required: true
+        default: "1.1"
+      piste:
+        description: "Piste Google Play (utilisée seulement si PLAY_SERVICE_ACCOUNT_JSON existe)"
+        required: true
+        default: "internal"
+        type: choice
+        options: [internal, alpha, beta, production]
+
+env:
+  NODE_VERSION: "22"
+  ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+  ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+  ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+  PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+
+jobs:
+  publier:
+    name: Android — AAB signé (+ envoi Play Console)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vérifier la présence des secrets de signature
+        run: |
+          manquants=""
+          for v in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS; do
+            if [ -z "${!v}" ]; then manquants="$manquants $v"; fi
+          done
+          if [ -n "$manquants" ]; then
+            echo "::error::Secrets GitHub manquants :$manquants — voir docs/manuels/publication-google-play.md"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Setup Java (requis par Gradle/Capacitor 8)
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web (dist/)
+        run: npm run build
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Installer la clé d'envoi
+        # Le base64 est nettoyé des retours à la ligne : copié depuis un
+        # terminal, il en contient souvent, et `base64 -d` s'y arrête.
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | tr -d '\r\n ' | base64 -d > "$RUNNER_TEMP/upload-keystore.p12"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/upload-keystore.p12" >> "$GITHUB_ENV"
+
+      - name: Compiler l'AAB signé
+        working-directory: android
+        env:
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: ${{ inputs.version }}
+        run: |
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon
+
+      - name: Contrôler la signature
+        # Un AAB non signé se compile sans erreur et n'est refusé qu'au
+        # téléversement dans la Play Console : on l'arrête ici.
+        run: |
+          aab=android/app/build/outputs/bundle/release/app-release.aab
+          jarsigner -verify "$aab" | tee "$RUNNER_TEMP/verif.txt"
+          grep -q "jar verified" "$RUNNER_TEMP/verif.txt"
+          echo "AAB signé — versionCode ${{ github.run_number }}, versionName ${{ inputs.version }}"
+
+      - name: Publier l'AAB comme artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vit-auto-android-${{ inputs.version }}-${{ github.run_number }}
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Envoyer à la Play Console
+        if: env.PLAY_SERVICE_ACCOUNT_JSON != ''
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.vitauto.app
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          track: ${{ inputs.piste }}
+          # Brouillon : rien n'est diffusé sans un clic dans la Play Console.
+          status: draft
+
+      - name: Sans compte de service
+        if: env.PLAY_SERVICE_ACCOUNT_JSON == ''
+        run: echo "::notice::PLAY_SERVICE_ACCOUNT_JSON absent — téléchargez l'artefact du run et téléversez l'AAB dans la Play Console."

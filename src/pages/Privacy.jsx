@@ -3,8 +3,8 @@ import { Link } from "react-router-dom";
 import { COMPANY, COMPANY_ADDRESS } from "../constants/company";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
-const Section = ({ title, children }) => (
-  <div style={{ marginBottom: 40 }}>
+const Section = ({ id, title, children }) => (
+  <div id={id} style={{ marginBottom: 40, scrollMarginTop: 90 }}>
     <h2 style={{
       fontSize: "1rem", fontWeight: 800, color: "#0f1b3f",
       marginBottom: 14, display: "flex", alignItems: "center", gap: 10,
@@ -159,8 +159,30 @@ export default function Privacy() {
         <p style={{ marginTop: 14 }}>
           Pour exercer vos droits, contactez-nous à{" "}
           <a href="mailto:contact@vit-auto.com" style={{ color: "#ff4d2d", fontWeight: 700 }}>contact@vit-auto.com</a>.
-          {" "}Ces demandes sont actuellement traitées <strong>manuellement par notre équipe</strong> (pas encore de suppression ou d'export
-          automatisés depuis votre compte) — nous répondons sous un délai raisonnable et au plus tard dans le délai légal applicable.
+          {" "}L'accès, la rectification, l'opposition et la portabilité sont traités <strong>manuellement par notre équipe</strong>,
+          sous un délai raisonnable et au plus tard dans le délai légal applicable. La suppression du compte, elle, se fait
+          directement depuis l'application (voir ci-dessous).
+        </p>
+      </Section>
+
+      {/* Ancre citée dans la Play Console (« URL de suppression du compte ») :
+          ne pas renommer l'id sans mettre à jour la fiche Google Play. */}
+      <Section id="suppression-compte" title="10 bis. Supprimer votre compte">
+        <p>
+          Depuis le site ou l'application VIT AUTO (Android, iOS) : connectez-vous, ouvrez <strong>Profil → Sécurité</strong>,
+          puis <strong>Supprimer le compte</strong>, et confirmez avec votre mot de passe. La suppression est immédiate et
+          définitive ; vous êtes déconnecté de tous vos appareils.
+        </p>
+        <p style={{ marginTop: 10 }}><strong>Données supprimées :</strong> identité, pièces d'identité et selfie KYC, photo de profil,
+          téléphone, adresse, e-mail, et vos annonces qui ne sont citées par aucune réservation.</p>
+        <p style={{ marginTop: 10 }}><strong>Données conservées :</strong> si votre compte figure dans des réservations, commandes ou
+          factures, ces documents restent lisibles par l'autre partie (obligations contractuelles et comptables), mais votre
+          compte y est anonymisé : plus aucune donnée personnelle n'y est rattachée. Vos annonces citées par une réservation
+          sont retirées de la vente.</p>
+        <p style={{ marginTop: 10 }}>
+          Vous ne pouvez plus vous connecter ? Écrivez à{" "}
+          <a href="mailto:contact@vit-auto.com" style={{ color: "#ff4d2d", fontWeight: 700 }}>contact@vit-auto.com</a>{" "}
+          depuis l'adresse de votre compte : nous procédons à la suppression pour vous.
         </p>
       </Section>
 

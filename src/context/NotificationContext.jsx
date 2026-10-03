@@ -163,6 +163,12 @@ export const NotificationProvider = ({ children }) => {
   // sert qu'à réveiller l'app quand elle est fermée/en arrière-plan.
   useEffect(() => {
     if (!Capacitor.isNativePlatform() || !authReady || !isAuthenticated || !token) return;
+    // Sur Android, register() sans google-services.json ne renvoie pas une
+    // erreur : Firebase n'étant pas initialisé, l'app PLANTE. Tant que le
+    // projet Firebase n'existe pas, le push Android reste coupé (le polling et
+    // Socket.io couvrent les notifications app ouverte) ; le build qui embarque
+    // google-services.json pose VITE_PUSH_ANDROID=1.
+    if (Capacitor.getPlatform() === "android" && import.meta.env.VITE_PUSH_ANDROID !== "1") return;
 
     let registrationListener, receivedListener, actionListener;
 

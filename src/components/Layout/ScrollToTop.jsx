@@ -11,12 +11,20 @@ export default function ScrollToTop() {
 
   useEffect(() => {
     if (hash) {
-      // Si l'URL contient un ancre (#section), défiler vers l'élément
-      const el = document.querySelector(hash);
-      if (el) {
-        setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
-        return;
-      }
+      // Si l'URL contient un ancre (#section), défiler vers l'élément. Sur une
+      // arrivée directe (lien externe, ex. /privacy#suppression-compte cité
+      // dans la Play Console), la page est encore en cours de chargement
+      // différé : on réessaie quelques fois avant de renoncer.
+      let essais = 0;
+      let minuteur;
+      const chercher = () => {
+        let el = null;
+        try { el = document.querySelector(hash); } catch { /* ancre invalide */ }
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        else if (++essais < 20) minuteur = setTimeout(chercher, 100);
+      };
+      minuteur = setTimeout(chercher, 100);
+      return () => clearTimeout(minuteur);
     }
     // Remonter instantanément en haut à chaque changement de page
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });

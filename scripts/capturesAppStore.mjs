@@ -20,12 +20,21 @@ const OUT = join(homedir(), "Desktop", "Captures-App-Store");
 // par App Store Connect varie selon le compte : on produit les quatre.
 const UA_IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 VIT-AUTO-iOS";
 const UA_IPAD   = "Mozilla/5.0 (iPad; CPU OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 VIT-AUTO-iOS";
+const UA_ANDROID     = "Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36 VIT-AUTO-Android";
+const UA_ANDROID_TAB = "Mozilla/5.0 (Linux; Android 15; Pixel Tablet) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 VIT-AUTO-Android";
 const APPAREILS = {
   "iphone-6.7": { viewport: { width: 430,  height: 932  }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, userAgent: UA_IPHONE },
   "iphone-6.5": { viewport: { width: 428,  height: 926  }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, userAgent: UA_IPHONE },
   "ipad-13":    { viewport: { width: 1032, height: 1376 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: UA_IPAD },
   "ipad-12.9":  { viewport: { width: 1024, height: 1366 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: UA_IPAD },
+  // Google Play refuse une capture dont le grand côté dépasse 2× le petit :
+  // les formats iPhone (ratio 2,16) y sont REJETÉS. 9:16 et 16:10 passent.
+  "android-telephone": { viewport: { width: 360, height: 640 },  deviceScaleFactor: 3, isMobile: true, hasTouch: true, userAgent: UA_ANDROID },
+  "android-tablette":  { viewport: { width: 800, height: 1280 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, userAgent: UA_ANDROID_TAB },
 };
+// `node scripts/capturesAppStore.mjs android` → seulement les formats dont le
+// nom contient « android » ; sans argument, tous.
+const FILTRE = process.argv[2] || "";
 
 const r = await fetch(`${API}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifier: email, password }) });
 const session = await r.json();
@@ -42,10 +51,12 @@ const PAGES = [
 ];
 
 const browser = await chromium.launch({ executablePath: EXE, headless: true });
-for (const [nom, cfg] of Object.entries(APPAREILS)) {
+for (const [nom, cfg] of Object.entries(APPAREILS).filter(([n]) => n.includes(FILTRE))) {
   const ctx = await browser.newContext({ ...cfg, locale: "fr-FR", timezoneId: "Africa/Abidjan" });
   // Pas de splash/service worker : on capture le site rendu, comme l'app.
-  await ctx.addInitScript(() => { try { localStorage.setItem("vit-auto-splash-seen", "1"); localStorage.setItem("vit-auto-guide-client", "1"); } catch {} });
+  await ctx.addInitScript(() => { try { localStorage.setItem("vit-auto-splash-seen", "1"); localStorage.setItem("vit-auto-guide-client", "1"); localStorage.setItem("vit_catalog_country", "MA"); } catch {} });
+  // Pays figé : sinon la détection par IP suit la machine qui capture (un Mac
+  // vu « Portugal » affichait « Aucune annonce disponible en Portugal »).
   mkdirSync(join(OUT, nom), { recursive: true });
   const page = await ctx.newPage();
   for (const [fichier, chemin, connecte] of PAGES) {

@@ -32,4 +32,12 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- @capacitor/geolocation ne déclare rien lui-même : sans ces deux lignes,
+         la position (recherche « près de moi », chauffeur) échoue sur Android. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Facultatifs : sans required="false", Google Play masquerait l'app aux
+         appareils sans GPS ou sans caméra (tablettes, Chromebooks). -->
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>
