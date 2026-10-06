@@ -219,3 +219,32 @@ describe("paymentController.simulatePayment", () => {
     expect(res.status).toHaveBeenCalledWith(403);
   });
 });
+
+// Liste admin de tous les paiements (2026-10-06) — n'existait pas.
+describe("paymentController.adminListPayments", () => {
+  it("liste les paiements, filtre par statut, pagine et totalise l'encaissé", async () => {
+    const { adminListPayments } = await import("../controllers/paymentController.js");
+    const b1 = await createBookingDoc({ reference: "LOC-A" });
+    const b2 = await createBookingDoc({ reference: "LOC-B" });
+    await Payment.create({ booking: b1._id, amount: 100, devise: "USD", method: "card", status: "completed" });
+    await Payment.create({ booking: b2._id, amount: 40, devise: "USD", method: "wave", status: "failed" });
+
+    let m = mockReqRes({ query: {} });
+    await adminListPayments(m.req, m.res);
+    expect(m.res.statusCode).toBe(200);
+    expect(m.res.body.total).toBe(2);
+    expect(m.res.body.payments[0].booking.reference).toBeTruthy();
+    const enc = m.res.body.parStatut.find((x) => x._id.status === "completed");
+    expect(enc.montant).toBe(100);
+
+    m = mockReqRes({ query: { status: "failed" } });
+    await adminListPayments(m.req, m.res);
+    expect(m.res.body.total).toBe(1);
+    expect(m.res.body.payments[0].method).toBe("wave");
+
+    m = mockReqRes({ query: { limit: "1", page: "2" } });
+    await adminListPayments(m.req, m.res);
+    expect(m.res.body.payments.length).toBe(1);
+    expect(m.res.body.pages).toBe(2);
+  });
+});

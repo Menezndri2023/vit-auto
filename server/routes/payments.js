@@ -34,6 +34,8 @@ router.post("/:id/simulate",              vid, optionalAuth, simulateLimiter, pa
 // finance, comme le reversement des commissions — un admin support pouvait
 // déclencher un remboursement alors qu'il ne peut même pas LIRE le registre
 // des commissions.
+// Liste admin de tous les paiements (finance) — voir adminListPayments.
+router.get("/admin/list",                 authenticate, authorizeAdmin, requireAdminScope("finance"), paymentController.adminListPayments);
 router.post("/:id/refund",                vid, authenticate, authorizeAdmin, requireAdminScope("finance"), paymentController.refundPaymentAdmin);
 
 // Orange Money ne nécessite pas le corps brut (pas de vérification HMAC) —

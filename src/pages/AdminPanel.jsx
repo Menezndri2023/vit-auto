@@ -25,6 +25,7 @@ import { AdsSection } from "./admin/sections/AdsSection.jsx";
 import { InsuranceSection } from "./admin/sections/InsuranceSection.jsx";
 import { PartsSection } from "./admin/sections/PartsSection.jsx";
 import { MaintenanceSection } from "./admin/sections/MaintenanceSection.jsx";
+import { PaymentsSection } from "./admin/sections/PaymentsSection.jsx";
 import { ServiceRequestsSection } from "./admin/sections/ServiceRequestsSection.jsx";
 import { PartnerVerifSection } from "./admin/sections/PartnerVerifSection.jsx";
 import { SectorRequestsSection } from "./admin/sections/SectorRequestsSection.jsx";
@@ -820,15 +821,14 @@ export default function AdminPanel() {
     if (!token) return;
     setIeLoading(true);
     try {
-      const res = await fetch(`/api/import-export/requests?limit=${ieRequestsLimit}`, { headers });
-      if (res.ok) {
-        const d = await res.json();
-        setIeRequests(Array.isArray(d) ? d : d.requests || []);
-        setIeRequestsTotal(Array.isArray(d) ? d.length : d.total || 0);
-      }
+      // Pages successives (fetchPaged) : le serveur plafonne une page à 500 et
+      // « Charger plus » renvoyait toujours les mêmes 500 (audit 2026-10-05).
+      const { items, total } = await fetchPaged("/api/import-export/requests", { limit: ieRequestsLimit, pageSize: 100, key: "requests" });
+      setIeRequests(items);
+      setIeRequestsTotal(total || items.length);
     } catch { /* endpoint optionnel */ }
     setIeLoading(false);
-  }, [token, headers, ieRequestsLimit]);
+  }, [token, ieRequestsLimit, fetchPaged]);
 
   const loadMoreIeRequests = useCallback(() => setIeRequestsLimit((l) => l + 200), []);
 
@@ -870,11 +870,13 @@ export default function AdminPanel() {
     if (!token) return;
     setIeTxLoading(true);
     try {
-      const res = await fetch("/api/import-export/transactions?limit=100", { headers });
-      if (res.ok) { const d = await res.json(); setIeTransactions(d.transactions || []); }
+      // Toutes les pages (fetchPaged) : la 1re page de 100 seulement rendait
+      // les enregistrements plus anciens inaccessibles (audit du 2026-10-05).
+      const { items } = await fetchPaged("/api/import-export/transactions", { limit: 5000, pageSize: 100, key: "transactions" });
+      setIeTransactions(items);
     } catch { /* ignore */ }
     setIeTxLoading(false);
-  }, [token, headers]);
+  }, [token, fetchPaged]);
 
   const handleResolveIeDispute = async () => {
     if (!ieTxModal?.tx) return;
@@ -938,15 +940,17 @@ export default function AdminPanel() {
     if (!token) return;
     setImporterLoading(true);
     try {
+      // Pages successives (fetchPaged) : profils limités à 100, annonces à 500
+      // sans que « Charger plus » aille au-delà (audit 2026-10-05).
       const [pRes, lRes] = await Promise.all([
-        fetch(`/api/import-export/importer-profiles?limit=100`, { headers }),
-        fetch(`/api/import-export/listings/admin?limit=${importerListingsLimit}`, { headers }),
+        fetchPaged("/api/import-export/importer-profiles", { limit: 5000, pageSize: 100, key: "profiles" }),
+        fetchPaged("/api/import-export/listings/admin", { limit: importerListingsLimit, pageSize: 100, key: "listings" }),
       ]);
-      if (pRes.ok) { const d = await pRes.json(); setImporterProfiles(d.profiles || []); }
-      if (lRes.ok) { const d = await lRes.json(); setImporterListings(d.listings || []); setImporterListingsTotal(d.total || 0); }
+      setImporterProfiles(pRes.items);
+      setImporterListings(lRes.items); setImporterListingsTotal(lRes.total || lRes.items.length);
     } catch { /* ignoré volontairement */ }
     setImporterLoading(false);
-  }, [token, headers, importerListingsLimit]);
+  }, [token, importerListingsLimit, fetchPaged]);
 
   const loadMoreImporterListings = useCallback(() => setImporterListingsLimit((l) => l + 200), []);
 
@@ -980,15 +984,18 @@ export default function AdminPanel() {
     if (!token) return;
     setInvoiceLoading(true);
     try {
-      const r = await fetch("/api/invoices?limit=100", { headers });
+      // Toutes les pages (fetchPaged) : la 1re page de 100 seulement rendait
+      // les enregistrements plus anciens inaccessibles (audit du 2026-10-05).
+      const { items } = await fetchPaged("/api/invoices", { limit: 5000, pageSize: 100, key: "invoices" });
+      setInvoices(items);
+      const r = await fetch("/api/invoices?limit=1", { headers });
       if (r.ok) {
         const d = await r.json();
-        setInvoices(d.invoices || []);
         setInvoicesStats({ totalPaid: d.totalPaid, totalPending: d.totalPending });
       }
     } catch { /* ignore */ }
     setInvoiceLoading(false);
-  }, [token, headers]);
+  }, [token, headers, fetchPaged]);
 
   // Factures de PRESTATION (une par commande terminée, voir issueServiceInvoice
   // dans bookingController.js) — distinctes des factures mensuelles de commission
@@ -1000,11 +1007,13 @@ export default function AdminPanel() {
     if (!token) return;
     setServiceInvoicesAdminLoading(true);
     try {
-      const r = await fetch("/api/service-invoices?limit=100", { headers });
-      if (r.ok) { const d = await r.json(); setServiceInvoicesAdmin(d.invoices || []); }
+      // Toutes les pages (fetchPaged) : la 1re page de 100 seulement rendait
+      // les enregistrements plus anciens inaccessibles (audit du 2026-10-05).
+      const { items } = await fetchPaged("/api/service-invoices", { limit: 5000, pageSize: 100, key: "invoices" });
+      setServiceInvoicesAdmin(items);
     } catch { /* ignore */ }
     setServiceInvoicesAdminLoading(false);
-  }, [token, headers]);
+  }, [token, fetchPaged]);
 
   // ── Abonnements Pro / Boosts (paiements en attente de confirmation) ─────────
   const loadSubRequests = useCallback(async () => {
@@ -1035,18 +1044,17 @@ export default function AdminPanel() {
     if (!token) return;
     setReviewsLoading(true);
     try {
-      const params = new URLSearchParams({ limit: "50" });
+      const params = new URLSearchParams();
       if (reviewsFilter) params.set("visible", reviewsFilter);
       if (reviewsTargetType) params.set("targetType", reviewsTargetType);
-      const r = await fetch(`/api/reviews/admin/list?${params}`, { headers });
-      if (r.ok) {
-        const data = await r.json();
-        setReviewsList(data.reviews || []);
-        setPlatformReviewStats(data.platformStats || null);
-      }
+      // Tous les avis (fetchPaged) — seuls les 50 plus récents étaient visibles.
+      const { items } = await fetchPaged(`/api/reviews/admin/list?${params}`, { limit: 5000, pageSize: 100, key: "reviews" });
+      setReviewsList(items);
+      const r = await fetch(`/api/reviews/admin/list?${params}${params.toString() ? "&" : ""}limit=1`, { headers });
+      if (r.ok) setPlatformReviewStats((await r.json()).platformStats || null);
     } catch { /* ignore */ }
     setReviewsLoading(false);
-  }, [token, headers, reviewsFilter, reviewsTargetType]);
+  }, [token, headers, reviewsFilter, reviewsTargetType, fetchPaged]);
 
   const toggleReviewVisibility = async (review) => {
     if (reviewActioning) return;
@@ -1245,15 +1253,17 @@ export default function AdminPanel() {
     try {
       // sens=reversements : ce que VIT AUTO doit aux partenaires, sans les
       // commissions de vente qu'ILS doivent (platform_fee) — audit 2026-10-05.
-      const params = new URLSearchParams({ limit: "100", sens: "reversements" });
+      const params = new URLSearchParams({ sens: "reversements" });
       if (payoutsFilter) params.set("status", payoutsFilter);
-      const r = await fetch(`/api/commission-ledger/admin?${params}`, { headers });
-      if (r.ok) { const d = await r.json(); setPayoutsList(d.entries || []); setPayoutsTotal(d.total || 0); }
+      // Toutes les pages (fetchPaged) : la 1re page de 100 seulement rendait
+      // les enregistrements plus anciens inaccessibles (audit du 2026-10-05).
+      const { items, total } = await fetchPaged(`/api/commission-ledger/admin?${params}`, { limit: 5000, pageSize: 200, key: "entries" });
+      setPayoutsList(items); setPayoutsTotal(total || 0);
       const rPending = await fetch(`/api/commission-ledger/admin?status=pending&limit=1&sens=reversements`, { headers });
       if (rPending.ok) setPayoutsPendingCount((await rPending.json()).total || 0);
     } catch { /* ignore */ }
     setPayoutsLoading(false);
-  }, [token, headers, payoutsFilter]);
+  }, [token, headers, payoutsFilter, fetchPaged]);
 
   const markPayoutPaid = async (id) => {
     if (payoutMarkingId) return;
@@ -1560,15 +1570,17 @@ export default function AdminPanel() {
       if (auditFilter.action)   params.set("action",   auditFilter.action);
       if (auditFilter.resource) params.set("resource", auditFilter.resource);
       if (auditFilter.success)  params.set("success",  auditFilter.success);
+      params.delete("limit"); params.delete("page");
+      // Jusqu'à 1 000 entrées par filtre (fetchPaged) — 50 seulement avant.
       const [listRes, facetsRes] = await Promise.all([
-        fetch(`/api/audit-log/admin/list?${params}`,   { headers }),
+        fetchPaged(`/api/audit-log/admin/list?${params}`, { limit: 1000, pageSize: 100, key: "entries" }),
         fetch("/api/audit-log/admin/actions",           { headers }),
       ]);
-      if (listRes.ok)   setAuditEntries((await listRes.json()).entries || []);
+      setAuditEntries(listRes.items || []);
       if (facetsRes.ok) setAuditFacets(await facetsRes.json());
     } catch { /* ignore */ }
     setAuditLoading(false);
-  }, [token, headers, auditFilter]);
+  }, [token, headers, auditFilter, fetchPaged]);
 
   // ── Support Client ──────────────────────────────────────────────────────────
   const chercherPartenaireEssai = useCallback(async (query) => {
@@ -1641,11 +1653,13 @@ export default function AdminPanel() {
     if (!token) return;
     setReportsLoading(true);
     try {
-      const r = await fetch("/api/reports/admin?limit=100", { headers });
-      if (r.ok) { const d = await r.json(); setReports(d.reports || []); }
+      // Tous les signalements (fetchPaged) : au-delà des 100 plus récents, un
+      // signalement en attente disparaissait de la liste ET du compteur.
+      const { items } = await fetchPaged("/api/reports/admin", { limit: 5000, pageSize: 100, key: "reports" });
+      setReports(items);
     } catch { /* ignore */ }
     setReportsLoading(false);
-  }, [token, headers]);
+  }, [token, fetchPaged]);
 
   const openLoyalty = async (u) => {
     setLoyaltyModal(u);
@@ -1922,11 +1936,13 @@ export default function AdminPanel() {
     if (!token) return;
     setCertLoading(true);
     try {
-      const r = await fetch(`/api/certification/admin/list?limit=100`, { headers });
-      if (r.ok) { const d = await r.json(); setCertList(d.certifications || []); }
+      // Toutes les pages (fetchPaged) : la 1re page de 100 seulement rendait
+      // les enregistrements plus anciens inaccessibles (audit du 2026-10-05).
+      const { items } = await fetchPaged("/api/certification/admin/list", { limit: 5000, pageSize: 100, key: "certifications" });
+      setCertList(items);
     } catch { /* ignore */ }
     setCertLoading(false);
-  }, [token, headers]);
+  }, [token, fetchPaged]);
 
   const handleCertLevelReview = useCallback(async (userId, level) => {
     setCertReviewLoading(true); setCertReviewMsg("");
@@ -2051,14 +2067,15 @@ export default function AdminPanel() {
     setFoundingLoading(true);
     try {
       const [listRes, statsRes] = await Promise.all([
-        fetch("/api/partner-onboarding/admin/list?limit=100", { headers }),
+        fetchPaged("/api/partner-onboarding/admin/list", { limit: 5000, pageSize: 100, key: "onboardings" }),
         fetch("/api/partner-onboarding/admin/stats",          { headers }),
       ]);
-      if (listRes.ok)  setFoundingList((await listRes.json()).onboardings || []);
+      // Toutes les pages (fetchPaged) — l'onglet n'en montrait que 100.
+      setFoundingList(listRes.items || []);
       if (statsRes.ok) setFoundingStats(await statsRes.json());
     } catch { /* ignore */ }
     setFoundingLoading(false);
-  }, [token, headers]);
+  }, [token, headers, fetchPaged]);
 
   const foundingApprove = async (id, note) => {
     if (foundingSubmitting) return; // évite le double-clic (double envoi de LOI)
@@ -7616,6 +7633,7 @@ export default function AdminPanel() {
       ══════════════════════════════════════════════════ */}
       {activeTab === "paiements" && (
         <div className={styles.tabContent}>
+          <PaymentsSection headers={headers} />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
             <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>
               💳 Abonnements Pro & Mises en avant — confirmation de paiement

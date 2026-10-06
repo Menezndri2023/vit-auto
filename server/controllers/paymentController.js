@@ -599,3 +599,35 @@ export const getBookingPayment = async (req, res) => {
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
+
+// ── ADMIN : GET /api/payments/admin/list — tous les paiements ──────────────
+// Il n'existait AUCUNE liste des paiements côté admin (audit du 2026-10-05) :
+// l'argent encaissé ou échoué n'était visible que commande par commande.
+// Les paiements Import/Export (séquestre) restent dans l'onglet Escrow.
+export const adminListPayments = async (req, res) => {
+  try {
+    const { status, method, page = 1, limit = 50 } = req.query;
+    const filtre = {};
+    if (status && ["pending", "completed", "failed", "refunded", "partially_refunded"].includes(status)) filtre.status = status;
+    if (method && typeof method === "string") filtre.method = method;
+    const parPage = Math.min(Math.max(Number(limit) || 50, 1), 100);
+    const pageNum = Math.max(Number(page) || 1, 1);
+
+    const [payments, total, parStatut] = await Promise.all([
+      Payment.find(filtre)
+        .populate("booking", "reference type status montantTotal devise client")
+        .populate("serviceRequest", "reference category status")
+        .populate("insuranceRequest", "reference status")
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * parPage)
+        .limit(parPage)
+        .lean(),
+      Payment.countDocuments(filtre),
+      Payment.aggregate([{ $group: { _id: { status: "$status", devise: "$devise" }, n: { $sum: 1 }, montant: { $sum: "$amount" } } }]),
+    ]);
+    res.json({ payments, total, page: pageNum, pages: Math.max(1, Math.ceil(total / parPage)), parStatut });
+  } catch (err) {
+    logger.error("adminListPayments:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
