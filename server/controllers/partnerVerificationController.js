@@ -24,20 +24,60 @@ async function addAudit(docId, action, criterion, performedBy, note) {
   }).catch(nonBloquant("partnerVerificationController"));
 }
 
-// ── Notifier le partenaire ────────────────────────────────────────────────────
-async function notifyPartner(userId, title, message, lien = "/vendor/dashboard") {
+// ── Notifications regroupées du dossier (2026-10-06) ─────────────────────────
+// Valider un dossier, c'est souvent 4 à 6 actions en quelques minutes (pièce
+// ajoutée, critères cochés un à un, statut) : chacune créait sa notification,
+// donc son e-mail — un partenaire en a reçu six d'affilée. Les actions d'une
+// même fenêtre alimentent désormais UNE notification (mise à jour en place,
+// sans nouvel e-mail) et UN e-mail récapitulatif, envoyé à la fin de la
+// fenêtre avec le contenu final.
+export const FENETRE_REGROUPEMENT_MS = 5 * 60 * 1000;
+const TITRE_DOSSIER = "Votre dossier partenaire avance";
+const LIBELLES_CRITERES = {
+  businessLicense:   "licence commerciale / registre de commerce",
+  websiteVerified:   "site web",
+  addressVerified:   "adresse",
+  repIdentified:     "représentant identifié",
+  exportCapacity:    "capacité d'export",
+  documentsReceived: "documents reçus",
+  verificationDone:  "vérification terminée",
+};
+
+async function envoyerEmailRecapitulatif(notificationId) {
+  const n = await Notification.findById(notificationId).lean();
+  if (!n) return;
+  const destinataire = await User.findById(n.user).select("email firstName notif_emailReminders").lean();
+  if (!destinataire?.email || destinataire.notif_emailReminders === false) return;
+  const { enqueue } = await import("../queue/index.js");
+  const { QUEUE_NAMES } = await import("../queue/definitions.js");
+  await enqueue(QUEUE_NAMES.EMAIL, "generic_notification_email", {
+    type: "generic_notification", to: destinataire.email, userId: String(n.user),
+    data: { firstName: destinataire.firstName, titre: n.titre, message: n.message, lien: n.lien },
+  });
+}
+
+export async function notifierDossier(userId, ligne, lien = "/vendor/dashboard") {
   try {
-    // `lien` renseigné : sans lui, la notification était inerte dans la cloche
-    // (NotificationBell ne navigue que si `lien` existe) — le partenaire lisait
-    // un message sans jamais pouvoir atteindre le dossier concerné.
-    const notif = await Notification.create({ user: userId, titre: title, message, type: "system", lien });
-    // Voir insuranceController.notify — même correctif (mauvais nom d'événement
-    // + payload partiel, bug réel trouvé en audit).
+    const depuis = new Date(Date.now() - FENETRE_REGROUPEMENT_MS);
+    const ouverte = await Notification.findOne({ user: userId, titre: TITRE_DOSSIER, lu: false, createdAt: { $gte: depuis } }).lean();
+    if (ouverte) {
+      const message = `${ouverte.message}\n• ${ligne}`;
+      // updateOne (pas save) : le hook post("save") enverrait un e-mail.
+      await Notification.updateOne({ _id: ouverte._id }, { $set: { message } });
+      if (global._io) global._io.to(`user_${userId}`).emit("notification_updated", { _id: ouverte._id, message });
+      return;
+    }
+    const notif = await Notification.create({ user: userId, titre: TITRE_DOSSIER, message: `• ${ligne}`, type: "system", lien, skipEmail: true });
     if (global._io) {
       global._io.to(`user_${userId}`).emit("notification_new", {
-        _id: notif._id, type: "system", titre: title, message, lien, lu: false, createdAt: notif.createdAt,
+        _id: notif._id, type: "system", titre: TITRE_DOSSIER, message: notif.message, lien, lu: false, createdAt: notif.createdAt,
       });
     }
+    // Un seul e-mail, à la fin de la fenêtre, avec toutes les lignes.
+    const minuterie = setTimeout(() => {
+      envoyerEmailRecapitulatif(notif._id).catch((e) => signalerNonBloquant("partnerVerificationController", e));
+    }, FENETRE_REGROUPEMENT_MS + 5000);
+    minuterie.unref?.();
   } catch (err) { signalerNonBloquant("partnerVerificationController", err); }
 }
 
@@ -220,7 +260,7 @@ export const adminCreate = async (req, res) => {
     });
 
     await addAudit(doc._id, "DOSSIER_CREE", null, req.user.id, `Dossier créé par admin`);
-    await notifyPartner(userId, "Votre dossier partenaire a été ouvert", "Un administrateur VIT AUTO a ouvert votre dossier de vérification partenaire.");
+    await notifierDossier(userId, "Votre dossier de vérification partenaire a été ouvert par l'équipe VIT AUTO.");
 
     res.status(201).json({ success: true, verification: doc });
   } catch (err) {
@@ -286,9 +326,9 @@ export const adminToggleCriterion = async (req, res) => {
 
     // Notifier si tout est vérifié
     if (doc.trustScore === 100) {
-      await notifyPartner(doc.userId, "Votre profil partenaire est entièrement vérifié !", "Félicitations ! Tous vos critères de vérification ont été validés par notre équipe.");
+      await notifierDossier(doc.userId, "Félicitations : tous vos critères de vérification sont validés.");
     } else if (verified) {
-      await notifyPartner(doc.userId, "Critère de vérification validé", `Le critère "${criterion}" de votre dossier partenaire a été validé.`);
+      await notifierDossier(doc.userId, `Critère validé : ${LIBELLES_CRITERES[criterion] || criterion}.`);
     }
 
     res.json({ success: true, verification: doc.toObject(), trustScore: doc.trustScore, trustLevel: doc.trustLevel });
@@ -334,7 +374,7 @@ export const adminUpdateStatus = async (req, res) => {
       en_cours:  "Votre dossier partenaire est en cours de traitement.",
       en_attente:"Votre dossier partenaire est en attente de documents complémentaires.",
     };
-    await notifyPartner(doc.userId, "Mise à jour de votre dossier partenaire", statusMessages[status] || "");
+    if (statusMessages[status]) await notifierDossier(doc.userId, statusMessages[status]);
 
     res.json({ success: true, verification: doc });
   } catch (err) {
@@ -490,8 +530,7 @@ export async function ajouterDocumentPartenaire({ userId, champ, fichier, admin,
 
   await addAudit(doc._id, "DOCUMENT_AJOUTE", null, admin?._id, `${def.libelle} ajouté(e) par l'administrateur`);
   if (req) await logAction(req, "partner.document_added", "PartnerVerification", doc._id, { after: { champ } });
-  await notifyPartner(userId, "Document ajouté à votre dossier",
-    `L'équipe VIT AUTO a ajouté votre ${def.libelle} à votre dossier partenaire.`);
+  await notifierDossier(userId, `Votre ${def.libelle} a été ajouté(e) à votre dossier par l'équipe VIT AUTO.`);
   return { status: 200, body: { success: true, verification: doc.toObject(), champ, url } };
 }
 

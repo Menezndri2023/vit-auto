@@ -14,11 +14,11 @@ export function genericNotificationTemplate({ firstName, titre, message, lien },
   const body = `
     ${greeting(firstName)}
     <h2 style="font-size:18px;margin:0 0 12px;color:#0f1b3f">${safeTitre}</h2>
-    <p style="font-size:14px;color:#1e293b;line-height:1.7;margin:0 0 20px">${safeMessage}</p>
+    <p style="font-size:14px;color:#1e293b;line-height:1.7;margin:0 0 20px">${safeMessage.replace(/\n/g, "<br>")}</p>
     ${safeLien ? btn("Voir sur VIT AUTO", safeLien) : ""}
     ${signature()}
     ${trackingPixel}
   `;
 
-  return baseEmail({ title: safeTitre, preheader: safeMessage, body });
+  return baseEmail({ title: safeTitre, preheader: safeMessage.replace(/\s*\n\s*/g, " "), body });
 }

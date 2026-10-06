@@ -97,3 +97,28 @@ describe("Admin — ajout d'un document au dossier d'un partenaire", () => {
     await adminAddDocument(m.req, m.res); expect(m.res.statusCode).toBe(400);
   });
 });
+
+describe("Notifications du dossier regroupées (2026-10-06)", () => {
+  it("document + critères + statut en quelques instants = une seule notification, sans e-mail immédiat", async () => {
+    const ctrl = await import("../controllers/partnerVerificationController.js");
+    const { invokeController } = await import("../utils/invokeController.js");
+    const { default: Notification } = await import("../models/Notification.js");
+    const p = await createUser({ role: "partenaire", sellerType: "entreprise", partnerActivity: "loueur", country: "MA" });
+    const admin = await createUser({ role: "admin" });
+    const user = { ...admin.toObject(), id: admin._id.toString() };
+    const userId = p._id.toString();
+
+    await invokeController(ctrl.adminAddDocument, { params: { userId }, body: { champ: "rccmDoc", fichier: PDF }, user });
+    await invokeController(ctrl.adminToggleCriterion, { params: { userId }, body: { criterion: "businessLicense", verified: true }, user });
+    await invokeController(ctrl.adminToggleCriterion, { params: { userId }, body: { criterion: "addressVerified", verified: true }, user });
+    await invokeController(ctrl.adminUpdateStatus, { params: { userId }, body: { status: "verifie" }, user });
+
+    const notifs = await Notification.find({ user: p._id }).lean();
+    expect(notifs.length).toBe(1);
+    expect(notifs[0].skipEmail).toBe(true); // l'e-mail part une fois, en fin de fenêtre
+    const lignes = notifs[0].message.split("\n");
+    expect(lignes.length).toBe(4);
+    expect(notifs[0].message).toMatch(/licence commerciale/);
+    expect(notifs[0].message).not.toMatch(/businessLicense/);
+  });
+});
