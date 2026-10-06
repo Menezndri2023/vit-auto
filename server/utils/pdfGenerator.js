@@ -48,7 +48,7 @@ function footer(doc) {
 function nettoyer(t) {
   return String(t ?? "")
     .replace(/\s*→\s*/g, " au ")
-    .replace(/[\u2190-\u21FF\u2300-\u23FF\u2600-\u27BF\uFE0F\u200D]|[\uD800-\uDBFF][\uDC00-\uDFFF]/g, "")
+    .replace(/[\u2190-\u21FF\u2300-\u23FF\u2600-\u27BF]|\uFE0F|\u200D|[\uD800-\uDBFF][\uDC00-\uDFFF]/g, "")
     .replace(/\s{2,}/g, " ")
     .trim();
 }

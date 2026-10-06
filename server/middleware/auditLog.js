@@ -16,8 +16,10 @@ export async function logAction(req, action, resource, resourceId = null, change
         before: changes.before ?? null,
         after:  changes.after  ?? null,
       },
-      ip:        req.ip || req.headers["x-forwarded-for"] || null,
-      userAgent: req.headers["user-agent"] || null,
+      // `headers?.` : un contrôleur appelé hors requête HTTP (invokeController,
+      // scripts d'exploitation) n'a pas d'en-têtes — l'entrée était perdue.
+      ip:        req.ip || req.headers?.["x-forwarded-for"] || null,
+      userAgent: req.headers?.["user-agent"] || null,
       method:    req.method,
       path:      req.originalUrl,
       success:   true,

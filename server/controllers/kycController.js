@@ -11,7 +11,7 @@ import { encryptField, decryptField, hmacIndex } from "../utils/fieldEncryption.
 import { deposerPiece } from "../utils/deposerPiece.js";
 import { captureException } from "../config/sentry.js";
 import { unpublishPartnerListings } from "../utils/partnerListings.js";
-import { uploadDocument, isImageKitConfigured, FOLDERS } from "../config/imagekit.js";
+import { FOLDERS } from "../config/imagekit.js";
 
 // Dépôt des pièces sur ImageKit PRIVÉ : voir utils/deposerPiece.js (partagé
 // avec la pièce d'identité envoyée depuis la page Profil).
