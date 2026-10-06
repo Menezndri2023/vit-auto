@@ -1863,12 +1863,16 @@ ARTICLE 9 — DISPUTE RESOLUTION
 9.1  Disputes shall be resolved first through good-faith negotiation
      within 30 days of written notice.
 
-9.2  If unresolved, disputes shall be submitted to arbitration
-     under applicable international commercial law.
+9.2  If unresolved, either party may refer the dispute to
+     conventional mediation or arbitration under Moroccan Law
+     No. 95-17 on arbitration and conventional mediation.
+
+9.3  Failing agreement on mediation or arbitration, the Commercial
+     Court of Casablanca shall have exclusive jurisdiction.
 
 ARTICLE 10 — GOVERNING LAW
 
-10.1  This Agreement is governed by international commercial law.
+10.1  This Agreement is governed by the laws of the Kingdom of Morocco.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

@@ -240,7 +240,9 @@ export default function FoundingPartnerLegal() {
             This Agreement is valid for 24 months from signing. Either party may terminate with 30
             days' written notice after the initial 12-month period; VIT-AUTO may terminate immediately
             for fraud or material breach. Disputes are resolved first through good-faith negotiation,
-            then through arbitration under applicable international commercial law.
+            then through mediation or arbitration under Moroccan Law No. 95-17, failing which the
+            Commercial Court of Casablanca has exclusive jurisdiction. This Agreement is governed by
+            Moroccan law.
           </Art>
         </div>
       )}
