@@ -29,19 +29,24 @@ const ouvrir = (outils) => {
   renderPage(<VendorDashboard />, { route: "/vendor/dashboard?tab=annonces", path: "/vendor/dashboard" });
 };
 
+// Le premier rendu de l'espace partenaire, à froid (module encore non
+// transformé), dépasse la seconde par défaut de waitFor : la garde pre-push
+// a échoué ainsi le 2026-10-06 sur un arbre sain, le test passant au 2e essai.
+const ATTENTE = { timeout: 5000 };
+
 beforeEach(() => oublierOutils());
 
 describe("Espace partenaire — outils des cartes véhicule", () => {
   it("une annonce de LOCATION propose les tarifs saisonniers ; une vente non", async () => {
     ouvrir({ tarifsSaisonniers: { ouvert: true, raison: "plan" }, promotions: { ouvert: true, raison: "plan" } });
-    await waitFor(() => expect(screen.getAllByRole("button", { name: /Promo/ })).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /Promo/ })).toHaveLength(2), ATTENTE);
     expect(screen.getAllByRole("button", { name: /Tarifs saisonniers/ })).toHaveLength(1);
     expect(screen.queryByText(/🔒/)).toBeNull();
   });
 
   it("compte sans le palier : le cadenas est visible sur la carte, AVANT tout clic", async () => {
     ouvrir({ tarifsSaisonniers: FERME("individuel_plus"), promotions: FERME("individuel_plus"), journalVehicule: FERME("business") });
-    await waitFor(() => expect(screen.getByRole("button", { name: /Tarifs saisonniers 🔒/ })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: /Tarifs saisonniers 🔒/ })).toBeInTheDocument(), ATTENTE);
     expect(screen.getAllByRole("button", { name: /Promo 🔒/ })).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: /Journal 🔒/ })).toHaveLength(2);
   });
