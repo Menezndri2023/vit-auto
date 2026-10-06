@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useCurrency } from "../../../context/CurrencyContext";
 import styles from "../../AdminPanel.module.css";
+import { lireDocument } from "../../../utils/compresserDocument";
 import { COMPANY_TYPES, CRITERIA_CONFIG, STATUS_PV_CONFIG, TRUST_LEVEL_CONFIG, safeHref, safeImgHref } from "../shared.jsx";
 
 function TrustScoreRing({ score }) {
@@ -28,6 +29,30 @@ function TrustScoreRing({ score }) {
 export function PartnerVerifSection({ headers, pvList, pvStats, pvLoading, pvFilter, setPvFilter, pvDetail, setPvDetail, pvCreateModal, setPvCreateModal, pvCreateForm, setPvCreateForm, pvSaving, setPvSaving, pvCriterionLoading, setPvCriterionLoading, users, onOpenTrustOverview, onRefresh, showToast }) {
   const { COUNTRIES_CONFIG } = useCurrency();
   const [detailTab, setDetailTab] = useState("dossier");
+  const [docEnvoi, setDocEnvoi] = useState(null); // champ en cours d'envoi
+
+  // Ajout d'un document au dossier par l'admin (2026-10-06) — pièce reçue par
+  // un autre canal, ou que le partenaire n'arrive pas à téléverser.
+  const ajouterDocument = async (champ, fichierChoisi) => {
+    if (!fichierChoisi) return;
+    const userId = pvDetail.userId?._id || pvDetail.userId;
+    setDocEnvoi(champ);
+    try {
+      const { data } = await lireDocument(fichierChoisi, { maxOctets: 10 * 1024 * 1024 });
+      const res = await fetch(`/api/partner-verif/admin/${userId}/document`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ champ, fichier: data }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.message || `Erreur ${res.status}`);
+      setPvDetail((prev) => ({ ...prev, ...d.verification, userId: prev.userId }));
+      showToast("✅ Document ajouté au dossier du partenaire.");
+      onRefresh?.();
+    } catch (err) {
+      showToast(err.message || "Impossible d'ajouter le document.", "error");
+    } finally { setDocEnvoi(null); }
+  };
   const [editInfoMode, setEditInfoMode] = useState(false);
   const [editInfoForm, setEditInfoForm] = useState({});
   const [statusModal, setStatusModal] = useState(null);
@@ -582,7 +607,11 @@ export function PartnerVerifSection({ headers, pvList, pvStats, pvLoading, pvFil
                         <div style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700 }}>{label}</div>
                         {pvDetail.documents?.[key] ? (
                           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                            <img src={pvDetail.documents[key]} alt={label} loading="lazy" decoding="async" style={{ width: "100%", maxHeight: 100, objectFit: "cover", borderRadius: 6, border: "1px solid #e2e8f0" }} onError={(e) => { e.target.style.display = "none"; }} />
+                            {/\.pdf(\?|$)|^data:application\/pdf/i.test(pvDetail.documents[key]) ? (
+                              <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontWeight: 700, fontSize: "0.82rem" }}>📄 Document PDF</div>
+                            ) : (
+                              <img src={pvDetail.documents[key]} alt={label} loading="lazy" decoding="async" style={{ width: "100%", maxHeight: 100, objectFit: "cover", borderRadius: 6, border: "1px solid #e2e8f0" }} onError={(e) => { e.target.style.display = "none"; }} />
+                            )}
                             {/* safeHref (pas safeImgHref) laissait ce lien toujours pointer vers "#" pour un
                                 document stocké en base64 (data:image/...) — l'aperçu s'affichait mais le
                                 clic "Voir le document" ne faisait jamais rien, contrairement à tous les
@@ -593,6 +622,11 @@ export function PartnerVerifSection({ headers, pvList, pvStats, pvLoading, pvFil
                         ) : (
                           <div style={{ color: "#cbd5e1", fontSize: "0.8rem", textAlign: "center", padding: "10px 0" }}>Aucun document</div>
                         )}
+                        <label className={styles.btnSmall} style={{ textAlign: "center", cursor: docEnvoi ? "wait" : "pointer", minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          {docEnvoi === key ? "Envoi…" : pvDetail.documents?.[key] ? "↻ Remplacer" : "＋ Ajouter"}
+                          <input type="file" accept="image/*,application/pdf" hidden disabled={!!docEnvoi}
+                            onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; ajouterDocument(key, f); }} />
+                        </label>
                       </div>
                     ))}
                   </div>

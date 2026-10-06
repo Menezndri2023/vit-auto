@@ -19,6 +19,7 @@ router.get("/admin/:userId",                     protect, authorizeAdmin, requir
 router.post("/admin",                            protect, authorizeAdmin, requireAdminScope("partners"), pv.adminCreate);
 router.patch("/admin/:userId/info",              protect, authorizeAdmin, requireAdminScope("partners"), vidUser, pv.adminUpdateInfo);
 router.patch("/admin/:userId/criterion",         protect, authorizeAdmin, requireAdminScope("partners"), vidUser, pv.adminToggleCriterion);
+router.post("/admin/:userId/document",          protect, authorizeAdmin, requireAdminScope("partners"), vidUser, pv.adminAddDocument);
 router.patch("/admin/:userId/status",            protect, authorizeAdmin, requireAdminScope("partners"), vidUser, pv.adminUpdateStatus);
 router.post("/admin/:userId/relance",            protect, authorizeAdmin, requireAdminScope("partners"), vidUser, pv.adminRelance);
 router.delete("/admin/:userId",                  protect, authorizeAdmin, requireAdminScope("partners"), vidUser, pv.adminDelete);

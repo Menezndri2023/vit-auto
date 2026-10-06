@@ -9,6 +9,9 @@ import { decryptField } from "../utils/fieldEncryption.js";
 import { unpublishPartnerListings } from "../utils/partnerListings.js";
 import { combinePaginated } from "../utils/paginateWithOrphans.js";
 import { nonBloquant, signalerNonBloquant } from "../utils/nonBloquant.js";
+import { validateDocumentDataUri } from "../utils/imageValidation.js";
+import { deposerPiece } from "../utils/deposerPiece.js";
+import { FOLDERS } from "../config/imagekit.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -416,6 +419,88 @@ export const publicProfile = async (req, res) => {
     res.json({ verification: doc });
   } catch (err) {
     logger.error("partnerVerif publicProfile:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── POST /api/partner-verif/admin/:userId/document ─────────────────────────
+// L'administrateur ajoute lui-même une pièce au dossier d'un partenaire
+// (2026-10-06) : registre de commerce reçu par WhatsApp ou e-mail, document
+// que le partenaire n'arrive pas à téléverser… Avant, le dossier n'acceptait
+// que des URL (adminUpdateInfo) — aucun moyen d'y déposer un fichier.
+// Le fichier part sur ImageKit PRIVÉ (URL signée à la lecture), est recopié
+// dans le dossier Fondateur du partenaire s'il existe, et coche « documents
+// reçus ». Les critères de fond (licence, adresse, représentant) restent une
+// décision explicite de l'admin (adminToggleCriterion).
+const CHAMPS_DOCUMENTS = {
+  businessLicenseDoc: { libelle: "licence commerciale",       onboarding: "businessLicense" },
+  rccmDoc:            { libelle: "registre de commerce",      onboarding: "businessRegistration" },
+  taxIdDoc:           { libelle: "attestation fiscale",       onboarding: "taxCertificate" },
+  bankStatementDoc:   { libelle: "relevé bancaire",           onboarding: null },
+  repIdDoc:           { libelle: "pièce d'identité du représentant", onboarding: null },
+  otherDoc:           { libelle: "document complémentaire",   onboarding: "proofOfAddress" },
+};
+const TYPE_ENTREPRISE = { loueur: "loueur", vendeur: "concessionnaire", exportateur: "import_export" };
+
+export async function ajouterDocumentPartenaire({ userId, champ, fichier, admin, req = null }) {
+  const def = CHAMPS_DOCUMENTS[champ];
+  if (!def) return { status: 400, body: { message: `Type de document invalide. Valeurs : ${Object.keys(CHAMPS_DOCUMENTS).join(", ")}` } };
+  const verif = validateDocumentDataUri(fichier, 10 * 1024 * 1024);
+  if (!fichier || !verif.ok) return { status: 400, body: { message: verif.message || "Fichier requis (image ou PDF)." } };
+
+  const user = await User.findById(userId).select("firstName lastName role partnerActivity country email phone").lean();
+  if (!user || user.role !== "partenaire") return { status: 404, body: { message: "Partenaire introuvable." } };
+
+  let doc = await PartnerVerification.findOne({ userId });
+  if (!doc) {
+    // Dossier ouvert à la volée, à partir de l'entité par défaut du partenaire.
+    const { default: PartnerBusiness } = await import("../models/PartnerBusiness.js");
+    const entite = await PartnerBusiness.findOne({ owner: userId }).sort({ isDefault: -1 }).lean();
+    const cert = await PartnerCertification.findOne({ userId }).select("_id").lean();
+    doc = await PartnerVerification.create({
+      userId,
+      companyName: entite?.companyName || `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Partenaire",
+      companyType: TYPE_ENTREPRISE[user.partnerActivity] || "autre",
+      country: entite?.country || user.country || "",
+      city: entite?.ville || "",
+      phone: entite?.contactTel || user.phone || "",
+      email: user.email || "",
+      certificationId: cert?._id || null,
+    });
+    await addAudit(doc._id, "DOSSIER_CREE", null, admin?._id, "Dossier ouvert à l'ajout d'un document par l'admin");
+  }
+
+  const url = await deposerPiece(fichier, FOLDERS.docs, `verification_${userId}_${champ}`);
+  doc.documents = { ...(doc.documents?.toObject?.() || doc.documents || {}), [champ]: url };
+  doc.criteria.documentsReceived = {
+    verified: true, verifiedAt: new Date(), verifiedBy: admin?._id || null,
+    note: doc.criteria.documentsReceived?.note || "", docUrl: url,
+  };
+  if (["rccmDoc", "businessLicenseDoc"].includes(champ) && !doc.criteria.businessLicense?.docUrl) {
+    doc.criteria.businessLicense = { ...(doc.criteria.businessLicense?.toObject?.() || {}), docUrl: url };
+  }
+  await doc.save(); // recalcul du score (pre-save)
+
+  if (def.onboarding) {
+    await PartnerOnboarding.updateMany(
+      { userId, [`legalDocs.${def.onboarding}`]: { $in: [null, ""] } },
+      { $set: { [`legalDocs.${def.onboarding}`]: url, updatedAt: new Date() } },
+    ).catch(nonBloquant("partnerVerificationController"));
+  }
+
+  await addAudit(doc._id, "DOCUMENT_AJOUTE", null, admin?._id, `${def.libelle} ajouté(e) par l'administrateur`);
+  if (req) await logAction(req, "partner.document_added", "PartnerVerification", doc._id, { after: { champ } });
+  await notifyPartner(userId, "Document ajouté à votre dossier",
+    `L'équipe VIT AUTO a ajouté votre ${def.libelle} à votre dossier partenaire.`);
+  return { status: 200, body: { success: true, verification: doc.toObject(), champ, url } };
+}
+
+export const adminAddDocument = async (req, res) => {
+  try {
+    const r = await ajouterDocumentPartenaire({ userId: req.params.userId, champ: req.body.champ, fichier: req.body.fichier, admin: req.user, req });
+    res.status(r.status).json(r.body);
+  } catch (err) {
+    logger.error("partnerVerif adminAddDocument:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

@@ -62,3 +62,38 @@ describe("Candidature importateur — pièces justificatives", () => {
     expect(prof.status).toBe("pending");
   });
 });
+
+describe("Admin — ajout d'un document au dossier d'un partenaire", () => {
+  it("ouvre le dossier, dépose la pièce, coche « documents reçus » et la recopie dans le dossier Fondateur", async () => {
+    const { adminAddDocument } = await import("../controllers/partnerVerificationController.js");
+    const { default: PartnerVerification } = await import("../models/PartnerVerification.js");
+    const { default: PartnerBusiness } = await import("../models/PartnerBusiness.js");
+    const p = await createUser({ role: "partenaire", sellerType: "entreprise", partnerActivity: "loueur", country: "MA" });
+    await PartnerBusiness.create({ owner: p._id, companyName: "BENTCHICHCAR", country: "MA", ville: "Rabat", isDefault: true });
+    await PartnerOnboarding.create({ userId: p._id, country: "MA" });
+    const admin = await createUser({ role: "admin" });
+
+    const { req, res } = mockReqRes({ user: admin, params: { userId: p._id.toString() }, body: { champ: "rccmDoc", fichier: PDF } });
+    await adminAddDocument(req, res);
+    expect(res.statusCode).toBe(200);
+
+    const pv = await PartnerVerification.findOne({ userId: p._id });
+    expect(pv.companyName).toBe("BENTCHICHCAR");
+    expect(pv.companyType).toBe("loueur");
+    expect(pv.documents.rccmDoc).toMatch(/^https:\/\/ik\.imagekit\.io\/vitauto\/vit-auto\/docs\/verification_/);
+    expect(pv.criteria.documentsReceived.verified).toBe(true);
+    expect(pv.criteria.businessLicense.verified).toBe(false); // décision de fond laissée à l'admin
+    const onb = await PartnerOnboarding.findOne({ userId: p._id });
+    expect(onb.legalDocs.businessRegistration).toBe(pv.documents.rccmDoc);
+  });
+
+  it("refuse un type de document inconnu et un fichier invalide", async () => {
+    const { adminAddDocument } = await import("../controllers/partnerVerificationController.js");
+    const p = await createUser({ role: "partenaire" });
+    const admin = await createUser({ role: "admin" });
+    let m = mockReqRes({ user: admin, params: { userId: p._id.toString() }, body: { champ: "licorne", fichier: PDF } });
+    await adminAddDocument(m.req, m.res); expect(m.res.statusCode).toBe(400);
+    m = mockReqRes({ user: admin, params: { userId: p._id.toString() }, body: { champ: "rccmDoc", fichier: "data:application/pdf;base64,AAAA" } });
+    await adminAddDocument(m.req, m.res); expect(m.res.statusCode).toBe(400);
+  });
+});
