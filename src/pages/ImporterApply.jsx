@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import styles from "./ImporterApply.module.css";
 import { COUNTRIES_ALL, CITIES_CI, CITIES_AFRIQUE, PARTNER_REFERENCES } from "../data/autocomplete";
+import { lireDocument } from "../utils/compresserDocument";
 
 const ACTIVITY_OPTIONS = [
   { value: "import",           label: "Importation" },
@@ -16,14 +17,6 @@ const VEHICLE_CATEGORIES = [
   "Berlines", "SUV / 4x4", "Pick-up", "Utilitaires", "Camions", "Minibus",
   "Véhicules électriques", "Luxe / Premium", "Motos", "Pièces détachées",
 ];
-
-const toBase64 = (file) =>
-  new Promise((res, rej) => {
-    const r = new FileReader();
-    r.readAsDataURL(file);
-    r.onload = () => res(r.result);
-    r.onerror = rej;
-  });
 
 const STEPS = ["Entreprise", "Documents", "Activité", "Récapitulatif"];
 
@@ -100,9 +93,16 @@ export default function ImporterApply() {
 
   const handleDoc = useCallback(async (key, file) => {
     if (!file) return;
-    const b64 = await toBase64(file);
-    setDocs((d) => ({ ...d, [key]: b64 }));
-    setDocPreviews((p) => ({ ...p, [key]: URL.createObjectURL(file) }));
+    // Photos compressées, PDF contrôlés (utils/compresserDocument.js) : une
+    // photo brute de téléphone dépassait la limite du serveur sans message.
+    try {
+      const { data } = await lireDocument(file);
+      setError(null);
+      setDocs((d) => ({ ...d, [key]: data }));
+      setDocPreviews((p) => ({ ...p, [key]: URL.createObjectURL(file) }));
+    } catch (err) {
+      setError(`${file.name} : ${err.message}`);
+    }
   }, []);
 
   // ── Soumission ─────────────────────────────────────────────────────────────

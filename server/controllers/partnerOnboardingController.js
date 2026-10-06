@@ -20,6 +20,8 @@ import { ACTIVITIES, ACTIVITY_TO_PARTNER_TYPE } from "../constants/partnerTaxono
 import { autoLinkProspect } from "./partnerCrmController.js";
 import { COMPANY, COMPANY_ADDRESS_EN } from "../constants/company.js";
 import { nonBloquant, signalerNonBloquant } from "../utils/nonBloquant.js";
+import { deposerPiece } from "../utils/deposerPiece.js";
+import { FOLDERS } from "../config/imagekit.js";
 
 const APP_URL = process.env.APP_URL || "https://vit-auto.com";
 
@@ -426,7 +428,16 @@ export const updateSection = async (req, res) => {
             }
           }
         }
-        update[`${sectionKey}.${field}`] = val;
+        // Fichiers déposés sur ImageKit PRIVÉ (URL signée à la lecture, voir
+        // utils/signerDocuments.js) — même stockage que la migration du
+        // 2026-09-12. Avant le 2026-10-06, le base64 brut était écrit dans le
+        // dossier : 4 ou 5 documents d'entreprise dépassaient la limite de
+        // 16 Mo d'un document MongoDB et l'enregistrement échouait en
+        // « Erreur serveur » (dossier BENTCHICH CAR resté vide).
+        const deposer = (item, i) => (typeof item === "string" && item.startsWith("data:")
+          ? deposerPiece(item, FOLDERS.docs, `onboarding_${req.user.id}_${field}${Array.isArray(val) ? `_${i}` : ""}`)
+          : item);
+        update[`${sectionKey}.${field}`] = Array.isArray(val) ? await Promise.all(val.map(deposer)) : await deposer(val, 0);
       }
     }
     update.updatedAt = new Date();

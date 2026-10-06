@@ -231,6 +231,22 @@ async function generateReference(type) {
 }
 
 // ── Notifier un utilisateur ────────────────────────────────────────────────────
+// ── Commission recalculée au règlement : clé de taux et assiette ────────────
+// Une pièce importée relève du taux « piece_import » (7 % / 5 % fondateur), pas
+// « piece » (10 % / 7 %), et sa commission ne porte que sur le prix des pièces
+// (montantBase), jamais sur la livraison ni les frais d'importation — règle de
+// l'exploitant du 2026-09-14, appliquée à la création mais perdue aux trois
+// recalculs du règlement (recordTransaction, partnerConfirm, adminForceComplete),
+// qui taxaient le montant total au taux « piece » (audit du 2026-10-05).
+export function cleCommission(booking) {
+  if (booking?.type !== "piece") return booking?.type;
+  return booking.piece?.saleMode === "import" ? "piece_import" : "piece";
+}
+export function assietteCommission(booking, montantFinal) {
+  if (booking?.type === "piece" && Number.isFinite(booking.montantBase)) return booking.montantBase;
+  return montantFinal;
+}
+
 export async function notify(userId, type, titre, message, lien = "/dashboard") {
   if (!userId) return;
   const notif = await Notification.create({ user: userId, type, titre, message, lien }).catch(() => null);
@@ -1679,11 +1695,27 @@ export const createBookingsBatch = async (req, res) => {
         }
 
         syncVehicleAvailability(vehicle._id).catch(nonBloquant("bookingController"));
-        // Gate admin obligatoire (audit 2026-08) — même règle que createBooking :
-        // le partenaire n'est jamais notifié avant validation admin.
-        notifyAdmins("booking_pending_review", "🕐 Nouvelle demande à valider",
-          `${clientInfo.firstName} ${clientInfo.lastName} — location ${reference} (panier)`, "/admin"
-        ).catch(nonBloquant("bookingController"));
+        // Transmission DIRECTE au partenaire — même règle et même chemin que
+        // createBooking (règle de l'exploitant du 2026-09-14). Le panier était
+        // resté sur l'ancienne validation admin obligatoire : chaque location
+        // multi-véhicules restait invisible du partenaire (getPartnerBookings ne
+        // montre que les commandes approuvées) jusqu'à une action de l'admin
+        // que plus personne n'attendait (audit du 2026-10-05).
+        const direct = await invokeController(adminValidateBooking, {
+          params: { id: booking._id.toString() }, body: { decision: "approved" },
+          user: { role: "system" }, source: "SYSTEM",
+        });
+        if (direct.statusCode >= 400) {
+          logger.error("transmission directe au partenaire refusée (panier) — filet appliqué", { reference, message: direct.body?.message });
+          await Booking.updateOne({ _id: booking._id, "adminValidation.status": "pending" }, { $set: {
+            "adminValidation.status": "approved", "adminValidation.validatedByType": "SYSTEM", "adminValidation.validatedAt": new Date(), partnerNotifiedAt: new Date(),
+          } }).catch(nonBloquant("bookingController"));
+          notify(vehicle.owner, "booking_admin_approved", "📋 Nouvelle commande transmise",
+            `${clientInfo.firstName} ${clientInfo.lastName} — location ${reference}, à traiter.`, "/vendor/dashboard").catch(nonBloquant("bookingController"));
+        } else if (direct.body?.booking?.status) {
+          booking.status = direct.body.booking.status;
+        }
+        booking.adminValidation.status = "approved";
         dispatch.bookingCreated(
           { _id: booking._id, reference, type: "location", montantTotal, location: bookingData.location, status: booking.status },
           { _id: req.user._id, email: req.user.email, phone: req.user.phone, firstName: req.user.firstName },
@@ -2272,8 +2304,8 @@ export const recordTransaction = async (req, res) => {
     // Recalcul commission sur montant final réel — `?? 0` (jamais `|| 1`,
     // bug réel corrigé en audit) : un serviceFeeFCFA légitimement à 0 aurait
     // sinon été remplacé par 1, grignotant 1 USD sur le partnerPayout.
-    const commissionRate   = await resolveCommissionRate(booking.type, _vOwnerId || _dOwnerId || _aOwnerId);
-    const commissionAmount = Math.round(finalAmount * commissionRate * 100) / 100;
+    const commissionRate   = await resolveCommissionRate(cleCommission(booking), _vOwnerId || _dOwnerId || _aOwnerId);
+    const commissionAmount = Math.round(assietteCommission(booking, finalAmount) * commissionRate * 100) / 100;
     const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA ?? 0), 0);
 
     booking.transaction = {
@@ -3025,8 +3057,8 @@ export const partnerConfirm = async (req, res) => {
       return res.status(400).json({ message: "Mensualité requise pour un financement leasing/crédit." });
     }
 
-    const commissionRate   = await resolveCommissionRate(booking.type, _vOwnerId || _dOwnerId || _aOwnerId);
-    const commissionAmount = Math.round(finalAmount * commissionRate * 100) / 100;
+    const commissionRate   = await resolveCommissionRate(cleCommission(booking), _vOwnerId || _dOwnerId || _aOwnerId);
+    const commissionAmount = Math.round(assietteCommission(booking, finalAmount) * commissionRate * 100) / 100;
     const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA ?? 0), 0);
 
     booking.status = "waiting_client_validation";
@@ -3372,8 +3404,11 @@ export const modifyBookingDates = async (req, res) => {
     const days = Math.max(1, Math.round((newEnd - newStart) / 86400000));
     const newMontantBase = computeLocationTotal(booking.vehicle, newStart, days);
     const priceDelta = newMontantBase - (booking.montantBase || 0);
-    const newCommissionAmount = Math.round((newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0)) * (booking.commissionRate || 0) * 100) / 100;
-    const newMontantTotal = newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0);
+    // La remise fidélité accordée à la réservation reste acquise : sans elle,
+    // changer de dates faisait repayer le plein tarif alors que les points
+    // restaient dépensés (audit du 2026-10-05). Même formule qu'à la création.
+    const newMontantTotal = Math.max(newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0) - (booking.loyaltyDiscount || 0), 0);
+    const newCommissionAmount = Math.round(newMontantTotal * (booking.commissionRate || 0) * 100) / 100;
 
     // Contrôle de chevauchement + écriture dans une transaction — même pattern
     // que createBooking (bug réel corrigé en audit) : le contrôle précédent
@@ -3481,7 +3516,8 @@ export const extendBooking = async (req, res) => {
     const addedDays  = totalDays - (booking.location.days || 0);
     const newMontantBase = computeLocationTotal(booking.vehicle, new Date(booking.location.startDate), totalDays);
     const priceDelta = newMontantBase - (booking.montantBase || 0);
-    const newMontantTotal = newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0);
+    // Remise fidélité conservée (voir modifyBookingDates).
+    const newMontantTotal = Math.max(newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0) - (booking.loyaltyDiscount || 0), 0);
     const newCommissionAmount = Math.round(newMontantTotal * (booking.commissionRate || 0) * 100) / 100;
 
     // Contrôle de chevauchement + écriture dans une transaction — même
@@ -4302,14 +4338,14 @@ export const adminForceComplete = async (req, res) => {
       }
       amount = parsed;
     }
-    const commRate = await resolveCommissionRate(booking.type, booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner || booking.part?.owner);
+    const commRate = await resolveCommissionRate(cleCommission(booking), booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner || booking.part?.owner);
 
     booking.status           = "completed";
     booking.isPaid           = true;
     booking.paidAt           = new Date();
     booking.montantTotal     = amount;
     booking.commissionRate   = commRate;
-    booking.commissionAmount = Math.round(amount * commRate * 100) / 100;
+    booking.commissionAmount = Math.round(assietteCommission(booking, amount) * commRate * 100) / 100;
     booking.partnerPayout    = Math.max(amount - booking.commissionAmount - (booking.serviceFeeFCFA ?? 0), 0);
 
     if (!booking.transaction?.finalAmount) {

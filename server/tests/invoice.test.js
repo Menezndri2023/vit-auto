@@ -170,3 +170,41 @@ describe("getAdminCommissions", () => {
     expect(res.body.totalTransactions).toBe(100000);
   });
 });
+
+// Audit du 2026-10-05 : les commissions loisirs (et pièces) n'entraient dans
+// aucune facture — generatePartnerInvoice ne cherchait que véhicules/chauffeurs,
+// generateAllMonthlyInvoices ignorait toute commande sans véhicule/chauffeur.
+describe("Facturation des activités de loisirs", () => {
+  it("la facture mensuelle d'un partenaire loisirs reprend ses activités terminées", async () => {
+    const { createActivityDoc } = await import("./helpers/fixtures.js");
+    const partner = await createUser({ role: "partenaire", partnerActivity: "loisirs" });
+    const activity = await createActivityDoc({ owner: partner._id });
+    await Booking.create({
+      type: "activite", activity: activity._id, status: "completed", invoiced: false,
+      clientInfo: { firstName: "Client", lastName: "Test", email: "client@example.test", passportNumber: "P1234567" },
+      paidAt: new Date(2026, 5, 15), montantTotal: 400, commissionRate: 0.15, commissionAmount: 60, devise: "USD",
+    });
+    const { req, res } = mockReqRes({ body: { partnerId: partner._id.toString(), month: 6, year: 2026 } });
+    await generatePartnerInvoice(req, res);
+    expect(res.statusCode).toBe(201);
+    const inv = await Invoice.findOne({ partner: partner._id });
+    expect(inv).toBeTruthy();
+    expect(inv.lines.length).toBe(1);
+    expect(inv.lines[0].serviceType).toBe("activite");
+  });
+
+  it("la facture de prestation est émise pour une activité terminée", async () => {
+    const { createActivityDoc } = await import("./helpers/fixtures.js");
+    const { issueServiceInvoice } = await import("../controllers/serviceInvoiceController.js");
+    const { default: ServiceInvoice } = await import("../models/ServiceInvoice.js");
+    const partner = await createUser({ role: "partenaire", partnerActivity: "loisirs" });
+    const activity = await createActivityDoc({ owner: partner._id });
+    const b = await Booking.create({
+      type: "activite", activity: activity._id, status: "completed",
+      clientInfo: { firstName: "Client", lastName: "Test", email: "client@example.test", passportNumber: "P1234567" },
+      paidAt: new Date(), montantTotal: 400, commissionRate: 0.15, commissionAmount: 60, partnerPayout: 340, devise: "USD",
+    });
+    await issueServiceInvoice(b);
+    expect(await ServiceInvoice.countDocuments({ booking: b._id })).toBe(1);
+  });
+});

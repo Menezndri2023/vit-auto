@@ -10,6 +10,7 @@ import { estUniquementLoisirs, estUniquementPieces } from "../constants/partnerT
 import TwoFactorSetup from "../components/TwoFactorSetup/TwoFactorSetup";
 import ConfirmDialog from "../components/ConfirmDialog/ConfirmDialog";
 import styles from "./Profile.module.css";
+import { lireDocument } from "../utils/compresserDocument";
 
 // ── Statuts des réservations / commandes ───────────────────
 const STATUS_CFG = {
@@ -365,17 +366,15 @@ const Profile = () => {
       toastError("Format d'image invalide (SVG non accepté).");
       return;
     }
-    if (file.size > 3 * 1024 * 1024) { toastError("Image trop lourde (max 3 Mo)."); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const photo = reader.result;
+    // Compressée au lieu d'être refusée au-delà de 3 Mo : une photo de
+    // téléphone dépasse presque toujours ce seuil (utils/compresserDocument.js).
+    lireDocument(file).then(({ data: photo }) => {
       setProfileData((p) => ({ ...p, profilePhoto: photo }));
       // Passé explicitement : setProfileData ne met à jour l'état que de façon asynchrone,
       // donc handleSave() lirait encore l'ancienne valeur (sans la photo) s'il fallait
       // compter sur la fermeture de `profileData` au lieu de cette valeur fraîche.
       handleSave(null, { profilePhoto: photo });
-    };
-    reader.readAsDataURL(file);
+    }).catch((err) => toastError(err.message));
   };
 
   const handleBusinessChange = (field, value) =>
@@ -388,10 +387,7 @@ const Profile = () => {
       toastError("Format d'image invalide (SVG non accepté).");
       return;
     }
-    if (file.size > 2 * 1024 * 1024) { toastError("Logo trop lourd (max 2 Mo)."); return; }
-    const reader = new FileReader();
-    reader.onload = () => handleBusinessChange("logo", reader.result);
-    reader.readAsDataURL(file);
+    lireDocument(file).then(({ data }) => handleBusinessChange("logo", data)).catch((err) => toastError(err.message));
   };
 
   const handleNotifChange = (field, value) =>
@@ -436,10 +432,16 @@ const Profile = () => {
   // ── Handler identité ───────────────────────────────────────
   const handleIdentityImage = (field) => (e) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setIdentityForm((p) => ({ ...p, [field]: reader.result }));
-    reader.readAsDataURL(file);
+    // Compressée : trois photos brutes de téléphone dépassaient les limites du
+    // serveur et l'envoi échouait (2026-10-05, utils/compresserDocument.js).
+    lireDocument(file)
+      .then(({ data, type }) => {
+        if (type !== "image") { toastError("Envoyez une photo de la pièce (pas un PDF)."); return; }
+        setIdentityForm((p) => ({ ...p, [field]: data }));
+      })
+      .catch((err) => toastError(err.message));
   };
 
   const handleIdentitySubmit = async (e) => {

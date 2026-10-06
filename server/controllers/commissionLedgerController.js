@@ -40,9 +40,16 @@ export const getMyPayouts = async (req, res) => {
 // ── GET /api/commission-ledger/admin — liste admin ────────────────────────────
 export const adminListPayouts = async (req, res) => {
   try {
-    const { status, partnerId, page = 1, limit = 30 } = req.query;
+    const { status, partnerId, sens, page = 1, limit = 30 } = req.query;
     const filter = {};
     if (status) filter.status = status;
+    // « reversements » : ce que VIT AUTO DOIT aux partenaires. Les lignes
+    // « platform_fee » (commission de vente due PAR le partenaire, voir
+    // salesLeadService.declareSale) sont des créances : les afficher dans
+    // l'onglet Reversements avec « Marquer payé » faisait croire qu'il
+    // fallait les verser (audit du 2026-10-05).
+    if (sens === "reversements") filter.type = { $ne: "platform_fee" };
+    else if (sens === "creances") filter.type = "platform_fee";
     // Un id invalide déclenchait un CastError non intercepté (500 opaque au
     // lieu d'un filtre simplement ignoré/rejeté) — même garde que les autres
     // paramètres businessId de cette session (voir pmsController.safeBusinessFilter).
@@ -87,6 +94,11 @@ export const adminMarkPaid = async (req, res) => {
     // le contrôle avant qu'aucun n'ait écrit : les deux recevaient « Reversement
     // marqué comme payé » et deux virements manuels étaient exécutés pour la
     // même ligne. Même correctif que refundService/releaseFunds.
+    // Une créance (commission due À VIT AUTO) ne se « verse » pas.
+    const ligne = await CommissionLedger.findById(req.params.id).select("type").lean();
+    if (ligne?.type === "platform_fee") {
+      return res.status(400).json({ message: "Cette ligne est une commission due par le partenaire à VIT AUTO, pas un reversement." });
+    }
     const entry = await CommissionLedger.findOneAndUpdate(
       { _id: req.params.id, status: { $ne: "paid" } },
       {

@@ -5,6 +5,7 @@ import PartnerBusiness from "../models/PartnerBusiness.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
 import { dispatch } from "../queue/index.js";
 import { refusDePublication } from "../utils/publishingGate.js";
+import { refuserPublication } from "../utils/maintenanceWatchdog.js";
 import {
   MAX_IMPORT_ROWS,
   IMPORT_COLUMNS,
@@ -37,7 +38,7 @@ const requirePartnerRole = (req, res) => {
 // flotte par ce détour tant que l'admin ne le savait pas.
 async function checkImportPublishGate(req, res) {
   const refus = refusDePublication(req.user, "importer une flotte");
-  if (refus) { res.status(403).json(refus); return false; }
+  if (refus) { refuserPublication(req, res, "VehicleImportBatch (import de flotte)", refus, "import de flotte"); return false; }
 
   const suspendedVerif = await PartnerVerification.findOne({
     userId: req.user._id,

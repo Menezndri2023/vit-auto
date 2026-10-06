@@ -33,6 +33,7 @@ import { getActiveRates, getActiveCountries } from "../services/currencyEngine.j
 import { uploadBase64Images } from "../config/imagekit.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { nonBloquant } from "../utils/nonBloquant.js";
+import { refuserPublication } from "../utils/maintenanceWatchdog.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -114,7 +115,7 @@ export const createVehicle = async (req, res) => {
     // complète, sauf Founding Partner déjà vérifié — code CERTIFICATION_REQUIRED,
     // redirection vers /partner-onboarding.
     const refus = refusDePublication(req.user, "publier une annonce");
-    if (refus) return res.status(403).json(refus);
+    if (refus) return refuserPublication(req, res, "Vehicle", refus);
 
     // ── Périmètre et quota du secteur ──────────────────────────────────────
     // Une annonce « location » relève du secteur Location, une annonce
@@ -124,9 +125,9 @@ export const createVehicle = async (req, res) => {
     const secteur = secteurPourTypeVehicule(req.body.type);
     if (secteur) {
       const refusSecteur = refusDePerimetre(req.user, secteur, "publier une annonce de ce type");
-      if (refusSecteur) return res.status(403).json(refusSecteur);
+      if (refusSecteur) return refuserPublication(req, res, "Vehicle", refusSecteur);
       const refusQuota = await refusDeQuota(req.user, secteur);
-      if (refusQuota) return res.status(403).json(refusQuota);
+      if (refusQuota) return refuserPublication(req, res, "Vehicle", refusQuota);
     }
 
     // ── Suspension/rejet Vérification Partenaire ────────────────────────────

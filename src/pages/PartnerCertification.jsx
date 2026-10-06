@@ -1,17 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../utils/apiClient";
+import { lireDocument } from "../utils/compresserDocument";
 import styles from "./PartnerCertification.module.css";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-const toBase64 = (file) =>
-  new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload  = () => resolve({ name: file.name, data: r.result });
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-
+// Lecture + compression des justificatifs : voir utils/compresserDocument.js.
 const BADGE_CONFIG = {
   none:      { icon: "🔒", label: "Aucun badge",           color: "#94a3b8", bg: "#f1f5f9",  gradient: "none" },
   verifie:   { icon: "🟢", label: "Partenaire Vérifié",    color: "#059669", bg: "#d1fae5",  gradient: "linear-gradient(135deg,#059669,#10b981)" },
@@ -54,23 +48,32 @@ const EXPORT_COUNTRIES     = ["France", "Côte d'Ivoire", "Sénégal", "Mali", "
 // ── Composant file uploader ───────────────────────────────────────────────────
 function FileUploader({ label, value, onChange, hint }) {
   const ref = useRef();
+  const [erreur, setErreur] = useState(null);
+  const [lecture, setLecture] = useState(false);
   return (
     <div className={styles.fileBox}>
       <p className={styles.fileLabel}>{label}</p>
       {hint && <p className={styles.fileHint}>{hint}</p>}
       <button type="button" className={styles.fileBtn} onClick={() => ref.current.click()}>
-        {value?.name ? `✅ ${value.name}` : "📎 Choisir un fichier"}
+        {lecture ? "⏳ Préparation du fichier…" : value?.name ? `✅ ${value.name}` : "📎 Choisir un fichier"}
       </button>
+      {erreur && <p role="alert" style={{ color: "#dc2626", fontSize: ".82rem", margin: "6px 0 0" }}>{erreur}</p>}
       <input
         ref={ref}
         type="file"
         accept="image/*,application/pdf"
         style={{ display: "none" }}
         onChange={async (e) => {
-          if (e.target.files[0]) {
-            const b64 = await toBase64(e.target.files[0]);
-            onChange({ name: b64.name, data: b64.data, uploadedAt: new Date().toISOString() });
-          }
+          const file = e.target.files?.[0];
+          e.target.value = ""; // re-choisir le même fichier après une erreur
+          if (!file) return;
+          setErreur(null); setLecture(true);
+          try {
+            const doc = await lireDocument(file);
+            onChange({ name: doc.name, data: doc.data, uploadedAt: new Date().toISOString() });
+          } catch (err) {
+            setErreur(err.message);
+          } finally { setLecture(false); }
         }}
       />
     </div>

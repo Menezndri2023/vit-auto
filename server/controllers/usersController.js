@@ -11,6 +11,8 @@ import { sendEmail, identityRejectedTemplate } from "../config/email.js";
 import { logAction } from "../middleware/auditLog.js";
 import { uploadBase64Images, FOLDERS } from "../config/imagekit.js";
 import { validateImageDataUri } from "../utils/imageValidation.js";
+import { deposerPiece } from "../utils/deposerPiece.js";
+import { encryptField } from "../utils/fieldEncryption.js";
 import { isValidCountryCode } from "../utils/countries.js";
 import { ADMIN_SCOPES, isGeneralAdmin } from "../constants/adminScopes.js";
 import PartnerVerification from "../models/PartnerVerification.js";
@@ -654,13 +656,25 @@ export const submitIdentity = async (req, res) => {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ message: "Utilisateur introuvable." });
 
+    // Photos déposées sur ImageKit PRIVÉ, URL chiffrée en base — même circuit
+    // que kycController (utils/deposerPiece.js). Avant le 2026-10-05, ce chemin
+    // écrivait les photos brutes dans le document User : au-delà de 16 Mo
+    // (trois photos de téléphone), l'enregistrement échouait en 500.
+    // Une photo non renvoyée CONSERVE la précédente : mettre à jour le numéro
+    // ou une seule face n'efface plus les autres justificatifs.
+    const prec = user.identity || {};
+    const [recto, verso, autoportrait] = await Promise.all([
+      frontImage ? deposerPiece(frontImage, FOLDERS.kyc, `profil_${user._id}_recto`) : null,
+      backImage  ? deposerPiece(backImage,  FOLDERS.kyc, `profil_${user._id}_verso`) : null,
+      selfie     ? deposerPiece(selfie,     FOLDERS.kyc, `profil_${user._id}_selfie`) : null,
+    ]);
     user.identity = {
       type,
       number:      number.trim(),
       expiryDate:  expiryDate ? new Date(expiryDate) : null,
-      frontImage:  frontImage || null,
-      backImage:   backImage  || null,
-      selfie:      selfie     || null,
+      frontImage:  recto        ? encryptField(recto)        : (prec.frontImage || null),
+      backImage:   verso        ? encryptField(verso)        : (prec.backImage  || null),
+      selfie:      autoportrait ? encryptField(autoportrait) : (prec.selfie     || null),
       status:      "pending",
       submittedAt: new Date(),
     };

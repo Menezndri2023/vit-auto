@@ -5,6 +5,7 @@ import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { ACTIVITIES, ACTIVITY_LABELS } from "../constants/partnerTaxonomy";
 import styles from "./PartnerOnboardingPortal.module.css";
+import { lireDocument } from "../utils/compresserDocument";
 
 const API_BASE = "/api/partner-onboarding";
 
@@ -808,30 +809,30 @@ function StepDocuments({ onboarding, saving, onSaveSection, onNext, onBack }) {
   const MAX_SIZE = 5 * 1024 * 1024; // 5 Mo
   const handleFile = (key) => (e) => {
     const file = e.target.files[0];
+    e.target.value = "";
     if (!file) return;
-    if (file.size > MAX_SIZE) {
-      setFileError(`"${file.name}" dépasse la limite de 5 Mo. Compressez le fichier et réessayez.`);
-      e.target.value = "";
-      return;
-    }
     setFileError("");
-    const reader = new FileReader();
-    reader.onloadend = () => setFiles((f) => ({ ...f, [key]: reader.result }));
-    reader.readAsDataURL(file);
+    // Photos compressées, PDF contrôlés (utils/compresserDocument.js) : avant
+    // le 2026-10-05, tout fichier de plus de 5 Mo était refusé avec « compressez
+    // le fichier » — impossible pour un partenaire qui photographie son
+    // registre de commerce avec son téléphone.
+    lireDocument(file, { maxOctets: MAX_SIZE })
+      .then(({ data }) => setFiles((f) => ({ ...f, [key]: data })))
+      .catch((err) => setFileError(`"${file.name}" : ${err.message}`));
   };
 
   const handleIndividualFile = (e) => {
     const file = e.target.files[0];
+    e.target.value = "";
     if (!file) return;
-    if (file.size > MAX_SIZE) {
-      setFileError(`"${file.name}" dépasse la limite de 5 Mo. Compressez le fichier et réessayez.`);
-      e.target.value = "";
-      return;
-    }
     setFileError("");
-    const reader = new FileReader();
-    reader.onloadend = () => setIndividualDoc((d) => ({ ...d, file: reader.result }));
-    reader.readAsDataURL(file);
+    // Photos compressées, PDF contrôlés (utils/compresserDocument.js) : avant
+    // le 2026-10-05, tout fichier de plus de 5 Mo était refusé avec « compressez
+    // le fichier » — impossible pour un partenaire qui photographie son
+    // registre de commerce avec son téléphone.
+    lireDocument(file, { maxOctets: MAX_SIZE })
+      .then(({ data }) => setIndividualDoc((d) => ({ ...d, file: data })))
+      .catch((err) => setFileError(`"${file.name}" : ${err.message}`));
   };
 
   const handleSave = async () => {

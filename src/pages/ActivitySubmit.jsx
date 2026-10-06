@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import RefusPublication from "../components/RefusPublication/RefusPublication";
+import { refusPublication } from "../utils/refusPublication";
+
 import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useToast } from "../context/ToastContext";
@@ -43,7 +46,8 @@ const toUSD = (entry, currency, rateFromUSD) =>
     : null;
 
 const ActivitySubmit = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const [refus, setRefus] = useState(null);
   const { addActivity } = useVehicles();
   const { CURRENCIES, rateFromUSD } = useCurrency();
   const { success, error } = useToast();
@@ -154,14 +158,8 @@ const ActivitySubmit = () => {
       setResult(saved);
       success("Annonce activité soumise !");
     } catch (err) {
-      if (err.code === "KYC_REQUIRED") {
-        navigate("/kyc");
-        return;
-      }
-      if (err.code === "CERTIFICATION_REQUIRED") {
-        navigate("/partner-onboarding");
-        return;
-      }
+      const r = refusPublication(err, user);
+      if (r) { setRefus(r); error(r.message); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
       error(err.message || "Erreur lors de la soumission.");
     } finally {
       setSubmitting(false);
@@ -200,6 +198,8 @@ const ActivitySubmit = () => {
         <h1>🎈 Publier une activité — Activités et Loisirs</h1>
         <p>Quad, Surf, Montgolfière, Jetski, Jet privé, Bateau... proposez une sortie réservable par les clients.</p>
       </div>
+
+      <RefusPublication refus={refus} />
 
       <div className={styles.card}>
         <h2 className={styles.cardTitle}>Type d'activité</h2>

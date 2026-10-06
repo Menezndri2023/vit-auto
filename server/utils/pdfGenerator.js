@@ -26,34 +26,82 @@ function header(doc, title, ref) {
 
 function footer(doc) {
   const bottom = doc.page.height - 50;
+  const opts = { align: "center", width: doc.page.width - 80, lineBreak: false };
+  // Le pied de page s'écrit SOUS la marge basse (40) : sans la lever le temps
+  // de l'écrire, PDFKit considère la page pleine et en ouvre une autre.
+  const margeBasse = doc.page.margins.bottom;
+  doc.page.margins.bottom = 0;
   doc.moveTo(40, bottom).lineTo(doc.page.width - 40, bottom).strokeColor("#e2e8f0").lineWidth(1).stroke();
-  doc.fillColor(GRAY).font("Helvetica").fontSize(8)
-    .text(`${COMPANY.name} — Plateforme Automobile Internationale | ${COMPANY_ADDRESS}`, 40, bottom + 8, { align: "center", width: doc.page.width - 80 })
-    .text(`${COMPANY.website} | ${COMPANY.email}`, 40, bottom + 18, { align: "center", width: doc.page.width - 80 })
-    .text("Ce document est généré automatiquement et ne nécessite pas de signature manuscrite.", 40, bottom + 28, { align: "center", width: doc.page.width - 80 });
+  doc.fillColor(GRAY).font("Helvetica").fontSize(7)
+    // Art. 50 de la loi 5-96 : dénomination, forme, capital, siège et RC sur
+    // tout document destiné aux tiers ; IF et ICE sur les factures (CGI 145).
+    .text(`${COMPANY.name} — édité par ${COMPANY.legalName} ${COMPANY.legalForm} au capital de ${COMPANY.capital}`, 40, bottom + 5, opts)
+    .text(COMPANY_ADDRESS, 40, bottom + 13, opts)
+    .text(`RC ${COMPANY.rc} Casablanca · ICE ${COMPANY.ice} · IF ${COMPANY.taxId} · TP ${COMPANY.tp} | ${COMPANY.website} | ${COMPANY.email}`, 40, bottom + 21, opts)
+    .text("Ce document est généré automatiquement et ne nécessite pas de signature manuscrite.", 40, bottom + 29, opts);
+  doc.page.margins.bottom = margeBasse;
 }
 
+// Helvetica (police standard du PDF, encodage WinAnsi) ne dessine ni les
+// émojis ni les flèches : « 🕐 À payer » sortait « Ø=ÝP À payer », « → » sortait
+// « ↑ ». Nettoyage appliqué à tout texte passé par section/row/bandeau.
+function nettoyer(t) {
+  return String(t ?? "")
+    .replace(/\s*→\s*/g, " au ")
+    .replace(/[\u2190-\u21FF\u2300-\u23FF\u2600-\u27BF\uFE0F\u200D]|[\uD800-\uDBFF][\uDC00-\uDFFF]/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+// Positions EXPLICITES (2026-10-05) : rect() ne déplace pas le curseur ; écrire
+// le titre à `doc.y - 22` le plaçait AU-DESSUS du rectangle — le titre de la
+// première section disparaissait sous l'en-tête, les suivants chevauchaient
+// la ligne précédente (« RÉCAPITULATIF FINANCIER » sur « Moyen de paiement »).
 function section(doc, title) {
-  doc.rect(40, doc.y, doc.page.width - 80, 24).fill(LGRAY);
+  const y = doc.y;
+  doc.rect(40, y, doc.page.width - 80, 24).fill(LGRAY);
   doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(11)
-    .text(title.toUpperCase(), 50, doc.y - 22, { baseline: "middle" });
-  doc.moveDown(1.2);
+    .text(nettoyer(title).toUpperCase(), 50, y + 7, { width: doc.page.width - 100, lineBreak: false });
+  doc.y = y + 32;
   doc.fillColor(NAVY).font("Helvetica").fontSize(10);
 }
 
 function row(doc, label, value, highlight = false) {
   const y = doc.y;
   if (highlight) doc.rect(40, y, doc.page.width - 80, 20).fill("#fff8f0");
-  doc.fillColor(GRAY).text(label, 50, y + 4, { continued: false, width: 200 });
+  doc.fillColor(GRAY).font("Helvetica").fontSize(10).text(nettoyer(label), 50, y + 4, { continued: false, width: 200 });
+  const apresLibelle = doc.y;
   doc.fillColor(highlight ? BRAND : NAVY).font("Helvetica-Bold")
-    .text(value || "—", 260, y + 4, { width: doc.page.width - 300 });
+    .text(nettoyer(value) || "—", 260, y + 4, { width: doc.page.width - 300 });
+  // Hauteur de ligne au moins 22 pt, plus si le libellé ou la valeur passe à la ligne.
+  doc.y = Math.max(doc.y, apresLibelle, y + 22) + 2;
   doc.font("Helvetica").fillColor(NAVY);
-  doc.moveDown(0.9);
 }
 
+// Bandeau plein (total, net à percevoir…) : texte BLANC centré verticalement
+// DANS le rectangle — l'ancien `doc.y - 22` l'écrivait au-dessus, en blanc sur
+// blanc : le bandeau « NET À PERCEVOIR » apparaissait vide.
+function bandeau(doc, { hauteur = 30, couleur = NAVY, taille = 12, gauche = "", droite = "", centre = null }) {
+  const y = doc.y;
+  const ty = y + (hauteur - taille) / 2;
+  doc.rect(40, y, doc.page.width - 80, hauteur).fill(couleur);
+  doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(taille);
+  if (centre != null) {
+    doc.text(nettoyer(centre), 40, ty, { align: "center", width: doc.page.width - 80, lineBreak: false });
+  } else {
+    doc.text(nettoyer(gauche), 50, ty, { width: 300, lineBreak: false });
+    doc.text(nettoyer(droite), 50, ty, { align: "right", width: doc.page.width - 100, lineBreak: false });
+  }
+  doc.y = y + hauteur + 10;
+  doc.fillColor(NAVY).font("Helvetica").fontSize(10);
+}
+
+// Montant lisible par Helvetica : toLocaleString("fr-FR") sépare les milliers
+// par une espace fine insécable (U+202F) que la police standard du PDF ne sait
+// pas dessiner — « 12 500 » sortait « 12 /500 ». Espace ordinaire à la place.
 function fmtAmount(n, currency = "USD") {
   return n != null && n !== 0
-    ? `${Number(n).toLocaleString("fr-FR")} ${currency}`
+    ? `${Number(n).toLocaleString("fr-FR").replace(/[\u202F\u00A0]/g, " ")} ${currency}`
     : "—";
 }
 
@@ -94,14 +142,15 @@ function drawInvoice(doc, invoice) {
     const colComm = 450;
 
     // En-tête tableau
-    doc.rect(40, doc.y, doc.page.width - 80, 22).fill(NAVY);
+    const hy = doc.y;
+    doc.rect(40, hy, doc.page.width - 80, 22).fill(NAVY);
     doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(9);
-    doc.text("Référence",     colRef,  doc.y - 18);
-    doc.text("Type",          colType, doc.y - 18 + doc.currentLineHeight(-18));
-    doc.text("Montant",       colMont, doc.y);
-    doc.text("Commission",    colComm, doc.y);
+    doc.text("Référence",  colRef,  hy + 7, { lineBreak: false });
+    doc.text("Type",       colType, hy + 7, { lineBreak: false });
+    doc.text("Montant",    colMont, hy + 7, { lineBreak: false });
+    doc.text("Commission", colComm, hy + 7, { lineBreak: false });
     doc.fillColor(NAVY).font("Helvetica").fontSize(9);
-    doc.moveDown(0.5);
+    doc.y = hy + 26;
 
     invoice.lines.forEach((line, i) => {
       const rowY = doc.y;
@@ -117,10 +166,7 @@ function drawInvoice(doc, invoice) {
   }
 
   // ── Total ──────────────────────────────────────────────────────────────
-  doc.rect(40, doc.y, doc.page.width - 80, 40).fill(NAVY);
-  doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(14)
-    .text("TOTAL COMMISSIONS DUES :", 50, doc.y - 36, { width: 300 })
-    .text(fmtAmount(invoice.totalCommission, invoice.devise), 0, doc.y, { align: "right", width: doc.page.width - 50 });
+  bandeau(doc, { hauteur: 40, taille: 14, gauche: "TOTAL COMMISSIONS DUES :", droite: fmtAmount(invoice.totalCommission, invoice.devise) });
 
   footer(doc);
 }
@@ -244,12 +290,7 @@ export function generateContractPDF(contract, res) {
   row(doc, "Frais de service",   fmtAmount(contract.terms?.serviceFeeXOF, contract.currency));
   row(doc, "Commission VIT AUTO", fmtAmount(contract.terms?.commissionXOF, contract.currency));
   doc.moveDown(0.3);
-  doc.rect(40, doc.y, doc.page.width - 80, 26).fill(NAVY);
-  doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(12)
-    .text("TOTAL À RÉGLER :", 50, doc.y - 22, { width: 250 })
-    .text(fmtAmount(contract.terms?.totalXOF || contract.terms?.totalLeasing, contract.currency), 0, doc.y - 22, {
-      align: "right", width: doc.page.width - 50,
-    });
+  bandeau(doc, { hauteur: 30, taille: 12, gauche: "TOTAL À RÉGLER :", droite: fmtAmount(contract.terms?.totalXOF || contract.terms?.totalLeasing, contract.currency) });
   doc.moveDown(2);
 
   // ── Mentions légales ─────────────────────────────────────────────────────
@@ -333,7 +374,7 @@ export function buildOnboardingPDFBuffer(content, docTitle, ref, signatureBlock 
       const sy = pdfDoc.y;
       pdfDoc.rect(40, sy, pdfDoc.page.width - 80, 70).fill("#f0fdf4").stroke("#bbf7d0");
       pdfDoc.fillColor(NAVY).font("Helvetica-Bold").fontSize(9)
-        .text("✅ SIGNATURE ÉLECTRONIQUE ENREGISTRÉE", 50, sy + 8);
+        .text("SIGNATURE ÉLECTRONIQUE ENREGISTRÉE", 50, sy + 8);
       pdfDoc.font("Helvetica").fontSize(8).fillColor(GRAY);
       pdfDoc.text(`Signataire : ${signatureBlock.signerName || "—"}`, 50, sy + 22);
       if (signatureBlock.signerPosition) pdfDoc.text(`Poste : ${signatureBlock.signerPosition}`, 50, sy + 33);
@@ -359,7 +400,7 @@ function drawReceipt(doc, booking) {
   row(doc, "Référence",      ref);
   row(doc, "Date",           fmtDate(booking.paidAt || booking.updatedAt));
   row(doc, "Statut",         booking.status === "completed" ? "✅ Payé" : "⏳ En attente");
-  row(doc, "Mode de paiement", booking.transaction?.paymentMethod || booking.paidWith || "—");
+  row(doc, "Mode de paiement", PAYMENT_METHOD_LABELS[booking.transaction?.paymentMethod || booking.paidWith] || booking.transaction?.paymentMethod || booking.paidWith || "—");
   doc.moveDown();
 
   section(doc, "Client");
@@ -386,10 +427,7 @@ function drawReceipt(doc, booking) {
   }
   doc.moveDown();
 
-  doc.rect(40, doc.y, doc.page.width - 80, 40).fill(NAVY);
-  doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(14)
-    .text("MONTANT TOTAL :", 50, doc.y - 36, { width: 300 })
-    .text(fmtAmount(booking.montantTotal, booking.devise), 0, doc.y, { align: "right", width: doc.page.width - 50 });
+  bandeau(doc, { hauteur: 40, taille: 14, gauche: "MONTANT TOTAL :", droite: fmtAmount(booking.montantTotal, booking.devise) });
 
   footer(doc);
 }
@@ -431,10 +469,12 @@ function drawEmploymentContract(doc, request) {
   header(doc, request.contractType === "cdi" ? "PROPOSITION D'EMBAUCHE — CDI" : "PROPOSITION D'EMBAUCHE — CDD", ref);
 
   // ── Parties ──────────────────────────────────────────────────────────────
-  doc.rect(40, doc.y, (doc.page.width - 90) / 2, 100).fill(LGRAY).stroke("#e2e8f0");
+  // Positions explicites : `doc.y - 98` remontait le bloc des parties dans
+  // l'en-tête de la page (2026-10-05).
+  const topY = doc.y;
   const leftX = 50;
   const rightX = (doc.page.width / 2) + 10;
-  const topY = doc.y - 98;
+  doc.rect(40, topY, (doc.page.width - 90) / 2, 100).fill(LGRAY);
 
   doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(9).text("EMPLOYEUR", leftX, topY + 6);
   doc.font("Helvetica").fontSize(9).fillColor(GRAY);
@@ -442,13 +482,13 @@ function drawEmploymentContract(doc, request) {
   doc.text(request.employerInfo?.email || "—", leftX, topY + 32);
   doc.text(request.employerInfo?.phone || "—", leftX, topY + 44);
 
-  doc.rect(rightX - 10, doc.y - 100 + 2, (doc.page.width - 90) / 2, 100).fill(LGRAY).stroke("#e2e8f0");
+  doc.rect(rightX - 10, topY, (doc.page.width - 90) / 2, 100).fill(LGRAY);
   doc.fillColor(NAVY).font("Helvetica-Bold").fontSize(9).text("CHAUFFEUR", rightX, topY + 6);
   doc.font("Helvetica").fontSize(9).fillColor(GRAY);
   doc.text(`${request.driver?.firstName || ""} ${request.driver?.lastName || ""}`, rightX, topY + 20);
   doc.text(request.driver?.phone || "—", rightX, topY + 32);
 
-  doc.moveDown(5);
+  doc.y = topY + 112;
 
   // ── Conditions du contrat ─────────────────────────────────────────────────
   section(doc, "Conditions proposées");
@@ -469,9 +509,8 @@ function drawEmploymentContract(doc, request) {
 
   // ── Statut ───────────────────────────────────────────────────────────────
   doc.moveDown(0.5);
-  doc.rect(40, doc.y, doc.page.width - 80, 26).fill(request.status === "accepted" ? "#059669" : NAVY);
-  doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(11)
-    .text(request.status === "accepted" ? "✓ PROPOSITION ACCEPTÉE PAR LE CHAUFFEUR" : "PROPOSITION EN ATTENTE", 0, doc.y - 20, { align: "center", width: doc.page.width });
+  bandeau(doc, { hauteur: 28, taille: 11, couleur: request.status === "accepted" ? "#059669" : NAVY,
+    centre: request.status === "accepted" ? "PROPOSITION ACCEPTÉE PAR LE CHAUFFEUR" : "PROPOSITION EN ATTENTE" });
   doc.moveDown(2);
 
   // ── Clauses du contrat — texte par défaut, personnalisable par l'admin lors
@@ -529,7 +568,7 @@ function drawServiceInvoice(doc, invoice) {
 
   section(doc, "Prestation");
   row(doc, "Commande",         invoice.bookingReference || "—");
-  row(doc, "Type de service",  { location: "Location", essai: "Essai/Vente", chauffeur: "Mission chauffeur", leasing: "Leasing" }[invoice.serviceType] || invoice.serviceType || "—");
+  row(doc, "Type de service",  { location: "Location", essai: "Essai/Vente", chauffeur: "Mission chauffeur", leasing: "Leasing", activite: "Activité de loisirs", piece: "Pièces détachées" }[invoice.serviceType] || invoice.serviceType || "—");
   row(doc, "Terminée le",      fmtDate(invoice.serviceCompletedAt));
   row(doc, "Moyen de paiement", PAYMENT_METHOD_LABELS[invoice.paymentMethod] || invoice.paymentMethod || "—");
   doc.moveDown();
@@ -538,10 +577,7 @@ function drawServiceInvoice(doc, invoice) {
   row(doc, "Montant brut",         fmtAmount(invoice.grossAmount, invoice.currency));
   row(doc, "Commission VIT AUTO",  `${fmtAmount(invoice.commissionAmount, invoice.currency)} (${Math.round((invoice.commissionRate || 0) * 100)}%)`);
   doc.moveDown(0.3);
-  doc.rect(40, doc.y, doc.page.width - 80, 26).fill(NAVY);
-  doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(12)
-    .text("NET À PERCEVOIR :", 50, doc.y - 22, { width: 250 })
-    .text(fmtAmount(invoice.netPayout, invoice.currency), 0, doc.y - 22, { align: "right", width: doc.page.width - 50 });
+  bandeau(doc, { hauteur: 30, taille: 12, gauche: "NET À PERCEVOIR :", droite: fmtAmount(invoice.netPayout, invoice.currency) });
   doc.moveDown(2);
 
   doc.rect(40, doc.y, doc.page.width - 80, 1).fill("#e2e8f0");
@@ -598,10 +634,7 @@ function drawGenericReceipt(doc, data) {
   if (data.description) row(doc, "Détail", data.description);
   doc.moveDown();
 
-  doc.rect(40, doc.y, doc.page.width - 80, 40).fill(NAVY);
-  doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(14)
-    .text("MONTANT PAYÉ :", 50, doc.y - 36, { width: 300 })
-    .text(fmtAmount(data.amount, data.currency), 0, doc.y, { align: "right", width: doc.page.width - 50 });
+  bandeau(doc, { hauteur: 40, taille: 14, gauche: "MONTANT PAYÉ :", droite: fmtAmount(data.amount, data.currency) });
 
   footer(doc);
 }

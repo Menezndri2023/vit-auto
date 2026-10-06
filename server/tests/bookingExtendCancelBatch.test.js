@@ -189,6 +189,11 @@ describe("bookingController.createBookingsBatch", () => {
     const created = await Booking.findOne({ vehicle: v1._id, client: client._id });
     expect(created).toBeTruthy();
     expect(created.montantBase).toBe(20000);
+    // Transmission directe au partenaire, comme une réservation simple : le
+    // panier restait en attente d'une validation admin que plus personne ne
+    // faisait, invisible du partenaire (audit du 2026-10-05).
+    expect(created.adminValidation.status).toBe("approved");
+    expect(created.partnerNotifiedAt).toBeTruthy();
   });
 
   it("refuse un véhicule non disponible à la location (type vente)", async () => {

@@ -31,6 +31,14 @@ describe("paymentController.initiatePayment", () => {
     expect(res.status).toHaveBeenCalledWith(409);
   });
 
+  it("refuse de payer une réservation annulée (audit 2026-10-05)", async () => {
+    const booking = await createBookingDoc({ status: "cancelled" });
+    const { req, res } = mockReqRes({ body: { bookingId: booking._id.toString(), method: "card" } });
+    await initiatePayment(req, res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.body.code).toBe("BOOKING_INACTIVE");
+  });
+
   it("refuse qu'un client paie la réservation d'un autre compte", async () => {
     const owner = await createUser();
     const intruder = await createUser();

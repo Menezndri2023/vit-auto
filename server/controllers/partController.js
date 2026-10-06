@@ -17,6 +17,7 @@ import { rearmerAlerteStock } from "../services/partStock.js";
 import { refusDeQuota, enregistrerCompteur } from "../services/quotaAnnonces.js";
 import { isValidCountryCode } from "../utils/countries.js";
 import { calculerLivraisonPiece, fraisImportationPiece } from "../services/partShipping.js";
+import { refuserPublication } from "../utils/maintenanceWatchdog.js";
 import {
   PART_CATEGORIES, PART_CATEGORY_LABELS, PART_CONDITIONS, PART_SALE_MODES, PART_SHIPPING_MODES, MAX_PART_QUANTITY,
 } from "../constants/spareParts.js";
@@ -236,13 +237,13 @@ export const createPart = async (req, res) => {
       return res.status(403).json({ message: "Réservé aux partenaires." });
     }
     const refus = refusDePublication(req.user, "publier une pièce");
-    if (refus) return res.status(403).json(refus);
+    if (refus) return refuserPublication(req, res, "SparePart", refus);
     const refusSecteur = refusDePerimetre(req.user, "pieces", "publier une pièce");
-    if (refusSecteur) return res.status(403).json(refusSecteur);
+    if (refusSecteur) return refuserPublication(req, res, "SparePart", refusSecteur);
     const refusQuota = await refusDeQuota(req.user, "pieces");
-    if (refusQuota) return res.status(403).json(refusQuota);
+    if (refusQuota) return refuserPublication(req, res, "SparePart", refusQuota);
     const suspendu = await dossierSuspendu(req.user._id);
-    if (suspendu) return res.status(403).json(suspendu);
+    if (suspendu) return refuserPublication(req, res, "SparePart", suspendu);
 
     const { images, thumbnail } = req.body;
     if (!Array.isArray(images) || images.length === 0) {
@@ -619,11 +620,11 @@ export const importParts = async (req, res) => {
   try {
     if (!["partenaire", "admin"].includes(req.user.role)) return res.status(403).json({ message: "Réservé aux partenaires." });
     const refus = refusDePublication(req.user, "importer des pièces");
-    if (refus) return res.status(403).json(refus);
+    if (refus) return refuserPublication(req, res, "SparePart (import de catalogue)", refus);
     const refusSecteur = refusDePerimetre(req.user, "pieces", "importer des pièces");
-    if (refusSecteur) return res.status(403).json(refusSecteur);
+    if (refusSecteur) return refuserPublication(req, res, "SparePart (import de catalogue)", refusSecteur);
     const suspendu = await dossierSuspendu(req.user._id);
-    if (suspendu) return res.status(403).json(suspendu);
+    if (suspendu) return refuserPublication(req, res, "SparePart (import de catalogue)", suspendu);
 
     const { fileBase64, fileName = "pieces.csv", dryRun = false } = req.body;
     if (!fileBase64 || typeof fileBase64 !== "string") return res.status(400).json({ message: "Fichier requis (CSV ou XLSX)." });

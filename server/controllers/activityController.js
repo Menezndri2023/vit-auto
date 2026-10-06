@@ -16,6 +16,7 @@ import { refusDePublication } from "../utils/publishingGate.js";
 import { refusDePerimetre } from "../utils/perimetre.js";
 import { refusDeQuota } from "../services/quotaAnnonces.js";
 import { ACTIVITY_TYPES, ACTIVITY_PRICE_UNITS } from "../constants/activityTypes.js";
+import { refuserPublication } from "../utils/maintenanceWatchdog.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -95,14 +96,14 @@ export const createActivity = async (req, res) => {
     // pour un particulier, certification partenaire complète sinon (sauf
     // Founding Partner déjà vérifié).
     const refus = refusDePublication(req.user, "publier une annonce");
-    if (refus) return res.status(403).json(refus);
+    if (refus) return refuserPublication(req, res, "Activity", refus);
 
     // Secteur Activités & loisirs, puis quota du plan (voir perimetre.js et
     // quotaAnnonces.js) — le dashboard masque, le serveur refuse.
     const refusSecteur = refusDePerimetre(req.user, "loisirs", "publier une activité");
-    if (refusSecteur) return res.status(403).json(refusSecteur);
+    if (refusSecteur) return refuserPublication(req, res, "Activity", refusSecteur);
     const refusQuota = await refusDeQuota(req.user, "loisirs");
-    if (refusQuota) return res.status(403).json(refusQuota);
+    if (refusQuota) return refuserPublication(req, res, "Activity", refusQuota);
 
     const suspendedVerif = await PartnerVerification.findOne({
       userId: req.user._id,

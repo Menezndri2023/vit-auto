@@ -8,26 +8,13 @@ import { validateImageDataUri } from "../utils/imageValidation.js";
 import { smsConfigured } from "../utils/smsConfigured.js";
 import { emailVerificationRequiredForKyc } from "../utils/emailVerificationRequired.js";
 import { encryptField, decryptField, hmacIndex } from "../utils/fieldEncryption.js";
+import { deposerPiece } from "../utils/deposerPiece.js";
 import { captureException } from "../config/sentry.js";
 import { unpublishPartnerListings } from "../utils/partnerListings.js";
 import { uploadDocument, isImageKitConfigured, FOLDERS } from "../config/imagekit.js";
 
-// ── Dépôt d'une pièce (recto/verso/selfie/permis) sur ImageKit PRIVÉ ────────
-// Les pièces déjà en base ont été sorties des documents User (migration du
-// 2026-09-12 : 43 Mo → 0,1 Mo) ; ce chemin d'écriture continuait pourtant de
-// stocker le base64 chiffré, réintroduisant le problème à chaque nouveau
-// dossier. On dépose désormais le fichier dans un dossier privé (fichier
-// « isPrivateFile », URL signée à la lecture par utils/signerDocuments.js) et
-// on ne chiffre plus que l'URL. Sans ImageKit configuré (dev, tests) ou en cas
-// d'échec de dépôt, on retombe sur l'ancien stockage : un dossier ne doit
-// jamais être perdu parce que le CDN est indisponible. L'OCR (Tesseract côté
-// client) a déjà lu le data URI avant l'envoi, rien ne change pour lui.
-async function deposerPiece(dataUri, folder, nom) {
-  if (!dataUri) return null;
-  if (!isImageKitConfigured()) return dataUri;
-  const r = await uploadDocument(dataUri, folder, nom);
-  return r?.url || dataUri;
-}
+// Dépôt des pièces sur ImageKit PRIVÉ : voir utils/deposerPiece.js (partagé
+// avec la pièce d'identité envoyée depuis la page Profil).
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { nonBloquant } from "../utils/nonBloquant.js";
 

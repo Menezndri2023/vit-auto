@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import RefusPublication from "../components/RefusPublication/RefusPublication";
+import { refusPublication } from "../utils/refusPublication";
+
 import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { useToast } from "../context/ToastContext";
@@ -43,7 +46,8 @@ const toUSD = (entry, currency, rateFromUSD) =>
     : null;
 
 const PartSubmit = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const [refus, setRefus] = useState(null);
   const { addPart } = useVehicles();
   const { CURRENCIES, COUNTRIES_CONFIG, rateFromUSD, currencyCode } = useCurrency();
   const { success, error } = useToast();
@@ -186,8 +190,8 @@ const PartSubmit = () => {
       setResult(saved);
       success("Annonce pièce soumise !");
     } catch (err) {
-      if (err.code === "KYC_REQUIRED") { navigate("/kyc"); return; }
-      if (err.code === "CERTIFICATION_REQUIRED") { navigate("/partner-onboarding"); return; }
+      const r = refusPublication(err, user);
+      if (r) { setRefus(r); error(r.message); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
       error(err.message || "Erreur lors de la soumission.");
     } finally {
       setSubmitting(false);
@@ -220,6 +224,8 @@ const PartSubmit = () => {
         <h1>🔩 Publier une pièce détachée</h1>
         <p>Trois choses suffisent : des photos, un titre et un prix. Le reste est facultatif.</p>
       </div>
+
+      <RefusPublication refus={refus} />
 
       {/* 1. Photos — en premier : c'est ce qui vend, et c'est obligatoire. */}
       <div className={styles.card}>

@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import RefusPublication from "../components/RefusPublication/RefusPublication";
+import { refusPublication } from "../utils/refusPublication";
+
 import { estUniquementLoisirs, estUniquementPieces, couvreSecteur, SECTEUR_LABELS } from "../constants/partnerTaxonomy";
 import { useVehicles } from "../context/VehicleContext";
 import { useCurrency } from "../context/CurrencyContext";
@@ -35,6 +38,7 @@ const fmt = (n) => Number(n || 0).toLocaleString("fr-FR");
 // ─── Composant ─────────────────────────────────────────────────────────────────
 const VendorSubmit = () => {
   const { user, token } = useAuth();
+  const [refus, setRefus] = useState(null);
   const { success, error } = useToast();
   const { addVehicle, drivers } = useVehicles();
   const { CURRENCIES, rateFromUSD } = useCurrency();
@@ -788,9 +792,10 @@ const VendorSubmit = () => {
           if (data?.code === "KYC_REQUIRED") {
             // Gate général partenaire "particulier" (compte jamais vérifié du
             // tout, hors sujet chauffeur) — inchangé, redirige vers /kyc.
-            error(data?.message || "Vérifiez votre identité pour publier votre annonce. Redirection…");
+            const r = refusPublication(data, user);
             try { localStorage.setItem(DRIVER_INTENT_KEY, "1"); } catch { /* ignore */ }
-            setTimeout(() => navigate("/kyc?next=driver-docs"), 1500);
+            setRefus({ ...r, lien: "/kyc?next=driver-docs" }); error(r.message);
+            window.scrollTo({ top: 0, behavior: "smooth" });
           } else if (data?.code === "DRIVER_DOCS_REQUIRED") {
             // Restructuration réservation 2026-09 : la pièce d'identité et le
             // permis se joignent désormais directement à CE formulaire (voir
@@ -807,8 +812,9 @@ const VendorSubmit = () => {
             // professionnel/entreprise qui veut juste publier une annonce
             // chauffeur se retrouvait engagé, sans le comprendre, dans le
             // processus le plus lourd du site — abandon quasi certain.
-            error("Terminez votre certification partenaire pour publier une annonce. Redirection…");
-            setTimeout(() => navigate("/partner-certification"), 1500);
+            const r = refusPublication(data, user);
+            setRefus(r); error(r.message);
+            window.scrollTo({ top: 0, behavior: "smooth" });
           } else {
             error(data?.message || "Erreur lors de la publication.");
           }
@@ -866,12 +872,12 @@ const VendorSubmit = () => {
         return; // ne pas naviguer ici, on affiche l'écran résultat
       }
     } catch (err) {
-      if (err.code === "KYC_REQUIRED") {
-        error("Vérifiez votre identité (pièce d'identité + selfie) pour publier votre annonce. Redirection…");
-        setTimeout(() => navigate("/kyc"), 1500);
-      } else if (err.code === "CERTIFICATION_REQUIRED") {
-        error("Terminez votre certification partenaire pour publier une annonce. Redirection…");
-        setTimeout(() => navigate("/partner-certification"), 1500);
+      const r = refusPublication(err, user);
+      if (r) {
+        // Le brouillon est conservé (clearDraft n'est appelé qu'après succès) :
+        // on reste sur le formulaire, l'encadré dit quoi faire.
+        setRefus(r); error(r.message);
+        window.scrollTo({ top: 0, behavior: "smooth" });
       } else {
         error(err.message || "Erreur lors de la publication. Réessayez.");
       }
@@ -2232,6 +2238,8 @@ const VendorSubmit = () => {
           Vider le brouillon et recommencer
         </button>
       </div>
+
+      <RefusPublication refus={refus} />
 
       {/* Bannière Import/Export — visible uniquement à l'étape 1, et
           seulement pour un compte qui couvre l'exportation : un loueur ou un

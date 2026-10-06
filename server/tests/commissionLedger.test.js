@@ -190,3 +190,31 @@ describe("adminListPayouts — filtre par partenaire et statut", () => {
     expect(res.statusCode).toBe(400);
   });
 });
+
+describe("Reversements et créances séparés (audit 2026-10-05)", () => {
+  async function lignes() {
+    const partner = await createUser({ role: "partenaire" });
+    const base = { partnerId: partner._id, currency: "USD", status: "pending", commissionRate: 0.03, grossAmount: 10000 };
+    const reversement = await CommissionLedger.create({ ...base, transactionId: "LOC-1", transactionType: "booking", type: "partner_direct", commissionAmount: 85 });
+    const creance = await CommissionLedger.create({ ...base, transactionId: "VA-LEAD-1", transactionType: "sale", type: "platform_fee", commissionAmount: 300 });
+    return { reversement, creance };
+  }
+
+  it("l'onglet Reversements ne liste pas les commissions de vente dues par le partenaire", async () => {
+    const { reversement, creance } = await lignes();
+    const { req, res } = mockReqRes({ query: { sens: "reversements" } });
+    await adminListPayouts(req, res);
+    const ids = res.body.entries.map((e) => e._id.toString());
+    expect(ids).toContain(reversement._id.toString());
+    expect(ids).not.toContain(creance._id.toString());
+  });
+
+  it("une créance ne peut pas être « marquée payée » comme un reversement", async () => {
+    const { creance } = await lignes();
+    const admin = await createUser({ role: "admin" });
+    const { req, res } = mockReqRes({ user: admin, params: { id: creance._id.toString() }, body: {} });
+    await adminMarkPaid(req, res);
+    expect(res.statusCode).toBe(400);
+    expect((await CommissionLedger.findById(creance._id)).status).toBe("pending");
+  });
+});

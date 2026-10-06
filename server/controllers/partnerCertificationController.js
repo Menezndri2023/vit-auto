@@ -9,6 +9,8 @@ import { encryptField, decryptField } from "../utils/fieldEncryption.js";
 import { combinePaginated } from "../utils/paginateWithOrphans.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { nonBloquant } from "../utils/nonBloquant.js";
+import { deposerPiece } from "../utils/deposerPiece.js";
+import { FOLDERS } from "../config/imagekit.js";
 
 // Champs chiffrés au repos (AES-256-GCM, voir utils/fieldEncryption.js) :
 // coordonnées bancaires du niveau 4 et identifiant fiscal du niveau 1. Ils
@@ -193,6 +195,17 @@ export const submitLevel = async (req, res) => {
     const docCheck = validateLevelDocs(safePayload, lvlNum);
     if (!docCheck.ok) {
       return res.status(400).json({ message: `${docCheck.field} : ${docCheck.message}`, code: "INVALID_DOCUMENT" });
+    }
+
+    // Documents déposés sur ImageKit PRIVÉ (URL signée à la lecture) au lieu
+    // du base64 dans le dossier : plusieurs pièces justificatives de quelques
+    // Mo dépassaient la limite de 16 Mo d'un document MongoDB (2026-10-06,
+    // même défaut que le portail Fondateur et la page Profil).
+    for (const key of LEVEL_DOC_FIELDS[lvlNum] || []) {
+      const d = safePayload[key];
+      if (d && typeof d === "object" && typeof d.data === "string" && d.data.startsWith("data:")) {
+        safePayload[key] = { ...d, data: await deposerPiece(d.data, FOLDERS.docs, `certification_${req.user.id}_n${lvlNum}_${key}`) };
+      }
     }
 
     // Chiffrement au repos des données bancaires et fiscales (audit sécurité

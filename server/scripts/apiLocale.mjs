@@ -97,6 +97,14 @@ async function semer(uri) {
     partenaires.push(p);
   }
 
+  // Scénario de l'incident du 2026-10-05 : partenaire « pièces » particulier,
+  // Côte d'Ivoire, identité envoyée et EN EXAMEN — sa publication doit être
+  // refusée avec un encadré explicatif (pas une redirection muette), et le
+  // refus doit apparaître dans Admin → Santé système (veille de maintenance).
+  await createUser({ role: "partenaire", email: "partenaire-pieces@vitauto-fixtures.fr", emailVerified: true, phoneVerified: true,
+    password: await bcrypt.hash(MOT_DE_PASSE_SEME, 10), phone: "+2250700000301", firstName: "Pièces", lastName: "En examen",
+    country: "CI", sellerType: "particulier", partnerActivity: "pieces", kycStatus: "A_REVOIR_MANUELLEMENT", kycSubmittedAt: new Date() });
+
   // ── Droits réels sur les outils (2026-09-27) ────────────────────────────
   //
   // ⚠️ `isFounder: true` ci-dessus ne donnait AUCUN droit : `fondateurActif`

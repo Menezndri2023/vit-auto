@@ -21,6 +21,9 @@ import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
 import { refusDePerimetre } from "../utils/perimetre.js";
 import { refusDeQuota } from "../services/quotaAnnonces.js";
+import { refuserPublication } from "../utils/maintenanceWatchdog.js";
+import { deposerPiece } from "../utils/deposerPiece.js";
+import { validateDocumentDataUri } from "../utils/imageValidation.js";
 
 const MAX_LISTING_IMAGE_BYTES = 6 * 1024 * 1024;
 const MAX_IMAGE_URL_LENGTH    = 2048;
@@ -237,6 +240,23 @@ export const submitImporterProfile = async (req, res) => {
       return res.status(400).json({ message: "Nom de l'entreprise requis." });
     }
 
+    // Pièces justificatives : contrôle du contenu réel (image ou PDF, 6 Mo) puis
+    // dépôt sur ImageKit PRIVÉ — le base64 écrit dans le profil dépassait la
+    // limite de 16 Mo d'un document MongoDB au-delà de quelques pièces
+    // (2026-10-06, même défaut que le portail Fondateur et la page Profil).
+    let documentsDeposes = {};
+    if (documents && typeof documents === "object") {
+      for (const [cle, valeur] of Object.entries(documents)) {
+        if (typeof valeur === "string" && valeur.startsWith("data:")) {
+          const verif = validateDocumentDataUri(valeur, 6 * 1024 * 1024);
+          if (!verif.ok) return res.status(400).json({ message: `Document « ${cle} » : ${verif.message}` });
+          documentsDeposes[cle] = await deposerPiece(valeur, FOLDERS.docs, `importateur_${req.user._id}_${cle}`);
+        } else if (valeur != null) {
+          documentsDeposes[cle] = valeur;
+        }
+      }
+    }
+
     const existing = await ImporterPartnerProfile.findOne({ userId: req.user._id });
 
     if (existing) {
@@ -247,7 +267,9 @@ export const submitImporterProfile = async (req, res) => {
       Object.assign(existing, {
         companyName, rccm, taxId, operatingLicense,
         address, city, country, website,
-        documents: { ...existing.documents, ...documents },
+        // toObject() : diffuser un sous-document Mongoose recopie ses champs
+        // internes et casse la validation (piège connu de ce dépôt).
+        documents: { ...(existing.documents?.toObject?.() || existing.documents || {}), ...documentsDeposes },
         activityType: activityType || existing.activityType,
         operatingCountries: operatingCountries || existing.operatingCountries,
         vehicleCategories: vehicleCategories || existing.vehicleCategories,
@@ -274,7 +296,7 @@ export const submitImporterProfile = async (req, res) => {
       userId: req.user._id,
       companyName, rccm, taxId, operatingLicense,
       address, city, country, website,
-      documents: documents || {},
+      documents: documentsDeposes,
       activityType: activityType || ["import"],
       operatingCountries: operatingCountries || [],
       vehicleCategories: vehicleCategories || [],
@@ -598,9 +620,9 @@ export const createListing = async (req, res) => {
     // Secteur Import / Export, puis quota du plan (voir perimetre.js et
     // quotaAnnonces.js) — le dashboard masque, le serveur refuse.
     const refusSecteur = refusDePerimetre(req.user, "exportateur", "publier une annonce d'export");
-    if (refusSecteur) return res.status(403).json(refusSecteur);
+    if (refusSecteur) return refuserPublication(req, res, "ImportExportListing", refusSecteur);
     const refusQuota = await refusDeQuota(req.user, "exportateur");
-    if (refusQuota) return res.status(403).json(refusQuota);
+    if (refusQuota) return refuserPublication(req, res, "ImportExportListing", refusQuota);
     // Suspension/rejet Vérification Partenaire — voir vehicleController.js
     // createVehicle pour l'explication complète : isFounder ne communique
     // jamais avec PartnerVerification, un admin "suspendant" un Founding

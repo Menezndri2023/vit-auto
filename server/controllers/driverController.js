@@ -16,6 +16,7 @@ import { getActiveRates } from "../services/currencyEngine.js";
 import { refusDePublication } from "../utils/publishingGate.js";
 import { refusDePerimetre } from "../utils/perimetre.js";
 import { refusDeQuota } from "../services/quotaAnnonces.js";
+import { refuserPublication } from "../utils/maintenanceWatchdog.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -120,16 +121,16 @@ export const createDriver = async (req, res) => {
     // sans qu'il sache quoi faire (VendorSubmit.jsx). Une entreprise reste
     // soumise à la certification de l'entité : ce sont SES documents.
     const refus = req.user.sellerType === "particulier" ? null : refusDePublication(req.user, "publier un profil chauffeur");
-    if (refus) return res.status(403).json(refus);
+    if (refus) return refuserPublication(req, res, "Driver", refus);
 
     // Secteur Chauffeur, puis quota du plan (voir perimetre.js et
     // quotaAnnonces.js). Un loueur qui propose ses véhicules AVEC chauffeur
     // passe par l'option `withDriver` de son annonce de location, pas par un
     // profil chauffeur : ce profil-ci est celui d'un partenaire chauffeur.
     const refusSecteur = refusDePerimetre(req.user, "chauffeur", "publier un profil chauffeur");
-    if (refusSecteur) return res.status(403).json(refusSecteur);
+    if (refusSecteur) return refuserPublication(req, res, "Driver", refusSecteur);
     const refusQuota = await refusDeQuota(req.user, "chauffeur");
-    if (refusQuota) return res.status(403).json(refusQuota);
+    if (refusQuota) return refuserPublication(req, res, "Driver", refusQuota);
 
     // Suspension/rejet Vérification Partenaire — voir vehicleController.js
     // createVehicle pour l'explication complète (deux systèmes de vérification

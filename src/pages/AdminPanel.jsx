@@ -24,6 +24,7 @@ import { RolesSection } from "./admin/sections/RolesSection.jsx";
 import { AdsSection } from "./admin/sections/AdsSection.jsx";
 import { InsuranceSection } from "./admin/sections/InsuranceSection.jsx";
 import { PartsSection } from "./admin/sections/PartsSection.jsx";
+import { MaintenanceSection } from "./admin/sections/MaintenanceSection.jsx";
 import { ServiceRequestsSection } from "./admin/sections/ServiceRequestsSection.jsx";
 import { PartnerVerifSection } from "./admin/sections/PartnerVerifSection.jsx";
 import { SectorRequestsSection } from "./admin/sections/SectorRequestsSection.jsx";
@@ -324,6 +325,10 @@ export default function AdminPanel() {
   // ticket porte une échéance de première réponse dérivée du palier du
   // partenaire, ce qu'un chat n'a pas.
   const [tickets,         setTickets]         = useState([]);
+  // Filtre de statut de la file d'assistance : vide = demandes en cours.
+  // Sans lui, les demandes résolues ou clôturées n'étaient JAMAIS visibles
+  // (le serveur les exclut par défaut) — audit admin du 2026-10-05.
+  const [ticketsStatut,   setTicketsStatut]   = useState("");
   const [ticketsEnRetard, setTicketsEnRetard] = useState(0);
   const [ticketOuvert,    setTicketOuvert]    = useState(null);
   const [ticketReponse,   setTicketReponse]   = useState("");
@@ -1238,11 +1243,13 @@ export default function AdminPanel() {
     if (!token) return;
     setPayoutsLoading(true);
     try {
-      const params = new URLSearchParams({ limit: "100" });
+      // sens=reversements : ce que VIT AUTO doit aux partenaires, sans les
+      // commissions de vente qu'ILS doivent (platform_fee) — audit 2026-10-05.
+      const params = new URLSearchParams({ limit: "100", sens: "reversements" });
       if (payoutsFilter) params.set("status", payoutsFilter);
       const r = await fetch(`/api/commission-ledger/admin?${params}`, { headers });
       if (r.ok) { const d = await r.json(); setPayoutsList(d.entries || []); setPayoutsTotal(d.total || 0); }
-      const rPending = await fetch(`/api/commission-ledger/admin?status=pending&limit=1`, { headers });
+      const rPending = await fetch(`/api/commission-ledger/admin?status=pending&limit=1&sens=reversements`, { headers });
       if (rPending.ok) setPayoutsPendingCount((await rPending.json()).total || 0);
     } catch { /* ignore */ }
     setPayoutsLoading(false);
@@ -1593,14 +1600,14 @@ export default function AdminPanel() {
   const loadTickets = useCallback(async () => {
     if (!token) return;
     try {
-      const r = await fetch("/api/support/admin/tickets", { headers });
+      const r = await fetch(`/api/support/admin/tickets${ticketsStatut ? `?status=${ticketsStatut}` : ""}`, { headers });
       if (r.ok) {
         const d = await r.json();
         setTickets(d.tickets || []);
         setTicketsEnRetard(d.enRetard || 0);
       }
     } catch { /* ignore */ }
-  }, [token, headers]);
+  }, [token, headers, ticketsStatut]);
 
   const repondreTicket = useCallback(async (id, content) => {
     if (!content?.trim()) return;
@@ -1893,7 +1900,9 @@ export default function AdminPanel() {
   const loadMoreKyc = useCallback(() => {
     const next = kycLimit + 100;
     setKycLimit(next);
-    loadKycList(kycFilter === "ALL" ? "" : kycFilter, next);
+    // "ALL" est compris par le serveur (aucun filtre) ; le convertir en ""
+    // faisait basculer « Charger plus » sur les seuls dossiers en attente.
+    loadKycList(kycFilter, next);
   }, [kycLimit, kycFilter, loadKycList]);
 
   // Compteur "en attente" — toujours interrogé SANS filtre de statut (le backend
@@ -2002,7 +2011,15 @@ export default function AdminPanel() {
       });
       const d = await r.json().catch(() => ({}));
       if (r.ok) {
-        setKycReviewMsg(`✅ Décision enregistrée : ${kycReviewForm.decision}`);
+        // La confirmation s'affichait DANS la fenêtre du dossier, fermée à la
+        // ligne suivante : l'admin ne voyait rien et croyait la validation en
+        // échec alors qu'elle était enregistrée (2026-10-06, dossier Sangare).
+        // Toast global + mise à jour immédiate de la ligne dans la liste.
+        const libelles = { VERIFIE: "validé", REFUSE: "refusé", A_REVOIR_MANUELLEMENT: "mis en révision", EN_ATTENTE: "remis en attente" };
+        const nom = `${kycDetailUser?.firstName || ""} ${kycDetailUser?.lastName || ""}`.trim() || "Le dossier";
+        showToast(`✅ Dossier KYC de ${nom} ${libelles[kycReviewForm.decision] || kycReviewForm.decision}.`);
+        setKycList((liste) => liste.map((u) => (u._id === userId ? { ...u, kycStatus: kycReviewForm.decision } : u)));
+        setKycReviewMsg("");
         setKycDetailUser(null);
         loadKycList(kycFilter);
         loadKycPendingTotal();
@@ -4151,6 +4168,8 @@ export default function AdminPanel() {
                   <option value="essai">🔑 Essai/Vente</option>
                   <option value="chauffeur">🚘 Chauffeur</option>
                   <option value="leasing">🏦 Leasing</option>
+                  <option value="activite">🎈 Loisirs</option>
+                  <option value="piece">🔩 Pièces</option>
                 </select>
                 <select className={styles.filterSelect} value={bkStatus} onChange={e => { setBkStatus(e.target.value); setBkPage(1); }}>
                   <option value="all">Tous statuts</option>
@@ -7824,6 +7843,7 @@ export default function AdminPanel() {
               </div>
             </>
           )}
+          <MaintenanceSection headers={headers} />
         </div>
       )}
 
@@ -9002,8 +9022,20 @@ export default function AdminPanel() {
                 {ticketsEnRetard > 0 && <strong style={{ color: "#dc2626" }}> {ticketsEnRetard} demande{ticketsEnRetard > 1 ? "s" : ""} hors délai.</strong>}
               </p>
             </div>
-            <button style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 700, fontSize: ".8rem" }}
-              onClick={loadTickets}>↻ Actualiser</button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <select value={ticketsStatut} onChange={(e) => setTicketsStatut(e.target.value)}
+                aria-label="Statut des demandes"
+                style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 10px", fontSize: ".8rem", minHeight: 36 }}>
+                <option value="">En cours</option>
+                <option value="open">Ouvertes</option>
+                <option value="in_progress">En traitement</option>
+                <option value="waiting_user">En attente de l'utilisateur</option>
+                <option value="resolved">Résolues</option>
+                <option value="closed">Clôturées</option>
+              </select>
+              <button style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 700, fontSize: ".8rem" }}
+                onClick={loadTickets}>↻ Actualiser</button>
+            </div>
           </div>
 
           {tickets.length === 0 ? (

@@ -1,0 +1,45 @@
+name: Surveillance production
+
+# Sonde externe (2026-10-05) : vérifie toutes les 6 heures, depuis les serveurs
+# de GitHub, que le site et l'API répondent et que le catalogue n'est pas vide.
+# En cas d'échec, GitHub envoie un e-mail au propriétaire du dépôt (réglage
+# par défaut des notifications Actions) — on apprend la panne avant les clients.
+#
+# Volontairement LÉGÈRE : cinq requêtes par passage. Une sonde en boucle
+# déclenche le challenge anti-robots de Vercel (403 partout, faux air de
+# panne) et consomme le limiteur de l'API (200 requêtes / 5 min).
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  sonde:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Site, API et catalogue
+        run: |
+          set -u
+          UA="Mozilla/5.0 (VIT AUTO surveillance; +https://vit-auto.com)"
+          echec=0
+          verifier() { # nom url motif-attendu
+            code=$(curl -s -o /tmp/r -w "%{http_code}" -A "$UA" --max-time 60 "$2")
+            if [ "$code" != "200" ] || ! grep -q "$3" /tmp/r; then
+              echo "::error::$1 — HTTP $code — $(head -c 200 /tmp/r)"; echec=1
+            else
+              echo "OK  $1"
+            fi
+          }
+          # Render met jusqu'à une minute à réveiller l'API : un premier appel
+          # sans verdict, pour ne pas confondre démarrage à froid et panne.
+          curl -s -o /dev/null -A "$UA" --max-time 90 https://vit-auto.com/api/health || true
+          verifier "Page d'accueil"         https://vit-auto.com/                          '<div id="root"'
+          verifier "API — santé"            https://vit-auto.com/api/health                '"healthy"'
+          verifier "API — chiffres publics" https://vit-auto.com/api/vehicles/public-stats '"vehicles"'
+          verifier "Catalogue — vitrine"    https://vit-auto.com/api/spotlight/hero        '"items"'
+          # Le catalogue ne doit pas être vide : un tableau d'éléments vide est
+          # la signature de la panne « aucune image / page blanche » de septembre.
+          n=$(curl -s -A "$UA" --max-time 60 https://vit-auto.com/api/vehicles/public-stats | grep -o '"vehicles":[0-9]*' | cut -d: -f2)
+          if [ -z "${n:-}" ] || [ "$n" -lt 1 ]; then echo "::error::Catalogue vide (vehicles=${n:-?})"; echec=1; else echo "OK  Catalogue : $n véhicules"; fi
+          exit $echec

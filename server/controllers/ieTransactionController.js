@@ -1410,6 +1410,14 @@ export const resolveDispute = async (req, res) => {
       "dispute.resolvedBy": req.user._id,
     };
 
+    // On ne libère que ce qui a été REÇU : un litige peut être ouvert dès
+    // « payment_submitted », avant toute vérification du paiement. Libérer
+    // alors créait un reversement et une commission sur de l'argent jamais
+    // encaissé (audit du 2026-10-05).
+    if (releaseToPartner && !existing.payment?.paidAt) {
+      return res.status(409).json({ message: "Paiement du client non confirmé : impossible de libérer des fonds jamais reçus. Annulez la transaction ou vérifiez d'abord le paiement.", code: "FUNDS_NOT_RECEIVED" });
+    }
+
     let update;
     if (releaseToPartner) {
       const { rate, amount, payoutAmount } = await computeIeCommission(existing);
@@ -1432,6 +1440,12 @@ export const resolveDispute = async (req, res) => {
     const tx = await IETransaction.findOneAndUpdate({ _id: req.params.id, status: "disputed" }, update, { new: true });
     if (!tx) return res.status(409).json({ message: "Ce litige a déjà été résolu entre-temps." });
     if (releaseToPartner) await recordIEPartnerPayout(tx);
+    // Annulation avec des fonds DÉJÀ encaissés : ils doivent être rendus au client.
+    if (!releaseToPartner && existing.payment?.paidAt) {
+      notifyAdmins("warning", "💸 Litige import/export annulé — remboursement à faire",
+        `Transaction ${tx.reference || tx._id} annulée alors que le paiement du client a été reçu : remboursement à effectuer.`,
+        "/admin?tab=escrow").catch(() => {});
+    }
 
     await notify(tx.client,  releaseToPartner ? "info" : "success", "Litige résolu", `VIT AUTO a tranché : ${resolution || ""}`, `/import-export/transaction/${tx._id}`);
     await notify(tx.partner, releaseToPartner ? "success" : "error", "Litige résolu", `VIT AUTO a tranché : ${resolution || ""}`, `/importer-dashboard`);

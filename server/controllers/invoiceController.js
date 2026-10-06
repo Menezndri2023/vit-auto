@@ -4,6 +4,8 @@ import Invoice from "../models/Invoice.js";
 import Booking from "../models/Booking.js";
 import Vehicle from "../models/Vehicle.js";
 import Driver  from "../models/Driver.js";
+import Activity from "../models/Activity.js";
+import SparePart from "../models/SparePart.js";
 import User    from "../models/User.js";
 import Notification from "../models/Notification.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
@@ -80,19 +82,26 @@ export const generatePartnerInvoice = async (req, res) => {
     // Récupérer les véhicules et chauffeurs du partenaire, scopés à l'entité
     const vehicleFilter = { owner: partnerId, business: businessId || null };
     const driverFilter  = { owner: partnerId, business: businessId || null };
-    const [myVehicles, myDrivers] = await Promise.all([
+    // Activités et pièces facturées aussi : avant le 2026-10-05, seules les
+    // commandes de véhicules et de chauffeurs entraient dans la facture
+    // mensuelle — les commissions loisirs et pièces n'étaient jamais facturées.
+    const [myVehicles, myDrivers, myActivities, myParts] = await Promise.all([
       Vehicle.find(vehicleFilter).limit(0).select("_id"),
       Driver.find(driverFilter).limit(0).select("_id"),
+      Activity.find({ owner: partnerId, business: businessId || null }).limit(0).select("_id"),
+      SparePart.find({ owner: partnerId, business: businessId || null }).limit(0).select("_id"),
     ]);
-    const vehicleIds = myVehicles.map((v) => v._id);
-    const driverIds  = myDrivers.map((d) => d._id);
+    const vehicleIds  = myVehicles.map((v) => v._id);
+    const driverIds   = myDrivers.map((d) => d._id);
+    const activityIds = myActivities.map((a) => a._id);
+    const partIds     = myParts.map((p) => p._id);
 
     // Toutes les commandes terminées du mois, non encore facturées
     const startOfMonth = new Date(year, month - 1, 1);
     const endOfMonth   = new Date(year, month, 1);
 
     const bookings = await Booking.find({
-      $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }],
+      $or: [{ vehicle: { $in: vehicleIds } }, { driver: { $in: driverIds } }, { activity: { $in: activityIds } }, { part: { $in: partIds } }],
       status:    "completed",
       invoiced:  false,
       paidAt:    { $gte: startOfMonth, $lt: endOfMonth },
@@ -184,8 +193,10 @@ export const generateAllMonthlyInvoices = async (req, res) => {
       invoiced: false,
       paidAt:   { $gte: startOfMonth, $lt: endOfMonth },
     }).limit(0) // facturation : jamais tronquée
-      .populate("vehicle", "owner business")
-      .populate("driver",  "owner business");
+      .populate("vehicle",  "owner business")
+      .populate("driver",   "owner business")
+      .populate("activity", "owner business")
+      .populate("part",     "owner business");
 
     // Grouper par (partenaire, entité) — un partenaire multi-entités reçoit
     // une facture PAR ENTITÉ (voir Invoice.businessId), pas une seule facture
@@ -194,7 +205,7 @@ export const generateAllMonthlyInvoices = async (req, res) => {
     // pour un partenaire n'utilisant pas le multi-entité.
     const byGroup = new Map();
     for (const b of bookings) {
-      const source = b.vehicle || b.driver;
+      const source = b.vehicle || b.driver || b.activity || b.part;
       const ownerId = source?.owner?.toString();
       if (!ownerId) continue;
       const businessId = source?.business?.toString() || null;
@@ -427,8 +438,10 @@ export const getAdminCommissions = async (req, res) => {
 
     const bookings = await Booking.find(filter)
       .select("reference type commissionAmount commissionRate partnerPayout montantTotal transaction clientInfo paidAt devise invoiced")
-      .populate("vehicle", "title owner")
-      .populate("driver",  "firstName lastName owner")
+      .populate("vehicle",  "title owner")
+      .populate("driver",   "firstName lastName owner")
+      .populate("activity", "title owner")
+      .populate("part",     "title owner")
       .sort({ paidAt: -1 })
       .lean();
 

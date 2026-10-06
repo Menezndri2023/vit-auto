@@ -141,6 +141,9 @@ function safeUser(u) {
     documentsVerified: u.documentsVerified,
     profilePhoto:     u.profilePhoto,
     kycStatus:        u.kycStatus        || "EN_ATTENTE",
+    // Distingue « dossier envoyé, en examen » de « jamais envoyé » : le statut
+    // par défaut EN_ATTENTE couvre les deux (écrans de publication, 2026-10-05).
+    kycSubmittedAt:   u.kycSubmittedAt   || null,
     kycScore:         u.kycScore         ?? 0,
     kycBadge:         u.kycBadge         || "INSUFFISANT",
     createdAt:        u.createdAt,

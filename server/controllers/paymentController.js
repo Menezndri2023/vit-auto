@@ -13,6 +13,7 @@ import { dispatch } from "../queue/index.js";
 import { captureException } from "../config/sentry.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
 import { nonBloquant } from "../utils/nonBloquant.js";
+import { notifyAdmins } from "../utils/notifyAdmins.js";
 
 // Trace un changement d'état financier (webhook fournisseur ou simulation
 // sandbox) — ces événements n'ont pas de req.user (appels serveur-à-serveur),
@@ -64,6 +65,9 @@ async function getTargetOwnerId(payment) {
   return null;
 }
 
+// Statuts d'une commande qui ne peut plus être payée.
+const STATUTS_NON_PAYABLES = ["cancelled", "transaction_not_concluded", "client_absent"];
+
 async function completePayment(payment, { providerRef, source = payment.method } = {}) {
   // Vérification + écriture atomiques (bug réel corrigé en audit) : un simple
   // check en mémoire (if payment.status === "completed") puis save() séparés
@@ -95,6 +99,13 @@ async function completePayment(payment, { providerRef, source = payment.method }
     booking.isPaid = true;
     booking.paidAt = new Date();
     await booking.save();
+    // Paiement arrivé APRÈS une annulation (paiement lancé avant, ou
+    // fournisseur en retard) : l'argent est encaissé, il faut le rendre.
+    if (STATUTS_NON_PAYABLES.includes(booking.status)) {
+      notifyAdmins("warning", "💸 Paiement reçu sur une réservation annulée",
+        `${booking.reference || booking._id} — ${payment.amount ?? ""} ${payment.currency || booking.devise || ""} encaissé alors que la commande est « ${booking.status} » : remboursement à effectuer.`,
+        "/admin?tab=paiements").catch(nonBloquant("paymentController"));
+    }
     if (booking.client) {
       const titre   = "💳 Paiement confirmé";
       const message = `Votre paiement pour la réservation ${booking.reference || ""} a été confirmé.`;
@@ -213,6 +224,11 @@ export const initiatePayment = async (req, res) => {
       paymentField = "booking";
       if (target) {
         if (target.isPaid) return res.status(409).json({ message: alreadyPaidMsg });
+        // Une commande annulée ou refusée ne se paie plus : l'argent était
+        // capté sans que personne ne soit prévenu (audit du 2026-10-05).
+        if (STATUTS_NON_PAYABLES.includes(target.status) || target.adminValidation?.status === "rejected") {
+          return res.status(409).json({ message: "Cette réservation n'est plus active (annulée ou refusée) : aucun paiement n'est possible.", code: "BOOKING_INACTIVE" });
+        }
         amount = target.montantTotal; devise = target.devise; ownerId = target.client;
       }
     } else if (serviceRequestId) {

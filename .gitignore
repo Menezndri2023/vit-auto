@@ -44,3 +44,6 @@ graphify-out/
 # public/sitemap.xml : le sitemap est désormais servi par l'API
 # (server/controllers/sitemapController.js), plus généré au build.
 public/sitemap.xml
+
+# Vidéos de présentation (/brag) : captures et rendus, plusieurs Go
+brag-output/

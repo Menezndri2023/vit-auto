@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createPart, getParts, updatePart, quoteShipping, updatePartStatus, deletePart, importParts } from "../controllers/partController.js";
-import { createBooking, updateBookingStatus, validateTransaction, cancelBookingByClient } from "../controllers/bookingController.js";
+import { createBooking, updateBookingStatus, validateTransaction, cancelBookingByClient, adminForceComplete } from "../controllers/bookingController.js";
 import SparePart from "../models/SparePart.js";
 import Booking from "../models/Booking.js";
 import Notification from "../models/Notification.js";
@@ -200,6 +200,18 @@ describe("Pièces détachées — commande, de la transmission à la réception"
     expect(b.commissionRate).toBe(0.07);
     expect(b.commissionAmount).toBe(5.6);
     expect(b.piece.stockReserved).toBe(false); // stock non suivi
+
+    // Clôture forcée par l'admin : la commission recalculée garde le taux
+    // « piece_import » (7 %) et l'assiette « prix des pièces » (80), jamais le
+    // total livraison et frais d'importation compris (audit du 2026-10-05 : le
+    // recalcul repassait à 10 % du total).
+    const admin = await createUser({ role: "admin" });
+    const fc = mockReqRes({ user: admin, params: { id: b._id.toString() }, body: { finalAmount: 115, note: "test" } });
+    await adminForceComplete(fc.req, fc.res);
+    expect(fc.res.statusCode).toBe(200);
+    const fin = await Booking.findById(b._id);
+    expect(fin.commissionRate).toBe(0.07);
+    expect(fin.commissionAmount).toBe(5.6);
   });
 
   it("vendeur : confirme (acompte reçu), prépare, expédie avec suivi, livre → client confirme la réception → completed, vente comptée", async () => {

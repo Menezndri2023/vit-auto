@@ -10,7 +10,16 @@ import Notification from "../models/Notification.js";
 // facture par commande (index unique sur `booking`).
 export async function issueServiceInvoice(booking) {
   try {
-    const ownerId = booking.vehicle?.owner?._id || booking.vehicle?.owner || booking.driver?.owner?._id || booking.driver?.owner;
+    let ownerId = booking.vehicle?.owner?._id || booking.vehicle?.owner || booking.driver?.owner?._id || booking.driver?.owner
+      || booking.activity?.owner?._id || booking.activity?.owner || booking.part?.owner?._id || booking.part?.owner;
+    // Activité ou pièce non peuplée par l'appelant : on retrouve le vendeur.
+    // Avant le 2026-10-05, aucune facture de prestation n'était émise pour les
+    // loisirs et les pièces (propriétaire cherché sur véhicule/chauffeur seuls).
+    if (!ownerId && (booking.activity || booking.part)) {
+      const { default: Modele } = booking.activity ? await import("../models/Activity.js") : await import("../models/SparePart.js");
+      const ref = booking.activity?._id || booking.activity || booking.part?._id || booking.part;
+      ownerId = (await Modele.findById(ref).select("owner").lean())?.owner || null;
+    }
     if (!ownerId) return;
 
     const existing = await ServiceInvoice.findOne({ booking: booking._id }).select("_id").lean();

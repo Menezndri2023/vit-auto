@@ -21,6 +21,7 @@ import Vehicle from "../models/Vehicle.js";
 import { notifyAdmins } from "./notifyAdmins.js";
 import { nonBloquant } from "./nonBloquant.js";
 import { getSalesLeadConfig } from "../services/salesLeadService.js";
+import { calculerEtatMaintenance, lignesDigestMaintenance } from "./maintenanceWatchdog.js";
 
 const MARQUEUR = "dailyOpsDigest:lastSent";
 const HEURE_ENVOI = 7; // heure locale du serveur (UTC sur Render) à partir de laquelle le digest du jour est dû
@@ -98,7 +99,11 @@ export async function envoyerDigestQuotidien(maintenant = new Date()) {
     if (!digestDu(marqueur?.acquiredAt, maintenant)) return { sent: false };
     if (!(await User.countDocuments({ role: "admin", isActive: true }))) return { sent: false };
     const digest = await calculerDigest(maintenant);
-    const lignes = composerDigest(digest);
+    // Veille de maintenance (identités, modération, refus de publication,
+    // lecture des pièces d'identité) : seulement ce qui demande une action.
+    // Une erreur de la veille ne doit pas priver l'admin du reste du digest.
+    const maintenance = await calculerEtatMaintenance(maintenant).catch((e) => { logger.error("Veille de maintenance:", e.message); return []; });
+    const lignes = [...composerDigest(digest), ...lignesDigestMaintenance(maintenance)];
     // Marqueur posé même sans envoi : « rien à traiter » vaut digest du jour.
     await SchedulerLock.updateOne({ _id: MARQUEUR }, { $set: { acquiredAt: maintenant, holder: "dailyOpsDigest" } }, { upsert: true });
     if (!lignes.length) return { sent: false, digest, vide: true };

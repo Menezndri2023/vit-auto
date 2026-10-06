@@ -64,6 +64,7 @@ import * as whatsappController from "./controllers/whatsappController.js";
 import * as commWebhookController from "./controllers/commWebhookController.js";
 import pricingRoutes          from "./routes/pricing.js";
 import businessConfigRoutes   from "./routes/businessConfig.js";
+import maintenanceRoutes      from "./routes/maintenance.js";
 import siteContentRoutes      from "./routes/siteContent.js";
 import driverEmploymentRoutes from "./routes/driverEmployment.js";
 import serviceInvoiceRoutes   from "./routes/serviceInvoices.js";
@@ -486,6 +487,7 @@ app.use("/api/reports",            apiLimiter, reportRoutes);            // Sign
 app.use("/api/whatsapp",           apiLimiter, whatsappRoutes);           // Bot WhatsApp partenaires (admin)
 app.use("/api/pricing",            catalogueLimiter, pricingRoutes);      // Devises/pays/tarifs — public, consulté au chargement de l'app
 app.use("/api/admin/business-config", apiLimiter, businessConfigRoutes);  // Configuration métier (commissions/abonnements/devises...)
+app.use("/api/admin/maintenance",     apiLimiter, maintenanceRoutes);     // Veille de maintenance (utils/maintenanceWatchdog.js)
 app.use("/api/site-content",          catalogueLimiter, siteContentRoutes); // Contenu éditorial page d'accueil (hero) — GET public, PATCH admin
 app.use("/api/partner/businesses",    apiLimiter, partnerBusinessRoutes);  // Entreprises gérées par un même partenaire (localisations multiples)
 app.use("/api/driver-employment",     apiLimiter, driverEmploymentRoutes); // Embauche chauffeur temps plein (CDD/CDI)
