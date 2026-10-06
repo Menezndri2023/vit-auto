@@ -335,7 +335,7 @@ export default function ContractPage() {
 
         {/* ── Pied de page légal ── */}
         <div className={styles.contractFooter}>
-          <p>{COMPANY.name} — Plateforme agréée de location et vente de véhicules — {COMPANY_ADDRESS}</p>
+          <p>{COMPANY.name} — plateforme éditée par {COMPANY.legalName} {COMPANY.legalForm}, au capital de {COMPANY.capital} — RC {COMPANY.rc} Casablanca · ICE {COMPANY.ice} — {COMPANY_ADDRESS}</p>
           <p>Reçu N° {contract.contractNumber} · Généré le {fmtDate(contract.createdAt)}</p>
         </div>
       </div>

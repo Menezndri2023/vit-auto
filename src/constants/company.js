@@ -8,7 +8,9 @@
 
 export const COMPANY = {
   name:      "VIT AUTO",
-  street:    "Boulevard Lalla Yacout & Rue El Arrar, Résidence Galis",
+  // Adresse telle qu'inscrite au RC et dans les statuts (art. 4). L'ancienne
+  // écrivait « El Arrar » et omettait immeuble, étage et appartement.
+  street:    "Boulevard Lalla Yacout et Rue El Araar, Immeuble 9, 4ème étage, Appartement 17, Résidence Galis",
   city:      "Casablanca",
   country:   "Maroc",
   countryEn: "Morocco",
@@ -46,7 +48,27 @@ export const COMPANY = {
   // finissant toujours par être recopiée. D'où l'absence de la variante ici.
   manager:      "N'DRI N'GUESSAN MANASSE",
   managerTitle: "Fondateur & Gérant",
+
+  // ── Société éditrice ──────────────────────────────────────────────────────
+  // « VIT AUTO » est une marque, sans personnalité juridique : la personne
+  // morale qui l'exploite est la SARLAU ci-dessous. Valeurs relevées sur les
+  // pièces officielles (modèle J du RC du 07/08/2026, bulletin d'IF, attestation
+  // de TP, notification CNSS, certificat ICE) — toutes concordantes. L'art. 50
+  // de la loi 5-96 impose dénomination + forme + capital + siège + RC sur tout
+  // document destiné aux tiers.
+  legalName:     "VIT GLOBAL TECHNOLOGIES GROUP",
+  legalForm:     "SARLAU",
+  legalFormLong: "Société à responsabilité limitée à associé unique",
+  capital:       "20 000,00 MAD",
+  rc:            "742851",
+  rcCourt:       "Tribunal de commerce de Casablanca",
+  ice:           "004013219000041",
+  taxId:         "73292932",
+  tp:            "33304467",
+  cnss:          "7097530",
 };
+
+export const COMPANY_LEGAL = `${COMPANY.legalName} ${COMPANY.legalForm}`;
 
 export const COMPANY_ADDRESS    = `${COMPANY.street}, ${COMPANY.city}, ${COMPANY.country}`;
 export const COMPANY_ADDRESS_EN = `${COMPANY.street}, ${COMPANY.city}, ${COMPANY.countryEn}`;

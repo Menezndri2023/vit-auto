@@ -211,7 +211,8 @@ const BookingSuccess = () => {
                     seule occurrence d'un domaine différent des 39 autres du site,
                     et aucune adresse de siège — sur un contrat. */}
                 <p><strong>{COMPANY.name}</strong></p>
-                <p>Plateforme de location &amp; vente de véhicules</p>
+                <p>Plateforme éditée par {COMPANY.legalName} {COMPANY.legalForm}</p>
+                <p>RC {COMPANY.rc} Casablanca · ICE {COMPANY.ice}</p>
                 <p>{COMPANY_ADDRESS}</p>
                 <p>{COMPANY.email}</p>
               </div>

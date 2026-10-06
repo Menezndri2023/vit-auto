@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { COMPANY, COMPANY_ADDRESS } from "../constants/company";
+import { COMPANY, COMPANY_ADDRESS, COMPANY_LEGAL } from "../constants/company";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const Section = ({ id, title, children }) => (
@@ -56,7 +56,10 @@ export default function Privacy() {
       </div>
 
       <Section title="1. Responsable du traitement">
-        <p><strong>{COMPANY.name}</strong> — {COMPANY_ADDRESS}.</p>
+        <p>
+          <strong>{COMPANY_LEGAL}</strong>, éditrice de la plateforme {COMPANY.name} — {COMPANY_ADDRESS}
+          {" "}(RC {COMPANY.rc} Casablanca · ICE {COMPANY.ice}).
+        </p>
         <p style={{ marginTop: 8 }}>
           Contact DPO : <a href="mailto:contact@vit-auto.com" style={{ color: "#ff4d2d" }}>contact@vit-auto.com</a>
           {" "}· <a href="tel:+212607742672" style={{ color: "#ff4d2d" }}>+212 6 07 74 26 72</a>

@@ -19,7 +19,8 @@ const FRONT = fs.readFileSync(
 const valeurFront = (cle) => (FRONT.match(new RegExp(`${cle}:\\s*"([^"]+)"`)) || [])[1];
 
 describe("Identité de l'entreprise — miroir front / serveur", () => {
-  for (const cle of ["name", "street", "city", "country", "email", "website", "phoneMA", "phoneCI", "manager", "managerTitle"]) {
+  for (const cle of ["name", "street", "city", "country", "email", "website", "phoneMA", "phoneCI", "manager", "managerTitle",
+                     "legalName", "legalForm", "legalFormLong", "capital", "rc", "rcCourt", "ice", "taxId", "tp", "cnss"]) {
     it(`« ${cle} » est identique des deux côtés`, () => {
       expect(valeurFront(cle), `${cle} absent de src/constants/company.js`).toBeTruthy();
       expect(COMPANY[cle], `${cle} diverge entre le serveur et l'interface`).toBe(valeurFront(cle));
@@ -94,6 +95,16 @@ describe("Numéros du service client — composables depuis l'étranger", () => 
     expect(controleur).toContain("COMPANY.manager");
     expect(controleur, "aucun nom de gérant écrit en dur")
       .not.toContain("N'DRI N'GUESSAN, Founder");
+  });
+
+  it("les identifiants légaux ont la forme attendue", () => {
+    // Une coquille dans un ICE ou un IF rend une facture irrégulière sans que
+    // rien ne casse à l'écran.
+    expect(COMPANY.ice).toMatch(/^\d{15}$/);
+    expect(COMPANY.taxId).toMatch(/^\d{7,8}$/);
+    expect(COMPANY.rc).toMatch(/^\d+$/);
+    expect(COMPANY.tp).toMatch(/^\d+$/);
+    expect(COMPANY.legalForm).toBe("SARLAU");
   });
 
   it("l'adresse du siège porte bien la ville et le pays", () => {

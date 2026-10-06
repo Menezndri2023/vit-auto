@@ -1608,7 +1608,9 @@ Status     : PENDING PARTNER SIGNATURE
 
 BETWEEN:
 
-  VIT-AUTO — International Automotive Services Platform
+  ${COMPANY.legalName} ${COMPANY.legalForm} — operator of the VIT-AUTO platform
+  Limited liability company with a sole shareholder, share capital ${COMPANY.capital}
+  RC ${COMPANY.rc} (Casablanca Commercial Court) · ICE ${COMPANY.ice} · Tax ID ${COMPANY.taxId}
   ${COMPANY_ADDRESS_EN}
   contact@vit-auto.com · vit-auto.com
   Represented by: ${COMPANY.manager}, Founder & CEO
@@ -1663,8 +1665,8 @@ All binding obligations will be defined in the Founding Partner Agreement.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-For VIT-AUTO:
-  ${COMPANY.manager} — Founder & CEO
+For ${COMPANY.legalName} ${COMPANY.legalForm} (VIT-AUTO):
+  ${COMPANY.manager} — Founder & CEO, Managing Director
   Signed: ${date}
 
 For the Partner:
@@ -1721,7 +1723,9 @@ Status     : PENDING PARTNER SIGNATURE
 
 BETWEEN:
 
-  VIT-AUTO — International Automotive Services Platform
+  ${COMPANY.legalName} ${COMPANY.legalForm} — operator of the VIT-AUTO platform
+  Limited liability company with a sole shareholder, share capital ${COMPANY.capital}
+  RC ${COMPANY.rc} (Casablanca Commercial Court) · ICE ${COMPANY.ice} · Tax ID ${COMPANY.taxId}
   ${COMPANY_ADDRESS_EN}
   contact@vit-auto.com · vit-auto.com
   Represented by: ${COMPANY.manager}, Founder & CEO
@@ -1859,9 +1863,9 @@ ARTICLE 10 — GOVERNING LAW
 
 SIGNATURES
 
-For VIT-AUTO:
+For ${COMPANY.legalName} ${COMPANY.legalForm} (VIT-AUTO):
   ${COMPANY.manager}
-  Founder & CEO, VIT-AUTO
+  Founder & CEO, Managing Director
   Signed: ${date}
 
 For the Partner (${company}):

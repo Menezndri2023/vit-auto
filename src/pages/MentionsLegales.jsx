@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { COMPANY, COMPANY_ADDRESS } from "../constants/company";
+import { COMPANY, COMPANY_ADDRESS, COMPANY_LEGAL } from "../constants/company";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 
 const Section = ({ title, children }) => (
@@ -53,18 +53,24 @@ export default function MentionsLegales() {
           Mentions légales
         </h1>
         <p style={{ margin: 0, color: "rgba(255,255,255,.65)", fontSize: "0.85rem" }}>
-          Conformément aux dispositions légales en vigueur · VIT AUTO · vit-auto.com
+          Conformément aux dispositions légales en vigueur · {COMPANY_LEGAL} · vit-auto.com
         </p>
       </div>
 
       <Section title="1. Éditeur de la plateforme">
-        <Row label="Dénomination" value={COMPANY.name} />
-        {/* ⚠️ À COMPLÉTER par le gérant : forme juridique exacte, numéro RC,
-            ICE, IF et capital social sont attendus pour une société marocaine
-            sur un site commercial. Ils ne peuvent pas être devinés, et une
-            valeur inventée serait pire que leur absence. */}
-        <Row label="Forme juridique" value="Entreprise individuelle / Startup" />
+        <p style={{ marginBottom: 10 }}>
+          La plateforme <strong>{COMPANY.name}</strong> est éditée et exploitée par la société
+          {" "}<strong>{COMPANY_LEGAL}</strong>.
+        </p>
+        <Row label="Dénomination sociale" value={COMPANY.legalName} />
+        <Row label="Forme juridique" value={`${COMPANY.legalFormLong} (${COMPANY.legalForm})`} />
+        <Row label="Capital social" value={COMPANY.capital} />
         <Row label="Siège social" value={COMPANY_ADDRESS} />
+        <Row label="Registre du commerce" value={`RC n° ${COMPANY.rc} — ${COMPANY.rcCourt}`} />
+        <Row label="ICE" value={COMPANY.ice} />
+        <Row label="Identifiant fiscal (IF)" value={COMPANY.taxId} />
+        <Row label="Taxe professionnelle" value={COMPANY.tp} />
+        <Row label="Marque exploitée" value={COMPANY.name} />
         {/* La loi attend une PERSONNE PHYSIQUE nommée comme directeur de
             publication ; cette ligne indiquait « VIT AUTO ». Le nom du gérant
             figurait pourtant déjà dans la LOI et l'Accord Founding Partner —
@@ -101,13 +107,13 @@ export default function MentionsLegales() {
         <p>
           L'ensemble des éléments constituant la plateforme VIT AUTO — y compris, sans s'y limiter :
           le nom de marque, le logo, le design, les maquettes, les textes, les algorithmes,
-          le code source et les bases de données — sont la propriété exclusive de VIT AUTO
+          le code source et les bases de données — sont la propriété exclusive de {COMPANY_LEGAL}
           et sont protégés par le droit marocain de la propriété intellectuelle et les conventions internationales.
         </p>
         <p style={{ marginTop: 10 }}>
           Toute reproduction, représentation, modification, publication, adaptation ou exploitation,
           totale ou partielle, par quelque procédé que ce soit, est strictement interdite
-          sans autorisation écrite préalable de VIT AUTO.
+          sans autorisation écrite préalable de {COMPANY_LEGAL}.
         </p>
       </Section>
 

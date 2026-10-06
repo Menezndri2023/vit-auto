@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
+import { COMPANY, COMPANY_ADDRESS, COMPANY_LEGAL } from "../constants/company";
 
 const Art = ({ n, title, children }) => (
   <div style={{ marginBottom: 36 }}>
@@ -62,6 +63,9 @@ export default function CGU() {
         <p>
           Les présentes Conditions Générales d'Utilisation (CGU) régissent l'utilisation de la plateforme
           <strong> VIT AUTO</strong>, accessible à <em>vit-auto.com</em> et ses applications mobiles.
+          La plateforme est éditée par <strong>{COMPANY_LEGAL}</strong>, au capital de {COMPANY.capital},
+          RC {COMPANY.rc} Casablanca, ICE {COMPANY.ice}, dont le siège est situé {COMPANY_ADDRESS} (ci-après
+          « VIT AUTO »).
           En créant un compte ou en utilisant les services, vous acceptez intégralement les présentes CGU.
         </p>
       </Art>

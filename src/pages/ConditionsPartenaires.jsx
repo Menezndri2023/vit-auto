@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
+import { COMPANY, COMPANY_ADDRESS, COMPANY_LEGAL } from "../constants/company";
 
 const Art = ({ n, title, children }) => (
   <div style={{ marginBottom: 36 }}>
@@ -63,7 +64,9 @@ export default function ConditionsPartenaires() {
         borderRadius: 14, padding: "18px 22px", marginBottom: 36,
       }}>
         <p style={{ margin: 0, color: "#0f1b3f", fontSize: "0.9rem", lineHeight: 1.7 }}>
-          Les présentes Conditions Générales Partenaires (CGP) régissent la relation entre <strong>VIT AUTO</strong> et
+          Les présentes Conditions Générales Partenaires (CGP) régissent la relation entre <strong>VIT AUTO</strong> — plateforme éditée par{" "}
+          <strong>{COMPANY_LEGAL}</strong>, au capital de {COMPANY.capital}, RC {COMPANY.rc} Casablanca,
+          ICE {COMPANY.ice}, siège {COMPANY_ADDRESS} (ci-après « VIT AUTO ») — et
           toute personne physique ou morale souhaitant publier des véhicules ou proposer des services
           via la plateforme <em>vit-auto.com</em>. En créant un compte partenaire, vous acceptez intégralement
           les présentes CGP.
