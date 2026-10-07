@@ -96,6 +96,7 @@ export default {
   // mobile — c'est-à-dire sur TOUTES les pages.
   "nav.menu":       { fr: "Menu", en: "Menu", ar: "القائمة", es: "Menú", zh: "菜单" },
   "nav.myPurchases":{ fr: "Mes achats", en: "My purchases", ar: "مشترياتي", es: "Mis compras", zh: "我的订单" },
+  "nav.myImports":  { fr: "Mes importations", en: "My imports", ar: "وارداتي", es: "Mis importaciones", zh: "我的进口" },
   "nav.myPurchasesIE": { fr: "Mes achats Import/Export", en: "My import/export purchases", ar: "مشترياتي من الاستيراد/التصدير", es: "Mis compras de importación/exportación", zh: "我的进出口订单" },
   "nav.myProfile":  { fr: "Mon profil", en: "My profile", ar: "ملفي الشخصي", es: "Mi perfil", zh: "我的资料" },
   "nav.seeProfile": { fr: "Voir mon profil", en: "View my profile", ar: "عرض ملفي الشخصي", es: "Ver mi perfil", zh: "查看我的资料" },

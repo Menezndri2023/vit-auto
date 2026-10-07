@@ -170,6 +170,10 @@ const Navbar = () => {
         {isAuthenticated && !isPartner && (
           <li><NavLink to="/import-export/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>📦 {t("nav.myPurchases")}</NavLink></li>
         )}
+        {/* Suivi des dossiers d'import (accompagnement VIT AUTO), 2026-10-07. */}
+        {isAuthenticated && !isPartner && (
+          <li><NavLink to="/mes-importations" className={navLink} onClick={() => setMenuOpen(false)}>🚢 {t("nav.myImports")}</NavLink></li>
+        )}
 
         {/* ── Menu mobile, connecté : profil, aide, déconnexion — le badge
             profil et « Déconnexion » de la barre sont masqués sous 900 px,

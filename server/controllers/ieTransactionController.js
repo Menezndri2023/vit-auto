@@ -13,6 +13,7 @@ import { QUEUE_NAMES } from "../queue/definitions.js";
 import { stripeProvider } from "../services/payment/gateway.js";
 import { resolveCommissionRate } from "../services/pricingEngine.js";
 import { computeImportCostForListing, ventilerDevis } from "../services/importCostEngine.js";
+import { creerDossierDepuisTransaction } from "../services/dossierImportService.js";
 import { captureException } from "../config/sentry.js";
 import { generateGenericReceiptPDF } from "../utils/pdfGenerator.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
@@ -343,6 +344,9 @@ export const createReservation = async (req, res) => {
       }).catch((e) => logger.error("enqueue ie_reservation_created:", e));
     }
 
+    // Dossier d'import du client : suivi de bout en bout (« Mes importations »).
+    await creerDossierDepuisTransaction(tx, listing).catch(nonBloquant("ieTransactionController"));
+
     res.status(201).json({
       message: "Réservation effectuée avec succès. Le fournisseur va confirmer la disponibilité sous peu.",
       transaction: tx,
@@ -471,6 +475,9 @@ export const createDirectPurchase = async (req, res) => {
       `Votre achat pour "${listing.title}" est en cours de vérification par notre équipe. Vous pourrez procéder au paiement dès sa validation.`,
       `/import-export/transaction/${tx._id}`
     );
+
+    // Dossier d'import du client : suivi de bout en bout (« Mes importations »).
+    await creerDossierDepuisTransaction(tx, listing).catch(nonBloquant("ieTransactionController"));
 
     res.status(201).json({
       message: "Achat direct enregistré. En attente de validation par notre équipe.",

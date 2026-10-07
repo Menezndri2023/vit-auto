@@ -236,6 +236,8 @@ export default {
 
   // ─── Appel à l'action final ───────────────────────────────────────────────
   "ie.ctaTag":      { fr: "🌍 COMMENCEZ MAINTENANT", en: "🌍 START NOW", ar: "🌍 ابدأ الآن", es: "🌍 EMPIEZA AHORA", zh: "🌍 立即开始" },
+  "ie.chooseCountry": { fr: "Choisir…", en: "Choose…", ar: "اختر…", es: "Elegir…", zh: "请选择…" },
+  "ie.trackFile":     { fr: "Suivre mon dossier d'import →", en: "Track my import file →", ar: "تتبّع ملف الاستيراد ←", es: "Seguir mi expediente de importación →", zh: "跟踪我的进口档案 →" },
   "ie.becomeImporter": { fr: "Devenir partenaire exportateur →", en: "Become an exporter partner →", ar: "كن شريكاً مصدّراً →", es: "Ser socio exportador →", zh: "成为出口合作伙伴 →" },
 
   // ─── Les deux publics ─────────────────────────────────────────────────────

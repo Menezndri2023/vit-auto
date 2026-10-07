@@ -251,6 +251,10 @@ async function importExport(browser) {
   ok("client : fiche publique de l'annonce export rendue");
   attendu(await client("/api/import-export/requests", { method: "POST", body: { firstName: "Client", lastName: "Démo", email: CLIENT, phone: "+2250700000000", serviceType: "import", sourceCountry: "AE", destCountry: "CI", vehicleType: "SUV", vehicleMake: "Toyota", vehicleModel: "Land Cruiser", vehicleYear: 2021, budget: 30000, currency: "USD", message: "Je souhaite importer ce véhicule à Abidjan." } }), 201, "demande import/export");
   ok("client : demande d'accompagnement import déposée");
+  // Dossier d'import ouvert aussitôt, visible du client (2026-10-07).
+  const mesDossiers = attendu(await client("/api/dossiers-import/mes"), 200, "mes dossiers d'import").dossiers || [];
+  if (!mesDossiers.some((x) => x.source?.type === "accompagnement" && x.destination?.pays === "CI")) throw new Error("aucun dossier d'import ouvert pour la demande");
+  ok(`client : dossier d'import ${mesDossiers[0].reference} ouvert et visible`);
   // 4. Réservation → confirmation → offre → acceptation.
   const resa = attendu(await client("/api/import-export/transactions", { method: "POST", body: { listingId: listing._id, destCountry: "Côte d'Ivoire", destCity: "Abidjan", notes: "Livraison au port d'Abidjan." } }), 201, "réservation");
   const tx = resa.transaction || resa.tx || resa;
@@ -279,6 +283,10 @@ async function importExport(browser) {
   attendu(await client(`/api/import-export/transactions/${tx._id}/deliver`, { method: "PATCH", body: { deliveryNotes: "Véhicule reçu conforme au port d'Abidjan." } }), 200, "livraison confirmée");
   detail = attendu(await client(`/api/import-export/transactions/${tx._id}`), 200, "détail final").transaction;
   if (detail.status !== "funds_released") throw new Error(`statut final ${detail.status}, attendu funds_released`);
+  const dossierTx = (attendu(await client("/api/dossiers-import/mes"), 200, "dossiers après livraison").dossiers || []).find((x) => x.source?.transaction === tx._id);
+  if (!dossierTx) throw new Error("aucun dossier d'import lié à la réservation");
+  if (dossierTx.etape !== "livre") throw new Error(`dossier d'import à l'étape ${dossierTx.etape}, attendu livre`);
+  ok("dossier d'import lié à la réservation, mené jusqu'à « Livré » par la transaction");
   const recu = await client(`/api/import-export/transactions/${tx._id}/receipt`);
   if (recu.status !== 200) journal.push(`[client] reçu de transaction : ${recu.status}`);
   ok(`documents joints → expédiée (CMA CGM) → connaissement validé → exportateur payé par l'admin (refusé au client) → livrée (statut ${detail.status})`);

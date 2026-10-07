@@ -1,6 +1,8 @@
 import logger from "../utils/logger.js";
 import { imageLegereOuRien } from "../utils/imagePayload.js";
 import { uploadBase64Images, FOLDERS } from "../config/imagekit.js";
+import { creerDossierDepuisDemande } from "../services/dossierImportService.js";
+import { codePays, codesDestinations, codesOrigines } from "../constants/dossierImport.js";
 import ImportExportRequest     from "../models/ImportExportRequest.js";
 import ImporterPartnerProfile  from "../models/ImporterPartnerProfile.js";
 import ImportExportListing     from "../models/ImportExportListing.js";
@@ -92,6 +94,16 @@ export const createRequest = async (req, res) => {
     if (!firstName || !lastName || !email) {
       return res.status(400).json({ message: "Prénom, nom et email sont requis." });
     }
+    // Trajets ouverts (2026-10-07) : Chine, Émirats, Europe → Maroc, Côte
+    // d'Ivoire, Sénégal, Bénin, Togo.
+    if ((serviceType || "import") === "import") {
+      if (!codesDestinations().includes(codePays(destCountry))) {
+        return res.status(400).json({ message: "Destination pas encore ouverte : Maroc, Côte d'Ivoire, Sénégal, Bénin ou Togo." });
+      }
+      if (sourceCountry && !codesOrigines().includes(codePays(sourceCountry))) {
+        return res.status(400).json({ message: "Origine pas encore ouverte : Chine, Émirats arabes unis ou Europe." });
+      }
+    }
 
     const request = await ImportExportRequest.create({
       firstName, lastName, email, phone,
@@ -117,7 +129,13 @@ export const createRequest = async (req, res) => {
       "/admin",
     ).catch((e) => logger.error("notifyAdmins createRequest (non bloquant) :", e.message));
 
-    res.status(201).json({ message: "Demande envoyée avec succès.", request });
+    // Le dossier d'import s'ouvre aussitôt : le client suit sa demande depuis
+    // « Mes importations ».
+    let dossier = null;
+    try { dossier = await creerDossierDepuisDemande(request); }
+    catch (e) { logger.error("creerDossierDepuisDemande (non bloquant) :", e.message); }
+
+    res.status(201).json({ message: "Demande envoyée avec succès.", request, dossier: dossier ? { _id: dossier._id, reference: dossier.reference } : null });
   } catch (err) {
     logger.error("createRequest:", err);
     res.status(500).json({ message: "Erreur serveur." });

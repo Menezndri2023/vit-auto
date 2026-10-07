@@ -5,6 +5,7 @@ import styles from "./ImportExport.module.css";
 import { COUNTRIES_ALL, VEHICLE_TYPES } from "../data/autocomplete";
 import { useCurrency } from "../context/CurrencyContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
+import { ORIGINES, DESTINATIONS } from "../constants/dossierImport";
 import { useI18n } from "../context/I18nContext";
 import { LIBELLE_PLAN, OUTILS_PAR_SECTEUR } from "../constants/planFeatures";
 import { useAuth as useAuthSession } from "../context/AuthContext";
@@ -152,11 +153,18 @@ const INITIAL_FORM = {
 
 function RequestModal({ defaultPack, onClose }) {
   const { token } = useAuth();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const navigate = useNavigate();
   const [form, setForm]     = useState({ ...INITIAL_FORM, pack: defaultPack || "Silver" });
   const [sending, setSending] = useState(false);
   const [done, setDone]     = useState(false);
+  // Dossier d'import ouvert par le serveur (2026-10-07) : lien vers son suivi.
+  const [dossier, setDossier] = useState(null);
+  // Noms des pays dans la langue du visiteur, sans texte écrit en dur.
+  const nomRegion = (code) => {
+    try { return new Intl.DisplayNames([lang || "fr"], { type: "region" }).of(code) || code; } catch { return code; }
+  };
+  const estImport = form.serviceType === "import";
   const [error, setError]   = useState(null);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -174,10 +182,9 @@ function RequestModal({ defaultPack, onClose }) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ...form, budget: form.budget ? Number(form.budget) : undefined }),
       });
-      if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.message || t("ie.serverError"));
-      }
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.message || t("ie.serverError"));
+      setDossier(d.dossier || null);
       setDone(true);
     } catch (err) {
       setError(err.message);
@@ -196,7 +203,9 @@ function RequestModal({ defaultPack, onClose }) {
             <div className={styles.modalSuccessIcon}>✅</div>
             <h3>{t("ie.sent")}</h3>
             <p>{t("ie.sentDesc")} <strong>{form.email}</strong>.</p>
-            <button className={styles.primaryBtn} onClick={onClose}>{t("ie.close")}</button>
+            {dossier
+              ? <button className={styles.primaryBtn} onClick={() => navigate(`/mes-importations/${dossier._id}`)}>{t("ie.trackFile")}</button>
+              : <button className={styles.primaryBtn} onClick={onClose}>{t("ie.close")}</button>}
           </div>
         ) : (
           <>
@@ -246,21 +255,35 @@ function RequestModal({ defaultPack, onClose }) {
               <div className={styles.formRow}>
                 <label>
                   <span>{t("ie.sourceCountry")}</span>
-                  <input
-                    list="dl-countries"
-                    value={form.sourceCountry}
-                    onChange={(e) => set("sourceCountry", e.target.value)}
-                    placeholder={t("ie.sourcePh")}
-                  />
+                  {estImport ? (
+                    <select value={form.sourceCountry} onChange={(e) => set("sourceCountry", e.target.value)}>
+                      <option value="">{t("ie.chooseCountry")}</option>
+                      {ORIGINES.map((o) => <option key={o.code} value={o.code}>{nomRegion(o.code)}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      list="dl-countries"
+                      value={form.sourceCountry}
+                      onChange={(e) => set("sourceCountry", e.target.value)}
+                      placeholder={t("ie.sourcePh")}
+                    />
+                  )}
                 </label>
                 <label>
                   <span>{t("ie.destCountry")}</span>
-                  <input
-                    list="dl-countries"
-                    value={form.destCountry}
-                    onChange={(e) => set("destCountry", e.target.value)}
-                    placeholder={t("ie.countryPh")}
-                  />
+                  {estImport ? (
+                    <select value={form.destCountry} onChange={(e) => set("destCountry", e.target.value)} required>
+                      <option value="">{t("ie.chooseCountry")}</option>
+                      {DESTINATIONS.map((o) => <option key={o.code} value={o.code}>{nomRegion(o.code)}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      list="dl-countries"
+                      value={form.destCountry}
+                      onChange={(e) => set("destCountry", e.target.value)}
+                      placeholder={t("ie.countryPh")}
+                    />
+                  )}
                 </label>
               </div>
               <div className={styles.formRow}>

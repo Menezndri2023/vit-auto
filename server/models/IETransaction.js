@@ -333,6 +333,19 @@ ieTransactionSchema.pre("save", function (next) {
   next();
 });
 
+// Chaque changement de statut fait avancer le dossier d'import du client
+// (models/DossierImport.js). Import différé : le service dépend de modèles
+// qui ne doivent pas être chargés en boucle depuis celui-ci. Non attendu,
+// jamais bloquant pour la transaction elle-même.
+function synchroniserDossier(doc) {
+  if (!doc) return;
+  import("../services/dossierImportService.js")
+    .then((m) => m.synchroniserDepuisTransaction(doc))
+    .catch(() => {});
+}
+ieTransactionSchema.post("save", synchroniserDossier);
+ieTransactionSchema.post("findOneAndUpdate", synchroniserDossier);
+
 const IETransaction =
   mongoose.models.IETransaction ||
   mongoose.model("IETransaction", ieTransactionSchema);
