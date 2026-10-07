@@ -76,7 +76,6 @@ import teamRoutes from "./routes/team.js";
 import partnerSectorRoutes from "./routes/partnerSectors.js";
 import apiKeyRoutes from "./routes/apiKeys.js";
 import publicApiRoutes from "./routes/publicApi.js";
-import partnerRequestRoutes from "./routes/partnerRequests.js";
 import vitrinePartenaireRoutes from "./routes/vitrinePartenaire.js";
 import { servirSitemap } from "./controllers/sitemapController.js";
 import spotlightRoutes from "./routes/spotlight.js";
@@ -504,7 +503,6 @@ app.use("/api/team",                  apiLimiter, teamRoutes);            // Com
 app.use("/api/partner-sectors",       apiLimiter, partnerSectorRoutes);   // Secteurs d'activité d'un partenaire — ajout validé par l'administration, cumul selon le plan
 app.use("/api/api-keys",              apiLimiter, apiKeyRoutes);          // Clés d'API partenaire (palier Exportateur)
 app.use("/api/v1",                    apiLimiter, publicApiRoutes);       // API partenaire v1 — authentifiée par clé, pas par session
-app.use("/api/partner-requests",       apiLimiter, partnerRequestRoutes);  // Demandes clients ouvertes — avance de 2 h pour les abonnés
 app.use("/api/spotlight",             catalogueLimiter, spotlightRoutes);  // Vitrines de mise en avant — public, consulté à chaque visite
 app.use("/api/sales-leads",           apiLimiter, salesLeadRoutes);        // Vente par demande d'essai — leads, RDV, résultat, commission (docs/vente-demande-essai.md)
 

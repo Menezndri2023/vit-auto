@@ -133,7 +133,7 @@ function verdictOutil(ctx, feature) {
 // annoncerait « ouvert » à un fondateur que la route refuse ensuite.
 const AVANTAGES_TRANSVERSAUX = new Set([
   "statistiques", "exportStatistiques", "assistancePremium", "multiUtilisateurs",
-  "accesApi", "demandesPrioritaires", "rapportMensuel",
+  "accesApi", "rapportMensuel",
 ]);
 
 // Verdict de CHAQUE outil d'abonnement pour ce compte, pour que l'interface

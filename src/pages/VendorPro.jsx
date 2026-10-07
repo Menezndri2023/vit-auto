@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { PLAN_SEATS, PLAN_SUPPORT_SLA_HOURS, API_RATE_LIMIT_PER_HOUR, LIBELLE_PLAN, AVANCE_DEMANDES_HEURES } from "../constants/planFeatures";
+import { PLAN_SEATS, PLAN_SUPPORT_SLA_HOURS, API_RATE_LIMIT_PER_HOUR, LIBELLE_PLAN } from "../constants/planFeatures";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import styles from "./VendorPro.module.css";
 
@@ -15,7 +15,6 @@ import styles from "./VendorPro.module.css";
 
 const ONGLETS = [
   { id: "stats",    libelle: "Statistiques", icone: "📊" },
-  { id: "demandes", libelle: "Demandes clients", icone: "📨" },
   { id: "equipe",  libelle: "Équipe",       icone: "👥" },
   { id: "api",     libelle: "Accès API",    icone: "🔌" },
   { id: "support", libelle: "Assistance",   icone: "🎧" },
@@ -120,7 +119,6 @@ export default function VendorPro() {
 
       <div className={styles.contenu}>
         {onglet === "stats"    && <Statistiques appel={appel} token={token} />}
-        {onglet === "demandes" && <Demandes appel={appel} />}
         {onglet === "equipe"  && <Equipe appel={appel} />}
         {onglet === "api"     && <ClesApi appel={appel} />}
         {onglet === "support" && <Assistance appel={appel} />}
@@ -235,80 +233,6 @@ const Carte = ({ valeur, libelle, accent }) => (
     <span>{libelle}</span>
   </div>
 );
-
-// ── Demandes clients ───────────────────────────────────────────────────────
-function Demandes({ appel }) {
-  const [etat, setEtat] = useState({ chargement: true });
-  const [note, setNote] = useState({});
-  const [erreur, setErreur] = useState("");
-
-  const charger = useCallback(async () => {
-    const { ok, corps } = await appel("/api/partner-requests");
-    setEtat({ chargement: false, ok, ...corps });
-  }, [appel]);
-
-  useEffect(() => { charger(); }, [charger]);
-
-  const seProposer = async (id) => {
-    setErreur("");
-    const { ok, corps } = await appel(`/api/partner-requests/${id}/interest`, {
-      method: "POST", body: JSON.stringify({ note: note[id] || "" }),
-    });
-    if (!ok) return setErreur(corps?.message || "Envoi impossible.");
-    charger();
-  };
-
-  if (etat.chargement) return <p className={styles.attente}>Chargement…</p>;
-
-  const { demandes = [], prioritaire, enAttenteDeliberation } = etat;
-  return (
-    <>
-      <p className={prioritaire ? styles.infoAccent : styles.info}>
-        {prioritaire
-          ? `Vous voyez chaque demande dès son dépôt, ${AVANCE_DEMANDES_HEURES} h avant les partenaires non abonnés.`
-          : <>Les demandes vous parviennent {AVANCE_DEMANDES_HEURES} h après leur dépôt.
-              {enAttenteDeliberation > 0 && <> <strong>{enAttenteDeliberation} demande{enAttenteDeliberation > 1 ? "s" : ""}</strong> {enAttenteDeliberation > 1 ? "sont" : "est"} en ce moment réservée{enAttenteDeliberation > 1 ? "s" : ""} aux abonnés Business et Premium.</>}
-              {" "}<Link to="/plans">Voir les formules</Link>.</>}
-      </p>
-
-      {erreur && <p className={styles.erreur}>{erreur}</p>}
-
-      {demandes.length === 0 ? (
-        <p className={styles.attente}>Aucune demande ouverte pour l'instant.</p>
-      ) : (
-        <div className={styles.cartesDemandes}>
-          {demandes.map((d) => (
-            <article key={d.id} className={styles.demande}>
-              <header>
-                <strong>{d.vehicule || d.type || "Véhicule non précisé"}</strong>
-                <span>{d.origine || "?"} → {d.destination || "?"}</span>
-              </header>
-              <dl className={styles.detailsDemande}>
-                <div><dt>Budget</dt><dd>{d.budget ? `${d.budget.toLocaleString("fr-FR")} ${d.devise}` : "non précisé"}</dd></div>
-                <div><dt>Service</dt><dd>{d.service}</dd></div>
-                <div><dt>Déposée</dt><dd>{new Date(d.deposeeLe).toLocaleDateString("fr-FR")}</dd></div>
-                <div><dt>Candidats</dt><dd>{d.candidats}</dd></div>
-              </dl>
-              {d.message && <p className={styles.messageDemande}>« {d.message} »</p>}
-              {d.jaiRepondu ? (
-                <p className={styles.dejaPositionne}>✓ Vous vous êtes positionné. L'équipe VIT AUTO vous mettra en relation.</p>
-              ) : (
-                <>
-                  <input
-                    placeholder="Ce que vous pouvez proposer (facultatif)"
-                    value={note[d.id] || ""}
-                    onChange={(e) => setNote({ ...note, [d.id]: e.target.value })}
-                  />
-                  <button className={styles.btnPrimaire} onClick={() => seProposer(d.id)}>Je peux répondre</button>
-                </>
-              )}
-            </article>
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
 
 // ── Équipe ─────────────────────────────────────────────────────────────────
 function Equipe({ appel }) {

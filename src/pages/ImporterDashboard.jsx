@@ -555,7 +555,7 @@ export default function ImporterDashboard() {
             { key: "overview",      icon: "📊", label: "Vue d'ensemble" },
             { key: "transactions",  icon: "📋", label: "Transactions", badge: transactions.filter((t) => ["reserved", "in_escrow", "preparing"].includes(t.status)).length },
             { key: "listings",      icon: "📢", label: "Mes annonces" },
-            { key: "profile",       icon: "🏢", label: "Mon profil importateur" },
+            { key: "profile",       icon: "🏢", label: "Mon profil exportateur" },
           ].map((t) => (
             <button
               key={t.key}
@@ -773,7 +773,7 @@ export default function ImporterDashboard() {
                 {!isVerified && (
                   <div className={styles.alertBox} style={{ borderColor: "#f59e0b" }}>
                     <span>⚠️</span>
-                    <p>Vous devez être <strong>importateur vérifié</strong> pour publier des annonces.</p>
+                    <p>Vous devez être <strong>exportateur vérifié</strong> pour publier des annonces.</p>
                   </div>
                 )}
 
@@ -821,7 +821,7 @@ export default function ImporterDashboard() {
             {/* ── PROFIL ── */}
             {activeTab === "profile" && (
               <div className={styles.tabContent}>
-                <h2 className={styles.tabTitle}>Mon profil importateur</h2>
+                <h2 className={styles.tabTitle}>Mon profil exportateur</h2>
                 {!profile ? (
                   <div className={styles.emptyState}>
                     <span>🏢</span>

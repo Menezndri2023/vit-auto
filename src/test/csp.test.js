@@ -15,7 +15,7 @@ import path from "path";
 // Trouvé en balayant la production au navigateur : `accounts.google.com` était
 // autorisé pour les SCRIPTS, les CADRES et les CONNEXIONS, mais pas pour les
 // STYLES. La bibliothèque Google Sign-In charge `accounts.google.com/gsi/style`
-// — bloqué sur /login, /register et /importer-apply, les trois pages où l'on
+// — bloqué sur /login et /register, les pages où l'on
 // se connecte.
 //
 // Une CSP qui autorise un tiers à moitié est pire qu'une CSP qui le refuse :

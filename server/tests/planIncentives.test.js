@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { adminGrantTrial, adminApprovePlanPayment } from "../controllers/subscriptionController.js";
 import { accorderEssai, recompenserParrain, prolonger, DUREE_ESSAI_JOURS } from "../services/subscriptionRewards.js";
 import { rapportDu, composerMessage, envoyerRapportsMensuels } from "../utils/monthlyPartnerReport.js";
-import { listOpenRequests, declareInterest, AVANCE_ABONNE_MS } from "../controllers/partnerRequestsController.js";
 import Subscription from "../models/Subscription.js";
 import Notification from "../models/Notification.js";
 import User from "../models/User.js";
@@ -217,123 +216,6 @@ describe("Parrainage partenaire", () => {
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Les places réservées de la vitrine sont désormais une source parmi d'autres
-// du moteur de mise en avant — voir tests/spotlightEngine.test.js, qui couvre
-// épinglage admin, boosts achetés, quotas d'abonnement, mérite et rotation.
-
-// ═══════════════════════════════════════════════════════════════════════════
-describe("Demandes clients — avance accordée aux abonnés", () => {
-  const deposer = (ageMs = 0, extra = {}) => ImportExportRequest.create({
-    firstName: "Awa", lastName: "Koné", email: "awa@exemple.test", phone: "+2250700000000",
-    sourceCountry: "Japon", destCountry: "Côte d'Ivoire", vehicleMake: "Toyota", vehicleModel: "Hilux",
-    budget: 15000, createdAt: new Date(Date.now() - ageMs), ...extra,
-  });
-
-  const lister = async (user) => {
-    const { req, res } = mockReqRes({ user });
-    await listOpenRequests(req, res);
-    return res;
-  };
-
-  it("un abonné Business voit une demande déposée à l'instant, un compte gratuit non", async () => {
-    await deposer(0);
-    const gratuit = await createUser({ role: "partenaire" });
-    const abonne  = await createUser({ role: "partenaire" });
-    await abonner(abonne, "business");
-
-    const vueAbonne = await lister(abonne);
-    expect(vueAbonne.body.demandes).toHaveLength(1);
-    expect(vueAbonne.body.prioritaire).toBe(true);
-
-    const vueGratuit = await lister(gratuit);
-    expect(vueGratuit.body.demandes).toHaveLength(0);
-    // Le nombre de demandes encore réservées rend l'avantage concret.
-    expect(vueGratuit.body.enAttenteDeliberation).toBe(1);
-  });
-
-  it("passé le délai, la demande devient visible de tous — sans aucune tâche planifiée", async () => {
-    await deposer(AVANCE_ABONNE_MS + 60000);
-    const gratuit = await createUser({ role: "partenaire" });
-    expect((await lister(gratuit)).body.demandes).toHaveLength(1);
-  });
-
-  it("n'expose ni e-mail, ni téléphone, ni nom de famille du demandeur", async () => {
-    // Sans quoi les demandes deviendraient un fichier de prospection, et la
-    // politique de contact centralisé du site n'aurait plus aucun sens.
-    await deposer(AVANCE_ABONNE_MS + 60000);
-    const p = await createUser({ role: "partenaire" });
-    const brut = JSON.stringify((await lister(p)).body);
-    expect(brut).not.toContain("awa@exemple.test");
-    expect(brut).not.toContain("+2250700000000");
-    expect(brut).not.toContain("Koné");
-    expect(brut).toContain("Awa"); // le prénom suffit à personnaliser un devis
-  });
-
-  it("ignore les demandes déjà traitées", async () => {
-    await deposer(AVANCE_ABONNE_MS + 60000, { status: "approved" });
-    await deposer(AVANCE_ABONNE_MS + 60000, { status: "rejected" });
-    const p = await createUser({ role: "partenaire" });
-    expect((await lister(p)).body.demandes).toHaveLength(0);
-  });
-
-  it("l'avance vaut aussi à l'ÉCRITURE : un non-abonné ne peut pas se positionner en devinant l'identifiant", async () => {
-    const d = await deposer(0);
-    const gratuit = await createUser({ role: "partenaire" });
-    const { req, res } = mockReqRes({ user: gratuit, params: { id: String(d._id) }, body: { note: "Je l'ai en stock" } });
-    await declareInterest(req, res);
-    expect(res.statusCode).toBe(403);
-    expect((await ImportExportRequest.findById(d._id).lean()).interestedPartners).toHaveLength(0);
-  });
-
-  it("enregistre l'intérêt d'un abonné et prévient l'administration", async () => {
-    const d = await deposer(0);
-    const admin1 = await admin();
-    const p = await createUser({ role: "partenaire" });
-    await abonner(p, "business");
-
-    const { req, res } = mockReqRes({ user: p, params: { id: String(d._id) }, body: { note: "Disponible sous 3 semaines" } });
-    await declareInterest(req, res);
-    expect(res.statusCode).toBe(201);
-    expect(res.body.demande.jaiRepondu).toBe(true);
-
-    const enBase = await ImportExportRequest.findById(d._id).lean();
-    expect(enBase.interestedPartners).toHaveLength(1);
-    expect(enBase.interestedPartners[0].note).toBe("Disponible sous 3 semaines");
-    expect(enBase.interestedPartners[0].plan).toBe("business");
-
-    const notif = await Notification.findOne({ user: admin1._id, type: "ie_request" }).lean();
-    expect(notif).toBeTruthy();
-    expect(notif.message).not.toMatch(/undefined/);
-  });
-
-  it("refuse un second positionnement du même partenaire", async () => {
-    const d = await deposer(AVANCE_ABONNE_MS + 60000);
-    const p = await createUser({ role: "partenaire" });
-    const premier = mockReqRes({ user: p, params: { id: String(d._id) }, body: {} });
-    await declareInterest(premier.req, premier.res);
-    expect(premier.res.statusCode).toBe(201);
-
-    const second = mockReqRes({ user: p, params: { id: String(d._id) }, body: {} });
-    await declareInterest(second.req, second.res);
-    expect(second.res.statusCode).toBe(409);
-    expect((await ImportExportRequest.findById(d._id).lean()).interestedPartners).toHaveLength(1);
-  });
-
-  it("plafonne le nombre de candidats", async () => {
-    const d = await deposer(AVANCE_ABONNE_MS + 60000);
-    for (let i = 0; i < 5; i++) {
-      const p = await createUser({ role: "partenaire" });
-      const { req, res } = mockReqRes({ user: p, params: { id: String(d._id) }, body: {} });
-      await declareInterest(req, res);
-      expect(res.statusCode).toBe(201);
-    }
-    const detrop = await createUser({ role: "partenaire" });
-    const { req, res } = mockReqRes({ user: detrop, params: { id: String(d._id) }, body: {} });
-    await declareInterest(req, res);
-    expect(res.statusCode).toBe(409);
-  });
-});
 
 // ═══════════════════════════════════════════════════════════════════════════
 describe("Rapport mensuel de performance", () => {

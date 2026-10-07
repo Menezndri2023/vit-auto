@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { baseRouteur } from "./i18n/langueUrl";
 import { Suspense, useState, useEffect } from "react";
 import { lazyAvecReprise as lazy } from "./utils/lazyAvecReprise";
@@ -81,7 +81,6 @@ const IEListingDetail       = lazy(() => import("./pages/IEListingDetail"));
 const IETransactionTracking = lazy(() => import("./pages/IETransactionTracking"));
 const IEClientDashboard     = lazy(() => import("./pages/IEClientDashboard"));
 const IEAssignedTransactions = lazy(() => import("./pages/IEAssignedTransactions"));
-const ImporterApply         = lazy(() => import("./pages/ImporterApply"));
 const ImporterDashboard     = lazy(() => import("./pages/ImporterDashboard"));
 const KYC                   = lazy(() => import("./pages/KYC"));
 const PartnerCertification    = lazy(() => import("./pages/PartnerCertification"));
@@ -218,7 +217,8 @@ function AppRoutes({ splashDone, onSplashDone }) {
           {/* Espace Pro : statistiques, équipe, clés d'API et assistance — chaque
               onglet vérifie le palier côté serveur et affiche son verrou sinon. */}
           <Route path="/vendor/pro"       element={<PartnerRoute><ErrorBoundary><VendorPro /></ErrorBoundary></PartnerRoute>} />
-          <Route path="/importer-apply"   element={<PartnerRoute><ErrorBoundary><ImporterApply /></ErrorBoundary></PartnerRoute>} />
+          {/* Ancienne candidature « importateur » : les partenaires de la niche sont des exportateurs (2026-10-07). */}
+          <Route path="/importer-apply"   element={<Navigate to="/importer-dashboard" replace />} />
           <Route path="/importer-dashboard" element={<PartnerRoute><ErrorBoundary><ImporterDashboard /></ErrorBoundary></PartnerRoute>} />
           <Route path="/partner-certification" element={<PartnerRoute><ErrorBoundary><PartnerCertification /></ErrorBoundary></PartnerRoute>} />
           <Route path="/partner-pms"      element={<PartnerRoute><ErrorBoundary><PartnerPMSDashboard /></ErrorBoundary></PartnerRoute>} />

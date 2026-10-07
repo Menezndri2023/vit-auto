@@ -29,7 +29,7 @@ export async function ensureImporterProfile(user) {
     city:         "",
     country:      onboarding?.companyInfo?.registrationCountry || "",
     website:      onboarding?.companyInfo?.website || "",
-    activityType: ["import", "export"],
+    activityType: ["export"], // partenaires de la niche = exportateurs (2026-10-07)
     status:       "verified",
     badgeLevel:   "gold",
     submittedAt:  new Date(),

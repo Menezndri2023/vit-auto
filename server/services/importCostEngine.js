@@ -221,3 +221,40 @@ export async function computeImportCost({ vehiclePrice, currency, sourceCountry,
     computedAt: new Date(),
   };
 }
+
+// Devis d'une ANNONCE pour une destination : prix et Incoterm de la variante
+// demandée (sinon ceux de l'annonce). Utilisé par le devis public, la
+// réservation ET l'achat direct, pour que le prix payé soit celui affiché —
+// l'achat direct ignorait l'Incoterm et refacturait fret et assurance sur une
+// annonce CIF.
+export async function computeImportCostForListing(listing, { destCountry, destCity = null, incoterm = null } = {}) {
+  const variante = (listing.incotermPricing || []).find((v) => v.incoterm === incoterm);
+  const incotermRetenu = variante ? variante.incoterm : (listing.incoterm || null);
+  const prixRetenu = variante?.price ?? listing.price;
+  const result = await computeImportCost({
+    vehiclePrice:  prixRetenu,
+    incoterm:      incotermRetenu,
+    currency:      listing.currency,
+    sourceCountry: listing.sourceCountry,
+    vehicleYear:   listing.year,
+    destCountry,
+    destCity,
+  });
+  const prixConnu = variante ? variante.price != null : listing.price != null;
+  return { ...result, prixRetenu, incotermRetenu, prixConnu };
+}
+
+// Découpe un devis en quatre parts, selon ce qui reste à la charge de
+// l'acheteur. La somme est exactement grandTotal (l'arrondi va aux frais VIT AUTO).
+export function ventilerDevis(est) {
+  const b = est.breakdown || {};
+  const c = est.borneByBuyer || {};
+  const r2 = (n) => Math.round((n || 0) * 100) / 100;
+  const exportateur = r2(b.vehiclePrice);
+  const logistique = r2(
+    (c.inlandTransport ? b.inlandTransport : 0) + (c.seaFreight ? b.seaFreight : 0)
+    + (c.insurance ? b.insurance : 0) + (c.portFees ? b.portFees : 0) + (c.delivery ? b.delivery : 0));
+  const droitsTaxes = r2(c.customs ? b.customs : 0);
+  const fraisVitAuto = r2((est.grandTotal || 0) - exportateur - logistique - droitsTaxes);
+  return { exportateur, logistique, droitsTaxes, fraisVitAuto, currency: est.currency || null };
+}

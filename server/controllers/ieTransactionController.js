@@ -12,7 +12,7 @@ import { dispatch, enqueue } from "../queue/index.js";
 import { QUEUE_NAMES } from "../queue/definitions.js";
 import { stripeProvider } from "../services/payment/gateway.js";
 import { resolveCommissionRate } from "../services/pricingEngine.js";
-import { computeImportCost } from "../services/importCostEngine.js";
+import { computeImportCostForListing, ventilerDevis } from "../services/importCostEngine.js";
 import { captureException } from "../config/sentry.js";
 import { generateGenericReceiptPDF } from "../utils/pdfGenerator.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
@@ -28,10 +28,19 @@ const MAX_EXPORT_DOC_BYTES = 8 * 1024 * 1024; // 8 Mo — cohérent avec les aut
 // d'une transaction IE est toujours un Founding Partner (isFounder requis pour
 // publier, voir importExportController.createListing). Calculée une seule
 // fois, à la libération des fonds — jamais recalculée ensuite.
-async function computeIeCommission(tx) {
+// Base = la part EXPORTATEUR du paiement (voir IETransaction.ventilation).
+// Achat direct : prix du véhicule seul ; le reste (logistique, droits et
+// taxes, frais VIT AUTO) ne lui appartient pas. Réservation négociée : son
+// offre finale est son prix, la part exportateur est donc le montant payé.
+export async function computeIeCommission(tx) {
   const rate = await resolveCommissionRate("import_export", tx.partner);
-  const amount = Math.round((tx.payment.amount || 0) * rate * 100) / 100;
-  return { rate, amount, payoutAmount: Math.round(((tx.payment.amount || 0) - amount) * 100) / 100 };
+  // Achat direct antérieur à la ventilation : la part exportateur est le
+  // prix du véhicule de l'offre (le reste du total n'a jamais été à lui).
+  const base = tx.ventilation?.exportateur
+    ?? (tx.directPurchase ? tx.finalOffer?.vehiclePrice : null)
+    ?? tx.payment.amount ?? 0;
+  const amount = Math.round(base * rate * 100) / 100;
+  return { rate, amount, base, payoutAmount: Math.round((base - amount) * 100) / 100 };
 }
 
 const MANUAL_PAYMENT_METHODS = ["virement", "mobile_money", "crypto", "lc"];
@@ -256,11 +265,7 @@ export const createReservation = async (req, res) => {
     let costEstimate = { available: false };
     if (destCountry) {
       try {
-        const est = await computeImportCost({
-          vehiclePrice: listing.price, currency: listing.currency,
-          sourceCountry: listing.sourceCountry, vehicleYear: listing.year,
-          destCountry, destCity,
-        });
+        const est = await computeImportCostForListing(listing, { destCountry, destCity, incoterm: req.body.incoterm });
         if (est.available) {
           costEstimate = {
             available: true, breakdown: est.breakdown, totalServices: est.totalServices,
@@ -393,11 +398,7 @@ export const createDirectPurchase = async (req, res) => {
     // montant ferme : on redirige vers la réservation classique (négociation)
     // plutôt que de facturer un prix incomplet (véhicule seul, sans transport/
     // douane/assurance).
-    const est = await computeImportCost({
-      vehiclePrice: listing.price, currency: listing.currency,
-      sourceCountry: listing.sourceCountry, vehicleYear: listing.year,
-      destCountry, destCity,
-    });
+    const est = await computeImportCostForListing(listing, { destCountry, destCity, incoterm: req.body.incoterm });
     if (!est.available) {
       return res.status(400).json({
         message: "Achat direct indisponible pour cette destination (aucun barème configuré) — utilisez \"Réserver\" pour négocier directement avec le fournisseur.",
@@ -414,10 +415,11 @@ export const createDirectPurchase = async (req, res) => {
       listing: listingId,
       client:  req.user._id,
       partner: listing.partner,
-      incoterm: listing.incoterm || null,
+      incoterm: est.incotermRetenu || listing.incoterm || null,
       destCountry, destCity: destCity || null,
       notes:    notes || null,
       status:   "payment_pending",
+      ventilation: ventilerDevis(est),
       directPurchase: true,
       adminValidation: { status: "pending" },
       ...(inspectionDocs ? { documents: { inspectionDocs } } : {}),
@@ -428,11 +430,17 @@ export const createDirectPurchase = async (req, res) => {
       // Répartition dans les 4 champs existants de finalOffer (vehiclePrice/
       // exportFees/shippingCost/insurance) — la somme reste exactement
       // est.grandTotal, seul le regroupement des lignes du devis diffère.
+      // Seuls les postes RESTANT À CHARGE de l'acheteur (selon l'Incoterm) :
+      // la somme des 4 lignes vaut exactement est.grandTotal.
       finalOffer: {
         vehiclePrice: est.breakdown.vehiclePrice,
-        shippingCost: est.breakdown.inlandTransport + est.breakdown.seaFreight + est.breakdown.delivery,
-        insurance:    est.breakdown.insurance,
-        exportFees:   est.breakdown.portFees + est.breakdown.customs + est.breakdown.commission,
+        shippingCost: (est.borneByBuyer.inlandTransport ? est.breakdown.inlandTransport : 0)
+                    + (est.borneByBuyer.seaFreight ? est.breakdown.seaFreight : 0)
+                    + (est.borneByBuyer.delivery ? est.breakdown.delivery : 0),
+        insurance:    est.borneByBuyer.insurance ? est.breakdown.insurance : 0,
+        exportFees:   (est.borneByBuyer.portFees ? est.breakdown.portFees : 0)
+                    + (est.borneByBuyer.customs ? est.breakdown.customs : 0)
+                    + est.breakdown.commission,
         totalAmount:  est.grandTotal,
         currency:     est.currency,
         notes:        "Achat direct — prix affiché de l'annonce accepté sans négociation.",
@@ -1202,6 +1210,12 @@ export const confirmDelivery = async (req, res) => {
     tx.deliveryNotes         = deliveryNotes || null;
     tx.status = "delivered";
     pushHistory(tx, "delivered", req.user._id, deliveryNotes || "Client confirme la réception du véhicule.");
+    // Exportateur déjà payé à l'embarquement : la transaction passe
+    // directement à l'étape des évaluations.
+    if (tx.payment?.releasedAt) {
+      tx.status = "funds_released";
+      pushHistory(tx, "funds_released", req.user._id, "Livraison confirmée — exportateur déjà payé à l'embarquement.");
+    }
     await tx.save();
 
     await notify(tx.partner, "success", "Livraison confirmée !", "Le client a confirmé la réception du véhicule. Libération des fonds en cours.", `/importer-dashboard`);
@@ -1225,21 +1239,26 @@ export const confirmDelivery = async (req, res) => {
 
 export const releaseFunds = async (req, res) => {
   try {
+    // Règle de l'exploitant (2026-10-07) : l'exportateur est payé à
+    // l'EMBARQUEMENT — son travail s'arrête au chargement — par l'admin seul,
+    // une fois le connaissement validé. Le client ne libère plus les fonds.
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ message: "Seul VIT AUTO libère les fonds au fournisseur." });
+    }
+    const STATUTS_VERSABLES = ["shipped", "in_transit", "delivered"];
     const existing = await IETransaction.findOne({
       _id: req.params.id,
-      status: "delivered",
+      status: { $in: STATUTS_VERSABLES },
+      "payment.releasedAt": null,
     });
-    if (!existing) return res.status(404).json({ message: "Transaction introuvable ou statut incompatible." });
-
-    // Seul le client ou un admin peut libérer les fonds
-    const isAdmin  = req.user.role === "admin";
-    const isClient = existing.client.toString() === req.user._id.toString();
-    if (!isAdmin && !isClient) {
-      return res.status(403).json({ message: "Accès refusé." });
+    if (!existing) return res.status(404).json({ message: "Transaction introuvable, statut incompatible ou fonds déjà libérés." });
+    if (existing.status !== "delivered" && existing.documents?.billOfLading?.status !== "valide") {
+      return res.status(400).json({ message: "Validez d'abord le connaissement (B/L) : l'exportateur est payé à l'embarquement." });
     }
 
     const { rate, amount, payoutAmount } = await computeIeCommission(existing);
-    const note = `Fonds libérés vers le fournisseur par ${isAdmin ? "l'admin" : "le client"} — commission VIT AUTO ${(rate * 100).toFixed(0)}% (${amount.toLocaleString("fr-FR")} ${existing.payment.currency}).`;
+    const note = `Part exportateur versée par l'admin${existing.status === "delivered" ? "" : " à l'embarquement"} — commission VIT AUTO ${(rate * 100).toFixed(0)}% (${amount.toLocaleString("fr-FR")} ${existing.payment.currency}).`;
+    const nouveauStatut = existing.status === "delivered" ? "funds_released" : existing.status;
 
     // Transition atomique "delivered" → "funds_released" : le statut fait
     // partie du filtre de l'update lui-même, jamais d'un simple findOne+save
@@ -1249,14 +1268,14 @@ export const releaseFunds = async (req, res) => {
     // notification de libération de fonds. Ici, seule la première requête
     // matche encore status:"delivered" au moment de l'écriture.
     const tx = await IETransaction.findOneAndUpdate(
-      { _id: req.params.id, status: "delivered" },
+      { _id: req.params.id, status: existing.status, "payment.releasedAt": null },
       {
         $set: {
           "payment.commission": { rate, amount, payoutAmount, computedAt: new Date() },
           "payment.releasedAt": new Date(),
-          status: "funds_released",
+          status: nouveauStatut,
         },
-        $push: { statusHistory: { status: "funds_released", changedAt: new Date(), changedBy: req.user._id, note } },
+        $push: { statusHistory: { status: nouveauStatut, changedAt: new Date(), changedBy: req.user._id, note } },
       },
       { new: true }
     );
@@ -1266,12 +1285,14 @@ export const releaseFunds = async (req, res) => {
     // deux parties aient laissé un avis (voir settleListingStock).
     await settleListingStock(tx._id, tx.listing);
 
-    await notify(tx.partner, "success", "Fonds libérés !", `${payoutAmount.toLocaleString("fr-FR")} ${tx.payment.currency} ont été versés sur votre compte (commission VIT AUTO ${(rate * 100).toFixed(0)}% déduite, sur un total de ${tx.payment.amount?.toLocaleString("fr-FR")} ${tx.payment.currency}).`, `/importer-dashboard`);
-    await notify(tx.client,  "info",    "Fonds libérés", "Les fonds ont été versés au fournisseur. N'oubliez pas de laisser votre évaluation.", `/import-export/transaction/${tx._id}`);
+    await notify(tx.partner, "success", "Fonds libérés !", `${payoutAmount.toLocaleString("fr-FR")} ${tx.payment.currency} ont été versés sur votre compte (commission VIT AUTO ${(rate * 100).toFixed(0)}% déduite de votre part de ${(tx.ventilation?.exportateur ?? tx.payment.amount)?.toLocaleString("fr-FR")} ${tx.payment.currency}).`, `/importer-dashboard`);
+    await notify(tx.client,  "info",    "Fonds libérés", tx.status === "funds_released" ? "Les fonds ont été versés au fournisseur. N'oubliez pas de laisser votre évaluation." : "Votre véhicule est embarqué : le fournisseur a été payé. VIT AUTO suit la suite de l'acheminement.", `/import-export/transaction/${tx._id}`);
 
-    // Étape 14 : invitation évaluation planifiée à 24h
-    dispatch.ieStepTransition(tx._id.toString(), 14, req.user._id.toString(), "Fonds libérés — transaction finalisée")
-      .catch(nonBloquant("ieTransactionController"));
+    // Étape 14 : invitation évaluation planifiée à 24h (seulement une fois livré)
+    if (tx.status === "funds_released") {
+      dispatch.ieStepTransition(tx._id.toString(), 14, req.user._id.toString(), "Fonds libérés — transaction finalisée")
+        .catch(nonBloquant("ieTransactionController"));
+    }
 
     res.json({ message: "Fonds libérés avec succès.", transaction: tx });
   } catch (err) {

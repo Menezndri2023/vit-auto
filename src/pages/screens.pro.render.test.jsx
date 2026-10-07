@@ -29,7 +29,7 @@ describe("Espace Pro — rendu", () => {
     expect(screen.getByRole("heading", { name: /Espace Pro/i })).toBeTruthy();
     // Les quatre onglets sont présents dès le premier rendu : c'est ce qui
     // donne au non-abonné une raison de s'abonner.
-    for (const libelle of [/Statistiques/, /Demandes clients/, /Équipe/, /Accès API/, /Assistance/]) {
+    for (const libelle of [/Statistiques/, /Équipe/, /Accès API/, /Assistance/]) {
       expect(screen.getByRole("tab", { name: libelle })).toBeTruthy();
     }
   });
@@ -60,7 +60,8 @@ describe("Espace Pro — rendu", () => {
     expect(container.textContent).toMatch(/accès utilisateurs/);
     // Les paliers d'incitation doivent être annoncés, sinon ils n'incitent
     // personne : construits mais invisibles, ils ne valent rien.
-    expect(container.textContent).toMatch(/Demandes clients/);
+    // Import/Export : les demandes des clients sont traitées par VIT AUTO, plus vendues aux partenaires (2026-10-07).
+    expect(container.textContent).not.toMatch(/Demandes clients/);
     expect(container.textContent).toMatch(/places en vitrine d'accueil/);
     expect(container.textContent).toMatch(/Bilan mensuel/);
   });

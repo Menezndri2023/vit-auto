@@ -69,9 +69,13 @@ describe("Cycle escrow Import/Export (ieTransactionController)", () => {
     updated.status = "delivered";
     await updated.save();
 
-    // 4. Libération des fonds — la commission VIT AUTO doit être calculée et
-    //    le montant versé au partenaire doit être le total moins la commission.
+    // 4. Le client ne libère plus les fonds (règle du 2026-10-07) : VIT AUTO seul.
     ({ req, res } = mockReqRes({ params: { id: tx._id.toString() }, user: client }));
+    await releaseFunds(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+
+    // 5. L'admin verse : commission calculée sur la part exportateur (offre négociée = 25 000).
+    ({ req, res } = mockReqRes({ params: { id: tx._id.toString() }, user: admin }));
     await releaseFunds(req, res);
     updated = await IETransaction.findById(tx._id);
     expect(updated.status).toBe("funds_released");
@@ -93,5 +97,41 @@ describe("Cycle escrow Import/Export (ieTransactionController)", () => {
 
     const stillDelivered = await IETransaction.findById(tx._id);
     expect(stillDelivered.status).toBe("delivered");
+  });
+
+  it("paie l'exportateur à l'embarquement, seulement une fois le connaissement validé", async () => {
+    tx.status = "shipped";
+    tx.payment = { amount: 25000, currency: "EUR", method: "virement" };
+    await tx.save();
+    let { req, res } = mockReqRes({ params: { id: tx._id.toString() }, user: admin });
+    await releaseFunds(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+
+    await IETransaction.updateOne({ _id: tx._id }, { $set: { "documents.billOfLading.status": "valide" } });
+    ({ req, res } = mockReqRes({ params: { id: tx._id.toString() }, user: admin }));
+    await releaseFunds(req, res);
+    const apres = await IETransaction.findById(tx._id);
+    expect(apres.status).toBe("shipped");           // l'acheminement continue
+    expect(apres.payment.releasedAt).toBeTruthy();
+
+    // Deuxième versement refusé.
+    ({ req, res } = mockReqRes({ params: { id: tx._id.toString() }, user: admin }));
+    await releaseFunds(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it("achat direct : la commission et le versement portent sur la part exportateur, pas sur le total client", async () => {
+    await IETransaction.updateOne({ _id: tx._id }, { $set: {
+      status: "delivered", directPurchase: true,
+      payment: { amount: 40000, currency: "EUR", method: "virement" },
+      ventilation: { exportateur: 25000, logistique: 3000, droitsTaxes: 10500, fraisVitAuto: 1500, currency: "EUR" },
+    } });
+    const { req, res } = mockReqRes({ params: { id: tx._id.toString() }, user: admin });
+    await releaseFunds(req, res);
+    const apres = await IETransaction.findById(tx._id);
+    const { amount, payoutAmount } = apres.payment.commission;
+    expect(amount).toBe(Math.round(25000 * apres.payment.commission.rate * 100) / 100);
+    expect(payoutAmount).toBe(Math.round((25000 - amount) * 100) / 100);
+    expect(payoutAmount).toBeLessThan(25000);
   });
 });

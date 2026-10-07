@@ -5,7 +5,7 @@ import { useCurrency } from "../context/CurrencyContext";
 import { useI18n } from "../context/I18nContext";
 import { PAYMENTS_ENABLED_FALLBACK } from "../config/featureFlags";
 import { PLAN_INCLUDED_BOOSTS } from "../constants/subscriptionPlans";
-import { PLAN_SEATS, PLAN_SUPPORT_SLA_HOURS, AVANCE_DEMANDES_HEURES, PLACES_VITRINE_PAR_PLAN, LIBELLE_PLAN, PLAN_SECTEURS, PLAN_QUOTA_ANNONCES, FIN_IMMUNITE_QUOTAS, OUTILS_PAR_SECTEUR, SOCLE_GRATUIT, GRATUIT_PAR_SECTEUR } from "../constants/planFeatures";
+import { PLAN_SEATS, PLAN_SUPPORT_SLA_HOURS, PLACES_VITRINE_PAR_PLAN, LIBELLE_PLAN, PLAN_SECTEURS, PLAN_QUOTA_ANNONCES, FIN_IMMUNITE_QUOTAS, OUTILS_PAR_SECTEUR, SOCLE_GRATUIT, GRATUIT_PAR_SECTEUR } from "../constants/planFeatures";
 import { ACTIVITIES, SECTEUR_LABELS, secteursDuPartenaire } from "../constants/partnerTaxonomy";
 import { libelleTraduit } from "../i18n/libelles";
 import styles from "./Plans.module.css";
@@ -174,7 +174,6 @@ export default function Plans() {
         { ok: true,  text: t("plans.f.statsExport") },
         { ok: true,  text: t("plans.f.supportPrio", { n: PLAN_SUPPORT_SLA_HOURS.business }) },
         { ok: true,  text: t("plans.f.userSeats", { n: PLAN_SEATS.business }) },
-        { ok: true,  text: t("plans.f.earlyLeads", { n: AVANCE_DEMANDES_HEURES }) },
         { ok: true,  text: t("plans.f.monthlyReport") },
         { ok: false, text: t("plans.f.apiAccess") },
         { ok: true,  text: t(PLACES_VITRINE_PAR_PLAN.business > 1 ? "plans.f.seats" : "plans.f.seat", { n: PLACES_VITRINE_PAR_PLAN.business }) },

@@ -76,7 +76,8 @@ export async function recordIEPartnerPayout(tx) {
           transactionId:    tx._id.toString(),
           transactionType:  "import_export",
           partnerId,
-          grossAmount:      tx.payment?.amount || 0,
+          // Part exportateur (voir IETransaction.ventilation), pas le total client.
+          grossAmount:      tx.ventilation?.exportateur ?? tx.payment?.amount ?? 0,
           commissionRate:   Math.round((tx.payment?.commission?.rate || 0) * 10000) / 100,
           commissionAmount: payoutAmount,
           currency:         tx.payment?.currency || "USD",

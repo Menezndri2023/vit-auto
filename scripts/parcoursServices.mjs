@@ -269,14 +269,19 @@ async function importExport(browser) {
   attendu(await partner(`/api/import-export/transactions/${tx._id}/documents`, { method: "PATCH", body: { documents: { inspectionDocs: { status: "fourni", url: pdf }, commercialInvoice: { status: "fourni", url: pdf } } } }), 200, "documents");
   attendu(await partner(`/api/import-export/transactions/${tx._id}/ship`, { method: "PATCH", body: { carrier: "CMA CGM", trackingNumber: "CMAU-VERIF-1", shippingType: "maritime", departureDate: dateISO(3), estimatedArrival: dateISO(45) } }), 200, "expédition");
   attendu(await partner(`/api/import-export/transactions/${tx._id}/tracking`, { method: "PATCH", body: { currentStatus: "En mer — Méditerranée", location: "Gibraltar" } }), 200, "suivi");
+  // Règle du 2026-10-07 : l'exportateur est payé à l'EMBARQUEMENT, par l'admin
+  // seul, une fois le connaissement validé ; le client ne libère plus les fonds.
+  attendu(await partner(`/api/import-export/transactions/${tx._id}/documents`, { method: "PATCH", body: { documents: { billOfLading: { status: "fourni", url: pdf } } } }), 200, "connaissement");
+  attendu(await admin(`/api/import-export/transactions/${tx._id}/documents`, { method: "PATCH", body: { documents: { billOfLading: { status: "valide" } } } }), 200, "connaissement validé");
+  const parClient = await client(`/api/import-export/transactions/${tx._id}/release-funds`, { method: "PATCH" });
+  if (parClient.status !== 403) throw new Error(`le client a pu libérer les fonds : ${parClient.status}`);
+  attendu(await admin(`/api/import-export/transactions/${tx._id}/release-funds`, { method: "PATCH" }), 200, "versement exportateur à l'embarquement");
   attendu(await client(`/api/import-export/transactions/${tx._id}/deliver`, { method: "PATCH", body: { deliveryNotes: "Véhicule reçu conforme au port d'Abidjan." } }), 200, "livraison confirmée");
-  const lib = await client(`/api/import-export/transactions/${tx._id}/release-funds`, { method: "PATCH" });
-  if (![200, 409].includes(lib.status)) throw new Error(`libération des fonds : ${lib.status} ${JSON.stringify(lib.data).slice(0, 120)}`);
   detail = attendu(await client(`/api/import-export/transactions/${tx._id}`), 200, "détail final").transaction;
-  if (!["completed", "funds_released", "delivered"].includes(detail.status)) throw new Error(`statut final ${detail.status}`);
+  if (detail.status !== "funds_released") throw new Error(`statut final ${detail.status}, attendu funds_released`);
   const recu = await client(`/api/import-export/transactions/${tx._id}/receipt`);
   if (recu.status !== 200) journal.push(`[client] reçu de transaction : ${recu.status}`);
-  ok(`documents joints → expédiée (CMA CGM) → livrée → fonds libérés (statut ${detail.status})`);
+  ok(`documents joints → expédiée (CMA CGM) → connaissement validé → exportateur payé par l'admin (refusé au client) → livrée (statut ${detail.status})`);
   // 7. Tableau de bord client IE rendu.
   await page.goto(`${BASE}/import-export/dashboard`, { waitUntil: "networkidle", timeout: 60000 });
   if (!/Land Cruiser|CMAU-VERIF-1|transaction/i.test(await texte(page))) journal.push("[client] tableau de bord import/export sans la transaction");

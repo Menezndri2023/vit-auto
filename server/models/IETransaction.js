@@ -185,6 +185,19 @@ const ieTransactionSchema = new mongoose.Schema({
   // déclare seulement une intention de paiement (submittedAt), un admin doit
   // ensuite confirmer la réception réelle des fonds (verifiedBy/verifiedAt)
   // avant que le statut ne passe à "in_escrow". Voir ieTransactionController.js.
+  // Ventilation de ce que paie le client (2026-10-07) : seule la part
+  // « exportateur » lui est versée ; la logistique et les droits/taxes
+  // servent à payer transitaire et douane ; les frais VIT AUTO restent à
+  // la plateforme. Avant, l'exportateur recevait tout le total, droits de
+  // douane et frais de service compris.
+  ventilation: {
+    exportateur: { type: Number, default: null },
+    logistique:  { type: Number, default: 0 },
+    droitsTaxes: { type: Number, default: 0 },
+    fraisVitAuto: { type: Number, default: 0 },
+    currency:    { type: String, default: null },
+  },
+
   payment: {
     amount:          { type: Number, default: null },
     currency:        { type: String, default: "EUR" },

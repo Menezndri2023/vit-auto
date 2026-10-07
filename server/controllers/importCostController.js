@@ -2,7 +2,7 @@ import logger from "../utils/logger.js";
 import ImportExportListing from "../models/ImportExportListing.js";
 import ImportCostConfig from "../models/ImportCostConfig.js";
 import ShippingLaneRate from "../models/ShippingLaneRate.js";
-import { computeImportCost } from "../services/importCostEngine.js";
+import { computeImportCostForListing } from "../services/importCostEngine.js";
 
 // ── GET /api/import-cost/listings/:id/estimate — devis acheteur (public) ────
 // L'acheteur choisit un pays (et éventuellement une ville) de destination sur
@@ -27,19 +27,7 @@ export const getListingCostEstimate = async (req, res) => {
     // L'acheteur peut demander une autre règle parmi celles que l'exportateur
     // accepte (`incotermPricing`) : le prix change alors avec elle.
     const demande = String(req.query.incoterm || "").toUpperCase();
-    const variante = (listing.incotermPricing || []).find((v) => v.incoterm === demande);
-    const incotermRetenu = variante ? variante.incoterm : (listing.incoterm || null);
-    const prixRetenu = variante?.price ?? listing.price;
-
-    const result = await computeImportCost({
-      vehiclePrice:  prixRetenu,
-      incoterm:      incotermRetenu,
-      currency:      listing.currency,
-      sourceCountry: listing.sourceCountry,
-      vehicleYear:   listing.year,
-      destCountry,
-      destCity,
-    });
+    const { prixRetenu, incotermRetenu, prixConnu, ...result } = await computeImportCostForListing(listing, { destCountry, destCity, incoterm: demande });
     res.json({
       ...result,
       // L'acheteur doit savoir sur quelle base le total a été calculé, sans
@@ -49,7 +37,7 @@ export const getListingCostEstimate = async (req, res) => {
         incoterm: incotermRetenu,
         // Une variante acceptée mais sans prix convenu : l'annonce affichera un
         // tiret, jamais un montant deviné.
-        priceKnown: variante ? variante.price != null : listing.price != null,
+        priceKnown: prixConnu,
       },
       // Règles que l'exportateur accepte, avec leur prix quand il est fixé.
       incotermOptions: [

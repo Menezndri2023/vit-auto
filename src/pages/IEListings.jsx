@@ -248,8 +248,8 @@ export default function IEListings() {
         <p className={styles.heroSub}>
           {t("iel.sub")}
         </p>
-        <Link to="/importer-apply" className={styles.heroCta}>
-          Devenir importateur partenaire →
+        <Link to="/register?role=partenaire" className={styles.heroCta}>
+          Devenir exportateur partenaire →
         </Link>
       </section>
 
@@ -363,7 +363,7 @@ export default function IEListings() {
             <p>{t("iel.importerDesc")}</p>
           </div>
           <div className={styles.partnerCtaActions}>
-            <Link to="/importer-apply" className={styles.partnerCtaBtnPrimary}>Devenir partenaire →</Link>
+            <Link to="/register?role=partenaire" className={styles.partnerCtaBtnPrimary}>Devenir partenaire →</Link>
             <Link to="/import-export" className={styles.partnerCtaBtnGhost}>{t("pourquoi.card.insurance.cta")}</Link>
           </div>
         </div>

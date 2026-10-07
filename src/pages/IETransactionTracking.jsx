@@ -531,14 +531,42 @@ function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfil
     );
   }
 
-  // ── Étape 13 : libération des fonds — client / admin ───────────────────
+  // ── Versement à l'exportateur — admin seul, dès l'embarquement ─────────
+  // Règle de l'exploitant (2026-10-07) : l'exportateur est payé une fois le
+  // connaissement (B/L) validé ; le client ne libère plus les fonds lui-même.
+  const partExportateur = tx.ventilation?.exportateur
+    ?? (tx.directPurchase ? tx.finalOffer?.vehiclePrice : null) ?? tx.payment?.amount;
+  if (role === "admin" && !tx.payment?.releasedAt && ["shipped", "in_transit"].includes(tx.status)) {
+    const blValide = tx.documents?.billOfLading?.status === "valide";
+    return (
+      <div className={styles.actionCard}>
+        <h4>Payer l'exportateur (embarquement)</h4>
+        <p>{blValide
+          ? "Connaissement validé : la part de l'exportateur peut lui être versée."
+          : "Validez d'abord le connaissement (B/L) dans les documents ci-dessous."}</p>
+        <div className={styles.escrowInfo}>
+          <div>💰 <strong>{fmtPrice(partExportateur, tx.payment?.currency)}</strong> → Exportateur (avant commission)</div>
+        </div>
+        <div className={styles.actionBtns}>
+          <button className={styles.btnPrimary} disabled={loading || !blValide} onClick={() => call(`${base}/release-funds`)}>
+            💰 Verser la part exportateur
+          </button>
+        </div>
+        {error && <p className={styles.err}>{error}</p>}
+      </div>
+    );
+  }
+
+  // ── Étape 13 : livré — l'admin verse si ce n'est pas déjà fait ; le client peut contester
   if (tx.status === "delivered" && (role === "client" || role === "admin")) {
     return (
       <div className={styles.actionCard}>
-        <h4>Libérer les fonds</h4>
-        <p>En confirmant que le véhicule est conforme, les fonds seront versés au fournisseur.</p>
+        <h4>{role === "admin" ? "Payer l'exportateur" : "Véhicule livré"}</h4>
+        <p>{role === "admin"
+          ? "Le client a confirmé la réception : la part de l'exportateur peut lui être versée."
+          : "VIT AUTO verse la part du fournisseur. Un problème avec le véhicule ? Ouvrez un litige."}</p>
         <div className={styles.escrowInfo}>
-          <div>💰 <strong>{fmtPrice(tx.payment?.amount, tx.payment?.currency)}</strong> → Fournisseur</div>
+          <div>💰 <strong>{fmtPrice(partExportateur, tx.payment?.currency)}</strong> → Fournisseur</div>
           <p>Réf. entiercement : <code>{tx.payment?.escrowRef}</code></p>
         </div>
         {disputeReason !== null ? (
@@ -561,9 +589,11 @@ function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfil
           </div>
         ) : (
           <div className={styles.actionBtns}>
-            <button className={styles.btnPrimary} disabled={loading} onClick={() => call(`${base}/release-funds`)}>
-              💰 Libérer les fonds au fournisseur
-            </button>
+            {role === "admin" && (
+              <button className={styles.btnPrimary} disabled={loading} onClick={() => call(`${base}/release-funds`)}>
+                💰 Verser la part exportateur
+              </button>
+            )}
             <button className={styles.btnDanger} disabled={loading} onClick={() => setDisputeReason("")}>
               ⚠️ Ouvrir un litige
             </button>
@@ -860,7 +890,7 @@ export default function IETransactionTracking() {
   const currentStep = STEPS.find((s) => s.status === tx.status);
 
   const backTo    = role === "client" ? "/import-export/dashboard" : isPartner ? "/importer-dashboard" : isAssignee ? "/import-export/assigned" : "/admin";
-  const backLabel = role === "client" ? "Mes transactions" : isPartner ? "Dashboard importateur" : isAssignee ? "Mes dossiers assignés" : "Admin";
+  const backLabel = role === "client" ? "Mes transactions" : isPartner ? "Espace exportateur" : isAssignee ? "Mes dossiers assignés" : "Admin";
 
   return (
     <div className={styles.page}>
@@ -1004,7 +1034,7 @@ export default function IETransactionTracking() {
                   <div>
                     <p className={styles.contactName}>{other.firstName} {other.lastName}</p>
                     {other.business?.name && <p className={styles.contactCo}>{other.business.name}</p>}
-                    <p className={styles.contactRole}>{role === "client" ? "🏢 Importateur VIT AUTO" : "👤 Client"}</p>
+                    <p className={styles.contactRole}>{role === "client" ? "🏢 Exportateur partenaire VIT AUTO" : "👤 Client"}</p>
                     {role === "partner" && (() => {
                       const kycCfg = KYC_CFG[other.kycStatus] || null;
                       return kycCfg ? (

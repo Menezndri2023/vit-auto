@@ -1199,10 +1199,10 @@ function CompanySection() {
       </div>
 
       <div className={styles.companyLinks}>
-        <Link to="/importer-apply" className={styles.companyLinkCard}>
+        <Link to="/importer-dashboard" className={styles.companyLinkCard}>
           <span>🌍</span>
           <div>
-            <strong>Profil Importateur/Exportateur</strong>
+            <strong>Profil exportateur</strong>
             <p>Dossier complet pour l'activité import/export internationale</p>
           </div>
           <span>→</span>

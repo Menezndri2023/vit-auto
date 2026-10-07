@@ -305,7 +305,7 @@ const ImportExport = () => {
   // plante toute la page (règle vit/lecture-avant-declaration).
   const { t } = useI18n();
   const { fmtUSD } = useCurrency();
-  // Le parcours exportateur mène à /importer-apply, réservé aux partenaires
+  // Le parcours exportateur mène au dossier partenaire (/partner-onboarding), réservé aux partenaires
   // connectés : un visiteur y serait refoulé sans explication.
   const { user } = useAuthSession();
   const estPartenaire = user?.role === "partenaire" || user?.role === "admin";
@@ -662,9 +662,9 @@ const ImportExport = () => {
         </div>
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 24, justifyContent: "center" }}>
-          {/* /importer-apply est réservé aux partenaires connectés : un visiteur
+          {/* /partner-onboarding est réservé aux partenaires connectés : un visiteur
               y serait refoulé sans explication. On l'envoie créer son compte. */}
-          <Link className={styles.primaryBtn} to={estPartenaire ? "/importer-apply" : "/register"}>
+          <Link className={styles.primaryBtn} to={estPartenaire ? "/partner-onboarding" : "/register?role=partenaire"}>
             {estPartenaire ? t("ie.expCtaApply") : t("ie.expCtaRegister")}
           </Link>
           <Link className={styles.secondaryBtn} to="/plans">{t("ie.expCtaPlans")}</Link>
@@ -719,7 +719,7 @@ const ImportExport = () => {
         <p>{t("ie.finalDesc")}</p>
         <div className={styles.ctaBtns}>
           <button className={styles.primaryBtn} onClick={() => openModal()}>{t("ie.askQuote")}</button>
-          <Link className={styles.ghostBtn} to="/importer-apply">{t("ie.becomeImporter")}</Link>
+          <Link className={styles.ghostBtn} to="/register?role=partenaire">{t("ie.becomeImporter")}</Link>
         </div>
       </div>
     </section>

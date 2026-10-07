@@ -30,7 +30,6 @@ export const FEATURE_MIN_PLAN = {
   assistancePremium:    "business",
   multiUtilisateurs:    "business",
   accesApi:             "exportateur",
-  demandesPrioritaires: "business",
   carrouselReserve:     "exportateur",
   rapportMensuel:       "business",
   // Outils par secteur — verrouillés côté serveur par `exigeOutil`, avec la
@@ -43,10 +42,6 @@ export const FEATURE_MIN_PLAN = {
   crmLeadsDevis:        "business",
   lienCourtVitrine:     "individuel_plus",
 };
-
-// Avance, en heures, sur les demandes clients fraîchement déposées.
-// Miroir de partnerRequestsController.AVANCE_ABONNE_MS.
-export const AVANCE_DEMANDES_HEURES = 2;
 
 // Places de la vitrine d'accueil réservées à chaque palier, en rotation
 // quotidienne. Miroir de services/carrouselReserve.PLACES_PAR_PLAN.
@@ -155,7 +150,6 @@ export const OUTILS_PAR_SECTEUR = {
     ],
     business: [
       { key: "outil.crmExport",    feature: "crmLeadsDevis" },
-      { key: "outil.earlyIeLeads", feature: "demandesPrioritaires" },
     ],
     exportateur: [
       { key: "outil.resellerApi", feature: "accesApi" },

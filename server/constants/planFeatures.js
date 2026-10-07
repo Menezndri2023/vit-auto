@@ -27,10 +27,6 @@ export const FEATURE_MIN_PLAN = {
   assistancePremium: "business",        // file prioritaire + délai garanti
   multiUtilisateurs: "business",        // comptes d'équipe rattachés
   accesApi:          "exportateur",     // clés d'API lecture seule
-  // Avance sur les demandes clients fraîchement déposées. Ce n'est pas une
-  // exclusivité : les non-abonnés les voient après un délai (voir
-  // partnerRequestsController.AVANCE_ABONNE_MS).
-  demandesPrioritaires: "business",
   // Rapport mensuel de performance envoyé par e-mail.
   rapportMensuel:    "business",
 
