@@ -589,6 +589,14 @@ export async function respondPublicQuote(req, res) {
         lien: "/partner-pms",
       };
       const quoteRespNotifDoc = await Notification.create({ user: quote.partnerId, ...quoteRespNotif });
+      if (action === "accept") {
+        const { dispatch } = await import("../queue/index.js");
+        dispatch.nouvelleDemandePartenaire(quote.partnerId, {
+          demande:   "un devis accepté",
+          detail:    `${quote.buyer?.name || "Le client"} a accepté votre devis`,
+          reference: quote.quoteNumber,
+        }).catch((e) => signalerNonBloquant("pmsController", e));
+      }
       if (global._io) {
         global._io.to(`user_${quote.partnerId}`).emit("notification_new", {
           _id: quoteRespNotifDoc._id, ...quoteRespNotif, lu: false, createdAt: quoteRespNotifDoc.createdAt,

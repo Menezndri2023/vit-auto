@@ -26,7 +26,7 @@ const Register = () => {
     traduite: true,
   });
 
-  const { register, oauthGoogle, verifyEmailCode, resendEmailCode, user, isAuthenticated } = useAuth();
+  const { register, oauthGoogle, verifyEmailCode, resendEmailCode, verifyPhoneCode, resendPhoneCode, user, isAuthenticated } = useAuth();
   const { success, error } = useToast();
   const { countryCode } = useCurrency();
   const navigate = useNavigate();
@@ -79,7 +79,17 @@ const Register = () => {
   // pas validé, l'inscription n'est pas considérée comme terminée (voir
   // authController.verifyEmailCode côté serveur). Google OAuth ne passe jamais
   // par cette étape (email déjà vérifié par Google — voir handleGoogleCredential).
-  const [step,          setStep]          = useState("form"); // "form" | "code"
+  const [step,          setStep]          = useState("form"); // "form" | "code" | "sms"
+  // Inscription par téléphone (sans e-mail) : proposée seulement quand le
+  // serveur a les SMS allumés (GET /api/auth/canaux). L'e-mail reste prioritaire.
+  const [smsDispo,      setSmsDispo]      = useState(false);
+  useEffect(() => {
+    let actif = true;
+    fetch("/api/auth/canaux").then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (actif && d) setSmsDispo(!!d.sms); })
+      .catch(() => {});
+    return () => { actif = false; };
+  }, []);
   const [emailCode,     setEmailCode]     = useState("");
   const [codeSubmitting, setCodeSubmitting] = useState(false);
   const [resending,     setResending]     = useState(false);
@@ -90,10 +100,13 @@ const Register = () => {
   // suite) réinitialisait ce composant sur l'étape "form" et laissait
   // l'utilisateur reprendre sa navigation ailleurs sans jamais confirmer.
   useEffect(() => {
-    if (isAuthenticated && user && user.emailVerified === false) setStep("code");
+    if (!isAuthenticated || !user) return;
+    if (user.email && user.emailVerified === false) setStep("code");
+    else if (!user.email && user.phone && user.phoneVerified === false) setStep("sms");
   }, [isAuthenticated, user]);
 
   const pendingEmailDisplay = form.email.trim() || user?.email || "";
+  const pendingPhoneDisplay = user?.phone || form.phone.trim() || "";
 
   // Destination post-inscription : ?redirect= explicite prime toujours, puis
   // location.state.from (posé par PartnerRoute/AdminRoute lors d'une redirection
@@ -125,8 +138,11 @@ const Register = () => {
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!form.email.trim() || !form.password || !form.firstName || !form.lastName || !form.country || !form.birthDate) {
+    if (!form.password || !form.firstName || !form.lastName || !form.country || !form.birthDate) {
       error(t("reg.fillRequired")); return;
+    }
+    if (!form.email.trim() && !(smsDispo && form.phone.trim())) {
+      error(smsDispo ? "Indiquez une adresse e-mail, ou à défaut un numéro de téléphone." : t("reg.fillRequired")); return;
     }
     if (form.password !== form.confirmPassword) {
       error(t("reg.pwdMismatch")); return;
@@ -149,7 +165,7 @@ const Register = () => {
         lastName:   form.lastName,
         password:   form.password,
         role:       form.role,
-        email:      form.email.trim(),
+        email:      form.email.trim() || undefined,
         phone:      form.phone.trim() || undefined,
         country:    form.country,
         birthDate:  form.birthDate,
@@ -162,7 +178,10 @@ const Register = () => {
       // Le compte existe déjà (session active) mais l'inscription n'est pas
       // terminée tant que le code reçu par email n'est pas confirmé — on ne
       // redirige jamais directement vers l'app depuis ce formulaire.
-      if (result?.emailVerificationCodeRequired) {
+      if (result?.phoneVerificationCodeRequired) {
+        success(`Code envoyé par SMS au ${form.phone.trim()}.`);
+        setStep("sms");
+      } else if (result?.emailVerificationCodeRequired) {
         success(t("reg.codeSentToast", { email: form.email.trim() }));
         setStep("code");
       } else {
@@ -185,6 +204,12 @@ const Register = () => {
     if (emailCode.trim().length !== 6) { error(t("reg.code6Chars")); return; }
     setCodeSubmitting(true);
     try {
+      if (step === "sms") {
+        await verifyPhoneCode(emailCode.trim());
+        success("Numéro de téléphone confirmé.");
+        setTimeout(() => navigate(getDest()), 1000);
+        return;
+      }
       await verifyEmailCode(emailCode.trim());
       success(t("reg.emailOk"));
       setTimeout(() => navigate(getDest()), 1000);
@@ -198,6 +223,11 @@ const Register = () => {
   const onResendCode = async () => {
     setResending(true);
     try {
+      if (step === "sms") {
+        await resendPhoneCode(pendingPhoneDisplay);
+        success(`Nouveau code envoyé au ${pendingPhoneDisplay}.`);
+        return;
+      }
       await resendEmailCode();
       success(`Nouveau code envoyé à ${pendingEmailDisplay}.`);
     } catch (err) {
@@ -239,14 +269,15 @@ const Register = () => {
     }
   };
 
-  if (step === "code") {
+  if (step === "code" || step === "sms") {
+    const parSms = step === "sms";
     return (
       <div className={styles.page}>
         <div className={styles.card}>
           <div className={styles.logo}>
-            <div className={styles.logoIcon}>✉️</div>
-            <h1>{t("reg.confirmEmail")}</h1>
-            <p>{t("reg.codeSentTo")} <strong>{pendingEmailDisplay}</strong> {t("reg.codeValid")}</p>
+            <div className={styles.logoIcon}>{parSms ? "📱" : "✉️"}</div>
+            <h1>{parSms ? "Confirmez votre numéro" : t("reg.confirmEmail")}</h1>
+            <p>{t("reg.codeSentTo")} <strong>{parSms ? pendingPhoneDisplay : pendingEmailDisplay}</strong> {t("reg.codeValid")}</p>
           </div>
 
           <form className={styles.form} onSubmit={onVerifyCode}>
@@ -268,7 +299,7 @@ const Register = () => {
             </div>
 
             <button type="submit" className={styles.submitBtn} disabled={codeSubmitting || emailCode.length !== 6}>
-              {codeSubmitting ? t("reg.verifying") : t("reg.confirmMyEmail")}
+              {codeSubmitting ? t("reg.verifying") : parSms ? "Confirmer mon numéro" : t("reg.confirmMyEmail")}
             </button>
 
             <div className={styles.footerLink}>
@@ -423,7 +454,9 @@ const Register = () => {
             <legend className={styles.legende}>{t("reg.yourContact")}</legend>
 
             <div className={styles.field}>
-              <label htmlFor="register-email">Adresse e-mail <span className={styles.requis}>*</span></label>
+              <label htmlFor="register-email">Adresse e-mail {smsDispo
+                ? <span style={{ color: "#94a3b8", fontWeight: 600 }}>(recommandée)</span>
+                : <span className={styles.requis}>*</span>}</label>
               <input
                 id="register-email"
                 type="email"
@@ -432,13 +465,13 @@ const Register = () => {
                 value={form.email}
                 onChange={handleChange}
                 placeholder={t("login.emailPh")}
-                required
+                required={!smsDispo}
               />
-              <p className={styles.hint}>{t("reg.codeHint")}</p>
+              <p className={styles.hint}>{smsDispo ? "Sans adresse e-mail, votre numéro de téléphone sera confirmé par un code SMS." : t("reg.codeHint")}</p>
             </div>
 
             <div className={styles.field}>
-              <label htmlFor="register-phone">{t("auth.phone")} <span style={{ color: "#94a3b8", fontWeight: 600 }}>{t("reg.optional")}</span></label>
+              <label htmlFor="register-phone">{t("auth.phone")} <span style={{ color: "#94a3b8", fontWeight: 600 }}>{smsDispo && !form.email.trim() ? "(obligatoire sans e-mail)" : t("reg.optional")}</span></label>
               <input
                 id="register-phone"
                 type="tel"

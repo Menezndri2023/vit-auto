@@ -14,7 +14,7 @@
 // déjà en place (queue/index.js, bookingController.notify, utils/notifyAdmins).
 import User from "../models/User.js";
 import logger from "../utils/logger.js";
-import { enqueue } from "../queue/index.js";
+import { enqueue, dispatch } from "../queue/index.js";
 import { QUEUE_NAMES } from "../queue/definitions.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 
@@ -33,7 +33,7 @@ export function clientLeadPath(lead) {
   return lead.client?.userId ? base : `${base}?t=${lead.clientAccessToken}`;
 }
 
-export async function notifyPartner(lead, { titre, message, whatsappText = null }) {
+export async function notifyPartner(lead, { titre, message, whatsapp = null }) {
   const partnerId = lead.partner?._id || lead.partner;
   if (!partnerId) return;
   try {
@@ -42,14 +42,12 @@ export async function notifyPartner(lead, { titre, message, whatsappText = null 
   } catch (err) {
     logger.warn("[SalesLeadNotifier] partenaire (non bloquant) :", err?.message);
   }
-  if (whatsappText) {
+  // Modèle WhatsApp approuvé (nouvelle_demande_partenaire) : le texte libre
+  // était refusé par Meta hors de la fenêtre de 24 h — le partenaire ne
+  // recevait donc rien.
+  if (whatsapp) {
     try {
-      const owner = await User.findById(partnerId).select("phone").lean();
-      if (owner?.phone) {
-        await enqueue(QUEUE_NAMES.WHATSAPP, "sales_lead_partner_wa", {
-          to: owner.phone, text: whatsappText, userId: partnerId.toString(),
-        });
-      }
+      await dispatch.nouvelleDemandePartenaire(partnerId, whatsapp);
     } catch (err) {
       logger.warn("[SalesLeadNotifier] WhatsApp partenaire (non bloquant) :", err?.message);
     }

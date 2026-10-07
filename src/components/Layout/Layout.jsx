@@ -115,7 +115,8 @@ const Layout = ({ children }) => {
     return () => { listenerPromise.then((l) => l.remove()); };
   }, [location.pathname, navigate, toastInfo]);
 
-  const showBanner = isAuthenticated && user && user.emailVerified === false;
+  // Un compte inscrit par téléphone (sans e-mail) n'a pas d'adresse à confirmer.
+  const showBanner = isAuthenticated && user && !!user.email && user.emailVerified === false;
 
   // Pages ERP (admin, stats, contrat) : pas de Navbar ni Footer global
   if (bare) {

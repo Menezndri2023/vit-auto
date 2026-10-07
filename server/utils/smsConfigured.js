@@ -1,13 +1,11 @@
-// Coupe-circuit global : la vérification SMS est désactivée volontairement en
-// production (incident 2026-07-13 — le compte Twilio Verify, en mode Trial, ne
-// délivrait pas les codes de façon fiable, ce qui bloquait des utilisateurs en
-// connexion sans aucun moyen de recevoir leur code). Tant que ce flag est à false,
-// smsConfigured()/twilioVerifyConfigured() renvoient toujours false, quels que
-// soient les identifiants Twilio/Africa's Talking présents dans les variables
-// d'environnement — ce qui neutralise d'un seul coup tous les points d'appel
-// (login, inscription, mot de passe oublié, scoring KYC). Repasser à true une
-// fois un provider SMS de production fiable (compte payant) mis en place.
-const SMS_ENABLED = false;
+// Interrupteur global des SMS, posé dans Render : SMS_ENABLED=true.
+// Éteint par défaut. Historique : coupé en dur après l'incident du 2026-07-13
+// (compte Twilio Verify en mode Trial, codes non délivrés, utilisateurs
+// bloqués). Depuis le 2026-10-07 l'exploitant a un compte Twilio payant ; il
+// rallume les SMS lui-même après avoir posé les identifiants. Tant qu'il est
+// éteint, smsConfigured()/twilioVerifyConfigured() renvoient false quels que
+// soient les identifiants présents, et aucun SMS (code ou notification) ne part.
+export const smsActif = () => process.env.SMS_ENABLED === "true";
 
 // true si un provider SMS réel (Africa's Talking ou Twilio Verify) est configuré.
 // Centralisé ici (plutôt que dupliqué) car consommé à la fois par authController.js
@@ -15,7 +13,7 @@ const SMS_ENABLED = false;
 // réel, aucune vérification téléphone n'est possible et ne doit donc jamais bloquer
 // un utilisateur ni conditionner une auto-approbation.
 export const smsConfigured = () =>
-  SMS_ENABLED &&
+  smsActif() &&
   (!!(process.env.AT_USERNAME && process.env.AT_API_KEY &&
      process.env.AT_API_KEY !== "atsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") ||
    !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_VERIFY_SERVICE_SID));
@@ -23,5 +21,5 @@ export const smsConfigured = () =>
 // true si Twilio Verify spécifiquement est configuré (utilisé pour choisir entre
 // le flux OTP géré par Twilio Verify et l'ancien flux OTP maison Africa's Talking).
 export const twilioVerifyConfigured = () =>
-  SMS_ENABLED &&
+  smsActif() &&
   !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_VERIFY_SERVICE_SID);

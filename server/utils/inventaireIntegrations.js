@@ -18,6 +18,7 @@ export function inventaireIntegrations(env) {
     "Connexion Google":                ["GOOGLE_OAUTH_CLIENT_ID"],
     "Notifications push (Firebase)":   ["FIREBASE_PROJECT_ID", "FIREBASE_SERVICE_ACCOUNT_JSON"],
     "Suivi des erreurs (Sentry)":      ["SENTRY_DSN"],
+    "SMS — interrupteur (SMS_ENABLED=true)": ["SMS_ENABLED"],
     "SMS et codes (Twilio Verify)":    ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_VERIFY_SERVICE_SID"],
     "SMS Afrique (Africa's Talking)":  ["AT_USERNAME", "AT_API_KEY"],
     "WhatsApp — envoi (Meta)":         ["WHATSAPP_TOKEN", "WHATSAPP_PHONE_ID"],
@@ -30,7 +31,12 @@ export function inventaireIntegrations(env) {
   };
   const out = {};
   for (const [nom, vars] of Object.entries(groupes)) {
-    const manquantes = vars.filter((v) => !String(env[v] || "").trim() || VALEUR_EXEMPLE.test(String(env[v]).trim()));
+    const manquantes = vars.filter((v) => {
+      const val = String(env[v] || "").trim();
+      // Un interrupteur (…_ENABLED) n'est « configuré » que s'il vaut true.
+      if (/_ENABLED$/.test(v)) return val !== "true";
+      return !val || VALEUR_EXEMPLE.test(val);
+    });
     out[nom] = { etat: manquantes.length === 0 ? "configuré" : manquantes.length === vars.length ? "absent" : "incomplet", manquantes };
   }
   return out;

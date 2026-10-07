@@ -206,11 +206,16 @@ const sanitize = (v) => (typeof v === "string" ? v.replace(/<[^>]*>/g, "").trim(
 // trouvé en audit (compte partenaire réel injoignable par son propriétaire).
 const phoneDigits = (v) => String(v || "").replace(/\D/g, "");
 
+// ── Canaux disponibles (public) ───────────────────────────────────────────
+// Le site demande ici si l'inscription par téléphone est possible.
+export const canauxAuth = (_req, res) => {
+  res.json({ email: true, sms: twilioVerifyConfigured() });
+};
+
 // ── Inscription ───────────────────────────────────────────────────────────
-// L'e-mail est l'unique canal d'inscription et de vérification (voir
-// smsConfigured.js — la vérification SMS est désactivée). Le téléphone reste un
-// champ de profil facultatif (utile pour les réservations, KYC, etc.) mais n'est
-// ni un identifiant de connexion ni un canal de vérification.
+// Règle de l'exploitant (2026-10-07) : l'e-mail en priorité ; sans e-mail, le
+// téléphone, vérifié par un code SMS (Twilio Verify) — seulement quand les SMS
+// sont allumés (SMS_ENABLED=true + identifiants Twilio, voir smsConfigured.js).
 export const register = async (req, res) => {
   const firstName = sanitize(req.body.firstName);
   const lastName  = sanitize(req.body.lastName);
@@ -259,7 +264,9 @@ export const register = async (req, res) => {
   if (country && !(await isValidCountryCode(country))) {
     return res.status(400).json({ message: "Pays invalide." });
   }
-  if (!email) {
+  // Inscription par téléphone seul : uniquement si les SMS sont allumés.
+  const parTelephone = !email && !!phone && twilioVerifyConfigured();
+  if (!email && !parTelephone) {
     return res.status(400).json({ message: "Une adresse e-mail est requise pour créer un compte." });
   }
   if (firstName.length < 1 || firstName.length > 100) {
@@ -274,10 +281,10 @@ export const register = async (req, res) => {
   if (password.length > 128) {
     return res.status(400).json({ message: "Mot de passe trop long." });
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ message: "Format d'e-mail invalide." });
   }
-  if (email.length > 254) {
+  if (email && email.length > 254) {
     return res.status(400).json({ message: "Adresse e-mail trop longue." });
   }
   if (phone && !/^[+\d\s\-().]{6,20}$/.test(phone)) {
@@ -310,7 +317,7 @@ export const register = async (req, res) => {
   }
 
   try {
-    const existing = await User.findOne({ email });
+    const existing = email ? await User.findOne({ email }) : null;
     if (existing) {
       // En dev sans SMTP : si le compte existe mais n'est pas vérifié, on le vérifie automatiquement
       if (isDevNoSmtp() && !existing.emailVerified) {
@@ -357,14 +364,27 @@ export const register = async (req, res) => {
       if (referrer) referredBy = referrer._id;
     }
 
+    // Compte au téléphone : le code SMS part AVANT la création, pour ne jamais
+    // laisser un compte qu'on ne pourrait pas confirmer.
+    if (parTelephone) {
+      const envoi = await sendVerification(phone);
+      if (!envoi.sent) {
+        logger.error("register (téléphone): échec envoi du code", { error: envoi.error });
+        return res.status(503).json({
+          message: "Impossible d'envoyer le code SMS pour le moment. Inscrivez-vous avec une adresse e-mail ou réessayez plus tard.",
+          smsUnavailable: true,
+        });
+      }
+    }
+
     const token = makeToken();
-    const autoVerify = isDevNoSmtp(); // En développement sans SMTP : auto-vérifier l'email
+    const autoVerify = !parTelephone && isDevNoSmtp(); // En développement sans SMTP : auto-vérifier l'email
 
     // Code court (6 chiffres) — voir commentaire User.emailVerificationCode :
     // c'est ce code, saisi dans Register.jsx, qui rend la confirmation
     // bloquante avant de pouvoir continuer l'inscription (même patron que
     // phoneOtp : hashé en base, jamais stocké en clair).
-    const code     = autoVerify ? null : crypto.randomInt(100000, 1000000).toString();
+    const code     = autoVerify || parTelephone ? null : crypto.randomInt(100000, 1000000).toString();
     const codeHash = code ? await bcrypt.hash(code, CODE_ROUNDS) : null;
     const CODE_TTL = 10 * 60 * 1000; // 10 min
 
@@ -384,8 +404,8 @@ export const register = async (req, res) => {
       // dont la liste de champs est stricte).
       ...(isPartner && rccm ? { business: { rccm } } : {}),
       referredBy,
-      emailVerificationToken:        autoVerify ? null : token,
-      emailVerificationExpires:      autoVerify ? null : new Date(Date.now() + VERIFY_TTL),
+      emailVerificationToken:        autoVerify || parTelephone ? null : token,
+      emailVerificationExpires:      autoVerify || parTelephone ? null : new Date(Date.now() + VERIFY_TTL),
       emailVerificationCode:         codeHash,
       emailVerificationCodeExpires:  code ? new Date(Date.now() + CODE_TTL) : null,
       emailVerified:                 autoVerify,
@@ -410,6 +430,17 @@ export const register = async (req, res) => {
         refreshToken,
         emailVerificationSent: false,
         message: "Compte créé et activé automatiquement (mode développement).",
+      });
+    }
+
+    if (parTelephone) {
+      return res.status(201).json({
+        user: safeUser(user),
+        token: jwtToken,
+        refreshToken,
+        // Front (Register.jsx) : saisie du code via POST /api/auth/verify-phone-otp.
+        phoneVerificationCodeRequired: true,
+        message: `Compte créé ! Saisissez le code reçu par SMS au ${phone}.`,
       });
     }
 
@@ -1188,7 +1219,7 @@ export const sendPhoneOtp = async (req, res) => {
   // appelant connaissant (ou devinant) le numéro de téléphone d'un compte tiers
   // pouvait quand même déclencher user.phoneVerified=false + génération d'un
   // OTP stocké en base pour ce compte, avant même de savoir qu'aucun SMS ne
-  // sera jamais délivré (voir smsConfigured.js — SMS_ENABLED=false).
+  // sera jamais délivré (voir smsConfigured.js — interrupteur SMS_ENABLED).
   if (!smsConfigured()) {
     return res.status(503).json({
       message: "Le service d'envoi de SMS est momentanément indisponible. Contactez le support VIT AUTO (contact@vit-auto.com) pour vérifier votre compte.",
@@ -1269,7 +1300,7 @@ export const verifyPhoneOtp = async (req, res) => {
     return res.status(503).json({ message: "Le service de vérification par SMS est momentanément indisponible.", smsUnavailable: true });
   }
 
-  const { phone, otp } = req.body;
+  const { otp } = req.body;
   if (!otp) return res.status(400).json({ message: "Code OTP requis." });
 
   try {
@@ -1279,8 +1310,10 @@ export const verifyPhoneOtp = async (req, res) => {
 
     let otpValid;
     if (twilioVerifyConfigured()) {
-      const target = phone?.trim() || user.phone;
-      const check = await checkVerification(target, otp);
+      // Toujours le numéro du compte (posé par sendPhoneOtp/register) : un
+      // numéro fourni dans la requête permettait de valider un AUTRE numéro
+      // que celui enregistré sur le compte.
+      const check = await checkVerification(user.phone, otp);
       otpValid = check.valid;
       if (!otpValid) return res.status(400).json({ message: "Code OTP incorrect ou expiré." });
     } else {

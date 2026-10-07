@@ -6,6 +6,9 @@ const ResetPassword = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token    = searchParams.get("token");
+  // Réinitialisation par SMS (compte sans e-mail) : /reset-password?phone=…
+  const phone    = searchParams.get("phone");
+  const [otp, setOtp] = useState("");
 
   const [password,  setPassword]  = useState("");
   const [confirm,   setConfirm]   = useState("");
@@ -14,7 +17,7 @@ const ResetPassword = () => {
   const [errMsg,    setErrMsg]    = useState("");
   const [showPass,  setShowPass]  = useState(false);
 
-  if (!token) {
+  if (!token && !phone) {
     return (
       <div className={styles.page}>
         <div className={styles.card}>
@@ -38,13 +41,14 @@ const ResetPassword = () => {
     setErrMsg("");
     if (password.length < 8) { setErrMsg("Le mot de passe doit contenir au moins 8 caractères."); return; }
     if (password !== confirm) { setErrMsg("Les mots de passe ne correspondent pas."); return; }
+    if (!token && otp.length !== 6) { setErrMsg("Saisissez le code à 6 chiffres reçu par SMS."); return; }
 
     setLoading(true);
     try {
       const res  = await fetch("/api/auth/reset-password", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ token, password }),
+        body:    JSON.stringify(token ? { token, password } : { phone, otp, password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Erreur.");
@@ -83,12 +87,21 @@ const ResetPassword = () => {
             )}
 
             <form onSubmit={handleSubmit} className={styles.form}>
+              {!token && (
+                <div className={styles.inputGroup}>
+                  <label htmlFor="reset-otp">Code reçu par SMS au {phone}</label>
+                  <input id="reset-otp" name="otp" inputMode="numeric" autoComplete="one-time-code"
+                    maxLength={6} placeholder="000000" value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    style={{ textAlign: "center", letterSpacing: "8px", fontSize: "1.3rem", fontWeight: 700 }} required />
+                </div>
+              )}
               <div className={styles.pwField}>
                 <label htmlFor="reset-password">Nouveau mot de passe</label>
                 <div className={styles.pwWrap}>
                   <input id="reset-password" name="password" autoComplete="new-password"
                     type={showPass ? "text" : "password"} placeholder="Minimum 8 caractères"
-                    value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus />
+                    value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus={!!token} />
                   <button type="button" onClick={() => setShowPass((p) => !p)}
                     className={styles.pwToggle}
                     aria-label={showPass ? "Masquer le mot de passe" : "Afficher le mot de passe"}>

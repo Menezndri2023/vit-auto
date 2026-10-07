@@ -42,6 +42,7 @@ router.post("/verify-email-code",    strictLimiter, authenticate, auth.verifyEma
 router.post("/resend-email-code",    strictLimiter, authenticate, auth.resendEmailCode);
 router.get("/confirm-email-change/:token", auth.confirmEmailChange);
 router.post("/resend-verification",  strictLimiter, auth.resendVerification);
+router.get("/canaux",                auth.canauxAuth);
 router.post("/send-phone-otp",       strictLimiter, authenticate, auth.sendPhoneOtp);
 router.post("/verify-phone-otp",     strictLimiter, authenticate, auth.verifyPhoneOtp);
 router.get("/me",                    authenticate, auth.getMe);

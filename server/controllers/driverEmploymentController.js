@@ -1,4 +1,5 @@
 import logger from "../utils/logger.js";
+import { dispatch } from "../queue/index.js";
 import mongoose from "mongoose";
 import DriverEmployment from "../models/DriverEmployment.js";
 import Driver from "../models/Driver.js";
@@ -80,6 +81,11 @@ export const createEmploymentRequest = async (req, res) => {
       `${req.user.firstName} ${req.user.lastName} propose un contrat ${contractType.toUpperCase()} à ${driver.firstName} ${driver.lastName}.`,
       "/vendor/dashboard"
     );
+    dispatch.nouvelleDemandePartenaire(driver.owner, {
+      demande:   "une proposition d'embauche",
+      detail:    `${req.user.firstName} ${req.user.lastName} propose un contrat ${contractType.toUpperCase()} à ${driver.firstName} ${driver.lastName}`,
+      reference: request._id.toString().slice(-8).toUpperCase(),
+    }).catch(nonBloquant("driverEmploymentController"));
     notifyAdmins(
       "system",
       "💼 Nouvelle demande d'embauche (transmise au partenaire)",

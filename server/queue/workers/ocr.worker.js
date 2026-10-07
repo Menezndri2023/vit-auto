@@ -14,8 +14,6 @@ import logger from "../../utils/logger.js";
 import { captureException } from "../../config/sentry.js";
 import { QUEUE_NAMES, WORKER_CONCURRENCY, WORKER_OPTIONS_ECONOMES } from "../definitions.js";
 import { noteRedisError } from "../connection.js";
-import { smsConfigured } from "../../utils/smsConfigured.js";
-import { emailVerificationRequiredForKyc } from "../../utils/emailVerificationRequired.js";
 import { nonBloquant } from "../../utils/nonBloquant.js";
 
 // Exportée pour être réutilisable en fallback synchrone (queue/index.js) quand
@@ -27,17 +25,21 @@ export async function processOcrJob(job) {
     case "validate_kyc_data": {
       // Re-calcul du score KYC côté serveur pour validation
       const User = (await import("../../models/User.js")).default;
-      const user = await User.findById(userId).select("email phone kycOcrData kycFaceMatchScore emailVerified phoneVerified kycStatus").lean();
+      const user = await User.findById(userId).select("email phone kycOcrData kycFaceMatchScore emailVerified phoneVerified kycStatus identity.type identity.expiryDate identity.frontImage identity.backImage identity.selfie").lean();
       if (!user) throw new Error(`Utilisateur ${userId} introuvable`);
 
       const ocrConf  = user.kycOcrData?.ocrConfidence || 0;
       const faceConf = user.kycFaceMatchScore || 0;
       const hasDoc   = !!user.kycOcrData?.documentNumber;
-      // Un compte n'a qu'un seul canal (email OU téléphone — voir Register.jsx) :
-      // le canal absent n'est jamais un motif de blocage/pénalité, seul celui
-      // effectivement associé au compte doit être vérifié.
-      const emailChannelOk = !user.email || user.emailVerified;
-      const phoneChannelOk = !user.phone || user.phoneVerified;
+      // Règle de l'exploitant (2026-10-07) : validation AUTOMATIQUE seulement si
+      // tout est en règle — e-mail OU téléphone confirmé, et dossier complet
+      // (recto, verso sauf passeport, selfie, pièce non expirée). Sinon la
+      // validation reste MANUELLE (le statut ne bouge pas, l'admin tranche).
+      const contactConfirme = !!(user.emailVerified || user.phoneVerified);
+      const id = user.identity || {};
+      const dossierComplet = !!(id.frontImage && id.selfie
+        && (id.type === "passport" || id.backImage)
+        && (!id.expiryDate || new Date(id.expiryDate) > new Date()));
 
       let score = 0;
       if (user.emailVerified) score += 15;
@@ -49,17 +51,9 @@ export async function processOcrJob(job) {
       score = Math.min(score, 100);
 
       const badge = score >= 80 ? "CERTIFIÉ" : score >= 60 ? "VÉRIFIÉ" : "INSUFFISANT";
-      // Sans provider SMS configuré, phoneChannelOk resterait éternellement faux
-      // pour un compte téléphone (voir smsConfigured()) : ne pas en dépendre pour
-      // l'auto-approbation, sinon AUCUN utilisateur ne serait jamais auto-approuvé
-      // tant que l'équipe n'a pas de provider SMS réel — tout finirait en revue
-      // manuelle admin. Même logique pour l'email tant que
-      // emailVerificationRequiredForKyc() est désactivé.
       const autoApprove = ocrConf >= 70 && faceConf >= 80
-        && (emailChannelOk || !emailVerificationRequiredForKyc())
-        && (phoneChannelOk || !smsConfigured())
-        && hasDoc;
-      const newStatus = autoApprove ? "VERIFIE" : user.kycStatus;
+        && contactConfirme && dossierComplet && hasDoc;
+      const dejaVerifie = user.kycStatus === "VERIFIE";
 
       await User.findByIdAndUpdate(userId, {
         $set: {
@@ -81,7 +75,7 @@ export async function processOcrJob(job) {
         },
       });
 
-      if (autoApprove && newStatus !== "VERIFIE") {
+      if (autoApprove && !dejaVerifie) {
         const { sendViaInternal } = await import("../../services/communication/CommunicationService.js");
         await sendViaInternal({
           userId,

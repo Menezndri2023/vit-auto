@@ -329,7 +329,11 @@ export async function sendToPartner(lead, { actorType = "SYSTEM", actorId = null
   await notifyPartner(lead, {
     titre:   "🚗 Nouvelle demande d'essai VIT AUTO",
     message: `${lead.reference} — ${lead.listingSnapshot.title} : ${lead.client.firstName} (${lead.client.city || "ville non précisée"}) ${when}. Répondez sous 2 h : Accepter, proposer un autre créneau ou refuser.`,
-    whatsappText: `VIT AUTO — Nouvelle demande d'essai ${lead.reference} : ${lead.listingSnapshot.title}, ${lead.client.firstName} (${lead.client.city || "-"}), ${when}. Répondez depuis votre tableau de bord : ${(process.env.APP_URL || "https://vit-auto.com").replace(/\/$/, "")}/vendor/dashboard?tab=opportunites`,
+    whatsapp: {
+      demande:   lead.requestType === "callback" ? "une demande de rappel" : "une demande d'essai",
+      detail:    `${lead.listingSnapshot.title} — ${lead.client.firstName} (${lead.client.city || "ville non précisée"}) ${when}`,
+      reference: lead.reference,
+    },
   });
   return lead;
 }
@@ -593,7 +597,11 @@ export async function clientFollowUpResponse(lead, { response, actorId = null, s
     await notifyPartner(lead, {
       titre:   "🎯 Le client souhaite poursuivre son projet d'achat",
       message: `${lead.reference} — ${lead.client.firstName} (${lead.listingSnapshot.title}) a effectué l'essai et souhaite poursuivre. Contactez-le pour la suite : négociation, offre, financement.`,
-      whatsappText: `VIT AUTO — ${lead.client.firstName} souhaite poursuivre son projet d'achat après l'essai de ${lead.listingSnapshot.title} (${lead.reference}). À vous de jouer !`,
+      whatsapp: {
+        demande:   "une demande d'achat",
+        detail:    `${lead.client.firstName} souhaite acheter ${lead.listingSnapshot.title} après l'essai`,
+        reference: lead.reference,
+      },
     });
   } else if (response === "offer") {
     ensureCompleted();

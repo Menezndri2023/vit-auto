@@ -435,6 +435,40 @@ export const dispatch = {
     });
   },
 
+  // ── WhatsApp partenaire : toute autre demande client (2026-10-07) ─────────
+  // Règle de l'exploitant : le partenaire est prévenu sur WhatsApp de CHAQUE
+  // demande d'un client. Les réservations passent par new_booking_partner
+  // (ci-dessus, avec boutons) ; tout le reste (embauche, import/export, achat,
+  // essai-vente, devis accepté) par ce modèle générique, à créer dans Meta :
+  //   nom : nouvelle_demande_partenaire — catégorie Utilitaire — langue fr
+  //   corps : « Bonjour {{1}}, vous avez reçu {{2}} sur VIT AUTO : {{3}}.
+  //            Référence : {{4}}. Répondez au client depuis votre espace
+  //            partenaire sur vit-auto.com. »
+  // Un modèle est obligatoire : Meta refuse le texte libre hors de la fenêtre
+  // de 24 h ouverte par le destinataire.
+  async nouvelleDemandePartenaire(partnerId, { demande, detail, reference }) {
+    if (!partnerId) return;
+    const User = (await import("../models/User.js")).default;
+    const owner = await User.findById(partnerId).select("firstName phone").lean();
+    if (!owner?.phone) return;
+    const court = (v, n) => String(v || "").replace(/\s+/g, " ").trim().slice(0, n) || "—";
+    await enqueue(QUEUE_NAMES.WHATSAPP, "nouvelle_demande_partenaire_wa", {
+      to:       owner.phone,
+      template: "nouvelle_demande_partenaire",
+      language: "fr",
+      userId:   partnerId.toString(),
+      components: [{
+        type: "body",
+        parameters: [
+          { type: "text", text: court(owner.firstName || "Partenaire", 60) },
+          { type: "text", text: court(demande, 80) },
+          { type: "text", text: court(detail, 300) },
+          { type: "text", text: court(reference, 60) },
+        ],
+      }],
+    });
+  },
+
   // ── KYC ───────────────────────────────────────────────────────────────────
   async kycSubmitted(userId, userEmail, firstName) {
     await Promise.allSettled([

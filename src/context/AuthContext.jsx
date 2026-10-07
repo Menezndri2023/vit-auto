@@ -256,6 +256,23 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
+  // Inscription par téléphone (sans e-mail) : code SMS Twilio Verify.
+  const verifyPhoneCode = async (otp) => {
+    const res  = await authFetch("/api/auth/verify-phone-otp", { method: "POST", body: JSON.stringify({ otp }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Code incorrect.");
+    if (data.user) setUser(data.user);
+    if (data.token) setToken(data.token);
+    return data;
+  };
+
+  const resendPhoneCode = async (phone) => {
+    const res  = await authFetch("/api/auth/send-phone-otp", { method: "POST", body: JSON.stringify({ phone }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Impossible d'envoyer un nouveau code.");
+    return data;
+  };
+
   const login = async ({ identifier, email, password }) => {
     const res  = await fetch("/api/auth/login", {
       method:  "POST",
@@ -350,7 +367,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const value = useMemo(
-    () => ({ user, token, isAuthenticated: !!user && !!token, authReady, authFetch, register, login, oauthGoogle, verifyTwoFactor, verifyEmailCode, resendEmailCode, logout, updateUser, setSession }),
+    () => ({ user, token, isAuthenticated: !!user && !!token, authReady, authFetch, register, login, oauthGoogle, verifyTwoFactor, verifyEmailCode, resendEmailCode, verifyPhoneCode, resendPhoneCode, logout, updateUser, setSession }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, token, authReady]
   );

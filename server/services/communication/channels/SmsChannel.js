@@ -1,9 +1,16 @@
 import logger from "../../../utils/logger.js";
+import { smsActif } from "../../../utils/smsConfigured.js";
 import { renderSms } from "../templates/sms/templates.js";
 
 export async function sendSms({ to, template, data, message }) {
   const text = message || (template ? renderSms(template, data || {}) : null);
   if (!text) throw new Error("SMS: message ou template requis");
+
+  // Interrupteur global (Render SMS_ENABLED=true) : en production, aucun SMS
+  // facturé ne part tant qu'il est éteint.
+  if (process.env.NODE_ENV === "production" && !smsActif()) {
+    return { sent: false, provider: "disabled" };
+  }
 
   // ── 1. Africa's Talking ───────────────────────────────────────────────────
   const { AT_USERNAME, AT_API_KEY, AT_SENDER_ID } = process.env;
