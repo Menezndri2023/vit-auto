@@ -142,7 +142,7 @@ const Register = () => {
       error(t("reg.fillRequired")); return;
     }
     if (!form.email.trim() && !(smsDispo && form.phone.trim())) {
-      error(smsDispo ? "Indiquez une adresse e-mail, ou à défaut un numéro de téléphone." : t("reg.fillRequired")); return;
+      error(smsDispo ? t("reg.emailOrPhone") : t("reg.fillRequired")); return;
     }
     if (form.password !== form.confirmPassword) {
       error(t("reg.pwdMismatch")); return;
@@ -179,7 +179,7 @@ const Register = () => {
       // terminée tant que le code reçu par email n'est pas confirmé — on ne
       // redirige jamais directement vers l'app depuis ce formulaire.
       if (result?.phoneVerificationCodeRequired) {
-        success(`Code envoyé par SMS au ${form.phone.trim()}.`);
+        success(t("reg.smsSentToast", { phone: form.phone.trim() }));
         setStep("sms");
       } else if (result?.emailVerificationCodeRequired) {
         success(t("reg.codeSentToast", { email: form.email.trim() }));
@@ -206,7 +206,7 @@ const Register = () => {
     try {
       if (step === "sms") {
         await verifyPhoneCode(emailCode.trim());
-        success("Numéro de téléphone confirmé.");
+        success(t("reg.phoneOk"));
         setTimeout(() => navigate(getDest()), 1000);
         return;
       }
@@ -276,7 +276,7 @@ const Register = () => {
         <div className={styles.card}>
           <div className={styles.logo}>
             <div className={styles.logoIcon}>{parSms ? "📱" : "✉️"}</div>
-            <h1>{parSms ? "Confirmez votre numéro" : t("reg.confirmEmail")}</h1>
+            <h1>{parSms ? t("reg.confirmPhone") : t("reg.confirmEmail")}</h1>
             <p>{t("reg.codeSentTo")} <strong>{parSms ? pendingPhoneDisplay : pendingEmailDisplay}</strong> {t("reg.codeValid")}</p>
           </div>
 
@@ -299,7 +299,7 @@ const Register = () => {
             </div>
 
             <button type="submit" className={styles.submitBtn} disabled={codeSubmitting || emailCode.length !== 6}>
-              {codeSubmitting ? t("reg.verifying") : parSms ? "Confirmer mon numéro" : t("reg.confirmMyEmail")}
+              {codeSubmitting ? t("reg.verifying") : parSms ? t("reg.confirmMyPhone") : t("reg.confirmMyEmail")}
             </button>
 
             <div className={styles.footerLink}>
@@ -455,7 +455,7 @@ const Register = () => {
 
             <div className={styles.field}>
               <label htmlFor="register-email">Adresse e-mail {smsDispo
-                ? <span style={{ color: "#94a3b8", fontWeight: 600 }}>(recommandée)</span>
+                ? <span style={{ color: "#94a3b8", fontWeight: 600 }}>{t("reg.emailRecommended")}</span>
                 : <span className={styles.requis}>*</span>}</label>
               <input
                 id="register-email"
@@ -467,11 +467,11 @@ const Register = () => {
                 placeholder={t("login.emailPh")}
                 required={!smsDispo}
               />
-              <p className={styles.hint}>{smsDispo ? "Sans adresse e-mail, votre numéro de téléphone sera confirmé par un code SMS." : t("reg.codeHint")}</p>
+              <p className={styles.hint}>{smsDispo ? t("reg.smsHint") : t("reg.codeHint")}</p>
             </div>
 
             <div className={styles.field}>
-              <label htmlFor="register-phone">{t("auth.phone")} <span style={{ color: "#94a3b8", fontWeight: 600 }}>{smsDispo && !form.email.trim() ? "(obligatoire sans e-mail)" : t("reg.optional")}</span></label>
+              <label htmlFor="register-phone">{t("auth.phone")} <span style={{ color: "#94a3b8", fontWeight: 600 }}>{smsDispo && !form.email.trim() ? t("reg.phoneRequiredNoEmail") : t("reg.optional")}</span></label>
               <input
                 id="register-phone"
                 type="tel"
