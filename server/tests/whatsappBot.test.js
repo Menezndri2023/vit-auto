@@ -17,7 +17,7 @@ vi.mock("../services/communication/CommunicationService.js", () => ({
   sendViaWhatsApp: mockSendViaWhatsApp,
 }));
 
-const { generateBotReply } = await import("../services/whatsappBotService.js");
+const { generateBotReply, _reinitialiserCompteurBot } = await import("../services/whatsappBotService.js");
 const {
   verifyWebhook, receiveWebhook,
   adminListConversations, adminGetConversation, adminReply, adminUpdateStatus,
@@ -53,6 +53,10 @@ beforeEach(() => {
   mockSendViaWhatsApp.mockResolvedValue({ sent: true, provider: "whatsapp_api", messageId: "wamid.test" });
   delete process.env.WHATSAPP_APP_SECRET;
   process.env.ANTHROPIC_API_KEY = "test-key";
+  delete process.env.WHATSAPP_BOT_MODEL;
+  delete process.env.WHATSAPP_BOT_MAX_PAR_NUMERO_24H;
+  delete process.env.WHATSAPP_BOT_MAX_PAR_JOUR;
+  _reinitialiserCompteurBot();
 });
 
 describe("generateBotReply", () => {
@@ -80,6 +84,50 @@ describe("generateBotReply", () => {
     expect(params.output_config.format.type).toBe("json_schema");
     expect(params.betas).toContain("server-side-fallback-2026-07-01");
     expect(params.fallbacks).toBe("default");
+  });
+
+  it("avec WHATSAPP_BOT_MODEL=claude-haiku-4-5, n'envoie ni effort ni repli (refusés par ce modèle)", async () => {
+    process.env.WHATSAPP_BOT_MODEL = "claude-haiku-4-5";
+    mockCreate.mockResolvedValueOnce(claudeJsonResponse("Bonjour", false, null));
+    await generateBotReply([{ role: "user", content: "Bonjour" }]);
+    const params = mockCreate.mock.calls[0][0];
+    expect(params.model).toBe("claude-haiku-4-5");
+    expect(params.output_config.effort).toBeUndefined();
+    expect(params.output_config.format.type).toBe("json_schema");
+    expect(params.fallbacks).toBeUndefined();
+    expect(params.betas).toBeUndefined();
+  });
+
+  it("n'envoie que les 10 derniers messages, tronqués, en commençant par le prospect", async () => {
+    mockCreate.mockResolvedValueOnce(claudeJsonResponse("ok", false, null));
+    const histo = Array.from({ length: 13 }, (_, i) => ({ role: i % 2 ? "assistant" : "user", content: "x".repeat(5000) }));
+    await generateBotReply(histo);
+    const { messages } = mockCreate.mock.calls[0][0];
+    expect(messages.length).toBeLessThanOrEqual(10);
+    expect(messages[0].role).toBe("user");
+    expect(messages.every((m) => m.content.length <= 1500)).toBe(true);
+  });
+
+  it("au-delà du plafond par numéro sur 24 h, n'appelle plus Claude et remet à un conseiller", async () => {
+    process.env.WHATSAPP_BOT_MAX_PAR_NUMERO_24H = "2";
+    const maintenant = new Date();
+    const histo = [
+      { role: "user", content: "a", timestamp: maintenant }, { role: "assistant", content: "b", timestamp: maintenant },
+      { role: "user", content: "c", timestamp: maintenant }, { role: "assistant", content: "d", timestamp: maintenant },
+      { role: "user", content: "e", timestamp: maintenant },
+    ];
+    const r = await generateBotReply(histo);
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ escalate: true, escalationReason: "plafond_par_numero" });
+  });
+
+  it("au-delà du plafond quotidien global, n'appelle plus Claude", async () => {
+    process.env.WHATSAPP_BOT_MAX_PAR_JOUR = "1";
+    mockCreate.mockResolvedValue(claudeJsonResponse("ok", false, null));
+    await generateBotReply([{ role: "user", content: "1" }]);
+    const r = await generateBotReply([{ role: "user", content: "2" }]);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(r.escalationReason).toBe("plafond_quotidien");
   });
 
   it("bascule en repli sûr si stop_reason=refusal", async () => {

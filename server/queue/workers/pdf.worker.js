@@ -14,7 +14,7 @@
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { captureException } from "../../config/sentry.js";
-import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
+import { QUEUE_NAMES, WORKER_CONCURRENCY, WORKER_OPTIONS_ECONOMES } from "../definitions.js";
 import { noteRedisError } from "../connection.js";
 
 // Bug réel corrigé (audit) : sendViaEmail() n'expose jamais ses échecs en
@@ -197,6 +197,7 @@ export function startPdfWorker(connection) {
     },
     {
       connection,
+      ...WORKER_OPTIONS_ECONOMES,
       concurrency: WORKER_CONCURRENCY[QUEUE_NAMES.PDF],
     }
   );

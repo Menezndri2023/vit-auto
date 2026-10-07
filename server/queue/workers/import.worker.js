@@ -12,7 +12,7 @@
 import { Worker } from "bullmq";
 import logger from "../../utils/logger.js";
 import { captureException } from "../../config/sentry.js";
-import { QUEUE_NAMES, WORKER_CONCURRENCY } from "../definitions.js";
+import { QUEUE_NAMES, WORKER_CONCURRENCY, WORKER_OPTIONS_ECONOMES } from "../definitions.js";
 import { noteRedisError } from "../connection.js";
 
 const IE_STEP_LABELS = {
@@ -135,6 +135,7 @@ export function startImportWorker(connection) {
     },
     {
       connection,
+      ...WORKER_OPTIONS_ECONOMES,
       concurrency: WORKER_CONCURRENCY[QUEUE_NAMES.IMPORT],
     }
   );

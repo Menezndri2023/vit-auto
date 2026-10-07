@@ -93,3 +93,14 @@ export const WORKER_CONCURRENCY = {
   [QUEUE_NAMES.AI]:            2,
   [QUEUE_NAMES.PARTNER_FEED]:  2,
 };
+
+// Upstash facture chaque commande Redis. Par défaut BullMQ interroge une file
+// vide toutes les 5 s et cherche les tâches bloquées toutes les 30 s, pour 9
+// files : des centaines de milliers de commandes par jour au repos. Une tâche
+// ajoutée réveille la file immédiatement (attente bloquante) : allonger ces
+// intervalles ne retarde aucun envoi, seulement la reprise d'une tâche dont le
+// serveur serait mort en cours de route (5 min au lieu de 30 s).
+export const WORKER_OPTIONS_ECONOMES = {
+  drainDelay:      30,      // secondes d'attente bloquante sur file vide
+  stalledInterval: 300_000, // ms entre deux recherches de tâches bloquées
+};

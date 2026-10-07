@@ -11,8 +11,23 @@ import Anthropic from "@anthropic-ai/sdk";
 import logger from "../utils/logger.js";
 import { captureException } from "../config/sentry.js";
 
-const MODEL = "claude-opus-5";
-const MAX_HISTORY_MESSAGES = 20; // fenêtre de contexte envoyée à Claude (les plus récents)
+// Modèle réglable sans redéploiement (variable Render WHATSAPP_BOT_MODEL) :
+// claude-haiku-4-5 coûte environ 5 fois moins cher que claude-opus-5.
+const modele = () => (process.env.WHATSAPP_BOT_MODEL || "claude-opus-5").trim();
+const MAX_HISTORY_MESSAGES = 10; // fenêtre de contexte envoyée à Claude (les plus récents)
+const MAX_CARACTERES_MESSAGE = 1500; // un pavé collé ne doit pas coûter un roman
+
+// Plafonds de dépense : au-delà, réponse d'attente sans appel à Claude et
+// conversation remise à un conseiller (le bot ne reprend plus la main).
+const plafond = (nom, defaut) => {
+  const n = parseInt(process.env[nom], 10);
+  return Number.isFinite(n) && n >= 0 ? n : defaut;
+};
+const PLAFOND_PAR_NUMERO_24H = () => plafond("WHATSAPP_BOT_MAX_PAR_NUMERO_24H", 15);
+const PLAFOND_GLOBAL_JOUR    = () => plafond("WHATSAPP_BOT_MAX_PAR_JOUR", 200);
+// Compteur global en mémoire (un seul serveur Render) ; remis à zéro chaque jour.
+const appelsDuJour = { jour: "", n: 0 };
+export function _reinitialiserCompteurBot() { appelsDuJour.jour = ""; appelsDuJour.n = 0; }
 
 // Faits vérifiés sur le programme partenaire VIT AUTO — le modèle ne doit
 // jamais inventer un chiffre ou une règle absente d'ici : mieux vaut escalader
@@ -46,37 +61,53 @@ function getClient() {
  * @param {{role: "user"|"assistant"|"admin", content: string}[]} messages
  * @returns {Promise<{reply: string, escalate: boolean, escalationReason: string|null}>}
  */
+const REPONSE_ATTENTE = "Merci pour votre message — un conseiller VIT AUTO va vous répondre dès que possible.";
+
 export async function generateBotReply(messages) {
   const client = getClient();
   if (!client) {
     logger.warn("[WhatsAppBot] ANTHROPIC_API_KEY absente — bot désactivé");
-    return {
-      reply: "Merci pour votre message — un conseiller VIT AUTO va vous répondre dès que possible.",
-      escalate: true,
-      escalationReason: "bot_non_configure",
-    };
+    return { reply: REPONSE_ATTENTE, escalate: true, escalationReason: "bot_non_configure" };
   }
+
+  const depuis = Date.now() - 24 * 3600 * 1000;
+  const reponsesBot24h = messages.filter((m) => m.role === "assistant" && new Date(m.timestamp || 0).getTime() >= depuis).length;
+  if (reponsesBot24h >= PLAFOND_PAR_NUMERO_24H()) {
+    logger.warn("[WhatsAppBot] Plafond par numéro atteint — conversation remise à un conseiller");
+    return { reply: REPONSE_ATTENTE, escalate: true, escalationReason: "plafond_par_numero" };
+  }
+  const jour = new Date().toISOString().slice(0, 10);
+  if (appelsDuJour.jour !== jour) { appelsDuJour.jour = jour; appelsDuJour.n = 0; }
+  if (appelsDuJour.n >= PLAFOND_GLOBAL_JOUR()) {
+    logger.warn("[WhatsAppBot] Plafond quotidien global atteint — conversation remise à un conseiller");
+    return { reply: REPONSE_ATTENTE, escalate: true, escalationReason: "plafond_quotidien" };
+  }
+  appelsDuJour.n += 1;
 
   // admin -> assistant pour l'API (Claude ne connaît que user/assistant) ;
   // le rôle "admin" n'existe que côté stockage pour distinguer une réponse
   // humaine d'une réponse du bot dans l'historique affiché en admin.
   const apiMessages = messages
     .slice(-MAX_HISTORY_MESSAGES)
-    .map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.content }));
+    .map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: String(m.content).slice(0, MAX_CARACTERES_MESSAGE) }));
+  // La fenêtre peut commencer par une réponse : l'API exige un premier message « user ».
+  while (apiMessages.length && apiMessages[0].role !== "user") apiMessages.shift();
+  const model = modele();
+  // Haiku ne connaît ni le niveau d'effort ni le repli serveur.
+  const famillePremium = /^claude-(opus|fable|sonnet)-/.test(model);
 
   try {
     // Réflexion active par défaut sur ce modèle : effort bas (réponse de chat
     // courte) et marge de jetons pour que le JSON ne soit jamais tronqué.
     // En cas de refus, l'API rejoue la requête sur un modèle de repli.
     const response = await client.beta.messages.create({
-      model: MODEL,
-      max_tokens: 4096,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
+      model,
+      max_tokens: famillePremium ? 4096 : 1024,
+      ...(/^claude-(opus-5|fable-5)/.test(model) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" } : {}),
       system: SYSTEM_PROMPT,
       messages: apiMessages,
       output_config: {
-        effort: "low",
+        ...(famillePremium ? { effort: "low" } : {}),
         format: {
           type: "json_schema",
           schema: {
