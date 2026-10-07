@@ -7859,6 +7859,26 @@ export default function AdminPanel() {
                   );
                 })}
               </div>
+              {systemHealth.integrations && (
+                <div style={{ marginTop: "1.5rem" }}>
+                  <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f1b3f", margin: "0 0 4px" }}>🔌 Intégrations configurées en production</h3>
+                  <p style={{ margin: "0 0 .75rem", fontSize: ".8rem", color: "#64748b" }}>Seuls les noms des variables manquantes sont affichés, jamais leurs valeurs. À compléter dans les variables d'environnement Render.</p>
+                  <div style={{ overflowX: "auto" }}>
+                    <table className={styles.table} style={{ width: "100%", fontSize: ".82rem" }}>
+                      <thead><tr><th>Intégration</th><th>État</th><th>Variables manquantes</th></tr></thead>
+                      <tbody>
+                        {Object.entries(systemHealth.integrations).map(([nom, { etat, manquantes }]) => (
+                          <tr key={nom}>
+                            <td>{nom}</td>
+                            <td style={{ fontWeight: 700, color: etat === "configuré" ? "#059669" : etat === "incomplet" ? "#d97706" : "#94a3b8" }}>{etat}</td>
+                            <td style={{ fontFamily: "monospace", fontSize: ".75rem", overflowWrap: "anywhere" }}>{manquantes.join(", ") || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </>
           )}
           <MaintenanceSection headers={headers} />

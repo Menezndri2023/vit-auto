@@ -8,7 +8,7 @@ const mockCreate = vi.fn();
 vi.mock("@anthropic-ai/sdk", () => ({
   // Doit être une "function" (pas une flèche) : le service instancie avec `new`.
   default: vi.fn().mockImplementation(function AnthropicMock() {
-    return { messages: { create: mockCreate } };
+    return { messages: { create: mockCreate }, beta: { messages: { create: mockCreate } } };
   }),
 }));
 
@@ -68,6 +68,18 @@ describe("generateBotReply", () => {
     const result = await generateBotReply([{ role: "user", content: "C'est quoi le programme partenaire ?" }]);
     expect(result.reply).toMatch(/Founding Partner/);
     expect(result.escalate).toBe(false);
+  });
+
+  it("interroge un modèle courant avec un budget qui laisse place à la réflexion", async () => {
+    mockCreate.mockResolvedValueOnce(claudeJsonResponse("Bonjour", false, null));
+    await generateBotReply([{ role: "user", content: "Bonjour" }]);
+    const params = mockCreate.mock.calls[0][0];
+    expect(params.model).toBe("claude-opus-5");
+    expect(params.max_tokens).toBeGreaterThanOrEqual(4096);
+    expect(params.output_config.effort).toBe("low");
+    expect(params.output_config.format.type).toBe("json_schema");
+    expect(params.betas).toContain("server-side-fallback-2026-07-01");
+    expect(params.fallbacks).toBe("default");
   });
 
   it("bascule en repli sûr si stop_reason=refusal", async () => {

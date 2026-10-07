@@ -65,6 +65,7 @@ import * as commWebhookController from "./controllers/commWebhookController.js";
 import pricingRoutes          from "./routes/pricing.js";
 import businessConfigRoutes   from "./routes/businessConfig.js";
 import maintenanceRoutes      from "./routes/maintenance.js";
+import { inventaireIntegrations } from "./utils/inventaireIntegrations.js";
 import siteContentRoutes      from "./routes/siteContent.js";
 import driverEmploymentRoutes from "./routes/driverEmployment.js";
 import serviceInvoiceRoutes   from "./routes/serviceInvoices.js";
@@ -435,6 +436,10 @@ app.get("/api/health", async (req, res) => {
           : "invalid_format",
       adminAlertEmail: process.env.ADMIN_ALERT_EMAIL ? "configured" : "disabled",
     },
+    // Inventaire complet des intégrations (2026-10-07) : « configuré » ou
+    // « manquant », JAMAIS la valeur. Sert de liste de contrôle quand on
+    // branche un fournisseur (Meta, paiements, SMS…) — voir docs/maintenance.md.
+    integrations: inventaireIntegrations(process.env),
     memory:    {
       used:  Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + "MB",
       total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + "MB",

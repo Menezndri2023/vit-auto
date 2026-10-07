@@ -9,7 +9,19 @@ const OUTBOUND_TIMEOUT_MS = 15_000;
 
 // ── WhatsApp Business API (Meta) ──────────────────────────────────────────────
 // Docs: https://developers.facebook.com/docs/whatsapp/cloud-api
-// Nécessite: WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_BUSINESS_ID
+// Nécessite: WHATSAPP_TOKEN, WHATSAPP_PHONE_ID (WHATSAPP_GRAPH_VERSION facultatif)
+//
+// Version de la Graph API : figée en dur sur v18.0 (2023) jusqu'au 2026-10-07 —
+// Meta retire chaque version environ deux ans après sa sortie. Réglable par
+// WHATSAPP_GRAPH_VERSION (celle affichée dans le tableau de bord de l'app Meta).
+const graphVersion = () => (process.env.WHATSAPP_GRAPH_VERSION || "v23.0").trim();
+
+// Meta attend l'indicatif pays et des chiffres seulement (« 2250701020304 »).
+// On retire espaces, tirets, points, parenthèses, « + » et le préfixe « 00 ».
+export function numeroWhatsApp(brut) {
+  const chiffres = String(brut || "").replace(/\D/g, "");
+  return chiffres.startsWith("00") ? chiffres.slice(2) : chiffres;
+}
 
 export async function sendWhatsApp({ to, template, components = [], language = "fr", text }) {
   const token   = process.env.WHATSAPP_TOKEN;
@@ -27,7 +39,7 @@ export async function sendWhatsApp({ to, template, components = [], language = "
     if (template) {
       body = {
         messaging_product: "whatsapp",
-        to:   to.replace(/\+/g, "").replace(/\s/g, ""),
+        to:   numeroWhatsApp(to),
         type: "template",
         template: {
           name: template,
@@ -38,7 +50,7 @@ export async function sendWhatsApp({ to, template, components = [], language = "
     } else if (text) {
       body = {
         messaging_product: "whatsapp",
-        to:   to.replace(/\+/g, "").replace(/\s/g, ""),
+        to:   numeroWhatsApp(to),
         type: "text",
         text: { body: text, preview_url: false },
       };
@@ -46,7 +58,7 @@ export async function sendWhatsApp({ to, template, components = [], language = "
       throw new Error("WhatsApp: template ou text requis");
     }
 
-    const res = await fetch(`https://graph.facebook.com/v18.0/${phoneId}/messages`, {
+    const res = await fetch(`https://graph.facebook.com/${graphVersion()}/${phoneId}/messages`, {
       method:  "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body:    JSON.stringify(body),

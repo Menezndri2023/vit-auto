@@ -11,7 +11,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import logger from "../utils/logger.js";
 import { captureException } from "../config/sentry.js";
 
-const MODEL = "claude-opus-4-8";
+const MODEL = "claude-opus-5";
 const MAX_HISTORY_MESSAGES = 20; // fenêtre de contexte envoyée à Claude (les plus récents)
 
 // Faits vérifiés sur le programme partenaire VIT AUTO — le modèle ne doit
@@ -65,12 +65,18 @@ export async function generateBotReply(messages) {
     .map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.content }));
 
   try {
-    const response = await client.messages.create({
+    // Réflexion active par défaut sur ce modèle : effort bas (réponse de chat
+    // courte) et marge de jetons pour que le JSON ne soit jamais tronqué.
+    // En cas de refus, l'API rejoue la requête sur un modèle de repli.
+    const response = await client.beta.messages.create({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: 4096,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
       system: SYSTEM_PROMPT,
       messages: apiMessages,
       output_config: {
+        effort: "low",
         format: {
           type: "json_schema",
           schema: {
