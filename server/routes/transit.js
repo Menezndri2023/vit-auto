@@ -27,5 +27,6 @@ router.get  ("/dossiers/:id",              authenticate, prestataire, vid, t.lir
 router.post ("/dossiers/:id/etape",        authenticate, prestataire, vid, t.avancerEtapeTransit);
 router.post ("/dossiers/:id/documents/:code", authenticate, prestataire, vid, t.deposerDocumentTransit);
 router.patch("/dossiers/:id/expedition",   authenticate, prestataire, vid, t.majExpeditionTransit);
+router.post ("/dossiers/:id/inspection",   authenticate, prestataire, vid, t.rendreRapportInspection);
 
 export default router;

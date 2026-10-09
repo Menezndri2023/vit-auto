@@ -128,3 +128,67 @@ export function documentsPour(destination) {
     .filter((d) => !d.pays || d.pays.includes(destination))
     .map((d) => ({ code: d.code, libelle: d.libelle, statut: "a_fournir" }));
 }
+
+// ── Étape 3 (2026-10-09) : inspection indépendante, assurance, financement ──
+// Tarifs à l'unité affichés sur la page Import/Export (« Services
+// additionnels »). L'inspection est faite par un inspecteur de la zone Transit,
+// jamais par l'exportateur qui vend le véhicule. Les packs Gold et Platinum
+// incluent l'inspection premium, Executive l'expertise complète.
+export const FORMULES_INSPECTION = {
+  standard:  { libelle: "Inspection standard", prix: 90 },
+  premium:   { libelle: "Inspection premium",  prix: 220 },
+  expertise: { libelle: "Expertise complète",  prix: 490 },
+};
+const RANG_FORMULE = { standard: 1, premium: 2, expertise: 3 };
+const FORMULE_INCLUSE = { Gold: "premium", Platinum: "premium", Executive: "expertise" };
+// Prix à facturer pour une formule, compte tenu du pack du dossier.
+export function prixInspection(formule, pack) {
+  const f = FORMULES_INSPECTION[formule];
+  if (!f) return null;
+  const incluse = FORMULE_INCLUSE[pack];
+  return incluse && RANG_FORMULE[incluse] >= RANG_FORMULE[formule] ? 0 : f.prix;
+}
+export const RUBRIQUES_INSPECTION = [
+  { code: "documents",    libelle: "Documents et numéro de châssis (VIN)" },
+  { code: "carrosserie",  libelle: "Carrosserie et peinture" },
+  { code: "chassis",      libelle: "Châssis, soubassement, corrosion" },
+  { code: "moteur",       libelle: "Moteur" },
+  { code: "transmission", libelle: "Boîte et transmission" },
+  { code: "freins",       libelle: "Freinage" },
+  { code: "pneus",        libelle: "Pneus et trains roulants" },
+  { code: "interieur",    libelle: "Intérieur" },
+  { code: "electronique", libelle: "Électronique et voyants" },
+  { code: "essai",        libelle: "Essai routier" },
+];
+export const ETATS_RUBRIQUE = ["bon", "moyen", "mauvais", "non_verifie"];
+export const VERDICTS_INSPECTION = ["conforme", "reserves", "non_conforme"];
+// Étapes interdites tant qu'une inspection a conclu « non conforme » : on ne
+// paie pas et on n'embarque pas un véhicule refusé par l'inspecteur.
+export const ETAPES_BLOQUEES_SI_NON_CONFORME = CODES_ETAPES.slice(rangEtape("paiement_sequestre"));
+
+// Assurance transport (garanties de l'Institute Cargo Clauses) : la prime
+// indicative est calculée sur 110 % de la valeur, usage du marché ; l'admin
+// propose ensuite la prime réelle obtenue de l'assureur.
+export const GARANTIES_ASSURANCE = {
+  tous_risques: { libelle: "Tous risques (ICC A)", taux: 0.012 },
+  fap:          { libelle: "Risques majeurs seulement (ICC C)", taux: 0.006 },
+};
+export const PRIME_MINIMALE = 50;
+export function primeIndicative(valeur, garantie) {
+  const g = GARANTIES_ASSURANCE[garantie];
+  const v = Number(valeur);
+  if (!g || !Number.isFinite(v) || v <= 0) return null;
+  return Math.max(PRIME_MINIMALE, Math.round(v * 1.1 * g.taux));
+}
+
+// Financement : étudié par VIT AUTO avec un organisme partenaire, frais de
+// dossier de 110 à 2 200 $ (page Import/Export).
+export const DUREES_FINANCEMENT = [12, 24, 36, 48, 60, 72, 84];
+export const SITUATIONS_PRO = ["salarie", "fonctionnaire", "independant", "entreprise", "autre"];
+// Mensualité d'un prêt amortissable à taux fixe.
+export function mensualite(capital, tauxAnnuelPourcent, dureeMois) {
+  const c = Number(capital), n = Number(dureeMois), t = Number(tauxAnnuelPourcent) / 100 / 12;
+  if (!(c > 0) || !(n > 0) || !Number.isFinite(t) || t < 0) return null;
+  const m = t === 0 ? c / n : (c * t) / (1 - Math.pow(1 + t, -n));
+  return Math.round(m * 100) / 100;
+}

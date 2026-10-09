@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ETAPES, rangEtape, libelleEtape, nomPays, STATUTS_DOCUMENT, STATUTS_PACK } from "../constants/dossierImport";
 import styles from "./MesImportations.module.css";
+import OptionsDossierClient from "./MesImportationsOptions";
 
 // Suivi des importations (2026-10-07) : chaque demande d'accompagnement ou
 // achat d'une annonce export devient un dossier suivi par un conseiller VIT
@@ -183,6 +184,8 @@ function Detail({ id }) {
           </table>
         </section>
       )}
+
+      <OptionsDossierClient dossier={dossier} api={api} onDossier={setDossier} />
 
       <section className={styles.bloc}>
         <h2>Documents</h2>

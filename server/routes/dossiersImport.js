@@ -12,6 +12,11 @@ const ieScope = requireAdminScope("import_export");
 router.get ("/mes",                      authenticate,                         d.mesDossiers);
 router.get ("/referentiel",              authenticate,                         d.referentiel);
 router.post("/:id/pack/declarer",        authenticate, vid,                    d.declarerReglementPack);
+router.post("/:id/inspection/demander",  authenticate, vid,                    d.demanderInspection);
+router.post("/:id/assurance/demander",   authenticate, vid,                    d.demanderAssurance);
+router.post("/:id/assurance/accepter",   authenticate, vid,                    d.accepterAssurance);
+router.post("/:id/financement/demander", authenticate, vid,                    d.demanderFinancement);
+router.post("/:id/financement/annuler",  authenticate, vid,                    d.annulerFinancement);
 
 // Admin
 router.get  ("/",                        authenticate, authorizeAdmin, ieScope,      d.listerDossiers);
@@ -21,6 +26,9 @@ router.post ("/:id/etape",               authenticate, authorizeAdmin, ieScope, 
 router.patch("/:id/pack",                authenticate, authorizeAdmin, ieScope, vid, d.confirmerPack);
 router.post ("/:id/documents/:code",     authenticate, authorizeAdmin, ieScope, vid, d.deposerDocument);
 router.post ("/:id/notes",               authenticate, authorizeAdmin, ieScope, vid, d.ajouterNote);
+router.patch("/:id/inspection",          authenticate, authorizeAdmin, ieScope, vid, d.piloterInspection);
+router.patch("/:id/assurance",           authenticate, authorizeAdmin, ieScope, vid, d.piloterAssurance);
+router.patch("/:id/financement",         authenticate, authorizeAdmin, ieScope, vid, d.piloterFinancement);
 router.post ("/:id/annuler",             authenticate, authorizeAdmin, ieScope, vid, d.annulerDossier);
 
 export default router;

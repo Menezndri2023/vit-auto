@@ -13,7 +13,8 @@ import { QUEUE_NAMES } from "../queue/definitions.js";
 import { stripeProvider } from "../services/payment/gateway.js";
 import { resolveCommissionRate } from "../services/pricingEngine.js";
 import { computeImportCostForListing, ventilerDevis } from "../services/importCostEngine.js";
-import { creerDossierDepuisTransaction } from "../services/dossierImportService.js";
+import { creerDossierDepuisTransaction, MESSAGE_NON_CONFORME } from "../services/dossierImportService.js";
+import DossierImport from "../models/DossierImport.js";
 import { captureException } from "../config/sentry.js";
 import { generateGenericReceiptPDF } from "../utils/pdfGenerator.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
@@ -1261,6 +1262,11 @@ export const releaseFunds = async (req, res) => {
     if (!existing) return res.status(404).json({ message: "Transaction introuvable, statut incompatible ou fonds déjà libérés." });
     if (existing.status !== "delivered" && existing.documents?.billOfLading?.status !== "valide") {
       return res.status(400).json({ message: "Validez d'abord le connaissement (B/L) : l'exportateur est payé à l'embarquement." });
+    }
+    // Étape 3 : jamais de versement sur un véhicule que l'inspecteur a refusé.
+    const dossierLie = await DossierImport.findOne({ "source.transaction": existing._id }).select("inspection.verdict").lean();
+    if (dossierLie?.inspection?.verdict === "non_conforme") {
+      return res.status(409).json({ message: MESSAGE_NON_CONFORME });
     }
 
     const { rate, amount, payoutAmount } = await computeIeCommission(existing);

@@ -1,5 +1,8 @@
 import mongoose from "mongoose";
-import { CODES_ETAPES, CODES_DOCUMENTS } from "../constants/dossierImport.js";
+import {
+  CODES_ETAPES, CODES_DOCUMENTS, RUBRIQUES_INSPECTION, ETATS_RUBRIQUE, VERDICTS_INSPECTION,
+  GARANTIES_ASSURANCE, SITUATIONS_PRO,
+} from "../constants/dossierImport.js";
 
 // Dossier d'import (2026-10-07) — l'import est un service VIT AUTO suivi par un
 // conseiller : chaque demande d'accompagnement ou achat d'une annonce export
@@ -63,7 +66,7 @@ const dossierImportSchema = new mongoose.Schema({
 
   // Devis VIT AUTO : lignes libres (véhicule, transport, douane, frais…).
   devis: {
-    lignes:   [{ libelle: { type: String, required: true }, montant: { type: Number, required: true } }],
+    lignes:   [{ libelle: { type: String, required: true }, montant: { type: Number, required: true }, cle: { type: String, default: null } }],
     total:    { type: Number, default: null },
     devise:   { type: String, default: "USD" },
     envoyeLe: { type: Date, default: null },
@@ -93,6 +96,68 @@ const dossierImportSchema = new mongoose.Schema({
     mode:           { type: String, enum: ["roro", "conteneur", null], default: null },
     departLe:       { type: Date, default: null },
     arriveePrevueLe: { type: Date, default: null },
+  },
+
+  // ── Étape 3 (2026-10-09) ─────────────────────────────────────────────────
+  // Inspection avant départ par un inspecteur de la zone Transit — jamais
+  // l'exportateur qui vend. Un verdict « non conforme » bloque le paiement et
+  // l'embarquement (constants/dossierImport.js).
+  inspection: {
+    statut:      { type: String, enum: ["non_demandee", "demandee", "realisee"], default: "non_demandee" },
+    formule:     { type: String, enum: ["standard", "premium", "expertise", null], default: null },
+    prix:        { type: Number, default: null },     // 0 si incluse dans le pack
+    inspecteur:  { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    demandeeLe:  { type: Date, default: null },
+    realiseeLe:  { type: Date, default: null },
+    lieu:        { type: String, default: null },
+    kilometrage: { type: Number, default: null },
+    vinConforme: { type: Boolean, default: null },
+    points: [{
+      rubrique: { type: String, enum: RUBRIQUES_INSPECTION.map((r) => r.code), required: true },
+      etat:     { type: String, enum: ETATS_RUBRIQUE, default: "non_verifie" },
+      note:     { type: String, trim: true, maxlength: 500, default: "" },
+      _id: false,
+    }],
+    synthese:    { type: String, trim: true, maxlength: 3000, default: "" },
+    verdict:     { type: String, enum: [...VERDICTS_INSPECTION, null], default: null },
+  },
+
+  // Assurance du transport : le client la demande, VIT AUTO propose la prime
+  // de l'assureur, le client l'accepte (ligne ajoutée au devis), VIT AUTO
+  // confirme la souscription avec le numéro de police.
+  assurance: {
+    statut:        { type: String, enum: ["non_demandee", "demandee", "proposee", "acceptee", "souscrite", "refusee"], default: "non_demandee" },
+    garantie:      { type: String, enum: [...Object.keys(GARANTIES_ASSURANCE), null], default: null },
+    valeurAssuree: { type: Number, default: null },
+    prime:         { type: Number, default: null },
+    devise:        { type: String, default: "USD" },
+    assureur:      { type: String, default: null },
+    numeroPolice:  { type: String, default: null },
+    note:          { type: String, trim: true, maxlength: 1000, default: "" },
+    demandeeLe:    { type: Date, default: null },
+    proposeeLe:    { type: Date, default: null },
+    accepteeLe:    { type: Date, default: null },
+    souscriteLe:   { type: Date, default: null },
+  },
+
+  // Financement : étudié par VIT AUTO avec un organisme partenaire (aucune
+  // banque raccordée) ; la mensualité est calculée sur l'offre retenue.
+  financement: {
+    statut:          { type: String, enum: ["non_demande", "demande", "en_etude", "accorde", "refuse", "annule"], default: "non_demande" },
+    montantDemande:  { type: Number, default: null },
+    apport:          { type: Number, default: null },
+    dureeMois:       { type: Number, default: null },
+    revenusMensuels: { type: Number, default: null },
+    situationPro:    { type: String, enum: [...SITUATIONS_PRO, null], default: null },
+    devise:          { type: String, default: "USD" },
+    organisme:       { type: String, default: null },
+    montantAccorde:  { type: Number, default: null },
+    tauxAnnuel:      { type: Number, default: null },
+    mensualite:      { type: Number, default: null },
+    fraisDossier:    { type: Number, default: null },
+    note:            { type: String, trim: true, maxlength: 1000, default: "" },   // visible du client
+    demandeLe:       { type: Date, default: null },
+    decideLe:        { type: Date, default: null },
   },
 
   notesInternes: [{

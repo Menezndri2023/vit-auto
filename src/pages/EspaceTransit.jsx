@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useParams, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { ETAPES, rangEtape, libelleEtape, nomPays, STATUTS_DOCUMENT } from "../constants/dossierImport";
+import { ETAPES, rangEtape, libelleEtape, nomPays, STATUTS_DOCUMENT, FORMULES_INSPECTION, RUBRIQUES_INSPECTION, ETATS_RUBRIQUE, VERDICTS } from "../constants/dossierImport";
 import styles from "./MesImportations.module.css";
 
 // Espace des prestataires de la zone Transit (2026-10-07) : les dossiers
@@ -49,8 +49,76 @@ function Liste() {
   );
 }
 
+// Rapport de l'inspecteur affecté (étape 3, 2026-10-09) : une fois rendu, il
+// n'est plus modifiable ; un verdict « non conforme » bloque le dossier.
+function RapportInspection({ id, dossier, api, onDossier }) {
+  const insp = dossier.inspection || {};
+  const [r, setR] = useState({ lieu: "", kilometrage: "", vinConforme: "oui", synthese: "", verdict: "" });
+  const [points, setPoints] = useState(() => Object.fromEntries(RUBRIQUES_INSPECTION.map((x) => [x.code, { etat: "non_verifie", note: "" }])));
+  const [erreur, setErreur] = useState("");
+  const [occupe, setOccupe] = useState(false);
+  const champ = { display: "block", width: "100%", minHeight: 44, borderRadius: 10, border: "1px solid #cbd5e1", padding: "0 10px", fontSize: 16, boxSizing: "border-box" };
+
+  if (insp.statut === "realisee") {
+    return (
+      <section className={styles.bloc}>
+        <h2>Votre rapport d'inspection</h2>
+        <p><strong style={{ color: VERDICTS[insp.verdict]?.couleur }}>{VERDICTS[insp.verdict]?.libelle}</strong> — le {fmtDate(insp.realiseeLe)}</p>
+        <p>{insp.synthese}</p>
+      </section>
+    );
+  }
+  const envoyer = async (e) => {
+    e.preventDefault();
+    if (r.verdict === "non_conforme" && !window.confirm("Confirmer « non conforme » ? Le paiement et l'embarquement seront bloqués.")) return;
+    setOccupe(true); setErreur("");
+    try {
+      const corps = {
+        ...r, kilometrage: r.kilometrage === "" ? null : Number(r.kilometrage), vinConforme: r.vinConforme === "oui",
+        points: Object.entries(points).map(([rubrique, v]) => ({ rubrique, ...v })),
+      };
+      const c = await api(`/api/transit/dossiers/${id}/inspection`, { method: "POST", body: JSON.stringify(corps) });
+      onDossier(c.dossier);
+    } catch (err) { setErreur(err.message); } finally { setOccupe(false); }
+  };
+  return (
+    <section className={styles.bloc}>
+      <h2>🛠️ Rapport d'inspection — {FORMULES_INSPECTION[insp.formule]?.libelle || "inspection"}</h2>
+      <p className={styles.aide}>Vous inspectez pour le compte de l'acheteur, en toute indépendance du vendeur. Joignez aussi le rapport complet et les photos dans « Documents » (Rapport d'inspection avant départ).</p>
+      {erreur && <p className={styles.erreur}>{erreur}</p>}
+      <form onSubmit={envoyer} style={{ display: "grid", gap: 12 }}>
+        <label className={styles.aide}>Lieu de l'inspection<input value={r.lieu} onChange={(e) => setR({ ...r, lieu: e.target.value })} style={champ} /></label>
+        <label className={styles.aide}>Kilométrage relevé<input type="number" inputMode="numeric" min="0" value={r.kilometrage} onChange={(e) => setR({ ...r, kilometrage: e.target.value })} style={champ} /></label>
+        <label className={styles.aide}>Le numéro de châssis (VIN) correspond aux documents
+          <select value={r.vinConforme} onChange={(e) => setR({ ...r, vinConforme: e.target.value })} style={champ}><option value="oui">Oui</option><option value="non">Non</option></select>
+        </label>
+        {RUBRIQUES_INSPECTION.map((x) => (
+          <div key={x.code} style={{ display: "grid", gap: 6, gridTemplateColumns: "minmax(0,1fr)" }}>
+            <span className={styles.aide}><strong>{x.libelle}</strong></span>
+            <select value={points[x.code].etat} aria-label={x.libelle} onChange={(e) => setPoints({ ...points, [x.code]: { ...points[x.code], etat: e.target.value } })} style={champ}>
+              {Object.entries(ETATS_RUBRIQUE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <input value={points[x.code].note} aria-label={`Remarque — ${x.libelle}`} placeholder="Remarque (facultatif)" onChange={(e) => setPoints({ ...points, [x.code]: { ...points[x.code], note: e.target.value } })} style={champ} />
+          </div>
+        ))}
+        <label className={styles.aide}>Synthèse pour l'acheteur
+          <textarea value={r.synthese} onChange={(e) => setR({ ...r, synthese: e.target.value })} rows={5} required minLength={20} style={{ ...champ, minHeight: 120, padding: 10 }} />
+        </label>
+        <label className={styles.aide}>Verdict
+          <select value={r.verdict} onChange={(e) => setR({ ...r, verdict: e.target.value })} required style={champ}>
+            <option value="">Choisir…</option>
+            {Object.entries(VERDICTS).map(([k, v]) => <option key={k} value={k}>{v.libelle}</option>)}
+          </select>
+        </label>
+        <button type="submit" className={styles.bouton} disabled={occupe}>{occupe ? "Envoi…" : "Rendre le rapport"}</button>
+      </form>
+    </section>
+  );
+}
+
 function Detail({ id }) {
   const api = useApi();
+  const { user } = useAuth();
   const [d, setD] = useState(null);
   const [etapesPermises, setEtapesPermises] = useState([]);
   const [docsPermis, setDocsPermis] = useState([]);
@@ -85,6 +153,10 @@ function Detail({ id }) {
       </div>
       <div className={styles.encart}>👤 Client : <strong>{d.client?.firstName} {d.client?.lastName}</strong>{d.client?.phone ? ` — ${d.client.phone}` : ""}</div>
       {erreur && <p className={styles.erreur}>{erreur}</p>}
+
+      {d.inspection?.inspecteur && String(d.inspection.inspecteur) === String(user?.id || user?._id) && d.inspection.statut !== "non_demandee" && (
+        <RapportInspection id={id} dossier={d} api={api} onDossier={setD} />
+      )}
 
       <section className={styles.bloc}>
         <h2>Étape actuelle : {libelleEtape(d.etape)}</h2>

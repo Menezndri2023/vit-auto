@@ -2,13 +2,28 @@ import DossierImport from "../models/DossierImport.js";
 import Notification from "../models/Notification.js";
 import logger from "../utils/logger.js";
 import { prochainNumero, formatReference } from "../utils/sequence.js";
-import { PACKS, codePays, documentsPour, libelleEtape, rangEtape } from "../constants/dossierImport.js";
+import { PACKS, codePays, documentsPour, libelleEtape, rangEtape, ETAPES_BLOQUEES_SI_NON_CONFORME } from "../constants/dossierImport.js";
 
 async function genererReference() {
   const annee = new Date().getFullYear();
   const numero = await prochainNumero(`dossierImport:${annee}`, () =>
     DossierImport.countDocuments({ reference: { $regex: new RegExp(`^VA-IMP-${annee}-`) } }));
   return formatReference("VA-IMP", annee, numero);
+}
+
+// ── Étape 3 : règles partagées (admin, zone Transit, séquestre) ────────────
+export const MESSAGE_NON_CONFORME = "L'inspection a conclu que le véhicule n'est pas conforme : ni paiement ni embarquement tant qu'une nouvelle inspection ne l'a pas validé.";
+export const bloqueParInspection = (dossier, etape) =>
+  dossier?.inspection?.verdict === "non_conforme" && ETAPES_BLOQUEES_SI_NON_CONFORME.includes(etape);
+
+// Lignes du devis ajoutées par le système (inspection, assurance) : repérées
+// par leur clé pour être remplacées, jamais doublées.
+export const CLES_DEVIS = ["inspection", "assurance"];
+export function poserLigneDevis(dossier, cle, libelle, montant) {
+  const lignes = (dossier.devis.lignes || []).filter((l) => l.cle !== cle);
+  if (montant != null) lignes.push({ libelle, montant: Math.round(Number(montant) * 100) / 100, cle });
+  dossier.devis.lignes = lignes;
+  dossier.devis.total = Math.round(lignes.reduce((s, l) => s + (Number(l.montant) || 0), 0) * 100) / 100;
 }
 
 const lienDossier = (dossier) => `/mes-importations/${dossier._id}`;

@@ -5,9 +5,12 @@ import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { deposerPiece } from "../utils/deposerPiece.js";
 import { FOLDERS } from "../config/imagekit.js";
-import { avancerDossier, prevenirClient } from "../services/dossierImportService.js";
+import { avancerDossier, prevenirClient, bloqueParInspection, MESSAGE_NON_CONFORME, CLES_DEVIS, poserLigneDevis } from "../services/dossierImportService.js";
+import Prestataire from "../models/Prestataire.js";
 import {
   CODES_ETAPES, CODES_DOCUMENTS, PACKS, codesOrigines, codesDestinations, PORTS, libelleEtape,
+  FORMULES_INSPECTION, prixInspection, GARANTIES_ASSURANCE,
+  primeIndicative, DUREES_FINANCEMENT, SITUATIONS_PRO, mensualite,
 } from "../constants/dossierImport.js";
 
 const MAX_DOC_BYTES = 8 * 1024 * 1024; // 8 Mo, comme les documents d'export
@@ -110,7 +113,8 @@ export const listerDossiers = async (req, res) => {
 
 // Référentiel pour les formulaires (trajets, ports, étapes, packs).
 export const referentiel = (_req, res) => {
-  res.json({ origines: codesOrigines(), destinations: codesDestinations(), ports: PORTS, etapes: CODES_ETAPES.map((c) => ({ code: c, libelle: libelleEtape(c) })), packs: PACKS });
+  res.json({ origines: codesOrigines(), destinations: codesDestinations(), ports: PORTS, etapes: CODES_ETAPES.map((c) => ({ code: c, libelle: libelleEtape(c) })), packs: PACKS,
+    formulesInspection: FORMULES_INSPECTION, garanties: GARANTIES_ASSURANCE, dureesFinancement: DUREES_FINANCEMENT });
 };
 
 const texte = (v, max = 200) => (v == null ? null : String(v).trim().slice(0, max) || null);
@@ -165,7 +169,7 @@ export const modifierDossier = async (req, res) => {
     }
     if (Array.isArray(b.devis?.lignes)) {
       const lignes = b.devis.lignes
-        .map((l) => ({ libelle: texte(l.libelle, 120), montant: Math.round(Number(l.montant) * 100) / 100 }))
+        .map((l) => ({ libelle: texte(l.libelle, 120), montant: Math.round(Number(l.montant) * 100) / 100, cle: CLES_DEVIS.includes(l.cle) ? l.cle : null }))
         .filter((l) => l.libelle && Number.isFinite(l.montant));
       dossier.devis.lignes = lignes;
       dossier.devis.total = Math.round(lignes.reduce((s, l) => s + l.montant, 0) * 100) / 100;
@@ -189,6 +193,7 @@ export const changerEtape = async (req, res) => {
     if (etape === "devis_envoye" && !dossier.devis?.lignes?.length) {
       return res.status(400).json({ message: "Rédigez d'abord le devis (au moins une ligne)." });
     }
+    if (bloqueParInspection(dossier, etape)) return res.status(409).json({ message: MESSAGE_NON_CONFORME });
     if (etape === "devis_envoye") dossier.devis.envoyeLe = new Date();
     await avancerDossier(dossier, etape, { note: texte(note, 1000) || "", visibleClient: visibleClient !== false, par: req.user._id });
     res.json({ dossier });
@@ -276,6 +281,253 @@ export const annulerDossier = async (req, res) => {
     res.json({ dossier });
   } catch (err) {
     logger.error("annulerDossier:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// Étape 3 (2026-10-09) : inspection indépendante, assurance transport,
+// financement. Le client demande, VIT AUTO instruit ; rien n'est payé en ligne.
+// ════════════════════════════════════════════════════════════════════════════
+const montant = (v) => { const n = Math.round(Number(v) * 100) / 100; return Number.isFinite(n) && n > 0 ? n : null; };
+const dossierClient = (req) => DossierImport.findOne({ _id: req.params.id, client: req.user._id, statut: "en_cours" });
+const prevenirAdmins = (titre, message) =>
+  notifyAdmins("ie_request", titre, message, "/admin?tab=dossiers_import").catch(() => {});
+
+function demanderInspectionSur(dossier, formule) {
+  const prix = prixInspection(formule, dossier.pack?.code);
+  dossier.inspection.statut = "demandee";
+  dossier.inspection.formule = formule;
+  dossier.inspection.prix = prix;
+  dossier.inspection.demandeeLe = new Date();
+  dossier.inspection.verdict = null;
+  dossier.inspection.realiseeLe = null;
+  dossier.inspection.points = [];
+  dossier.inspection.synthese = "";
+  poserLigneDevis(dossier, "inspection", `${FORMULES_INSPECTION[formule].libelle}${prix === 0 ? " (incluse dans le pack)" : ""}`, prix);
+}
+
+// ── Client ──────────────────────────────────────────────────────────────────
+export const demanderInspection = async (req, res) => {
+  try {
+    const dossier = await dossierClient(req);
+    if (!dossier) return res.status(404).json({ message: "Dossier introuvable ou clos." });
+    const { formule } = req.body || {};
+    if (!FORMULES_INSPECTION[formule]) return res.status(400).json({ message: "Formule d'inspection inconnue." });
+    if (dossier.inspection?.statut === "demandee") return res.status(409).json({ message: "Une inspection est déjà demandée." });
+    if (dossier.inspection?.statut === "realisee" && dossier.inspection.verdict !== "non_conforme") {
+      return res.status(409).json({ message: "Le véhicule a déjà été inspecté." });
+    }
+    demanderInspectionSur(dossier, formule);
+    await dossier.save();
+    prevenirAdmins("🛠️ Inspection demandée", `${dossier.reference} — ${FORMULES_INSPECTION[formule].libelle}. Affectez un inspecteur de la zone Transit.`);
+    res.json({ dossier: vueClient(dossier) });
+  } catch (err) {
+    logger.error("demanderInspection:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+export const demanderAssurance = async (req, res) => {
+  try {
+    const dossier = await dossierClient(req);
+    if (!dossier) return res.status(404).json({ message: "Dossier introuvable ou clos." });
+    const { garantie } = req.body || {};
+    const valeur = montant(req.body?.valeur);
+    if (!GARANTIES_ASSURANCE[garantie]) return res.status(400).json({ message: "Garantie inconnue." });
+    if (!valeur) return res.status(400).json({ message: "Indiquez la valeur du véhicule à assurer." });
+    if (["acceptee", "souscrite"].includes(dossier.assurance?.statut)) return res.status(409).json({ message: "L'assurance est déjà engagée sur ce dossier." });
+    Object.assign(dossier.assurance, {
+      statut: "demandee", garantie, valeurAssuree: valeur, prime: null, assureur: null,
+      devise: dossier.devis?.devise || "USD", demandeeLe: new Date(), proposeeLe: null,
+    });
+    await dossier.save();
+    prevenirAdmins("🛡️ Assurance transport demandée", `${dossier.reference} — ${GARANTIES_ASSURANCE[garantie].libelle}, valeur ${valeur}. Prime indicative : ${primeIndicative(valeur, garantie)}.`);
+    res.json({ dossier: vueClient(dossier) });
+  } catch (err) {
+    logger.error("demanderAssurance:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+export const accepterAssurance = async (req, res) => {
+  try {
+    const dossier = await dossierClient(req);
+    if (!dossier) return res.status(404).json({ message: "Dossier introuvable ou clos." });
+    if (dossier.assurance?.statut !== "proposee") return res.status(400).json({ message: "Aucune proposition d'assurance en attente." });
+    dossier.assurance.statut = "acceptee";
+    dossier.assurance.accepteeLe = new Date();
+    poserLigneDevis(dossier, "assurance", `Assurance transport — ${GARANTIES_ASSURANCE[dossier.assurance.garantie]?.libelle || ""}`, dossier.assurance.prime);
+    await dossier.save();
+    prevenirAdmins("🛡️ Assurance acceptée", `${dossier.reference} — prime ${dossier.assurance.prime} ${dossier.assurance.devise}. À souscrire auprès de ${dossier.assurance.assureur || "l'assureur"}.`);
+    res.json({ dossier: vueClient(dossier) });
+  } catch (err) {
+    logger.error("accepterAssurance:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+export const demanderFinancement = async (req, res) => {
+  try {
+    const dossier = await dossierClient(req);
+    if (!dossier) return res.status(404).json({ message: "Dossier introuvable ou clos." });
+    const b = req.body || {};
+    const montantDemande = montant(b.montantDemande);
+    const dureeMois = Number(b.dureeMois);
+    if (!montantDemande) return res.status(400).json({ message: "Indiquez le montant à financer." });
+    if (!DUREES_FINANCEMENT.includes(dureeMois)) return res.status(400).json({ message: "Durée de remboursement invalide." });
+    if (!SITUATIONS_PRO.includes(b.situationPro)) return res.status(400).json({ message: "Indiquez votre situation professionnelle." });
+    const revenus = montant(b.revenusMensuels);
+    if (!revenus) return res.status(400).json({ message: "Indiquez vos revenus mensuels nets." });
+    if (["demande", "en_etude", "accorde"].includes(dossier.financement?.statut)) return res.status(409).json({ message: "Une demande de financement est déjà en cours." });
+    Object.assign(dossier.financement, {
+      statut: "demande", montantDemande, dureeMois, revenusMensuels: revenus, situationPro: b.situationPro,
+      apport: montant(b.apport) || 0, devise: dossier.devis?.devise || "USD", demandeLe: new Date(),
+      organisme: null, montantAccorde: null, tauxAnnuel: null, mensualite: null, fraisDossier: null, note: "", decideLe: null,
+    });
+    await dossier.save();
+    prevenirAdmins("🏦 Demande de financement", `${dossier.reference} — ${montantDemande} ${dossier.financement.devise} sur ${dureeMois} mois.`);
+    res.json({ dossier: vueClient(dossier) });
+  } catch (err) {
+    logger.error("demanderFinancement:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+export const annulerFinancement = async (req, res) => {
+  try {
+    const dossier = await dossierClient(req);
+    if (!dossier) return res.status(404).json({ message: "Dossier introuvable ou clos." });
+    if (!["demande", "en_etude", "accorde"].includes(dossier.financement?.statut)) return res.status(400).json({ message: "Aucun financement en cours." });
+    dossier.financement.statut = "annule";
+    await dossier.save();
+    prevenirAdmins("🏦 Financement retiré par le client", dossier.reference);
+    res.json({ dossier: vueClient(dossier) });
+  } catch (err) {
+    logger.error("annulerFinancement:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Admin ───────────────────────────────────────────────────────────────────
+// Affecte l'inspecteur (prestataire actif de type « inspecteur ») ; demande
+// l'inspection si le client ne l'a pas fait, ou en relance une nouvelle après
+// un verdict « non conforme ».
+export const piloterInspection = async (req, res) => {
+  try {
+    const dossier = await DossierImport.findById(req.params.id);
+    if (!dossier) return res.status(404).json({ message: "Dossier introuvable." });
+    if (dossier.statut !== "en_cours") return res.status(400).json({ message: "Dossier clos." });
+    const { formule, inspecteur, nouvelle } = req.body || {};
+    if (formule !== undefined && !FORMULES_INSPECTION[formule]) return res.status(400).json({ message: "Formule d'inspection inconnue." });
+    const aDemander = dossier.inspection.statut === "non_demandee" || (nouvelle && dossier.inspection.statut === "realisee");
+    if (aDemander || (formule && formule !== dossier.inspection.formule && dossier.inspection.statut === "demandee")) {
+      const f = formule || dossier.inspection.formule;
+      if (!f) return res.status(400).json({ message: "Choisissez la formule d'inspection." });
+      demanderInspectionSur(dossier, f);
+    }
+    if (inspecteur !== undefined) {
+      if (dossier.inspection.statut !== "demandee") return res.status(400).json({ message: "L'inspection est déjà réalisée : relancez-en une nouvelle d'abord." });
+      if (inspecteur) {
+        const profil = await Prestataire.findOne({ user: inspecteur, statut: "actif", types: "inspecteur" }).select("user");
+        if (!profil) return res.status(400).json({ message: "Choisissez un prestataire actif de la zone Transit, de métier « inspecteur »." });
+        dossier.inspection.inspecteur = profil.user;
+        if (!dossier.prestataires.some((p) => String(p.user) === String(profil.user))) {
+          dossier.prestataires.push({ user: profil.user, type: "inspecteur", affecteLe: new Date() });
+        }
+      } else dossier.inspection.inspecteur = null;
+    }
+    await dossier.save();
+    await dossier.populate("prestataires.user", "firstName lastName email");
+    res.json({ dossier });
+  } catch (err) {
+    logger.error("piloterInspection:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+export const piloterAssurance = async (req, res) => {
+  try {
+    const dossier = await DossierImport.findById(req.params.id);
+    if (!dossier) return res.status(404).json({ message: "Dossier introuvable." });
+    const b = req.body || {};
+    const a = dossier.assurance;
+    if (b.note !== undefined) a.note = texte(b.note, 1000) || "";
+    if (b.statut === "proposee") {
+      if (!["demandee", "proposee"].includes(a.statut)) return res.status(400).json({ message: "Aucune demande d'assurance à chiffrer." });
+      const prime = montant(b.prime);
+      if (!prime) return res.status(400).json({ message: "Indiquez la prime proposée par l'assureur." });
+      a.prime = prime;
+      a.assureur = texte(b.assureur, 120);
+      a.statut = "proposee";
+      a.proposeeLe = new Date();
+      await dossier.save();
+      await prevenirClient(dossier, `🛡️ Assurance transport — ${dossier.reference}`,
+        `Proposition : ${prime} ${a.devise} (${GARANTIES_ASSURANCE[a.garantie]?.libelle || "assurance"}). Acceptez-la depuis votre dossier.`);
+    } else if (b.statut === "souscrite") {
+      if (a.statut !== "acceptee") return res.status(400).json({ message: "Le client n'a pas encore accepté la proposition." });
+      const police = texte(b.numeroPolice, 80);
+      if (!police) return res.status(400).json({ message: "Indiquez le numéro de police." });
+      a.numeroPolice = police;
+      a.statut = "souscrite";
+      a.souscriteLe = new Date();
+      await dossier.save();
+      await prevenirClient(dossier, `🛡️ Véhicule assuré — ${dossier.reference}`, `Police n° ${police}. L'attestation sera jointe à vos documents.`);
+    } else if (b.statut === "refusee") {
+      if (a.statut === "souscrite") return res.status(400).json({ message: "Assurance déjà souscrite." });
+      a.statut = "refusee";
+      poserLigneDevis(dossier, "assurance", null, null);
+      await dossier.save();
+      await prevenirClient(dossier, `🛡️ Assurance transport — ${dossier.reference}`, a.note || "Votre demande d'assurance n'a pas pu aboutir ; votre conseiller vous propose une autre solution.");
+    } else if (b.statut !== undefined) {
+      return res.status(400).json({ message: "Statut d'assurance invalide." });
+    } else await dossier.save();
+    res.json({ dossier });
+  } catch (err) {
+    logger.error("piloterAssurance:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+export const piloterFinancement = async (req, res) => {
+  try {
+    const dossier = await DossierImport.findById(req.params.id);
+    if (!dossier) return res.status(404).json({ message: "Dossier introuvable." });
+    const b = req.body || {};
+    const f = dossier.financement;
+    if (!["demande", "en_etude", "accorde", "refuse"].includes(f.statut)) return res.status(400).json({ message: "Aucune demande de financement sur ce dossier." });
+    if (b.note !== undefined) f.note = texte(b.note, 1000) || "";
+    if (b.organisme !== undefined) f.organisme = texte(b.organisme, 120);
+    if (b.statut === "en_etude") {
+      f.statut = "en_etude";
+      await dossier.save();
+      await prevenirClient(dossier, `🏦 Financement — ${dossier.reference}`, "Votre demande de financement est à l'étude.");
+    } else if (b.statut === "accorde") {
+      const capital = montant(b.montantAccorde);
+      const taux = Number(b.tauxAnnuel);
+      const duree = Number(b.dureeMois ?? f.dureeMois);
+      if (!capital) return res.status(400).json({ message: "Indiquez le montant accordé." });
+      if (!Number.isFinite(taux) || taux < 0 || taux > 60) return res.status(400).json({ message: "Taux annuel invalide." });
+      if (!DUREES_FINANCEMENT.includes(duree)) return res.status(400).json({ message: "Durée invalide." });
+      Object.assign(f, {
+        statut: "accorde", montantAccorde: capital, tauxAnnuel: taux, dureeMois: duree,
+        mensualite: mensualite(capital, taux, duree), fraisDossier: b.fraisDossier == null ? f.fraisDossier : (montant(b.fraisDossier) || 0),
+        decideLe: new Date(),
+      });
+      await dossier.save();
+      await prevenirClient(dossier, `🏦 Financement accordé — ${dossier.reference}`,
+        `${capital} ${f.devise} sur ${duree} mois, soit ${f.mensualite} ${f.devise} par mois${f.organisme ? ` (${f.organisme})` : ""}.`);
+    } else if (b.statut === "refuse") {
+      f.statut = "refuse";
+      f.decideLe = new Date();
+      await dossier.save();
+      await prevenirClient(dossier, `🏦 Financement — ${dossier.reference}`, f.note || "Votre demande de financement n'a pas été acceptée ; votre conseiller vous recontacte.");
+    } else if (b.statut !== undefined) {
+      return res.status(400).json({ message: "Statut de financement invalide." });
+    } else await dossier.save();
+    res.json({ dossier });
+  } catch (err) {
+    logger.error("piloterFinancement:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

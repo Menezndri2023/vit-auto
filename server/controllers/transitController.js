@@ -9,8 +9,11 @@ import { PASSWORD_ROUNDS } from "../config/security.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { deposerPiece } from "../utils/deposerPiece.js";
 import { FOLDERS } from "../config/imagekit.js";
-import { avancerDossier } from "../services/dossierImportService.js";
-import { ETAPES, rangEtape, PORTS, codesOrigines, codesDestinations } from "../constants/dossierImport.js";
+import { avancerDossier, prevenirClient, bloqueParInspection, MESSAGE_NON_CONFORME } from "../services/dossierImportService.js";
+import { notifyAdmins } from "../utils/notifyAdmins.js";
+import {
+  ETAPES, rangEtape, PORTS, codesOrigines, codesDestinations, RUBRIQUES_INSPECTION, ETATS_RUBRIQUE, VERDICTS_INSPECTION,
+} from "../constants/dossierImport.js";
 
 // ── Zone Transit (2026-10-07) ───────────────────────────────────────────────
 // Les prestataires (transitaires, commissionnaires en douane, inspecteurs…)
@@ -223,6 +226,9 @@ function vuePrestataire(dossier) {
   delete d.pack;
   delete d.devis;
   delete d.budget;
+  delete d.financement;
+  if (d.assurance) d.assurance = { statut: d.assurance.statut, garantie: d.assurance.garantie, assureur: d.assurance.assureur, numeroPolice: d.assurance.numeroPolice };
+  if (d.inspection) delete d.inspection.prix;
   d.historique = (d.historique || []).filter((h) => h.visibleClient !== false);
   return d;
 }
@@ -249,7 +255,7 @@ export const lireDossierTransit = async (req, res) => {
   try {
     const dossier = await dossierAffecte(req, res);
     if (!dossier) return;
-    res.json({ dossier: vuePrestataire(dossier), etapes: ETAPES_TRANSIT, documents: DOCUMENTS_TRANSIT });
+    res.json({ dossier: vuePrestataire(dossier), etapes: ETAPES_TRANSIT, documents: DOCUMENTS_TRANSIT, rubriques: RUBRIQUES_INSPECTION });
   } catch (err) {
     logger.error("lireDossierTransit:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -265,6 +271,7 @@ export const avancerEtapeTransit = async (req, res) => {
     const { etape, note } = req.body || {};
     if (!ETAPES_TRANSIT.includes(etape)) return res.status(400).json({ message: "Étape réservée à VIT AUTO." });
     if (rangEtape(etape) <= rangEtape(dossier.etape)) return res.status(400).json({ message: "Le dossier a déjà dépassé cette étape." });
+    if (bloqueParInspection(dossier, etape)) return res.status(409).json({ message: MESSAGE_NON_CONFORME });
     await avancerDossier(dossier, etape, { note: String(note || "").trim().slice(0, 1000), par: req.user._id });
     res.json({ dossier: vuePrestataire(dossier) });
   } catch (err) {
@@ -313,6 +320,48 @@ export const majExpeditionTransit = async (req, res) => {
     res.json({ dossier: vuePrestataire(dossier) });
   } catch (err) {
     logger.error("majExpeditionTransit:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Inspecteur : rapport d'inspection avant départ (étape 3, 2026-10-09) ────
+// Seul l'inspecteur affecté par VIT AUTO le remplit, une fois. Un verdict
+// « non conforme » bloque le paiement et l'embarquement du dossier.
+const RUBRIQUES = RUBRIQUES_INSPECTION.map((r) => r.code);
+const LIBELLE_VERDICT = { conforme: "conforme", reserves: "conforme avec réserves", non_conforme: "NON conforme" };
+export const rendreRapportInspection = async (req, res) => {
+  try {
+    const dossier = await dossierAffecte(req, res);
+    if (!dossier) return;
+    if (String(dossier.inspection?.inspecteur) !== String(req.user._id)) return res.status(403).json({ message: "Vous n'êtes pas l'inspecteur de ce dossier." });
+    if (dossier.inspection.statut !== "demandee") return res.status(409).json({ message: "Aucune inspection en attente sur ce dossier." });
+    const b = req.body || {};
+    if (!VERDICTS_INSPECTION.includes(b.verdict)) return res.status(400).json({ message: "Indiquez le verdict de l'inspection." });
+    const synthese = String(b.synthese || "").trim().slice(0, 3000);
+    if (synthese.length < 20) return res.status(400).json({ message: "Rédigez une synthèse d'au moins quelques lignes." });
+    const points = (Array.isArray(b.points) ? b.points : [])
+      .filter((p) => RUBRIQUES.includes(p?.rubrique) && ETATS_RUBRIQUE.includes(p?.etat))
+      .map((p) => ({ rubrique: p.rubrique, etat: p.etat, note: String(p.note || "").trim().slice(0, 500) }));
+    if (new Set(points.map((p) => p.rubrique)).size !== points.length) return res.status(400).json({ message: "Une rubrique figure deux fois." });
+    const km = Number(b.kilometrage);
+    Object.assign(dossier.inspection, {
+      statut: "realisee", realiseeLe: new Date(), verdict: b.verdict, synthese, points,
+      lieu: String(b.lieu || "").trim().slice(0, 160) || null,
+      kilometrage: Number.isFinite(km) && km >= 0 ? Math.round(km) : null,
+      vinConforme: typeof b.vinConforme === "boolean" ? b.vinConforme : null,
+    });
+    const note = `Inspection ${dossier.inspection.formule ? `${dossier.inspection.formule} ` : ""}réalisée : véhicule ${LIBELLE_VERDICT[b.verdict]}.`;
+    if (rangEtape(dossier.etape) < rangEtape("inspection")) {
+      await avancerDossier(dossier, "inspection", { note, par: req.user._id });
+    } else {
+      await dossier.save();
+      await prevenirClient(dossier, `🛠️ Import ${dossier.reference} : inspection réalisée`, note);
+    }
+    notifyAdmins("ie_request", b.verdict === "non_conforme" ? "🔴 Inspection NON conforme" : "🛠️ Inspection réalisée",
+      `${dossier.reference} — ${note}`, "/admin?tab=dossiers_import").catch(() => {});
+    res.json({ dossier: vuePrestataire(dossier) });
+  } catch (err) {
+    logger.error("rendreRapportInspection:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

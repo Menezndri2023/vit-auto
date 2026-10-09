@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { fmtDate } from "../shared.jsx";
 import { ETAPES, libelleEtape, nomPays, DESTINATIONS, ORIGINES, STATUTS_DOCUMENT, STATUTS_PACK } from "../../../constants/dossierImport";
 import css from "./DossiersImportSection.module.css";
+import { OptionsDossierAdmin } from "./OptionsDossierAdmin.jsx";
 
 // ── Dossiers d'import (2026-10-07) ─────────────────────────────────────────
 // Pilotage par VIT AUTO de chaque importation client : devis, frais
@@ -39,7 +40,10 @@ function Detail({ id, headers, moi, onFermer, onChange }) {
   }, [headers, onChange]);
 
   useEffect(() => {
-    appel(`/api/dossiers-import/${id}`).then((c) => c?.dossier && setLignes(c.dossier.devis?.lignes?.length ? c.dossier.devis.lignes : [{ libelle: "", montant: "" }]));
+    appel(`/api/dossiers-import/${id}`).then((c) => {
+      const libres = (c?.dossier?.devis?.lignes || []).filter((l) => !l.cle);
+      if (c?.dossier) setLignes(libres.length ? libres : [{ libelle: "", montant: "" }]);
+    });
     fetch("/api/dossiers-import/referentiel", { headers }).then((r) => r.json()).then((c) => setPorts(c.ports || [])).catch(() => {});
     fetch("/api/transit/admin/prestataires", { headers }).then((r) => r.json()).then((c) => setPrestataires((c.prestataires || []).filter((p) => p.statut === "actif"))).catch(() => {});
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -154,6 +158,9 @@ function Detail({ id, headers, moi, onFermer, onChange }) {
 
       <fieldset className={css.bloc}>
         <legend>Devis {d.devis?.envoyeLe ? `(envoyé le ${fmtDate(d.devis.envoyeLe)})` : "(pas encore envoyé)"}</legend>
+        {(d.devis?.lignes || []).filter((l) => l.cle).map((l) => (
+          <p key={l.cle} className={css.muted}>{l.libelle} : <strong>{l.montant} {d.devis?.devise}</strong> (ligne automatique — {l.cle === "inspection" ? "inspection" : "assurance"})</p>
+        ))}
         {lignes.map((l, i) => (
           <div key={i} className={css.ligneForm}>
             <input value={l.libelle} onChange={(e) => setLignes(lignes.map((x, j) => (j === i ? { ...x, libelle: e.target.value } : x)))} placeholder="Libellé (véhicule, fret, douane…)" aria-label="Libellé" />
@@ -163,11 +170,13 @@ function Detail({ id, headers, moi, onFermer, onChange }) {
         ))}
         <div className={css.actions}>
           <button type="button" className={css.btnSec} onClick={() => setLignes([...lignes, { libelle: "", montant: "" }])}>+ Ligne</button>
-          <button type="button" className={css.btn} disabled={occupe} onClick={() => modifier({ devis: { lignes } })}>Enregistrer le devis</button>
+          <button type="button" className={css.btn} disabled={occupe} onClick={() => modifier({ devis: { lignes: [...lignes, ...(d.devis?.lignes || []).filter((l) => l.cle)] } })}>Enregistrer le devis</button>
           <span className={css.muted}>Total : {d.devis?.total ?? "—"} {d.devis?.devise}</span>
         </div>
         <p className={css.muted}>Pour l'envoyer au client, passez le dossier à l'étape « Devis envoyé ».</p>
       </fieldset>
+
+      <OptionsDossierAdmin d={d} id={id} appel={appel} occupe={occupe} prestataires={prestataires} />
 
       <fieldset className={css.bloc}>
         <legend>Expédition</legend>
