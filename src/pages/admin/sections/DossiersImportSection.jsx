@@ -24,6 +24,8 @@ function Detail({ id, headers, moi, onFermer, onChange }) {
   const [etape, setEtape] = useState({ code: "", note: "", visible: true });
   const [note, setNote] = useState("");
   const [lignes, setLignes] = useState([]);
+  const [prestataires, setPrestataires] = useState([]);
+  const [choixPresta, setChoixPresta] = useState("");
 
   const appel = useCallback(async (url, options = {}) => {
     setOccupe(true); setErreur("");
@@ -39,6 +41,7 @@ function Detail({ id, headers, moi, onFermer, onChange }) {
   useEffect(() => {
     appel(`/api/dossiers-import/${id}`).then((c) => c?.dossier && setLignes(c.dossier.devis?.lignes?.length ? c.dossier.devis.lignes : [{ libelle: "", montant: "" }]));
     fetch("/api/dossiers-import/referentiel", { headers }).then((r) => r.json()).then((c) => setPorts(c.ports || [])).catch(() => {});
+    fetch("/api/transit/admin/prestataires", { headers }).then((r) => r.json()).then((c) => setPrestataires((c.prestataires || []).filter((p) => p.statut === "actif"))).catch(() => {});
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!d) return <div className={css.panneau}><p>{erreur || "Chargement…"}</p></div>;
@@ -91,6 +94,30 @@ function Detail({ id, headers, moi, onFermer, onChange }) {
               <button type="button" className={css.lien} onClick={() => modifier({ conseiller: moi })} disabled={occupe}>M'attribuer le dossier</button>
             )}
           </p>
+        </fieldset>
+
+        <fieldset className={css.bloc}>
+          <legend>Zone Transit</legend>
+          {(d.prestataires || []).length === 0 && <p className={css.muted}>Aucun prestataire affecté.</p>}
+          {(d.prestataires || []).map((p) => (
+            <p key={p.user?._id || p.user} className={css.muted}>
+              {p.user?.firstName} {p.user?.lastName} ({p.type}){" "}
+              <button type="button" className={css.lien} disabled={occupe} onClick={() => appel(`/api/transit/admin/dossiers/${id}/prestataires`, { method: "POST", body: JSON.stringify({ prestataireUserId: p.user?._id || p.user, retirer: true }) }).then(() => appel(`/api/dossiers-import/${id}`))}>Retirer</button>
+            </p>
+          ))}
+          <div className={css.ligneForm}>
+            <select value={choixPresta} onChange={(e) => setChoixPresta(e.target.value)} aria-label="Prestataire à affecter">
+              <option value="">Affecter un prestataire…</option>
+              {prestataires.filter((p) => !d.destination?.pays || !(p.pays || []).length || p.pays.includes(d.destination.pays)).map((p) => (
+                <option key={p._id} value={p.user?._id}>{p.raisonSociale} — {(p.types || []).join(", ")}</option>
+              ))}
+            </select>
+            <button type="button" className={css.btn} disabled={occupe || !choixPresta}
+              onClick={async () => { if (await appel(`/api/transit/admin/dossiers/${id}/prestataires`, { method: "POST", body: JSON.stringify({ prestataireUserId: choixPresta }) })) { setChoixPresta(""); appel(`/api/dossiers-import/${id}`); } }}>
+              Affecter
+            </button>
+          </div>
+          <p className={css.muted}>Le prestataire voit le dossier (sans les montants) dans son espace Zone Transit.</p>
         </fieldset>
 
         <fieldset className={css.bloc}>

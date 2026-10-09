@@ -30,6 +30,7 @@ import { ServiceRequestsSection } from "./admin/sections/ServiceRequestsSection.
 import { PartnerVerifSection } from "./admin/sections/PartnerVerifSection.jsx";
 import { SectorRequestsSection } from "./admin/sections/SectorRequestsSection.jsx";
 import { DossiersImportSection } from "./admin/sections/DossiersImportSection.jsx";
+import { ZoneTransitSection } from "./admin/sections/ZoneTransitSection.jsx";
 import { CatalogueSection } from "./admin/sections/CatalogueSection.jsx";
 import { MarketingSection } from "./admin/sections/MarketingSection.jsx";
 import { lienPublic } from "../utils/origineApi.js";
@@ -2915,6 +2916,7 @@ export default function AdminPanel() {
     // (miroir de requireAnyAdminScope côté serveur).
     import_export:    "import_export",
     dossiers_import:  "import_export",
+    zone_transit:     ["import_export", "transitaire"],
     exportateurs:     "import_export",
     transport:        ["import_export", "transitaire"],
     // Finance
@@ -3014,6 +3016,7 @@ export default function AdminPanel() {
         { key: "activites",     icon: "🎈", label: "Activités et Loisirs",     badge: pendingActivities },
         { key: "pieces",        icon: "🔩", label: "Pièces détachées" },
         { key: "dossiers_import", icon: "🚢", label: "Dossiers d'import" },
+        { key: "zone_transit",    icon: "⚓", label: "Zone Transit" },
         { key: "import_export", icon: "🌍", label: "Transactions I/E",      badge: pendingIe },
         { key: "exportateurs",  icon: "📦", label: "Partenaires Export",    badge: pendingImp },
         { key: "transport",     icon: "🚢", label: "Transport Intl." },
@@ -7900,6 +7903,8 @@ export default function AdminPanel() {
           <EscrowSection ieTransactions={ieTransactions} loading={ieTxLoading} />
         </div>
       )}
+      {activeTab === "zone_transit" && <ZoneTransitSection headers={headers} />}
+
       {activeTab === "dossiers_import" && (
         <DossiersImportSection headers={headers} moi={user?._id || user?.id} />
       )}

@@ -70,6 +70,13 @@ const dossierImportSchema = new mongoose.Schema({
   },
 
   conseiller: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  // Prestataires de la zone Transit affectés au dossier (transitaire au port
+  // d'arrivée, commissionnaire en douane, inspecteur…).
+  prestataires: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    type: { type: String, default: "transitaire" },
+    affecteLe: { type: Date, default: Date.now },
+  }],
 
   etape:      { type: String, enum: CODES_ETAPES, default: "demande_recue", index: true },
   statut:     { type: String, enum: ["en_cours", "termine", "annule"], default: "en_cours", index: true },
@@ -96,6 +103,7 @@ const dossierImportSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 dossierImportSchema.index({ statut: 1, updatedAt: -1 });
+dossierImportSchema.index({ "prestataires.user": 1, updatedAt: -1 });
 
 const DossierImport = mongoose.models.DossierImport || mongoose.model("DossierImport", dossierImportSchema);
 export default DossierImport;

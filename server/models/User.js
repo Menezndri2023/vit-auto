@@ -28,7 +28,10 @@ const userSchema = new mongoose.Schema({
 
   role: {
     type: String,
-    enum: ["client", "partenaire", "chauffeur", "admin"],
+    // "prestataire" (2026-10-07) : transitaire, commissionnaire en douane,
+    // inspecteur de la zone Transit — inscrit UNIQUEMENT sur invitation de
+    // l'admin (voir controllers/transitController.js), jamais par /register.
+    enum: ["client", "partenaire", "chauffeur", "admin", "prestataire"],
     default: "client",
   },
 

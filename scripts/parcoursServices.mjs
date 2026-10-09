@@ -296,6 +296,26 @@ async function importExport(browser) {
   else ok("client : la transaction apparaît dans son tableau de bord import/export");
   await ctx.close();
   for (const j of journal) ko(`import/export — ${j}`);
+
+  // 8. Zone Transit : inscription sur invitation seulement, puis travail du
+  //    transitaire sur le dossier qui lui est affecté (2026-10-07).
+  const sansJeton = await fetch(`${API}/api/transit/inscription`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://vit-auto.com" }, body: JSON.stringify({ jeton: "x".repeat(64), firstName: "A", lastName: "B", password: "motdepasse123" }) });
+  if (sansJeton.status !== 404) throw new Error(`inscription transit sans invitation : ${sansJeton.status}`);
+  const emailPresta = `transit.verif.${Date.now()}@vitauto-fixtures.fr`;
+  const inv = attendu(await admin("/api/transit/admin/invitations", { method: "POST", body: { email: emailPresta, raisonSociale: "Transit Abidjan Vérif", types: ["transitaire"], pays: ["CI"] } }), 201, "invitation transit");
+  const jeton = new URL(inv.lien, "https://x").searchParams.get("jeton");
+  const insc = await fetch(`${API}/api/transit/inscription`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://vit-auto.com" }, body: JSON.stringify({ jeton, firstName: "Koffi", lastName: "Transit", password: "motdepasse123" }) });
+  if (insc.status !== 201) throw new Error(`inscription transit : ${insc.status}`);
+  const presta = await apiAs(emailPresta, "motdepasse123");
+  const prestaId = (attendu(await presta("/api/auth/me"), 200, "profil prestataire").user || {}).id;
+  const dossierCI = (attendu(await client("/api/dossiers-import/mes"), 200, "dossiers client").dossiers || []).find((x) => x.source?.type === "accompagnement");
+  attendu(await admin(`/api/transit/admin/dossiers/${dossierCI._id}/prestataires`, { method: "POST", body: { prestataireUserId: prestaId } }), 200, "affectation transitaire");
+  const vuPresta = attendu(await presta(`/api/transit/dossiers/${dossierCI._id}`), 200, "dossier côté transitaire").dossier;
+  if (vuPresta.pack || vuPresta.devis) throw new Error("le transitaire voit les montants du dossier");
+  attendu(await presta(`/api/transit/dossiers/${dossierCI._id}/etape`, { method: "POST", body: { etape: "arrive_port", note: "Navire à quai à Abidjan" } }), 200, "étape posée par le transitaire");
+  const apresTransit = attendu(await client(`/api/dossiers-import/${dossierCI._id}`), 200, "dossier après transit").dossier;
+  if (apresTransit.etape !== "arrive_port") throw new Error(`étape vue par le client : ${apresTransit.etape}`);
+  ok("zone Transit : refus sans invitation → invitation → inscription → affectation → étape « Arrivé au port » vue par le client");
 }
 
 // Remplit les champs vides visibles d'une étape de formulaire avec des valeurs

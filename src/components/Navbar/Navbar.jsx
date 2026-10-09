@@ -29,6 +29,7 @@ const Navbar = () => {
   const activitiesRef = useRef(null);
   const isPartner = user?.role === "partenaire" || user?.role === "admin";
   const isAdmin   = user?.role === "admin";
+  const isPrestataire = user?.role === "prestataire";
 
   const navLink = ({ isActive }) => isActive ? styles.active : undefined;
 
@@ -167,11 +168,14 @@ const Navbar = () => {
         {/* Suivi des achats Import/Export (escrow, inspection, livraison) — jusqu'ici
             accessible uniquement en tapant l'URL ou depuis une transaction déjà
             ouverte, aucun lien de menu n'y menait. */}
-        {isAuthenticated && !isPartner && (
+        {isPrestataire && (
+          <li><NavLink to="/transit" className={navLink} onClick={() => setMenuOpen(false)}>🚢 {t("nav.transit")}</NavLink></li>
+        )}
+        {isAuthenticated && !isPartner && !isPrestataire && (
           <li><NavLink to="/import-export/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>📦 {t("nav.myPurchases")}</NavLink></li>
         )}
         {/* Suivi des dossiers d'import (accompagnement VIT AUTO), 2026-10-07. */}
-        {isAuthenticated && !isPartner && (
+        {isAuthenticated && !isPartner && !isPrestataire && (
           <li><NavLink to="/mes-importations" className={navLink} onClick={() => setMenuOpen(false)}>🚢 {t("nav.myImports")}</NavLink></li>
         )}
 

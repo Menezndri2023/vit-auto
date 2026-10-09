@@ -18,6 +18,7 @@ const estAdmin = (req) => req.user?.role === "admin";
 function vueClient(dossier) {
   const d = dossier.toObject ? dossier.toObject() : dossier;
   delete d.notesInternes;
+  delete d.prestataires;
   d.historique = (d.historique || []).filter((h) => h.visibleClient !== false);
   return d;
 }
@@ -25,7 +26,8 @@ function vueClient(dossier) {
 async function chargerPourLecture(req, res) {
   const dossier = await DossierImport.findById(req.params.id)
     .populate("client", "firstName lastName email phone")
-    .populate("conseiller", "firstName lastName email phone");
+    .populate("conseiller", "firstName lastName email phone")
+    .populate("prestataires.user", "firstName lastName email");
   if (!dossier) { res.status(404).json({ message: "Dossier introuvable." }); return null; }
   const proprietaire = String(dossier.client?._id || dossier.client) === String(req.user._id);
   if (!proprietaire && !estAdmin(req)) { res.status(403).json({ message: "Accès refusé." }); return null; }

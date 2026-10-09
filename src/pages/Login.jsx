@@ -94,7 +94,7 @@ const Login = () => {
   const redirectAfterAuth = (role) => {
     // Admin → accueil du site (le bouton ⚙️ Admin dans la Navbar permet d'accéder au panel)
     // Partenaire → tableau de bord partenaire ; Client → accueil
-    const defaultDest = role === "partenaire" ? "/vendor/dashboard" : "/";
+    const defaultDest = role === "partenaire" ? "/vendor/dashboard" : role === "prestataire" ? "/transit" : "/";
     const dest = fromPage || defaultDest;
     setTimeout(() => navigate(dest + fromSearch, { replace: true }), 900);
   };

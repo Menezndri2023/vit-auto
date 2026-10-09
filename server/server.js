@@ -44,6 +44,7 @@ import chatRoutes          from "./routes/chats.js";
 import contractRoutes      from "./routes/contracts.js";
 import importExportRoutes  from "./routes/importExport.js";
 import dossiersImportRoutes from "./routes/dossiersImport.js";
+import transitRoutes from "./routes/transit.js";
 import importCostRoutes    from "./routes/importCost.js";
 import reportRoutes        from "./routes/reports.js";
 import invoiceRoutes       from "./routes/invoices.js";
@@ -471,6 +472,7 @@ app.use("/api/chats",          apiLimiter,       chatRoutes);
 app.use("/api/contracts",      apiLimiter,       contractRoutes);
 app.use("/api/import-export",  apiLimiter,       importExportRoutes);
 app.use("/api/dossiers-import", apiLimiter,       dossiersImportRoutes);  // Suivi des importations (client + admin)
+app.use("/api/transit",         apiLimiter,       transitRoutes);         // Zone Transit : prestataires sur invitation
 app.use("/api/invoices",       apiLimiter,       invoiceRoutes);
 app.use("/api/ads",            catalogueLimiter, adsRoutes);
 app.use("/api/geo",            apiLimiter,       geoRoutes);
