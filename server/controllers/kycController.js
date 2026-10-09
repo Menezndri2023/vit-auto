@@ -1,3 +1,4 @@
+import { reevaluerPartenaire } from "../services/validationPartenaire.js";
 import logger from "../utils/logger.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
@@ -530,6 +531,7 @@ export const adminReviewKyc = async (req, res) => {
     };
 
     await User.findByIdAndUpdate(req.params.userId, { $set: updateFields });
+    reevaluerPartenaire(req.params.userId);
 
     // Un dossier KYC refusé retire le droit de publier (voir createVehicle/
     // createListing) — sans dépublier aussi les annonces déjà en ligne, un

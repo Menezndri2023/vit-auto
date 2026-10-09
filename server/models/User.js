@@ -444,6 +444,28 @@ const userSchema = new mongoose.Schema({
 
   // Dernière relance "complétez votre profil" — voir utils/accountHealthCheck.js.
   lastAccountHealthNudgeAt: { type: Date, default: null },
+  accountHealthNudgeCount:  { type: Number, default: 0 },
+  listingReminderCount:     { type: Number, default: 0 },
+
+  // Validation du partenaire (2026-10-09) — calculée par
+  // services/validationPartenaire.js à partir des documents exigés pour SON
+  // métier et SON entité ; jamais saisie à la main. « valide » = il publie et
+  // ne reçoit plus aucune relance de documents.
+  validationPartenaire: {
+    statut:    { type: String, enum: ["a_completer", "valide", "suspendu", null], default: null },
+    mode:      { type: String, enum: ["auto", "fondateur", null], default: null },
+    exiges:    { type: [String], default: undefined },
+    manquants: { type: [String], default: undefined },
+    valideLe:  { type: Date, default: null },
+    evalueLe:  { type: Date, default: null },
+    // Relances : 3 au plus pour une même liste de pièces manquantes ; le
+    // compteur repart si la liste change (le partenaire a avancé).
+    relances: {
+      nombre:    { type: Number, default: 0 },
+      derniere:  { type: Date, default: null },
+      signature: { type: String, default: null },
+    },
+  },
 
   // ── Verrouillage anti brute-force par compte ──────────────────
   // Complète le rate-limit par IP (authLimiter, 10/15min) — un attaquant
@@ -576,6 +598,19 @@ userSchema.index(
 
 // Garde-fou modèle (en plus de la validation dans authController.js) : un compte
 // doit toujours avoir au moins un moyen de contact/connexion.
+// Validation du partenaire (2026-10-09) : confirmer son e-mail ou son
+// téléphone, voir son identité vérifiée, devenir fondateur ou changer de
+// métier peut rendre le partenaire « validé » (services/validationPartenaire.js).
+const CHAMPS_VALIDATION = ["emailVerified", "phoneVerified", "kycStatus", "identity.status", "isFounder", "entityType", "partnerActivity", "partnerActivities", "driverLicenseOcr.frontImage"];
+userSchema.pre("save", function (next) {
+  this.$locals.revaliderPartenaire = this.role === "partenaire" && !this.isNew && CHAMPS_VALIDATION.some((c) => this.isModified(c));
+  next();
+});
+userSchema.post("save", function (doc) {
+  if (!doc.$locals?.revaliderPartenaire) return;
+  import("../services/validationPartenaire.js").then((m) => m.reevaluerPartenaire(doc._id)).catch(() => {});
+});
+
 userSchema.pre("validate", function (next) {
   if (!this.email && !this.phone) {
     return next(new Error("Un compte doit avoir au moins un email ou un numéro de téléphone."));

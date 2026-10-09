@@ -123,16 +123,16 @@ describe("checkAndSendPartnerReminders — relance dossier Founding Partner bloq
     expect(reloaded.loi.signingToken).toBe("4".repeat(64)); // pas touché, cooldown actif
   });
 
-  it("relance une entité partenaire n'ayant JAMAIS démarré de candidature Founding Partner (aucun PartnerOnboarding du tout)", async () => {
+  it("ne relance plus une entité sans candidature Founding Partner : le programme n'est pas une pièce de validation (2026-10-09)", async () => {
+    // La seule relance de documents liste les pièces exigées pour le métier et
+    // l'entité du partenaire (services/validationPartenaire.js).
     const partner = await createUser({ role: "partenaire" });
     const biz = await makeTestPartnerBusiness(partner._id, { companyName: "Epsilon Motors" });
     await PartnerBusiness.updateOne({ _id: biz._id }, { $set: { createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000) } });
 
-    const total = await checkAndSendPartnerReminders();
-    expect(total).toBeGreaterThanOrEqual(1);
-
+    await checkAndSendPartnerReminders();
     const reloaded = await PartnerBusiness.findById(biz._id);
-    expect(reloaded.lastReminderSentAt).toBeTruthy();
+    expect(reloaded.lastReminderSentAt).toBeFalsy();
   });
 
   it("ne relance pas une entité qui a déjà un dossier Founding Partner (même brouillon)", async () => {
@@ -143,7 +143,7 @@ describe("checkAndSendPartnerReminders — relance dossier Founding Partner bloq
 
     await checkAndSendPartnerReminders();
     const reloaded = await PartnerBusiness.findById(biz._id);
-    expect(reloaded.lastReminderSentAt).toBeFalsy(); // c'est checkFoundingPartnerDrafts qui gère ce cas, pas celui-ci
+    expect(reloaded.lastReminderSentAt).toBeFalsy();
   });
 
   it("ne relance jamais l'entité d'un client (role !== partenaire)", async () => {

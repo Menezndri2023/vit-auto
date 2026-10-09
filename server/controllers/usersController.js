@@ -1092,3 +1092,18 @@ export const getMyProfile = async (req, res) => {
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
+
+// ── GET /api/users/me/validation ────────────────────────────────────────────
+// Validation du partenaire (2026-10-09) : les pièces exigées pour SON métier
+// et SON entité, celles qui manquent, et où les déposer. Le tableau de bord
+// l'affiche à la place des anciens bandeaux « KYC » / « certification ».
+export const getMaValidation = async (req, res) => {
+  try {
+    if (req.user.role !== "partenaire") return res.json({ validation: null });
+    const { evaluerPartenaire, vueValidation } = await import("../services/validationPartenaire.js");
+    res.json({ validation: vueValidation(await evaluerPartenaire(req.user._id)) });
+  } catch (err) {
+    logger.error("getMaValidation:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};

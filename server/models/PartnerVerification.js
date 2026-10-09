@@ -162,6 +162,21 @@ partnerVerificationSchema.index({ status: 1 });
 partnerVerificationSchema.index({ trustScore: -1 });
 partnerVerificationSchema.index({ companyType: 1 });
 
+
+// Validation du partenaire (2026-10-09) : une pièce déposée ou un statut
+// changé ici peut rendre le partenaire « validé » — réévaluation sans attendre
+// le passage quotidien. Import dynamique : le service importe ce modèle.
+const reevaluer = (userId) => {
+  if (!userId) return;
+  import("../services/validationPartenaire.js").then((m) => m.reevaluerPartenaire(userId)).catch(() => {});
+};
+partnerVerificationSchema.post("save", (doc) => reevaluer(doc.userId));
+partnerVerificationSchema.post("findOneAndUpdate", (doc) => reevaluer(doc?.userId));
+partnerVerificationSchema.post("updateOne", { document: false, query: true }, async function () {
+  const filtre = this.getFilter?.() || {};
+  if (filtre.userId) reevaluer(filtre.userId);
+});
+
 const PartnerVerification =
   mongoose.models.PartnerVerification ||
   mongoose.model("PartnerVerification", partnerVerificationSchema);

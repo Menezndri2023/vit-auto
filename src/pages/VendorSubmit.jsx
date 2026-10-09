@@ -155,7 +155,11 @@ const VendorSubmit = () => {
   };
 
   // ── Étape 2 : Type d'annonce
-  const [adType, setAdType] = useState(""); // "location" | "vente" | "chauffeur"
+  // ?type=chauffeur (lien de la redirection après inscription et des
+  // relances) : le type est présélectionné.
+  const [adType, setAdType] = useState(() => {
+    try { const t = new URLSearchParams(window.location.search).get("type"); return ["location", "vente", "chauffeur"].includes(t) ? t : ""; } catch { return ""; }
+  }); // "location" | "vente" | "chauffeur"
 
   // Documents d'un profil chauffeur (identité + permis) : joints DANS ce
   // formulaire, à l'étape 6, sans vérification préalable — pour un
@@ -671,7 +675,6 @@ const VendorSubmit = () => {
       if (adType === "chauffeur") {
         if (!driverProfilePhoto) e.driverProfilePhoto = "Photo de profil du chauffeur requise";
         if (!driverCv) e.driverCv = "CV requis (PDF ou image)";
-        if (!driverIdFront) e.driverIdFront = "Pièce d'identité (recto) requise";
         if (!driverLicenseFront) e.driverLicenseFront = "Permis de conduire (recto) requis";
         if (driver.vehiculePersonnel && photos.length === 0)
           e.photos = "Au moins 1 photo du véhicule est requise (chauffeur avec véhicule)";
@@ -736,7 +739,7 @@ const VendorSubmit = () => {
             ...contactInfo,
             profilePhoto: driverProfilePhoto,
             cv: driverCv,
-            identityDocument: { type: driverIdType, frontImage: driverIdFront, backImage: driverIdBack || undefined },
+            ...(driverIdFront ? { identityDocument: { type: driverIdType, frontImage: driverIdFront, backImage: driverIdBack || undefined } } : {}),
             licenseDocument: { frontImage: driverLicenseFront, backImage: driverLicenseBack || undefined },
             // Photos véhicule uniquement si "avec véhicule" — sinon rien à photographier.
             images: driver.vehiculePersonnel ? imageUrls : [],
@@ -1089,14 +1092,14 @@ const VendorSubmit = () => {
             {adType === "chauffeur" && (
               <div className={styles.infoBanner} style={{ marginTop: 16 }}>
                 <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#0f1b3f" }}>
-                  📄 Deux documents vous seront demandés à l'étape 6 — dans ce formulaire, sans vérification préalable
+                  📄 Deux documents seulement, à joindre à l'étape 6 de ce formulaire
                 </p>
                 <ul style={{ margin: 0, paddingLeft: 20, fontSize: ".88rem", color: "#334155" }}>
-                  <li>Pièce d'identité (carte nationale, passeport ou carte de séjour) — recto, verso si présent</li>
-                  <li>Permis de conduire — recto, verso si présent</li>
+                  <li>Votre permis de conduire — recto, verso si présent</li>
+                  <li>Votre CV (PDF ou photo)</li>
                 </ul>
                 <p style={{ margin: "8px 0 0", fontSize: ".82rem", color: "#64748b" }}>
-                  Ils sont transmis à l'équipe VIT AUTO avec votre profil et examinés à sa validation. Une entreprise fournit en plus la certification de l'entité.
+                  Dès qu'ils sont joints et que votre e-mail ou votre téléphone est confirmé, votre compte est validé et votre profil mis en ligne.
                 </p>
               </div>
             )}
@@ -1865,7 +1868,7 @@ const VendorSubmit = () => {
                 standard (admin le vérifie avant de le rendre public). */}
             {isDriverMode && (
               <div className={styles.field} style={{ marginBottom: "1.25rem" }}>
-                <label>Pièce d'identité *</label>
+                <label>Pièce d'identité (facultatif)</label>
                 {errors.driverIdFront && <span className={styles.err}>{errors.driverIdFront}</span>}
                 <select className={styles.input} value={driverIdType} onChange={(e) => setDriverIdType(e.target.value)} style={{ margin: "0.5rem 0" }}>
                   <option value="cni">Carte d'identité</option>

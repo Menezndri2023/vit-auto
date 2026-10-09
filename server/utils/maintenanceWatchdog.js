@@ -95,11 +95,13 @@ export async function calculerEtatMaintenance(maintenant = new Date()) {
     // Publications refusées par une garde serveur, dernières 24 h.
     AuditLog.find({ action: ACTION_REFUS_PUBLICATION, createdAt: { $gte: new Date(t - h(24)) } })
       .select("userEmail resource errorMessage createdAt").sort({ createdAt: -1 }).limit(50).lean(),
-    // Partenaires inscrits depuis plus de 72 h dont l'identité n'est pas vérifiée :
-    // ils ne peuvent rien publier tant qu'un administrateur n'a pas tranché.
-    User.find({ ...reels, role: "partenaire", isActive: { $ne: false }, isFounder: { $ne: true }, sellerType: "particulier",
-      kycStatus: { $ne: "VERIFIE" }, createdAt: { $lte: new Date(t - h(72)), $gte: new Date(t - j(60)) } })
-      .select("firstName lastName kycStatus kycSubmittedAt").limit(50).lean(),
+    // Partenaires inscrits depuis plus de 72 h et toujours pas validés : il leur
+    // manque une pièce exigée pour LEUR métier et LEUR entité
+    // (services/validationPartenaire.js) — un chauffeur n'est plus compté
+    // comme bloqué faute d'une vérification d'identité qu'on ne lui demande pas.
+    User.find({ ...reels, role: "partenaire", isActive: { $ne: false }, isFounder: { $ne: true },
+      "validationPartenaire.statut": "a_completer", createdAt: { $lte: new Date(t - h(72)), $gte: new Date(t - j(60)) } })
+      .select("firstName lastName kycSubmittedAt validationPartenaire.manquants").limit(50).lean(),
     ...FILES_MODERATION.map((f) => f.modele.countDocuments({ status: "pending", createdAt: { $lte: new Date(t - h(24)) } })),
   ]);
 
@@ -142,10 +144,10 @@ export async function calculerEtatMaintenance(maintenant = new Date()) {
 
   checks.push({
     id: "partenaires_bloques",
-    titre: "Partenaires inscrits depuis 72 h, identité non vérifiée",
+    titre: "Partenaires inscrits depuis 72 h, pas encore validés (pièces manquantes)",
     niveau: niveauSeuil(partenairesBloques.length, 1, 10),
     valeur: partenairesBloques.length,
-    detail: partenairesBloques.slice(0, 5).map((u) => `${u.firstName || ""} ${u.lastName || ""} (${u.kycSubmittedAt ? "dossier envoyé" : "aucun dossier"})`.trim()).join(", "),
+    detail: partenairesBloques.slice(0, 5).map((u) => `${u.firstName || ""} ${u.lastName || ""} (manque : ${(u.validationPartenaire?.manquants || []).join(", ") || "?"})`.trim()).join(", "),
     lien: "/admin?tab=kyc",
   });
 

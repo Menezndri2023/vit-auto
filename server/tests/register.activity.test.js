@@ -89,7 +89,7 @@ describe("resolveRequirements — table de redirection post-inscription", () => 
 
   it("chauffeur -> /kyc?next=driver-docs quel que soit entityType", () => {
     for (const entityType of ["particulier", "professionnel", "entreprise", "concessionnaire"]) {
-      expect(resolveRequirements({ activity: "chauffeur", entityType }).postRegistrationRedirect).toBe("/kyc?next=driver-docs");
+      expect(resolveRequirements({ activity: "chauffeur", entityType }).postRegistrationRedirect).toBe("/vendor?type=chauffeur");
     }
   });
 

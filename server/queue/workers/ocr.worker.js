@@ -75,6 +75,10 @@ export async function processOcrJob(job) {
         },
       });
 
+      if (autoApprove) {
+        const { reevaluerPartenaire } = await import("../../services/validationPartenaire.js");
+        reevaluerPartenaire(userId);
+      }
       if (autoApprove && !dejaVerifie) {
         const { sendViaInternal } = await import("../../services/communication/CommunicationService.js");
         await sendViaInternal({

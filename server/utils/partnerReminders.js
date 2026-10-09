@@ -19,9 +19,7 @@ import { avecVerrou } from "./schedulerLock.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
-import PartnerBusiness from "../models/PartnerBusiness.js";
-import PartnerVerification from "../models/PartnerVerification.js";
-import PartnerCertification from "../models/PartnerCertification.js";
+import { evaluerPartenaire, DOCUMENTS_PARTENAIRE } from "../services/validationPartenaire.js";
 import Vehicle from "../models/Vehicle.js";
 import { dispatch } from "../queue/index.js";
 import { nonBloquant } from "./nonBloquant.js";
@@ -35,7 +33,7 @@ const STALE_MS    = 3 * 24 * 60 * 60 * 1000; // ignore les dossiers créés il y
 // trois rappels ne le fera pas au quatrième : insister ne convertit personne,
 // entraîne les plaintes pour courrier indésirable et abîme la réputation
 // d'envoi pour ceux qui attendent une confirmation de réservation. La relance
-// reprend d'elle-même dès que le dossier bouge (voir `reprendreRelances`).
+// reprend d'elle-même dès que la liste des pièces manquantes change.
 const MAX_RELANCES = 3;
 
 function isDue(lastReminderSentAt, reminderCount = 0) {
@@ -43,12 +41,15 @@ function isDue(lastReminderSentAt, reminderCount = 0) {
   return !lastReminderSentAt || (Date.now() - new Date(lastReminderSentAt).getTime()) > COOLDOWN_MS;
 }
 
-/**
- * Remet le compteur à zéro : le dossier a bougé, la personne est de nouveau
- * joignable. À appeler quand un document est déposé ou le dossier modifié.
- */
-export async function reprendreRelances(Modele, filtre) {
-  return Modele.updateOne(filtre, { $set: { reminderCount: 0 } });
+// Relance manuelle demandée par l'admin (sans délai) : mêmes pièces que la
+// relance automatique, jamais à un partenaire déjà validé.
+export async function relancerValidation(userId) {
+  const r = await evaluerPartenaire(userId);
+  if (!r) return { erreur: "Partenaire introuvable." };
+  if (r.statut !== "a_completer" || !r.manquants.length) return { erreur: r.statut === "valide" ? "Ce partenaire est déjà validé : aucune pièce ne manque." : "Dossier suspendu : aucune relance." };
+  const missingDocs = r.manquants.map((c) => DOCUMENTS_PARTENAIRE[c]?.libelle || c);
+  const ok = await sendReminder({ userId, companyName: null, missingDocs, portalPath: DOCUMENTS_PARTENAIRE[r.manquants[0]]?.lien || "/vendor/dashboard" });
+  return ok ? { missingDocs } : { erreur: "Utilisateur introuvable." };
 }
 
 export async function sendReminder({ userId, companyName, missingDocs, portalPath }) {
@@ -56,7 +57,10 @@ export async function sendReminder({ userId, companyName, missingDocs, portalPat
   if (!user) return false;
   const titre   = "📋 Dossier partenaire incomplet";
   const message = `Il manque des documents dans votre dossier : ${missingDocs.join(", ")}. Complétez-le pour accélérer sa vérification.`;
-  const notif = await Notification.create({ user: userId, titre, message, type: "dossier_partenaire" }).catch(() => null);
+  // skipEmail : l'e-mail dédié part juste en dessous — sans ce drapeau, le
+  // filet e-mail des notifications envoyait une SECONDE copie (relevé du
+  // 09/10/2026 : chaque relance arrivait en double dans la boîte du partenaire).
+  const notif = await Notification.create({ user: userId, titre, message, type: "dossier_partenaire", lien: portalPath || null, skipEmail: true }).catch(() => null);
   // "notification_new" (pas "notification") + payload complet — voir
   // insuranceController.notify, même correctif (bug réel trouvé en audit).
   if (notif && global._io) {
@@ -72,135 +76,43 @@ export async function sendReminder({ userId, companyName, missingDocs, portalPat
   return true;
 }
 
-// ── Vérification Partenaire ────────────────────────────────────────────────
-export function missingVerificationDocs(doc) {
-  const labels = {
-    businessLicenseDoc: "Licence commerciale",
-    rccmDoc:             "Registre du Commerce (RCCM)",
-    taxIdDoc:            "NIF / Identifiant fiscal",
-    repIdDoc:            "Pièce d'identité du représentant",
-  };
-  return Object.entries(labels).filter(([key]) => !doc.documents?.[key]).map(([, label]) => label);
-}
+// ── Pièces manquantes pour la validation du partenaire ─────────────────────
+// Une SEULE relance par partenaire (règle de l'exploitant, 2026-10-09), qui
+// liste les pièces exigées pour SON métier et SON entité
+// (services/validationPartenaire.js) : permis et CV pour un chauffeur, pièce
+// d'identité pour un particulier, registre de commerce pour une entreprise…
+// Un partenaire validé, fondateur, suspendu, de test ou supprimé n'en reçoit
+// aucune. Elle remplace quatre relances qui demandaient toutes des documents
+// d'entreprise, à tous, y compris à des chauffeurs déjà en règle.
+const joignable = (u) => !u?.isTestAccount && !u?.deletedAt && u?.isActive !== false;
 
-async function checkPartnerVerification() {
-  const docs = await PartnerVerification.find({ status: { $ne: "verifie" } })
-    .select("userId companyName documents lastReminderSentAt reminderCount updatedAt")
+async function checkValidationPartenaires() {
+  const partenaires = await User.find({ role: "partenaire", deletedAt: null, isActive: { $ne: false }, isTestAccount: { $ne: true } })
+    .select("_id createdAt validationPartenaire.relances")
     .lean();
   let sent = 0;
-  for (const doc of docs) {
-    if (Date.now() - new Date(doc.updatedAt).getTime() < STALE_MS) continue;
-    if (!isDue(doc.lastReminderSentAt, doc.reminderCount)) continue;
-    const missing = missingVerificationDocs(doc);
-    if (!missing.length) continue;
-    const ok = await sendReminder({ userId: doc.userId, companyName: doc.companyName, missingDocs: missing, portalPath: "/profile" });
-    if (ok) {
-      await PartnerVerification.updateOne({ _id: doc._id }, { $set: { lastReminderSentAt: new Date() }, $inc: { reminderCount: 1 } });
-      sent++;
-    }
-  }
-  return sent;
-}
-
-// ── Certification 7 niveaux ────────────────────────────────────────────────
-export function missingCertificationDocs(cert) {
-  const labels = {
-    "level1.registrationDoc": "Registre de commerce",
-    "level1.taxDoc":          "Attestation fiscale",
-    "level2.idFrontDoc":      "Pièce d'identité — recto",
-    "level2.idBackDoc":       "Pièce d'identité — verso",
-    "level2.selfieDoc":       "Selfie de vérification",
-  };
-  const missing = [];
-  for (const [path, label] of Object.entries(labels)) {
-    const [lvl, field] = path.split(".");
-    if (!cert[lvl]?.[field]?.data) missing.push(label);
-  }
-  return missing;
-}
-
-async function checkPartnerCertification() {
-  const certs = await PartnerCertification.find({ overallStatus: { $in: ["not_started", "in_progress"] } })
-    .select("userId level1 level2 lastReminderSentAt reminderCount updatedAt")
-    .populate("userId", "role")
-    .lean();
-  let sent = 0;
-  for (const cert of certs) {
-    // Réservé aux comptes partenaire — un client sans rôle partenaire n'a
-    // jamais à compléter cette certification.
-    if (!cert.userId || cert.userId.role !== "partenaire") continue;
-    if (Date.now() - new Date(cert.updatedAt).getTime() < STALE_MS) continue;
-    if (!isDue(cert.lastReminderSentAt, cert.reminderCount)) continue;
-    const missing = missingCertificationDocs(cert);
-    if (!missing.length) continue;
-    const ok = await sendReminder({ userId: cert.userId._id, companyName: cert.level1?.companyName, missingDocs: missing, portalPath: "/partner-certification" });
-    if (ok) {
-      await PartnerCertification.updateOne({ _id: cert._id }, { $set: { lastReminderSentAt: new Date() }, $inc: { reminderCount: 1 } });
-      sent++;
-    }
-  }
-  return sent;
-}
-
-// ── Entités partenaire SANS AUCUN dossier Founding Partner ─────────────────
-// checkFoundingPartnerDrafts ne relance que les dossiers qui EXISTENT déjà en
-// base (brouillon/info_demandee). Angle mort distinct et réel : une entité
-// (PartnerBusiness) appartenant à un partenaire peut n'avoir strictement
-// AUCUN PartnerOnboarding — le partenaire ne clique jamais "Commencer ma
-// candidature" (applyToProgram est un clic explicite, jamais automatique).
-// Le programme étant devenu obligatoire pour tout partenaire (voir
-// checkFoundingCapacity, no-op volontaire), une telle entité reste bloquée
-// indéfiniment sans qu'aucune relance existante ne la détecte jamais. On ne
-// peut pas encore renvoyer de lien de signature (rien n'a été soumis) — la
-// notification/email invite donc à démarrer/approuver la candidature de
-// cette entité avec le programme qui lui correspond.
-async function checkPartnerBusinessesWithoutOnboarding() {
-  const businesses = await PartnerBusiness.find({})
-    .populate("owner", "role")
-    .select("owner companyName lastReminderSentAt createdAt")
-    .lean();
-  const candidates = businesses.filter((b) => b.owner?.role === "partenaire");
-  if (!candidates.length) return 0;
-
-  const existing = await PartnerOnboarding.find({ businessId: { $in: candidates.map((b) => b._id) } })
-    .select("businessId").lean();
-  const withOnboarding = new Set(existing.map((o) => String(o.businessId)));
-
-  let sent = 0;
-  for (const biz of candidates) {
-    if (withOnboarding.has(String(biz._id))) continue;
-    if (Date.now() - new Date(biz.createdAt).getTime() < STALE_MS) continue;
-    if (!isDue(biz.lastReminderSentAt)) continue;
-
+  for (const p of partenaires) {
+    const r = await evaluerPartenaire(p._id);
+    if (!r || r.statut !== "a_completer" || !r.manquants.length) continue;
+    if (Date.now() - new Date(p.createdAt).getTime() < STALE_MS) continue;
+    // Le compteur repart quand la liste des pièces manquantes change : le
+    // partenaire a avancé, il redevient joignable.
+    const signature = r.manquants.join(",");
+    const rel = p.validationPartenaire?.relances || {};
+    const nombre = rel.signature === signature ? rel.nombre || 0 : 0;
+    if (!isDue(rel.signature === signature ? rel.derniere : null, nombre)) continue;
     const ok = await sendReminder({
-      userId: biz.owner._id,
-      companyName: biz.companyName,
-      missingDocs: ["Candidature au Founding Partner Program (obligatoire, jamais démarrée pour cette entité)"],
-      portalPath: "/partner-onboarding",
+      userId: p._id,
+      companyName: null,
+      missingDocs: r.manquants.map((c) => DOCUMENTS_PARTENAIRE[c]?.libelle || c),
+      portalPath: DOCUMENTS_PARTENAIRE[r.manquants[0]]?.lien || "/vendor/dashboard",
     });
     if (ok) {
-      await PartnerBusiness.updateOne({ _id: biz._id }, { $set: { lastReminderSentAt: new Date() } });
-      sent++;
-    }
-  }
-  return sent;
-}
-
-// ── Founding Partner — brouillon jamais soumis ou infos demandées ─────────
-async function checkFoundingPartnerDrafts() {
-  const docs = await PartnerOnboarding.find({ status: { $in: ["brouillon", "info_demandee"] } })
-    .select("userId companyInfo lastReminderSentAt updatedAt status adminReview")
-    .lean();
-  let sent = 0;
-  for (const doc of docs) {
-    if (Date.now() - new Date(doc.updatedAt).getTime() < STALE_MS) continue;
-    if (!isDue(doc.lastReminderSentAt, doc.reminderCount)) continue;
-    const missing = doc.status === "info_demandee" && doc.adminReview?.infoRequested
-      ? [doc.adminReview.infoRequested]
-      : ["Documents légaux de l'entreprise (registre de commerce, licence commerciale...)"];
-    const ok = await sendReminder({ userId: doc.userId, companyName: doc.companyInfo?.legalName, missingDocs: missing, portalPath: "/partner-onboarding" });
-    if (ok) {
-      await PartnerOnboarding.updateOne({ _id: doc._id }, { $set: { lastReminderSentAt: new Date() } });
+      await User.updateOne({ _id: p._id }, { $set: {
+        "validationPartenaire.relances.nombre": nombre + 1,
+        "validationPartenaire.relances.derniere": new Date(),
+        "validationPartenaire.relances.signature": signature,
+      } });
       sent++;
     }
   }
@@ -216,12 +128,12 @@ async function checkFoundingPartnerDrafts() {
 // avoir expiré) et renvoie un seul email via documentsReadyReminder.
 async function checkFoundingPartnerPendingSignature() {
   const docs = await PartnerOnboarding.find({ status: { $in: ["loi_envoyee", "accord_envoye"] } })
-    .select("userId companyInfo status referenceNumber lastReminderSentAt updatedAt")
-    .populate("userId", "firstName email")
+    .select("userId companyInfo status referenceNumber lastReminderSentAt reminderCount updatedAt")
+    .populate("userId", "firstName email isTestAccount deletedAt isActive")
     .lean();
   let sent = 0;
   for (const doc of docs) {
-    if (!doc.userId?.email) continue;
+    if (!doc.userId?.email || !joignable(doc.userId)) continue;
     if (Date.now() - new Date(doc.updatedAt).getTime() < STALE_MS) continue;
     if (!isDue(doc.lastReminderSentAt, doc.reminderCount)) continue;
 
@@ -238,11 +150,12 @@ async function checkFoundingPartnerPendingSignature() {
         [`${field}.sentAt`]: new Date(),
         lastReminderSentAt: new Date(),
       },
+      $inc: { reminderCount: 1 },
     });
 
     const titre = "✍️ Signature en attente";
     const message = `Votre ${isLoiStep ? "Lettre d'Intention" : "Accord de Partenariat Fondateur"} attend toujours votre signature — votre dossier Founding Partner ne peut pas avancer sans elle.`;
-    const notif = await Notification.create({ user: doc.userId._id, titre, message, type: "system" }).catch(() => null);
+    const notif = await Notification.create({ user: doc.userId._id, titre, message, type: "system", lien: "/partner-onboarding", skipEmail: true }).catch(() => null);
     if (notif && global._io) {
       global._io.to(`user_${doc.userId._id}`).emit("notification_new", {
         _id: notif._id, type: "dossier_partenaire", titre, message, lien: "/partner-onboarding", lu: false, createdAt: notif.createdAt,
@@ -287,15 +200,15 @@ async function checkIncompleteListings() {
 
   let sent = 0;
   for (const grp of incompletes) {
-    const user = await User.findById(grp._id).select("firstName email lastListingReminderAt").lean();
-    if (!user?.email) continue;
-    if (!isDue(user.lastListingReminderAt)) continue;
+    const user = await User.findById(grp._id).select("firstName email lastListingReminderAt listingReminderCount isTestAccount deletedAt isActive").lean();
+    if (!user?.email || !joignable(user)) continue;
+    if (!isDue(user.lastListingReminderAt, user.listingReminderCount)) continue;
 
-    await User.updateOne({ _id: grp._id }, { $set: { lastListingReminderAt: new Date() } });
+    await User.updateOne({ _id: grp._id }, { $set: { lastListingReminderAt: new Date() }, $inc: { listingReminderCount: 1 } });
 
     const titre = "🚗 Annonces à compléter";
     const message = `${grp.n} de vos annonce${grp.n > 1 ? "s sont incomplètes" : " est incomplète"} : il manque le tarif, sans lequel elle${grp.n > 1 ? "s ne peuvent" : " ne peut"} être publiée${grp.n > 1 ? "s" : ""} ni réservée${grp.n > 1 ? "s" : ""}. Exemples : ${grp.exemples.slice(0, 3).join(", ")}.`;
-    const notif = await Notification.create({ user: grp._id, titre, message, type: "system" }).catch(() => null);
+    const notif = await Notification.create({ user: grp._id, titre, message, type: "system", lien: "/vendor/dashboard", skipEmail: true }).catch(() => null);
     if (notif && global._io) {
       global._io.to(`user_${grp._id}`).emit("notification_new", {
         _id: notif._id, type: "dossier_partenaire", titre, message, lien: "/vendor/dashboard", lu: false, createdAt: notif.createdAt,
@@ -317,17 +230,15 @@ async function checkIncompleteListings() {
 
 export async function checkAndSendPartnerReminders() {
   try {
-    const [pv, cert, fp, fpSig, fpNone, annonces] = await Promise.all([
-      checkPartnerVerification(),
-      checkPartnerCertification(),
-      checkFoundingPartnerDrafts(),
+    // Séquentiel : la validation est évaluée (et enregistrée) avant tout le reste.
+    const validation = await checkValidationPartenaires();
+    const [fpSig, annonces] = await Promise.all([
       checkFoundingPartnerPendingSignature(),
-      checkPartnerBusinessesWithoutOnboarding(),
       checkIncompleteListings(),
     ]);
-    const total = pv + cert + fp + fpSig + fpNone + annonces;
+    const total = validation + fpSig + annonces;
     if (total > 0) {
-      logger.info("[PartnerReminders] Relances envoyées", { verification: pv, certification: cert, foundingPartner: fp, foundingPartnerSignature: fpSig, foundingPartnerNotStarted: fpNone, annoncesIncompletes: annonces });
+      logger.info("[PartnerReminders] Relances envoyées", { validation, foundingPartnerSignature: fpSig, annoncesIncompletes: annonces });
     }
     return total;
   } catch (err) {

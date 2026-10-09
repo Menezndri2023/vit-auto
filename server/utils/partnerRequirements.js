@@ -9,18 +9,22 @@ import { requiresDriverDocs, requiresBusinessDocs } from "../constants/partnerTa
 // Documents d'entité déjà modélisés dans PartnerOnboarding.legalDocs — la
 // liste ici sert d'affichage/validation, pas de nouveau schéma.
 const BUSINESS_DOCS = ["businessRegistration", "businessLicense", "exportLicense", "taxCertificate", "proofOfAddress"];
-const DRIVER_DOCS = ["cv", "identity", "driverLicense"];
+// Chauffeur : permis + CV, rien d'autre (règle de l'exploitant, 2026-10-09 —
+// voir server/services/validationPartenaire.js, qui décide de la validation).
+const DRIVER_DOCS = ["cv", "driverLicense"];
 
 export function resolveRequirements({ activity, entityType }) {
   const driverRequired = requiresDriverDocs(activity);
   const businessRequired = requiresBusinessDocs(entityType);
 
   let postRegistrationRedirect = "/kyc";
-  if (driverRequired) postRegistrationRedirect = "/kyc?next=driver-docs";
+  // Le chauffeur dépose son permis et son CV dans le formulaire de sa fiche :
+  // aucun passage préalable par la vérification d'identité.
+  if (driverRequired) postRegistrationRedirect = "/vendor?type=chauffeur";
   else if (businessRequired) postRegistrationRedirect = "/kyc?next=partner-onboarding";
 
   return {
-    kyc: { required: true, docs: ["identity"] },
+    kyc: { required: !driverRequired, docs: driverRequired ? [] : ["identity"] },
     driver: { required: driverRequired, docs: driverRequired ? DRIVER_DOCS : [] },
     business: { required: businessRequired, docs: businessRequired ? BUSINESS_DOCS : [] },
     postRegistrationRedirect,

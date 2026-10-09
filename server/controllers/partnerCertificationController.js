@@ -415,20 +415,18 @@ export const adminDetail = async (req, res) => {
 // utils/partnerReminders.js) : l'admin veut prévenir tout de suite.
 export const adminRelance = async (req, res) => {
   try {
-    const { missingCertificationDocs, sendReminder } = await import("../utils/partnerReminders.js");
-    const cert = await PartnerCertification.findOne({ userId: req.params.userId }).lean();
-    if (!cert) return res.status(404).json({ message: "Certification introuvable." });
-
-    const missing = missingCertificationDocs(cert);
-    if (!missing.length) return res.status(400).json({ message: "Aucun document manquant sur ce dossier." });
-
-    const ok = await sendReminder({ userId: cert.userId, companyName: cert.level1?.companyName, missingDocs: missing, portalPath: "/partner-certification" });
-    if (!ok) return res.status(404).json({ message: "Utilisateur introuvable." });
-
-    await PartnerCertification.updateOne({ _id: cert._id }, { $set: { lastReminderSentAt: new Date() } });
-    await addAudit(cert._id, "RELANCE_ENVOYEE", null, req.user.id, `Documents manquants : ${missing.join(", ")}`);
-
-    res.json({ success: true, missingDocs: missing });
+    // Pièces exigées selon le métier et l'entité du partenaire (règle du
+    // 2026-10-09, services/validationPartenaire.js) — plus la liste figée de
+    // documents d'entreprise, qui partait aussi vers des chauffeurs en règle.
+    const { relancerValidation } = await import("../utils/partnerReminders.js");
+    const cert = await PartnerCertification.findOne({ userId: req.params.userId }).select("_id").lean();
+    const r = await relancerValidation(req.params.userId);
+    if (r.erreur) return res.status(400).json({ message: r.erreur });
+    if (cert) {
+      await PartnerCertification.updateOne({ _id: cert._id }, { $set: { lastReminderSentAt: new Date() } });
+      await addAudit(cert._id, "RELANCE_ENVOYEE", null, req.user.id, `Documents manquants : ${r.missingDocs.join(", ")}`);
+    }
+    res.json({ success: true, missingDocs: r.missingDocs });
   } catch (err) {
     logger.error("certification adminRelance:", err);
     res.status(500).json({ message: "Erreur serveur." });

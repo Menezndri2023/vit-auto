@@ -289,6 +289,8 @@ const partnerOnboardingSchema = new mongoose.Schema({
   // dossier resté incomplet — évite de spammer le même partenaire à chaque
   // passage du job de relance automatique (voir utils/partnerReminders.js).
   lastReminderSentAt: { type: Date, default: null },
+  // Relances de signature envoyées (3 au plus — utils/partnerReminders.js).
+  reminderCount:      { type: Number, default: 0 },
 
   // ── Audit log ──────────────────────────────────────────────────────────────
   auditLog: [auditEntrySchema],

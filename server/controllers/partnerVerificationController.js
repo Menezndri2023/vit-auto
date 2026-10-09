@@ -388,20 +388,18 @@ export const adminUpdateStatus = async (req, res) => {
 // utils/partnerReminders.js) : l'admin veut prévenir tout de suite.
 export const adminRelance = async (req, res) => {
   try {
-    const { missingVerificationDocs, sendReminder } = await import("../utils/partnerReminders.js");
-    const doc = await PartnerVerification.findOne({ userId: req.params.userId }).lean();
-    if (!doc) return res.status(404).json({ message: "Dossier introuvable." });
-
-    const missing = missingVerificationDocs(doc);
-    if (!missing.length) return res.status(400).json({ message: "Aucun document manquant sur ce dossier." });
-
-    const ok = await sendReminder({ userId: doc.userId, companyName: doc.companyName, missingDocs: missing, portalPath: "/profile" });
-    if (!ok) return res.status(404).json({ message: "Utilisateur introuvable." });
-
-    await PartnerVerification.updateOne({ _id: doc._id }, { $set: { lastReminderSentAt: new Date() } });
-    await addAudit(doc._id, "RELANCE_ENVOYEE", null, req.user.id, `Documents manquants : ${missing.join(", ")}`);
-
-    res.json({ success: true, missingDocs: missing });
+    // Pièces exigées selon le métier et l'entité du partenaire (règle du
+    // 2026-10-09, services/validationPartenaire.js) — plus la liste figée de
+    // documents d'entreprise, qui partait aussi vers des chauffeurs en règle.
+    const { relancerValidation } = await import("../utils/partnerReminders.js");
+    const doc = await PartnerVerification.findOne({ userId: req.params.userId }).select("_id").lean();
+    const r = await relancerValidation(req.params.userId);
+    if (r.erreur) return res.status(400).json({ message: r.erreur });
+    if (doc) {
+      await PartnerVerification.updateOne({ _id: doc._id }, { $set: { lastReminderSentAt: new Date() } });
+      await addAudit(doc._id, "RELANCE_ENVOYEE", null, req.user.id, `Documents manquants : ${r.missingDocs.join(", ")}`);
+    }
+    res.json({ success: true, missingDocs: r.missingDocs });
   } catch (err) {
     logger.error("partnerVerif adminRelance:", err);
     res.status(500).json({ message: "Erreur serveur." });

@@ -3,11 +3,11 @@ import { resolveRequirements } from "../utils/partnerRequirements.js";
 import { ACTIVITIES, ENTITY_TYPES } from "../constants/partnerTaxonomy.js";
 
 describe("resolveRequirements", () => {
-  it("exige toujours le KYC identité, quel que soit le profil", () => {
+  it("exige le KYC identité de tout profil SAUF le chauffeur (permis + CV seulement)", () => {
     for (const activity of ACTIVITIES) {
       for (const entityType of ENTITY_TYPES) {
         const req = resolveRequirements({ activity, entityType });
-        expect(req.kyc).toEqual({ required: true, docs: ["identity"] });
+        expect(req.kyc).toEqual(activity === "chauffeur" ? { required: false, docs: [] } : { required: true, docs: ["identity"] });
       }
     }
   });
@@ -25,8 +25,9 @@ describe("resolveRequirements", () => {
     for (const entityType of ENTITY_TYPES) {
       const req = resolveRequirements({ activity: "chauffeur", entityType });
       expect(req.driver.required).toBe(true);
-      expect(req.driver.docs).toEqual(["cv", "identity", "driverLicense"]);
-      expect(req.postRegistrationRedirect).toBe("/kyc?next=driver-docs");
+      expect(req.driver.docs).toEqual(["cv", "driverLicense"]);
+      expect(req.kyc.required).toBe(false);
+      expect(req.postRegistrationRedirect).toBe("/vendor?type=chauffeur");
     }
   });
 
@@ -45,6 +46,6 @@ describe("resolveRequirements", () => {
     const req = resolveRequirements({ activity: "chauffeur", entityType: "entreprise" });
     expect(req.driver.required).toBe(true);
     expect(req.business.required).toBe(true);
-    expect(req.postRegistrationRedirect).toBe("/kyc?next=driver-docs");
+    expect(req.postRegistrationRedirect).toBe("/vendor?type=chauffeur");
   });
 });

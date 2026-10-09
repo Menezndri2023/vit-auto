@@ -23,14 +23,19 @@ const COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000; // 14 jours entre deux relances du
 const STALE_MS    = 3 * 24 * 60 * 60 * 1000;  // ignore les comptes créés il y a moins de 3 jours
 const BATCH_LIMIT  = 500;                      // garde-fou si la base grandit
 
-function isDue(lastNudgeAt) {
+// Deux rappels au plus (2026-10-09) : le relevé des envois montrait la même
+// invitation partie toutes les deux semaines, sans fin, à 37 comptes.
+const MAX_RAPPELS = 2;
+function isDue(lastNudgeAt, nombre = 0) {
+  if (nombre >= MAX_RAPPELS) return false;
   return !lastNudgeAt || (Date.now() - new Date(lastNudgeAt).getTime()) > COOLDOWN_MS;
 }
 
 // ── Ce qui manque, selon le rôle du compte ─────────────────────────────────
 function missingItems(user) {
   const missing = [];
-  if (!user.profilePhoto) missing.push("Photo de profil");
+  // La photo de profil n'est demandée nulle part pour réserver : la réclamer
+  // par e-mail n'apportait rien.
   if (!user.phone && !user.phoneVerified) missing.push("Numéro de téléphone");
 
   if (user.role === "client") {
@@ -43,30 +48,31 @@ function missingItems(user) {
     }
   }
 
-  if (user.role === "partenaire" && !user.business?.address) {
-    missing.push("Adresse de votre entreprise");
-  }
-
   return missing;
 }
 
 async function processBatch() {
-  const users = await User.find({ isActive: true, role: { $in: ["client", "partenaire", "chauffeur"] } })
-    .select("firstName email profilePhoto phone phoneVerified role defaultLocation business kycStatus kycSubmittedAt createdAt lastAccountHealthNudgeAt")
+  // Clients seulement (2026-10-09) : un partenaire reçoit UNE relance, celle
+  // des pièces exigées pour sa validation (utils/partnerReminders.js) — plus
+  // de « complétez votre profil » en parallèle, ni après sa validation.
+  const users = await User.find({ isActive: true, role: "client", deletedAt: null, isTestAccount: { $ne: true } })
+    .select("firstName email phone phoneVerified role defaultLocation kycStatus kycSubmittedAt createdAt lastAccountHealthNudgeAt accountHealthNudgeCount")
     .limit(BATCH_LIMIT)
     .lean();
 
   let sent = 0;
   for (const user of users) {
     if (Date.now() - new Date(user.createdAt).getTime() < STALE_MS) continue;
-    if (!isDue(user.lastAccountHealthNudgeAt)) continue;
+    if (!isDue(user.lastAccountHealthNudgeAt, user.accountHealthNudgeCount)) continue;
 
     const missing = missingItems(user);
     if (!missing.length) continue;
 
     const titre   = "📋 Complétez votre profil VIT AUTO";
     const message = `Quelques informations restent à renseigner : ${missing.join(", ")}.`;
-    const notif = await Notification.create({ user: user._id, titre, message, type: "system" }).catch(() => null);
+    // skipEmail : l'e-mail dédié (accountIncomplete) part juste en dessous —
+    // le filet e-mail des notifications en envoyait une seconde copie.
+    const notif = await Notification.create({ user: user._id, titre, message, type: "system", lien: "/profile", skipEmail: true }).catch(() => null);
     // "notification_new" (pas "notification") + payload complet — voir
     // insuranceController.notify, même correctif (bug réel trouvé en audit).
     if (notif && global._io) {
@@ -81,7 +87,7 @@ async function processBatch() {
       }).catch((e) => logger.error("dispatch.accountIncomplete:", e.message));
     }
 
-    await User.updateOne({ _id: user._id }, { $set: { lastAccountHealthNudgeAt: new Date() } });
+    await User.updateOne({ _id: user._id }, { $set: { lastAccountHealthNudgeAt: new Date() }, $inc: { accountHealthNudgeCount: 1 } });
     sent++;
   }
   return sent;

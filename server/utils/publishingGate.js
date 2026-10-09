@@ -40,6 +40,9 @@ const avantDe = (action) => (/^[aeiouyâàéèêëîïôöûü]/i.test(action) ?
 // copies.
 export function refusDePublication(user, action = "publier une annonce", now = new Date()) {
   if (!user || user.role !== "partenaire" || user.isFounder) return null;
+  // Partenaire validé : les pièces exigées pour SON métier et SON entité sont
+  // réunies (services/validationPartenaire.js) — rien d'autre à demander.
+  if (user.validationPartenaire?.statut === "valide") return null;
 
   if (user.sellerType === "particulier") {
     if (user.kycStatus !== "VERIFIE") {

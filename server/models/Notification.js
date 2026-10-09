@@ -182,12 +182,26 @@ notificationSchema.post("save", function (doc) {
 // suite de tests entière a ralenti, plusieurs tests ont timeout). Le hook
 // jumeau ci-dessus (notifyAdminByEmail) évite déjà ce piège — même principe
 // ici : lancer le travail async SANS le retourner/l'attendre.
+const TYPES_REGROUPES = new Set(["listing_approved", "listing_rejected"]);
 notificationSchema.post("save", function (doc) {
   if (doc.skipEmail) return;
   (async () => {
     const User = mongoose.model("User");
-    const recipient = await User.findById(doc.user).select("email firstName notif_emailReminders").lean();
+    const recipient = await User.findById(doc.user).select("email firstName notif_emailReminders isTestAccount deletedAt isActive").lean();
     if (!recipient?.email) return;
+    // Comptes de test, supprimés ou bloqués : la notification reste dans
+    // l'application, aucun e-mail ne part (2026-10-09).
+    if (recipient.isTestAccount || recipient.deletedAt || recipient.isActive === false) return;
+    // Modération d'annonces : même titre déjà notifié à la même personne dans
+    // les 6 dernières heures → un seul e-mail. 47 « Annonce approuvée » étaient
+    // partis en une semaine vers deux partenaires, un par annonce d'une flotte
+    // validée d'un coup. Limité à ces types : une réservation, un paiement ou
+    // un message reste TOUJOURS envoyé, même s'il en arrive deux.
+    const doublon = TYPES_REGROUPES.has(doc.type) && await mongoose.model("Notification").exists({
+      _id: { $ne: doc._id }, user: doc.user, titre: doc.titre, skipEmail: { $ne: true },
+      createdAt: { $gte: new Date(Date.now() - 6 * 3600 * 1000), $lt: doc.createdAt || new Date() },
+    });
+    if (doublon) return;
     // Respecte la préférence "Rappels par email" (Profile.jsx, déjà branchée
     // en écriture via PATCH /api/users/me mais jusqu'ici jamais consultée
     // avant un envoi réel — bug réel corrigé en même temps que ce filet).

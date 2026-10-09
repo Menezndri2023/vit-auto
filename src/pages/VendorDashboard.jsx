@@ -1,3 +1,4 @@
+import BandeauValidation from "../components/BandeauValidation/BandeauValidation";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useOngletVisible } from "../hooks/useOngletVisible";
 import { useAuth } from "../context/AuthContext";
@@ -3365,36 +3366,9 @@ export default function VendorDashboard() {
           Un partenaire bloqué par KYC/certification (voir createVehicle) n'avait
           aucune indication proactive dans son propre espace — seulement une
           erreur 403 au moment de publier. Manque réel trouvé en audit. */}
-      {/* Publication déjà ouverte par l'exploitant (autorisation provisoire) :
-          un simple rappel, jamais « requis pour publier » à un partenaire dont
-          les annonces sont en ligne. */}
-      {!user.isFounder && user.publishingGranted && (isIndividualSeller ? user.kycStatus !== "VERIFIE" : user.certificationBadge === "none") && (
-        <div className={styles.freeBanner} style={{ borderColor: "#a5b4fc" }}>
-          <span className={styles.planBadge} style={{ background: "#e0e7ff", color: "#4338ca" }}>✓ Publication ouverte</span>
-          <span>Vos annonces sont en ligne. Complétez votre dossier quand vous le souhaitez pour obtenir le badge vérifié.</span>
-          <Link to={isIndividualSeller ? "/kyc" : "/partner-certification"} className={styles.upgradeLink}>Compléter mon dossier →</Link>
-        </div>
-      )}
-      {!user.isFounder && !user.publishingGranted && isIndividualSeller && user.kycStatus !== "VERIFIE" && (
-        <div className={styles.freeBanner} style={{ borderColor: user.kycStatus === "REFUSE" ? "#fca5a5" : "#fde68a" }}>
-          <span className={styles.planBadge} style={{ background: user.kycStatus === "REFUSE" ? "#fee2e2" : "#fef3c7", color: user.kycStatus === "REFUSE" ? "#dc2626" : "#d97706" }}>
-            {user.kycStatus === "REFUSE" ? "❌ KYC refusé" : "⏳ KYC en attente"}
-          </span>
-          <span>
-            {user.kycStatus === "REFUSE"
-              ? "Votre vérification d'identité a été refusée — vous ne pouvez pas publier tant qu'elle n'est pas resoumise."
-              : "Complétez votre vérification d'identité (pièce + selfie) pour pouvoir publier vos annonces."}
-          </span>
-          <Link to="/kyc" className={styles.upgradeLink}>{user.kycStatus === "REFUSE" ? "Resoumettre →" : "Vérifier mon identité →"}</Link>
-        </div>
-      )}
-      {!user.isFounder && !user.publishingGranted && !isIndividualSeller && user.certificationBadge === "none" && (
-        <div className={styles.freeBanner} style={{ borderColor: "#fde68a" }}>
-          <span className={styles.planBadge} style={{ background: "#fef3c7", color: "#d97706" }}>⏳ Certification requise</span>
-          <span>Complétez votre vérification partenaire (entreprise/professionnel) pour pouvoir publier vos annonces.</span>
-          <Link to="/partner-certification" className={styles.upgradeLink}>Compléter mon dossier →</Link>
-        </div>
-      )}
+      {/* Validation du partenaire (2026-10-09) : pièces exigées selon son
+          métier et son entité, calculées par le serveur. */}
+      {!user.isFounder && <BandeauValidation token={token} styles={styles} publicationOuverte={!!user.publishingGranted} />}
 
       {/* ── Plan Banner ── */}
       {!subLoading && (

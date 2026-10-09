@@ -183,6 +183,21 @@ partnerCertificationSchema.pre("save", function (next) {
   next();
 });
 
+
+// Validation du partenaire (2026-10-09) : une pièce déposée ou un statut
+// changé ici peut rendre le partenaire « validé » — réévaluation sans attendre
+// le passage quotidien. Import dynamique : le service importe ce modèle.
+const reevaluer = (userId) => {
+  if (!userId) return;
+  import("../services/validationPartenaire.js").then((m) => m.reevaluerPartenaire(userId)).catch(() => {});
+};
+partnerCertificationSchema.post("save", (doc) => reevaluer(doc.userId));
+partnerCertificationSchema.post("findOneAndUpdate", (doc) => reevaluer(doc?.userId));
+partnerCertificationSchema.post("updateOne", { document: false, query: true }, async function () {
+  const filtre = this.getFilter?.() || {};
+  if (filtre.userId) reevaluer(filtre.userId);
+});
+
 const PartnerCertification =
   mongoose.models.PartnerCertification ||
   mongoose.model("PartnerCertification", partnerCertificationSchema);

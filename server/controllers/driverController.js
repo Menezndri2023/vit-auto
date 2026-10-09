@@ -13,7 +13,7 @@ import { logAction } from "../middleware/auditLog.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { uploadBase64Images, uploadBase64Document, FOLDERS } from "../config/imagekit.js";
 import { getActiveRates } from "../services/currencyEngine.js";
-import { refusDePublication } from "../utils/publishingGate.js";
+import { evaluerPartenaire } from "../services/validationPartenaire.js";
 import { refusDePerimetre } from "../utils/perimetre.js";
 import { refusDeQuota } from "../services/quotaAnnonces.js";
 import { refuserPublication } from "../utils/maintenanceWatchdog.js";
@@ -77,20 +77,22 @@ async function processDriverDocuments({ identityDocument, licenseDocument }) {
     const check = validateImageDataUri(img, MAX_DRIVER_DOC_BYTES);
     if (!check.ok) return { error: `Document ${label} : ${check.message}` };
   }
-  if (!identityDocument?.frontImage) return { error: "Pièce d'identité (recto) requise pour publier un profil chauffeur." };
+  // Règle de l'exploitant (2026-10-09) : un chauffeur fournit son permis et
+  // son CV, rien d'autre. La pièce d'identité reste acceptée si elle est
+  // jointe, elle n'est plus exigée.
   if (!licenseDocument?.frontImage) return { error: "Permis de conduire (recto) requis pour publier un profil chauffeur." };
   // `driverDocs`, et non `drivers` : ces pièces sont déposées en PRIVÉ (URL
   // signée obligatoire), tandis que le CV et les photos du même chauffeur
   // restent publics dans le dossier parent — voir FOLDERS dans config/imagekit.js.
   const [idFront, idBack, licFront, licBack] = await Promise.all([
-    uploadBase64Document(identityDocument.frontImage, FOLDERS.driverDocs),
-    uploadBase64Document(identityDocument.backImage || null, FOLDERS.driverDocs),
+    uploadBase64Document(identityDocument?.frontImage || null, FOLDERS.driverDocs),
+    uploadBase64Document(identityDocument?.backImage || null, FOLDERS.driverDocs),
     uploadBase64Document(licenseDocument.frontImage, FOLDERS.driverDocs),
     uploadBase64Document(licenseDocument.backImage || null, FOLDERS.driverDocs),
   ]);
   return {
     error: null,
-    identityDocument: { type: identityDocument.type || null, frontImage: idFront, backImage: idBack },
+    identityDocument: { type: identityDocument?.type || null, frontImage: idFront, backImage: idBack },
     licenseDocument:  { frontImage: licFront, backImage: licBack },
   };
 }
@@ -120,8 +122,11 @@ export const createDriver = async (req, res) => {
     // en plus un KYC préalable par /kyc bloquait un vrai chauffeur cinq jours
     // sans qu'il sache quoi faire (VendorSubmit.jsx). Une entreprise reste
     // soumise à la certification de l'entité : ce sont SES documents.
-    const refus = req.user.sellerType === "particulier" ? null : refusDePublication(req.user, "publier un profil chauffeur");
-    if (refus) return refuserPublication(req, res, "Driver", refus);
+    // Règle de l'exploitant (2026-10-09) : les pièces d'un chauffeur sont son
+    // permis et son CV, joints à CE formulaire — quelle que soit son entité.
+    // Lui demander en plus la certification d'une entreprise était l'une des
+    // incohérences relevées. Un compte qui publie aussi d'autres offres reste
+    // soumis à la règle de son entité pour celles-ci.
 
     // Secteur Chauffeur, puis quota du plan (voir perimetre.js et
     // quotaAnnonces.js). Un loueur qui propose ses véhicules AVEC chauffeur
@@ -260,8 +265,15 @@ export const createDriver = async (req, res) => {
       missionsTotal: 0,
     });
 
-    // Notification non bloquante
-    try {
+    // Permis + CV fournis et contact confirmé : le partenaire est validé et la
+    // fiche publiée sur-le-champ (services/validationPartenaire.js).
+    await evaluerPartenaire(req.user._id);
+    const enLigne = (await Driver.findById(driver._id).select("status").lean())?.status === "approved";
+    if (enLigne) driver.status = "approved";
+
+    // Notification non bloquante — le message « compte validé » part déjà de
+    // l'évaluation quand la fiche est publiée.
+    if (!enLigne) try {
       const titre   = "Profil chauffeur soumis";
       const message = "Votre profil chauffeur est en cours de vérification.";
       const notifDoc = await Notification.create({ user: req.user._id, type: "system", titre, message, lien: "/vendor/dashboard" });
@@ -278,7 +290,7 @@ export const createDriver = async (req, res) => {
     // Bug réel corrigé (audit) : createDriver ne notifiait jamais les admins
     // d'un nouveau profil chauffeur en attente — ils ne le découvraient
     // qu'en rechargeant manuellement l'onglet Annonces & Validations.
-    notifyAdmins(
+    if (!enLigne) notifyAdmins(
       "new_driver",
       "🧑‍✈️ Nouveau profil chauffeur à valider",
       `${driver.firstName} ${driver.lastName} a soumis un profil chauffeur publié par ${req.user.firstName || ""} ${req.user.lastName || ""}.`,
@@ -307,8 +319,9 @@ export const getDrivers = async (req, res) => {
     // Voir vehicleController.getVehicles pour le même filtre (pays absent = pas de restriction).
     let clePays = null;
     if (country && country !== "INTL") {
-      filter.$or = [{ country: String(country).toUpperCase() }, { country: null }];
-      clePays = "$or";
+      // Strict depuis le 2026-10-09 : le pays du visiteur et lui seul.
+      filter.country = String(country).toUpperCase();
+      clePays = "country";
     }
 
     // owner.identity/driverLicenseOcr sont récupérés UNIQUEMENT pour calculer les
@@ -731,8 +744,25 @@ export const updateDriver = async (req, res) => {
       }
     }
 
+    // Permis de conduire : le partenaire peut le joindre ou le remplacer à
+    // l'édition (une fiche publiée sans permis ne pouvait jamais se compléter).
+    const permis = req.body.licenseDocument;
+    if (permis?.frontImage && String(permis.frontImage).startsWith("data:")) {
+      for (const img of [permis.frontImage, permis.backImage].filter(Boolean)) {
+        const check = validateImageDataUri(img, MAX_DRIVER_DOC_BYTES);
+        if (!check.ok) return res.status(400).json({ message: `Permis : ${check.message}` });
+      }
+      const [recto, verso] = await Promise.all([
+        uploadBase64Document(permis.frontImage, FOLDERS.driverDocs),
+        uploadBase64Document(permis.backImage || null, FOLDERS.driverDocs),
+      ]);
+      safeUpdate.licenseDocument = { frontImage: recto, backImage: verso };
+    }
+
     const updated = await Driver.findByIdAndUpdate(req.params.id, safeUpdate, { new: true, runValidators: true });
-    res.json({ driver: updated });
+    // Permis et CV désormais complets : le partenaire peut devenir validé.
+    if (isOwner) await evaluerPartenaire(driver.owner);
+    res.json({ driver: isOwner ? await Driver.findById(updated._id) : updated });
   } catch (err) {
     logger.error("updateDriver:", err);
     if (err.name === "ValidationError") {

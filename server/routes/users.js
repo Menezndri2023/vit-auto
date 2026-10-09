@@ -19,6 +19,7 @@ const strictLimiter = rateLimit({
 
 // ── Utilisateur connecté ───────────────────────────────────────────────────
 router.get("/me",              authenticate, u.getMyProfile);
+router.get("/me/validation",   authenticate, u.getMaValidation);
 router.patch("/me",            authenticate, u.updateMyProfile);
 router.post("/me/identity",    authenticate, u.submitIdentity);
 router.post("/me/email-change", strictLimiter, authenticate, validate(requestEmailChangeSchema), u.requestEmailChange);

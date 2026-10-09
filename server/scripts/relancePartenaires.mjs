@@ -26,19 +26,18 @@ dotenv.config();
 import User from "../models/User.js";
 import Vehicle from "../models/Vehicle.js";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
-import PartnerVerification from "../models/PartnerVerification.js";
-import { checkAndSendPartnerReminders, missingVerificationDocs } from "../utils/partnerReminders.js";
+import { checkAndSendPartnerReminders } from "../utils/partnerReminders.js";
 
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const du = (d) => (!d || Date.now() - new Date(d).getTime() > COOLDOWN_MS);
 
 async function apercu() {
-  console.log("── Documents de vérification incomplets ──");
-  for (const v of await PartnerVerification.find({ status: { $ne: "verifie" } }).select("userId companyName documents lastReminderSentAt").lean()) {
-    const manque = missingVerificationDocs(v);
-    if (!manque.length) continue;
-    const u = await User.findById(v.userId).select("email").lean();
-    console.log(`   ${du(v.lastReminderSentAt) ? "→" : "⏸"} ${u?.email || v.userId} : ${manque.join(", ")}`);
+  // Dernière évaluation enregistrée (services/validationPartenaire.js) : les
+  // pièces exigées selon le métier et l'entité de chaque partenaire.
+  console.log("── Partenaires à compléter (pièces manquantes) ──");
+  for (const u of await User.find({ role: "partenaire", "validationPartenaire.statut": "a_completer", isTestAccount: { $ne: true }, deletedAt: null }).select("email validationPartenaire").lean()) {
+    const r = u.validationPartenaire;
+    console.log(`   ${(r.relances?.nombre || 0) >= 3 ? "⏸" : "→"} ${u.email} : ${(r.manquants || []).join(", ")}`);
   }
 
   console.log("\n── Accords en attente de signature ──");
