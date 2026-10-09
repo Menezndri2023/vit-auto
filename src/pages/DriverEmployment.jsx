@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useVehicles } from "../context/VehicleContext";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -19,7 +19,18 @@ const DriverEmployment = () => {
   const { success, error } = useToast();
   const { currency: displayCurrency, CURRENCIES } = useCurrency();
 
-  const driver = getItemById(id);
+  // Fiche absente du catalogue chargé (filtré par pays du visiteur depuis le
+  // 2026-10-09, ou lien direct avant chargement) : on la lit directement.
+  const depuisCatalogue = getItemById(id);
+  const [lue, setLue] = useState(null);
+  useEffect(() => {
+    if (depuisCatalogue || !id) return;
+    fetch(`/api/drivers/${id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.driver) setLue(d.driver); })
+      .catch(() => {});
+  }, [id, depuisCatalogue]);
+  const driver = depuisCatalogue || lue;
 
   const [contractType, setContractType] = useState("cdi");
   const [startDate, setStartDate] = useState("");

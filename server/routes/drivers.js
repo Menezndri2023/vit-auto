@@ -19,6 +19,8 @@ router.delete("/:id/blackout/:blackoutId", authenticate, validateObjectId(), val
 
 // ── Admin ─────────────────────────────────────────────────
 router.get("/pending", authenticate, authorizeAdmin, requireAdminScope("catalogue"), d.getPendingDrivers);
+// Après les routes nommées (« /mine », « /pending ») : fiche publique d'un chauffeur.
+router.get("/:id", validateObjectId(), d.getDriverPublic);
 router.patch("/:id/status", authenticate, authorizeAdmin, requireAdminScope("catalogue"), validateObjectId(), d.updateDriverStatus);
 router.patch("/:id/transfer", authenticate, authorizeAdmin, requireAdminScope("catalogue"), validateObjectId(), d.transferDriver);
 

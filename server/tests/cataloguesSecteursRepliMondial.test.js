@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import mongoose from "mongoose";
 import SparePart from "../models/SparePart.js";
 import { getActivities } from "../controllers/activityController.js";
-import { getDrivers } from "../controllers/driverController.js";
+import { getDrivers, getDriverPublic } from "../controllers/driverController.js";
 import { getParts } from "../controllers/partController.js";
 import { cacheClear } from "../utils/catalogCache.js";
 import { createUser, createActivityDoc, createDriverDoc } from "./helpers/fixtures.js";
@@ -108,6 +108,20 @@ describe("Catalogues sectoriels — pays du visiteur seulement", () => {
 
       const liste = await appeler(getDrivers, { country: "CI" });
       expect(liste.map((d) => d.firstName).sort()).toEqual(["Aya", "Kouassi", "Yao"]);
+    });
+  });
+
+  describe("Fiche chauffeur par lien direct", () => {
+    it("un chauffeur d'un autre pays reste lisible par son lien, sans téléphone ; une fiche non publiée ne l'est pas", async () => {
+      const p = await createUser({ role: "partenaire" });
+      const ok = await createDriverDoc({ owner: p._id, country: "MA", firstName: "Hassan", phone: "+212600000000" });
+      const attente = await createDriverDoc({ owner: p._id, country: "MA", status: "pending" });
+      const lire = async (id) => { const { req, res } = mockReqRes({ params: { id: String(id) } }); await getDriverPublic(req, res); return res; };
+      const r = await lire(ok._id);
+      expect(r.body.driver.firstName).toBe("Hassan");
+      expect(r.body.driver.phone).toBeUndefined();
+      expect(r.body.driver.owner).toEqual({ _id: p._id, firstName: p.firstName });
+      expect((await lire(attente._id)).status).toHaveBeenCalledWith(404);
     });
   });
 

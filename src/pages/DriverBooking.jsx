@@ -16,7 +16,18 @@ const DriverBooking = () => {
   const { user, token } = useAuth();
   const { success, error } = useToast();
 
-  const driver = getItemById(id);
+  // Fiche absente du catalogue chargé (filtré par pays du visiteur depuis le
+  // 2026-10-09, ou lien direct avant chargement) : on la lit directement.
+  const depuisCatalogue = getItemById(id);
+  const [lue, setLue] = useState(null);
+  useEffect(() => {
+    if (depuisCatalogue || !id) return;
+    fetch(`/api/drivers/${id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.driver) setLue(d.driver); })
+      .catch(() => {});
+  }, [id, depuisCatalogue]);
+  const driver = depuisCatalogue || lue;
 
   const [firstName, setFirstName] = useState(user?.firstName || "");
   const [lastName,  setLastName]  = useState(user?.lastName  || "");
