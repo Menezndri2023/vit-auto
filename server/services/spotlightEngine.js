@@ -50,7 +50,6 @@ import { clauseHorsComptesDeTest } from "../utils/comptesDeTest.js";
 import { MARQUEUR_MONTANT_DOUTEUX } from "../constants/plausibilitePrix.js";
 import SiteContent from "../models/SiteContent.js";
 import { regleEffective } from "./spotlightRules.js";
-import { SEUIL_CONTENU_PAYS } from "../utils/repliMondial.js";
 
 // ── Places réservées par palier d'abonnement ───────────────────────────────
 // Le nombre progresse avec la formule : c'est la contrepartie visible de
@@ -412,14 +411,15 @@ const ADAPTATEURS = {
 
 // ── Emplacements ───────────────────────────────────────────────────────────
 // `parPays` : la vitrine est composée pour le PAYS du visiteur (Maroc →
-// Maroc, France → France), avec repli international sans partenaire dans le
-// pays. « Partenaires à la une » reste internationale pour tous les pays
-// combinés — décision de l'exploitant (2026-09-17).
+// Maroc, France → France), sans repli international. « Partenaires à la une »
+// suit la même règle depuis le 2026-10-09 (elle était internationale depuis
+// le 2026-09-17) : l'exploitant veut que TOUTE mise en avant soit celle du
+// pays du visiteur, sauf s'il en choisit un autre.
 export const EMPLACEMENTS = {
   hero:        { source: "vehicules",   capacite: 6, type: null, parPays: true },
   vedette:     { source: "vehicules",   capacite: 8, type: null, parPays: true },
   loisirs:     { source: "activites",   capacite: 6, type: null, parPays: true },
-  partenaires: { source: "partenaires", capacite: 6, type: null, parPays: false },
+  partenaires: { source: "partenaires", capacite: 6, type: null, parPays: true },
 };
 
 // Rangs d'abonnement en vigueur, résolus À LA VOLÉE plutôt que recopiés sur
@@ -742,21 +742,10 @@ export async function vitrineEnCache(nomEmplacement, { country = null, type = nu
 
   const vitrine = await composerVitrine(nomEmplacement, { country, type });
 
-  // Repli INTERNATIONAL : aucun partenaire actif dans le pays (règle de
-  // l'exploitant), ou trop peu de contenu publiable — jamais par morceaux, ce
-  // qui mélangerait local et lointain dans la même vitrine.
-  //
-  // Le seuil, et non « zéro » : mesuré en production le 2026-09-25, la Côte
-  // d'Ivoire rendait DEUX vignettes sur un carrousel qui en tient six, parce
-  // que les deux annonces de démonstration de la review Apple suffisaient à
-  // éteindre le repli. Une vitrine au quart pleine est pire qu'une vitrine
-  // internationale : elle donne d'un marché l'image d'un site désert. Même
-  // constante que les quatre catalogues (utils/repliMondial.js).
-  const replier = vitrine.pays
-    && (vitrine.regle?.international || vitrine.items.length < SEUIL_CONTENU_PAYS);
-  const resultat = replier
-    ? { ...(await composerVitrine(nomEmplacement, { country: null, type })), pays: vitrine.pays, repliMondial: true, regle: vitrine.regle }
-    : vitrine;
+  // Plus de repli international (règle de l'exploitant, 2026-10-09) : un
+  // visiteur ne voit QUE les mises en avant de son pays. Un pays sans contenu
+  // reçoit une vitrine vide, que le site n'affiche pas.
+  const resultat = vitrine;
 
   cacheSet(cle, resultat, TTL_CACHE_MS);
   return resultat;

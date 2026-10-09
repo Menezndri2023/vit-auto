@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 import Vehicle from "../models/Vehicle.js";
 import { idsVitrine, jourDeRotation } from "../services/spotlightEngine.js";
 import { clauseHorsComptesDeTest } from "../utils/comptesDeTest.js";
-import { SEUIL_CONTENU_PAYS } from "../utils/repliMondial.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Booking from "../models/Booking.js";
@@ -273,6 +272,9 @@ export const createVehicle = async (req, res) => {
           type:    "system",
           titre:   "⏳ Annonce en cours d'examen",
           message: `Votre annonce "${vehicle.title}" est en cours de vérification. Score actuel : ${validation.score}/100.`,
+          // Le partenaire vient lui-même de la déposer : l'information reste
+          // dans l'application, sans e-mail (45 envoyés en une semaine).
+          skipEmail: true,
         },
       };
       const notifData = notifMap[validation.status];
@@ -449,10 +451,12 @@ export const getVehicles = async (req, res) => {
     // Sans cette exception, chercher une ville ou un pays étranger ne
     // renvoyait jamais rien — le filtre pays s'appliquant d'abord, il vidait
     // le résultat avant même que la recherche ne soit évaluée.
-    let clausePaysAppliquee = false;
+    //
+    // Strict depuis le 2026-10-09 (règle de l'exploitant) : le pays demandé et
+    // lui seul — une annonce sans pays n'appartient à aucun et n'apparaît
+    // qu'en vue « International ».
     if (country && country !== "INTL" && !search) {
-      filter.$or = [{ country: String(country).toUpperCase() }, { country: null }];
-      clausePaysAppliquee = true;
+      filter.country = String(country).toUpperCase();
     }
 
     // Comptes de test masqués du catalogue PUBLIC uniquement : un
@@ -571,63 +575,10 @@ export const getVehicles = async (req, res) => {
       ]);
       vehicles = vehicles.map((v) => hidePartnerDirectContact(limitVehicleImages(v)));
     }
-
-    // ── Repli mondial ────────────────────────────────────────────────────────
-    // Un visiteur dont le pays ne contient AUCUNE annonce voyait une page
-    // entièrement vide : ni véhicule, ni image, rien. C'est arrivé en
-    // production le 2026-09-11 — les 345 annonces publiées étaient au Maroc et
-    // en France, et le catalogue ivoirien s'est vidé à la seconde où sa
-    // dernière annonce a été retirée.
-    //
-    // Le filtre pays est un CONFORT, pas une règle : il rapproche l'offre du
-    // visiteur quand il y en a. Quand il n'y en a pas, montrer l'international
-    // vaut infiniment mieux qu'une page blanche — c'est déjà la règle appliquée
-    // à la vitrine d'accueil et au moteur de mise en avant.
-    //
-    // `repliMondial` est renvoyé pour que l'interface puisse le DIRE : un
-    // visiteur ivoirien à qui l'on montre des voitures marocaines sans
-    // explication croit à une erreur.
-    //
-    // La bascule se décide sur les annonces DU PAYS, pas sur un total non nul :
-    // la clause laisse aussi passer les annonces sans pays (`country: null`,
-    // antérieures au champ). Elles doivent rester visibles, mais elles
-    // n'appartiennent à aucun pays et ne prouvent rien sur l'offre locale — une
-    // seule suffisait à priver tout un pays de l'offre internationale, et il
-    // s'en crée dès qu'un partenaire n'a pas de pays sur sa fiche. Un compte de
-    // plus, servi par le même index et couvert par le cache du catalogue. Même
-    // règle que les activités, chauffeurs et pièces (utils/repliMondial.js).
-    let repliMondial = false;
-    const totalDuPays = clausePaysAppliquee && !isAdmin
-      ? await Vehicle.countDocuments({ ...filter, country: String(country).toUpperCase() })
-      : null;
-    // Même seuil que les autres catalogues (utils/repliMondial.js) : un pays
-    // qui compte moins de trois annonces n'a pas de catalogue, il a deux
-    // lignes. Mieux vaut montrer le monde. Constaté le 2026-09-25 : les deux
-    // annonces de démonstration créées pour la review Apple suffisaient à
-    // couper la Côte d'Ivoire — marché principal — des 405 annonces publiées.
-    //
-    // Une vitrine de partenaire (`owner` posé) garde le seuil à zéro : un
-    // loueur qui n'a qu'une voiture au Maroc en a vraiment une, et son client
-    // demande CE partenaire, pas un catalogue. Le seuil sert à juger si un PAYS
-    // a une offre, pas si un partenaire en a une.
-    const seuilPays = filter.owner ? 1 : SEUIL_CONTENU_PAYS;
-    if (totalDuPays !== null && totalDuPays < seuilPays) {
-      const { $or: _paysRetire, ...filtreMondial } = filter;
-      const [vMondial, tMondial] = await Promise.all([
-        Vehicle.find(filtreMondial)
-          .populate("owner", "firstName ville certificationBadge")
-          .populate("business", "companyName isConcessionnaire")
-          .sort({ createdAt: -1 }).skip(skip).limit(safeLimit).lean(),
-        Vehicle.countDocuments(filtreMondial),
-      ]);
-      if (tMondial > 0) {
-        vehicles = vMondial.map((v) => hidePartnerDirectContact(limitVehicleImages(v)));
-        total = tMondial;
-        repliMondial = true;
-      }
-    }
-
-    const payload = { vehicles, total, page: pageDemandee, pages: Math.ceil(total / safeLimit), ...(repliMondial ? { repliMondial: true } : {}) };
+    // Plus de repli mondial (2026-10-09) : un pays sans offre reçoit une liste
+    // vide, que le site présente comme telle avec le bouton « voir
+    // l'international ».
+    const payload = { vehicles, total, page: pageDemandee, pages: Math.ceil(total / safeLimit) };
     if (cacheKey) cacheSet(cacheKey, payload);
     res.json(payload);
   } catch (err) {

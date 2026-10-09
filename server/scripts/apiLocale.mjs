@@ -81,6 +81,8 @@ const PHOTOS_LOISIRS = [
 
 async function semer(uri) {
   process.env.MONGO_URI = uri;
+  // Pays des données semées (voir controllers/geoController.js).
+  process.env.GEO_PAYS_LOCAL = process.env.GEO_PAYS_LOCAL || "MA";
   Object.assign(process.env, { JWT_SECRET: ENV.JWT_SECRET, REFRESH_TOKEN_SECRET: ENV.REFRESH_TOKEN_SECRET, FIELD_ENCRYPTION_KEY: ENV.FIELD_ENCRYPTION_KEY });
   await mongoose.connect(uri);
   const { createUser, createVehicleDoc, createActivityDoc, makeTestPartnerBusiness, donnerPalier, rendreFondateur } = await import("../tests/helpers/fixtures.js");

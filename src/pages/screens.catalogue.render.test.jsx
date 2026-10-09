@@ -21,14 +21,17 @@ const vehicule = (id, country, titre) => ({
   status: "approved", available: true,
 });
 
-describe("Catalogue — repli mondial", () => {
+// Règle de l'exploitant (2026-10-09) : le visiteur ne voit QUE les annonces de
+// son pays ; un pays vide affiche l'état vide qui le dit et propose
+// l'international (plus de repli automatique).
+describe("Catalogue — pays du visiteur seulement", () => {
   let erreurs;
   beforeEach(() => { erreurs = surveillerErreurs(); });
 
-  // Place le visiteur dans un pays donné, comme le fait CurrencyContext au
-  // chargement (clé lue une seule fois, au montage).
+  // Place le visiteur dans un pays donné : le choix de la visite en cours,
+  // lu par CurrencyContext au montage.
   const visiteurEn = (code) => {
-    try { localStorage.setItem("vit_catalog_country", code); } catch { /* stockage indisponible */ }
+    try { sessionStorage.setItem("vit_pays_choisi", code); } catch { /* stockage indisponible */ }
   };
 
   const verifier = (nom) => {
@@ -37,9 +40,9 @@ describe("Catalogue — repli mondial", () => {
     expect(screen.queryByText(/Une erreur s'est produite/i), `${nom} : ErrorBoundary`).toBeNull();
   };
 
-  it("montre les annonces internationales et le dit, quand le pays du visiteur est vide", async () => {
-    // Le cas exact de l'incident : visiteur en Côte d'Ivoire, annonces au Maroc
-    // et en France.
+  it("pays du visiteur vide : aucune annonce étrangère, l'état vide le dit et propose l'international", async () => {
+    // Le cas de l'incident du 2026-09-11 : visiteur en Côte d'Ivoire, annonces
+    // au Maroc et en France. La page n'est pas blanche : elle explique.
     visiteurEn("CI");
     simulerApi({
       routes: {
@@ -48,11 +51,9 @@ describe("Catalogue — repli mondial", () => {
     });
     const { container } = renderPage(<Catalogue />, { route: "/catalogue" });
 
-    // Les annonces arrivent d'un fetch : `findBy…` et non `getBy…`, sinon le
-    // test constaterait seulement que le premier rendu est vide.
-    expect(await screen.findByText(/Dacia Logan/)).toBeTruthy();
-    verifier("Catalogue repli");
-    expect(container.textContent).toMatch(/annonces disponibles à l'international/i);
+    expect(await screen.findByText(/Aucune annonce dans votre pays/i)).toBeTruthy();
+    verifier("Catalogue pays vide");
+    expect(container.textContent).not.toMatch(/Dacia Logan|Peugeot 208/);
   });
 
   it("ne dit rien quand il y a des annonces du pays du visiteur", async () => {
@@ -65,6 +66,6 @@ describe("Catalogue — repli mondial", () => {
     const { container } = renderPage(<Catalogue />, { route: "/catalogue" });
     expect(await screen.findByText(/Dacia locale/)).toBeTruthy();
     verifier("Catalogue local");
-    expect(container.textContent).not.toMatch(/annonces disponibles à l'international/i);
+    expect(container.textContent).not.toMatch(/Aucune annonce dans votre pays/i);
   });
 });

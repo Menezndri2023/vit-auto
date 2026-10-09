@@ -8,37 +8,25 @@
 // enfouie dans un `useMemo` de composant, et le défaut ci-dessous y est resté
 // invisible jusqu'à ce qu'on la simule à la main contre les données réelles.
 
-/**
- * Faut-il basculer cette section sur l'offre internationale ?
- *
- * Une annonce SANS pays n'appartient à aucun pays : elle ne prouve pas qu'il y
- * a de l'offre chez le visiteur, et ne doit donc pas empêcher le repli. Le
- * test précédent (`!x.country || x.country === pays`) en faisait le contraire :
- * une seule annonce sans pays — il s'en crée dès qu'un partenaire n'a pas de
- * pays sur sa fiche — suffisait à annuler le repli pour la section entière. Le
- * visiteur ne voyait plus QUE cette annonce-là, sans le bandeau qui explique
- * pourquoi.
- *
- * @param {Array<{country?: string|null}>} jeu  annonces chargées pour la section
- * @param {string|null} paysVisiteur            code pays ISO 2 lettres
- * @returns {boolean}
- */
-export function repliInternational(jeu, paysVisiteur) {
-  // Rien n'est encore chargé : se taire plutôt qu'annoncer un repli qui n'a pas
-  // lieu d'être.
-  if (!Array.isArray(jeu) || !jeu.length) return false;
-  return !jeu.some((x) => x.country === paysVisiteur);
+// ⚠️ Règle remplacée le 2026-10-09 (exploitant) : un visiteur ne voit QUE les
+// offres de son pays, sauf s'il choisit un autre pays (ou « International »)
+// avec le filtre. Plus aucun repli automatique : un pays sans offre affiche
+// l'état vide du catalogue, qui dit « aucune annonce en <pays> » et propose
+// le bouton « voir l'international » — la page n'est jamais blanche
+// (l'incident du 2026-09-11 venait d'un catalogue vide SANS explication).
+
+/** Plus de bascule automatique sur l'international. */
+export function repliInternational() {
+  return false;
 }
 
 /**
- * Cette annonce est-elle visible pour ce visiteur ?
- *
- * En repli international, tout passe. Sinon, seules l'annonce du pays du
- * visiteur et celle qui n'a pas de pays (publiée avant que le champ existe —
- * jamais de régression de visibilité sur l'existant).
+ * Cette annonce est-elle visible pour ce visiteur ? Seulement si elle est de
+ * son pays — une annonce sans pays n'appartient à aucun et n'apparaît qu'en
+ * vue « International ».
  *
  * @returns {boolean}
  */
 export function annonceVisible(paysAnnonce, paysVisiteur, repli) {
-  return !!repli || !paysAnnonce || paysAnnonce === paysVisiteur;
+  return !!repli || (!!paysAnnonce && paysAnnonce === paysVisiteur);
 }

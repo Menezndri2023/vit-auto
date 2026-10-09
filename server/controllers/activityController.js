@@ -230,8 +230,9 @@ export const getActivities = async (req, res) => {
     if (essaiDisponible === "true") filter.essaiDisponible = true;
     let clePays = null;
     if (country && country !== "INTL") {
-      filter.$or = [{ country: String(country).toUpperCase() }, { country: null }];
-      clePays = "$or";
+      // Strict depuis le 2026-10-09 : le pays du visiteur et lui seul.
+      filter.country = String(country).toUpperCase();
+      clePays = "country";
     }
 
     // Repli mondial : aucune activité dans le pays du visiteur → l'offre

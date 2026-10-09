@@ -54,7 +54,7 @@ const browser = await chromium.launch({ executablePath: EXE, headless: true });
 for (const [nom, cfg] of Object.entries(APPAREILS).filter(([n]) => n.includes(FILTRE))) {
   const ctx = await browser.newContext({ ...cfg, locale: "fr-FR", timezoneId: "Africa/Abidjan" });
   // Pas de splash/service worker : on capture le site rendu, comme l'app.
-  await ctx.addInitScript(() => { try { localStorage.setItem("vit-auto-splash-seen", "1"); localStorage.setItem("vit-auto-guide-client", "1"); localStorage.setItem("vit_catalog_country", "MA"); } catch {} });
+  await ctx.addInitScript(() => { try { localStorage.setItem("vit-auto-splash-seen", "1"); localStorage.setItem("vit-auto-guide-client", "1"); sessionStorage.setItem("vit_pays_choisi", "MA"); } catch {} });
   // Pays figé : sinon la détection par IP suit la machine qui capture (un Mac
   // vu « Portugal » affichait « Aucune annonce disponible en Portugal »).
   mkdirSync(join(OUT, nom), { recursive: true });

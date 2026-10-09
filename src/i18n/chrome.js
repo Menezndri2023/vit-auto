@@ -44,6 +44,11 @@ export default {
   "hero.intlBadge":  { fr: "🌍 Plateforme automobile internationale • 28 pays", en: "🌍 International car platform • 28 countries", ar: "🌍 منصة سيارات دولية • ٢٨ دولة", es: "🌍 Plataforma automotriz internacional • 28 países", zh: "🌍 国际汽车平台 • 28 个国家" },
   "hero.h1a":        { fr: "Achetez, louez, importez", en: "Buy, rent, import", ar: "اشترِ، استأجر، استورد", es: "Compra, alquila, importa", zh: "购车、租车、进口" },
   "hero.partnerFallback": { fr: "Partenaire VIT AUTO", en: "VIT AUTO partner", ar: "شريك VIT AUTO", es: "Socio VIT AUTO", zh: "VIT AUTO 合作伙伴" },
+  // ─── Pays des contenus (2026-10-09) ────────────────────────────────────────
+  "pays.offresPour":       { fr: "Offres affichées pour :", en: "Showing offers for:", ar: "العروض المعروضة لـ:", es: "Ofertas mostradas para:", zh: "显示以下国家的优惠：" },
+  "pays.aucuneOffre":      { fr: "Aucune offre en {pays} pour le moment.", en: "No offers in {pays} yet.", ar: "لا توجد عروض في {pays} حاليًا.", es: "Todavía no hay ofertas en {pays}.", zh: "{pays} 暂无优惠。" },
+  "pays.voirInternational": { fr: "Voir les offres internationales", en: "See international offers", ar: "عرض العروض الدولية", es: "Ver ofertas internacionales", zh: "查看国际优惠" },
+  "pays.devenirPartenaire": { fr: "Devenir partenaire dans ce pays", en: "Become a partner in this country", ar: "كن شريكًا في هذا البلد", es: "Ser socio en este país", zh: "成为该国合作伙伴" },
   "hero.next":       { fr: "Suivant", en: "Next", ar: "التالي", es: "Siguiente", zh: "下一个" },
 
   // ─── Barre de recherche ───────────────────────────────────────────────────

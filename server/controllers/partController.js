@@ -339,7 +339,7 @@ export const getParts = async (req, res) => {
       const up = String(country).toUpperCase();
       // Une pièce livrable dans le pays du client (pays de l'annonce ou pays
       // desservi) — la pièce importée voyage, la pièce en stock aussi.
-      filter.$and = [{ $or: [{ country: up }, { "shipping.countries": up }, { country: null }] }];
+      filter.$and = [{ $or: [{ country: up }, { "shipping.countries": up }] }];
       clePays = "$and";
     }
 

@@ -9,8 +9,12 @@ import { createUser, createActivityDoc, createDriverDoc } from "./helpers/fixtur
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// LE REPLI MONDIAL VAUT POUR TOUS LES SECTEURS, PAS SEULEMENT LES VÉHICULES
+// RÈGLE DU 2026-10-09 : CHAQUE SECTEUR NE MONTRE QUE LE PAYS DU VISITEUR
 // ═══════════════════════════════════════════════════════════════════════════
+// L'exploitant a remplacé le repli mondial (en place depuis le 2026-09-11) :
+// sans choix explicite d'un autre pays, un visiteur ne voit que les offres de
+// son pays. Un pays vide reçoit une liste vide — le site l'annonce et propose
+// « voir l'international ». Historique de l'ancienne règle ci-dessous.
 // `catalogueRepliMondial.test.js` couvrait les véhicules depuis l'incident du
 // 2026-09-11. Les activités, chauffeurs et pièces n'avaient PAS ce repli : ils
 // étaient filtrés dans le navigateur après avoir chargé le catalogue mondial
@@ -36,16 +40,15 @@ const creerPiece = (overrides = {}) =>
     ...overrides,
   });
 
-describe("Catalogues sectoriels — repli mondial", () => {
+describe("Catalogues sectoriels — pays du visiteur seulement", () => {
   beforeEach(() => cacheClear());
 
   describe("Activités et loisirs", () => {
-    it("montre l'international quand le pays du visiteur n'a aucune activité", async () => {
+    it("ne montre rien d'un autre pays quand le pays du visiteur n'a aucune activité", async () => {
       const p = await createUser({ role: "partenaire" });
       await createActivityDoc({ owner: p._id, country: "MA", title: "Quad Agadir" });
 
-      const liste = await appeler(getActivities, { country: "CI" });
-      expect(liste.map((a) => a.title)).toEqual(["Quad Agadir"]);
+      expect(await appeler(getActivities, { country: "CI" })).toEqual([]);
     });
 
     // « Avoir les siennes » veut dire SEUIL_CONTENU_PAYS, pas une. Voir le
@@ -62,25 +65,25 @@ describe("Catalogues sectoriels — repli mondial", () => {
     });
 
     // Le seuil lui-même : une offre de deux n'est pas une offre.
-    it("replie quand le pays du visiteur n'en a qu'une poignée", async () => {
+    it("une seule activité dans le pays : on la montre, seule", async () => {
       const p = await createUser({ role: "partenaire" });
       await createActivityDoc({ owner: p._id, country: "CI", title: "Jetski Abidjan" });
       await createActivityDoc({ owner: p._id, country: "MA", title: "Quad Agadir" });
 
       const liste = await appeler(getActivities, { country: "CI" });
-      expect(liste.map((a) => a.title).sort()).toEqual(["Jetski Abidjan", "Quad Agadir"]);
+      expect(liste.map((a) => a.title)).toEqual(["Jetski Abidjan"]);
     });
 
     // Le défaut corrigé côté interface le 2026-09-24, vérifié ici côté serveur :
     // une annonce sans pays ne prouve pas qu'il y a de l'offre chez le visiteur.
     // Elle reste visible, mais n'empêche pas de montrer le reste du monde.
-    it("une activité SANS pays ne prive pas le visiteur de l'offre internationale", async () => {
+    it("une activité SANS pays n'appartient à aucun pays : absente des vues par pays", async () => {
       const p = await createUser({ role: "partenaire" });
       await createActivityDoc({ owner: p._id, country: null, title: "Sans pays" });
       await createActivityDoc({ owner: p._id, country: "MA", title: "Quad Agadir" });
 
-      const liste = await appeler(getActivities, { country: "CI" });
-      expect(liste.map((a) => a.title).sort()).toEqual(["Quad Agadir", "Sans pays"]);
+      expect(await appeler(getActivities, { country: "CI" })).toEqual([]);
+      expect((await appeler(getActivities, { country: "INTL" })).map((a) => a.title).sort()).toEqual(["Quad Agadir", "Sans pays"]);
     });
 
     it("rend une liste vide quand il n'existe rien nulle part", async () => {
@@ -89,12 +92,11 @@ describe("Catalogues sectoriels — repli mondial", () => {
   });
 
   describe("Chauffeurs", () => {
-    it("montre l'international quand le pays du visiteur n'a aucun chauffeur", async () => {
+    it("ne montre aucun chauffeur d'un autre pays", async () => {
       const p = await createUser({ role: "partenaire" });
       await createDriverDoc({ owner: p._id, country: "MA", firstName: "Hassan" });
 
-      const liste = await appeler(getDrivers, { country: "CI" });
-      expect(liste.map((d) => d.firstName)).toEqual(["Hassan"]);
+      expect(await appeler(getDrivers, { country: "CI" })).toEqual([]);
     });
 
     it("ne replie pas quand le pays du visiteur a les siens", async () => {
@@ -110,11 +112,10 @@ describe("Catalogues sectoriels — repli mondial", () => {
   });
 
   describe("Pièces détachées", () => {
-    it("montre l'international quand rien n'est livrable dans le pays du visiteur", async () => {
+    it("ne montre aucune pièce qui n'est ni stockée ni livrable dans le pays du visiteur", async () => {
       await creerPiece({ country: "MA", title: "Filtre marocain" });
 
-      const liste = await appeler(getParts, { country: "CI" });
-      expect(liste.map((p) => p.title)).toEqual(["Filtre marocain"]);
+      expect(await appeler(getParts, { country: "CI" })).toEqual([]);
     });
 
     it("ne replie pas quand assez de pièces sont livrables dans le pays du visiteur", async () => {
@@ -131,9 +132,10 @@ describe("Catalogues sectoriels — repli mondial", () => {
     // La clause pays des pièces vit dans `$and` parce que `$or` porte déjà la
     // recherche `q`. Le repli doit retirer la BONNE clé : retirer `$or` rendrait
     // la recherche inopérante au lieu d'élargir le pays.
-    it("le repli conserve la recherche en cours", async () => {
-      await creerPiece({ country: "MA", title: "Amortisseur avant" });
-      await creerPiece({ country: "MA", title: "Filtre à huile" });
+    it("la recherche s'applique dans le pays du visiteur", async () => {
+      await creerPiece({ country: "CI", title: "Amortisseur avant" });
+      await creerPiece({ country: "CI", title: "Filtre à huile" });
+      await creerPiece({ country: "MA", title: "Amortisseur arrière" });
 
       const liste = await appeler(getParts, { country: "CI", q: "Amortisseur" });
       expect(liste.map((p) => p.title)).toEqual(["Amortisseur avant"]);
@@ -141,7 +143,7 @@ describe("Catalogues sectoriels — repli mondial", () => {
   });
 
   describe("Mode international et administration", () => {
-    it("« INTL » ne pose aucune restriction et ne déclenche aucun repli", async () => {
+    it("« INTL » (choix du visiteur) ne pose aucune restriction", async () => {
       const p = await createUser({ role: "partenaire" });
       await createActivityDoc({ owner: p._id, country: "CI", title: "Jetski Abidjan" });
       await createActivityDoc({ owner: p._id, country: "MA", title: "Quad Agadir" });

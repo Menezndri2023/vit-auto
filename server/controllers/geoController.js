@@ -116,6 +116,14 @@ export const getMyCountry = (req, res) => {
   const ip = resolveClientIp(req);
   const info = geoip.lookup(ip);
   if (!info?.country) {
+    // API locale de vérification (scripts/apiLocale.mjs) : une IP de boucle
+    // locale n'a pas de pays ; GEO_PAYS_LOCAL donne celui des données semées,
+    // pour que le balayage d'avant-push voie le site comme un visiteur de ce
+    // pays (les contenus sont filtrés par pays depuis le 2026-10-09). Jamais
+    // défini en production.
+    if (process.env.GEO_PAYS_LOCAL && process.env.NODE_ENV !== "production") {
+      return res.json({ country: process.env.GEO_PAYS_LOCAL, city: null });
+    }
     // IP locale/privée (dev) ou introuvable dans la base — pas une erreur,
     // juste "on ne sait pas", le frontend garde son repli existant.
     return res.json({ country: null, city: null });

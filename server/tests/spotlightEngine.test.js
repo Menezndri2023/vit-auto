@@ -297,13 +297,14 @@ describe("Composition d'une vitrine", () => {
     expect(v.items.filter((i) => idsA.includes(i.id))).toHaveLength(4);
   });
 
-  it("sans aucun partenaire dans le pays, la vitrine devient internationale", async () => {
+  // Règle de l'exploitant (2026-10-09) : plus aucun repli international —
+  // une mise en avant ne montre que le pays du visiteur.
+  it("sans aucun partenaire dans le pays, la vitrine reste vide (jamais celle d'un autre pays)", async () => {
     const ci = await annonce({ country: "CI" });
     const { vitrineEnCache } = await import("../services/spotlightEngine.js");
     const v = await vitrineEnCache("vedette", { country: "TG" });
-    expect(v.repliMondial).toBe(true);
-    expect(v.regle).toMatchObject({ pays: "TG", nbPartenaires: 0, international: true });
-    expect(v.items.map((i) => i.id)).toContain(String(ci._id));
+    expect(v.repliMondial).toBeUndefined();
+    expect(v.items.map((i) => i.id)).not.toContain(String(ci._id));
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -315,7 +316,7 @@ describe("Composition d'une vitrine", () => {
   // « au moins une » suffisait alors à éteindre le repli. Le marché principal
   // avait l'air d'un site désert. Le repli se décide désormais sous
   // SEUIL_CONTENU_PAYS, comme les quatre catalogues.
-  it("replie à l'international quand le pays ne remplit pas la vitrine", async () => {
+  it("une vitrine peu remplie reste celle du pays du visiteur", async () => {
     // Assez de partenaires pour que la règle par pays s'applique (sinon c'est
     // `international: true` qui déclencherait le repli, et le test ne prouverait
     // rien sur le seuil de CONTENU).
@@ -328,8 +329,9 @@ describe("Composition d'une vitrine", () => {
     const { vitrineEnCache } = await import("../services/spotlightEngine.js");
     const v = await vitrineEnCache("hero", { country: "CI" });
     expect(v.regle).toMatchObject({ pays: "CI", international: false });
-    expect(v.repliMondial).toBe(true);
-    expect(v.items.map((i) => i.id)).toContain(String(lointaine._id));
+    expect(v.repliMondial).toBeUndefined();
+    expect(v.items).toHaveLength(2);
+    expect(v.items.map((i) => i.id)).not.toContain(String(lointaine._id));
   });
 
   it("ne replie pas quand le pays a de quoi remplir la vitrine", async () => {
@@ -344,11 +346,10 @@ describe("Composition d'une vitrine", () => {
     expect(v.items.map((i) => i.id)).not.toContain(String(lointaine._id));
   });
 
-  it("« Partenaires à la une » reste internationale, tous pays combinés", async () => {
-    expect(EMPLACEMENTS.partenaires.parPays).toBe(false);
+  it("« Partenaires à la une » est composée pour le pays du visiteur (2026-10-09)", async () => {
+    expect(EMPLACEMENTS.partenaires.parPays).toBe(true);
     const v = await composerVitrine("partenaires", { country: "MA" });
-    expect(v.pays).toBeNull();
-    expect(v.regle).toBeNull();
+    expect(v.pays).toBe("MA");
   });
 
   it("le carrousel reprend la sélection « Carrousel Hero » de l'admin pour le pays, en tête et dans l'ordre", async () => {
@@ -765,13 +766,13 @@ describe("Endpoint public", () => {
     }
   });
 
-  it("replie sur la sélection mondiale si le pays du visiteur ne donne rien", async () => {
+  it("ne montre pas la sélection d'un autre pays quand celui du visiteur ne donne rien", async () => {
     cacheClear();
     await annonce({ country: "MA" });
     const { req, res } = mockReqRes({ params: { emplacement: "vedette" }, query: { country: "CI" } });
     await getSpotlight(req, res);
-    expect(res.body.items).toHaveLength(1);
-    expect(res.body.repliMondial).toBe(true);
+    expect(res.body.items).toHaveLength(0);
+    expect(res.body.repliMondial).toBeUndefined();
   });
 
   it("idsVitrine sert le même ensemble que la vitrine, en ObjectId bruts", async () => {

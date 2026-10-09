@@ -1,0 +1,9 @@
+.bandeau { max-width: 1180px; margin: 16px auto 0; padding: 0 16px; box-sizing: border-box; }
+.ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: .95rem; font-weight: 600; color: #0f1b3f; }
+.select { min-height: 44px; border-radius: 10px; border: 1px solid #cbd5e1; padding: 0 12px; font-size: 16px; background: #fff; color: #0f1b3f; max-width: 100%; }
+.vide { margin: 10px 0 0; padding: 10px 14px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; color: #1e40af; font-size: .9rem; line-height: 1.6; }
+.lien { background: none; border: 0; padding: 0; color: #1d4ed8; font-weight: 700; text-decoration: underline; cursor: pointer; font-size: inherit; min-height: 0; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ligne { color: #e2e8f0; }
+  :root:not([data-theme="light"]) .select { background: #0f172a; color: #e2e8f0; border-color: #334155; }
+}

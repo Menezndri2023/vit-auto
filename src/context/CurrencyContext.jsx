@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { getCurrentPosition } from "../utils/geo.js";
 
@@ -111,36 +111,43 @@ export function CurrencyProvider({ children }) {
     return cfg?.paymentMethods?.length ? cfg.paymentMethods : null;
   }, [COUNTRIES_CONFIG]);
 
-  // ── Filtre pays du catalogue (véhicules, chauffeurs, import/export) ────────
-  // Distinct de la devise : "International" affiche tout sans changer la
-  // devise active. Par défaut, un utilisateur connecté voit le catalogue de
-  // son propre pays déclaré au profil ; sinon, celui détecté par IP/enregistré.
-  const savedCatalog = localStorage.getItem("vit_catalog_country");
-  const [catalogCountry, setCatalogCountryState] = useState(savedCatalog || null);
-  const catalogManuallySet = useRef(!!savedCatalog);
-
-  const setCatalogCountry = useCallback((code) => {
-    catalogManuallySet.current = true;
-    setCatalogCountryState(code);
-    localStorage.setItem("vit_catalog_country", code);
+  // ── Pays des contenus (catalogues, vitrines, mises en avant) ───────────────
+  // Règle de l'exploitant (2026-10-09) : un visiteur ne voit QUE les offres du
+  // pays où il se trouve (géolocalisation), sauf s'il en choisit un autre avec
+  // le filtre. Trois changements par rapport à l'ancien comportement :
+  //  • la position prime sur le pays déclaré au profil (un Ivoirien en voyage
+  //    au Maroc voit les offres marocaines) — le profil ne sert que si la
+  //    position est introuvable ;
+  //  • un choix manuel vaut pour la visite en cours (sessionStorage) : il ne
+  //    fige plus le catalogue de ce navigateur pour toujours ;
+  //  • rien n'est chargé tant que le pays n'est pas connu (`paysPret`) : plus
+  //    d'offres étrangères affichées une seconde avant la détection.
+  const lireSession = (cle) => { try { return sessionStorage.getItem(cle); } catch { return null; } };
+  const ecrireSession = (cle, v) => { try { sessionStorage.setItem(cle, v); } catch { /* navigation privée */ } };
+  const lireLocal = (cle) => { try { return localStorage.getItem(cle); } catch { return null; } };
+  const [paysChoisi, setPaysChoisi] = useState(() => lireSession("vit_pays_choisi"));
+  // Dernier pays DÉTECTÉ (pas choisi) : affichage immédiat au retour, puis
+  // remplacé par la détection du jour.
+  const [dernierDetecte] = useState(() => lireLocal("vit_pays_detecte"));
+  const [geoTermine, setGeoTermine] = useState(false);
+  useEffect(() => {
+    // L'ancien choix « pour toujours » n'est plus lu : on le retire.
+    try { localStorage.removeItem("vit_catalog_country"); } catch { /* rien */ }
   }, []);
 
-  // Le pays du profil (déclaré à l'inscription) prime sur la détection IP dès
-  // qu'il est connu — mais seulement tant que l'utilisateur n'a pas choisi
-  // explicitement un autre pays de catalogue via le sélecteur.
-  useEffect(() => {
-    if (catalogManuallySet.current) return;
-    // Un administrateur gère la plateforme ENTIÈRE, pas son seul pays de
-    // résidence : son catalogue s'ouvre donc sur "International" (toutes les
-    // annonces, tous pays). Avant, l'admin héritait du pays de son profil
-    // comme n'importe quel visiteur — un admin déclaré en Côte d'Ivoire ne
-    // voyait tout simplement pas les annonces des autres pays qu'il est censé
-    // superviser, sans rien pour le lui signaler. Le sélecteur reste
-    // disponible pour se restreindre volontairement à un pays.
-    if (user?.role === "admin") setCatalogCountryState(COUNTRY_INTERNATIONAL);
-    else if (user?.country) setCatalogCountryState(user.country);
-    else if (detectedCountry) setCatalogCountryState(detectedCountry);
-  }, [user?.role, user?.country, detectedCountry]);
+  const setCatalogCountry = useCallback((code) => {
+    setPaysChoisi(code);
+    ecrireSession("vit_pays_choisi", code);
+  }, []);
+
+  // Un administrateur gère la plateforme ENTIÈRE : son catalogue s'ouvre sur
+  // « International » (le sélecteur reste disponible pour se restreindre).
+  const catalogCountry = paysChoisi
+    || (user?.role === "admin" ? COUNTRY_INTERNATIONAL : null)
+    || detectedCountry
+    || (geoTermine ? (user?.country || COUNTRY_INTERNATIONAL) : dernierDetecte)
+    || null;
+  const paysPret = !!catalogCountry;
 
   // Auto-détection pays → devise si aucun choix manuel. Priorité au endpoint
   // serveur (geoip-lite, base locale hors ligne, fiable et sans dépendance
@@ -150,18 +157,18 @@ export function CurrencyProvider({ children }) {
   // TOUJOURS sur le Maroc par défaut, y compris pour des visiteurs d'Afrique
   // de l'Ouest (marché principal). Gardé uniquement en second repli.
   useEffect(() => {
-    // Seul un choix EXPLICITE (isManualChoice) empêche la re-détection —
-    // une valeur simplement mise en cache par une détection automatique
-    // précédente ne doit jamais bloquer une nouvelle tentative à chaque
-    // chargement (voir commentaire sur isManualChoice plus haut).
-    if (isManualChoice) { setDetecting(false); return; }
+    // Le pays est détecté à CHAQUE chargement (il décide des contenus
+    // montrés) ; seul un choix de devise explicite (isManualChoice) est
+    // préservé — voir applyCountry.
     let cancelled = false;
 
     const applyCountry = (cc) => {
       if (cancelled || !cc) return false;
-      const cur = COUNTRY_TO_CURRENCY[cc] || "MAD";
       setDetectedCountry(cc);
-      setCurrencyState(cur);
+      try { localStorage.setItem("vit_pays_detecte", cc); } catch { /* rien */ }
+      // Un choix de devise explicite n'est jamais écrasé ; le pays, lui, est
+      // toujours détecté (il décide des contenus montrés).
+      if (!isManualChoice) setCurrencyState(COUNTRY_TO_CURRENCY[cc] || "MAD");
       return true;
     };
 
@@ -170,7 +177,7 @@ export function CurrencyProvider({ children }) {
         const r = await fetch("/api/geo/my-country");
         if (r.ok) {
           const d = await r.json();
-          if (applyCountry(d.country)) { setDetecting(false); return; }
+          if (applyCountry(d.country)) { setDetecting(false); setGeoTermine(true); return; }
         }
       } catch { /* backend indisponible — repli ci-dessous */ }
 
@@ -189,7 +196,7 @@ export function CurrencyProvider({ children }) {
         // Géolocalisation totalement indisponible — on reste sur USD par défaut.
       } finally {
         clearTimeout(timer);
-        if (!cancelled) setDetecting(false);
+        if (!cancelled) { setDetecting(false); setGeoTermine(true); }
       }
     })();
 
@@ -216,9 +223,9 @@ export function CurrencyProvider({ children }) {
               const cur = COUNTRY_TO_CURRENCY[cc] || "MAD";
               setDetectedCountry(cc);
               setCurrencyState(cur);
-              catalogManuallySet.current = true;
-              setCatalogCountryState(cc);
-              localStorage.setItem("vit_catalog_country", cc);
+              try { localStorage.setItem("vit_pays_detecte", cc); } catch { /* rien */ }
+              // Position précise : elle vaut pour la visite, comme un choix.
+              setCatalogCountry(cc);
               resolve({ ok: true, country: cc });
             } else {
               resolve({ ok: false, message: "Pays non reconnu ou non couvert par VIT AUTO." });
@@ -415,7 +422,12 @@ export function CurrencyProvider({ children }) {
         // serveur — il déclarait marocain un visiteur d'Afrique de l'Ouest dont
         // l'IP ne se résolvait pas. « INTL » est déjà compris comme « aucune
         // restriction » par le catalogue comme par les vitrines.
-        catalogCountry: catalogCountry || detectedCountry || COUNTRY_INTERNATIONAL,
+        // Tant que le pays n'est pas connu (`paysPret` faux), la valeur est
+        // « INTL » pour les rares lecteurs qui n'attendent pas — les catalogues
+        // et vitrines, eux, attendent paysPret avant de charger.
+        catalogCountry: catalogCountry || COUNTRY_INTERNATIONAL,
+        paysPret,
+        paysChoisiManuellement: !!paysChoisi,
         setCatalogCountry,
         detectPreciseCountry,
         COUNTRY_INTERNATIONAL,

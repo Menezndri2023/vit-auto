@@ -9,15 +9,18 @@ import { useCurrency } from "../context/CurrencyContext";
  * Chaque élément porte son `origine` — « epingle », « boost », « abonnement »
  * ou « merite » — pour qu'on puisse toujours expliquer pourquoi il est là.
  *
- * Le pays vient de la position du visiteur (CurrencyContext.catalogCountry,
- * déduite de son adresse IP). Le serveur replie sur une sélection mondiale si
- * ce pays ne donne rien — l'interface n'a pas à gérer ce cas.
+ * Le pays vient de la position du visiteur (CurrencyContext.catalogCountry),
+ * ou de celui qu'il a choisi avec le filtre. Depuis le 2026-10-09, plus de
+ * repli mondial : un pays sans mise en avant reçoit une vitrine vide, que la
+ * section n'affiche pas. Rien n'est demandé avant que le pays soit connu
+ * (paysPret) — sinon une vitrine étrangère s'affichait une seconde.
  */
 export function useSpotlight(emplacement, { type = null } = {}) {
-  const { catalogCountry } = useCurrency();
+  const { catalogCountry, paysPret } = useCurrency();
   const [etat, setEtat] = useState({ chargement: true, items: [] });
 
   useEffect(() => {
+    if (!paysPret) return undefined;
     let annule = false;
     const params = new URLSearchParams();
     if (catalogCountry) params.set("country", catalogCountry);
@@ -34,7 +37,7 @@ export function useSpotlight(emplacement, { type = null } = {}) {
       .catch(() => { if (!annule) setEtat({ chargement: false, items: [] }); });
 
     return () => { annule = true; };
-  }, [emplacement, catalogCountry, type]);
+  }, [emplacement, catalogCountry, type, paysPret]);
 
   return etat;
 }

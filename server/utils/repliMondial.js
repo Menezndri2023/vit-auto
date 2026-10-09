@@ -48,21 +48,15 @@
 // la sélection internationale au lieu d'être noyé dans une page désolée.
 export const SEUIL_CONTENU_PAYS = 3;
 
-export async function avecRepliMondial(filtre, clePays, requete, estDuPays) {
-  const resultat = await requete(filtre);
-  const nLocal = estDuPays ? resultat.filter(estDuPays).length : resultat.length;
-  const offreLocale = nLocal >= SEUIL_CONTENU_PAYS;
-  if (offreLocale || !clePays || !(clePays in filtre)) {
-    return { resultat, repliMondial: false };
-  }
-
-  // On retire la clause pays du filtre, et rien d'autre.
-  const { [clePays]: _clausePays, ...filtreMondial } = filtre;
-  const mondial = await requete(filtreMondial);
-  return mondial.length
-    ? { resultat: mondial, repliMondial: true }
-    // Rien nulle part : on rend le résultat local (vide), pas un repli qui
-    // n'apporte rien — l'interface doit dire « aucune annonce », pas « voici
-    // l'international » devant une page vide.
-    : { resultat, repliMondial: false };
+// ⚠️ Règle remplacée le 2026-10-09 (exploitant) : un visiteur ne voit QUE les
+// offres de son pays, sauf s'il choisit un autre pays (ou « International »)
+// avec le filtre du site. Plus de repli : un pays sans offre reçoit une liste
+// vide, que le site présente comme telle (« aucune annonce en <pays> », bouton
+// « voir l'international ») — jamais une page blanche sans explication, ce qui
+// était le vrai défaut de l'incident du 2026-09-11.
+//
+// La fonction est gardée (même signature) pour les quatre catalogues : rétablir
+// un repli, si l'exploitant le redemande, se ferait ici et nulle part ailleurs.
+export async function avecRepliMondial(filtre, _clePays, requete) {
+  return { resultat: await requete(filtre), repliMondial: false };
 }

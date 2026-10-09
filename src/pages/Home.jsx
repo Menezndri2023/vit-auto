@@ -1,3 +1,4 @@
+import PaysContenus from "../components/PaysContenus/PaysContenus";
 import HeroSection    from "../components/HeroSection/HeroSection";
 import VehicleList    from "../components/VehicleList/VehicleList";
 import SpotlightRow   from "../components/SpotlightRow/SpotlightRow";
@@ -46,6 +47,7 @@ const Home = () => {
   return (
   <>
     <HeroSection />
+    <PaysContenus />
     <VehicleList />
     {/* `minimum={2}` et non le défaut de 3 : le moteur plafonne chaque
         partenaire à deux entrées, or les loisirs ne comptent aujourd'hui qu'un

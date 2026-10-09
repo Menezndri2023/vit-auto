@@ -181,7 +181,7 @@ const saveBookings = (bookings) => {
 
 export const VehicleProvider = ({ children }) => {
   const { token, user, authReady } = useAuth();
-  const { catalogCountry } = useCurrency();
+  const { catalogCountry, paysPret } = useCurrency();
   // Vide au départ (pas la fixture démo BMW X5/Tesla Model 3 ci-dessous) — sinon
   // chaque visiteur voyait ces véhicules fictifs s'afficher puis se faire
   // remplacer par le vrai catalogue dès que loadVehicles() aboutit (quelques
@@ -266,45 +266,29 @@ export const VehicleProvider = ({ children }) => {
   // qui aurait aussi pu en manquer des vrais si le catalogue dépasse 50
   // annonces. Requête backend dédiée, filtrée strictement sur featured:true.
   const [featuredVehicles, setFeaturedVehicles] = useState([]);
-  // Vrai quand la vedette du pays du visiteur est vide et qu'on montre la
-  // sélection internationale (règle par pays, 2026-09-17).
-  const [featuredInternational, setFeaturedInternational] = useState(false);
+  // Toujours faux depuis le 2026-10-09 : la vedette ne montre plus que le pays
+  // du visiteur (gardé pour les composants qui l'affichent).
+  const [featuredInternational] = useState(false);
   const [featuredLoading, setFeaturedLoading] = useState(false);
-  // Filtré par pays de catalogue du visiteur quand connu (voir
-  // catalogCountry/CurrencyContext) — demande explicite : la mise en avant
-  // doit pouvoir différer par pays. Un pays sans aucune annonce `featured`
-  // (admin n'a pas encore curaté CE pays précis) retombe sur la sélection
-  // globale plutôt que d'afficher une section vide, le filtre pays reste donc
-  // un raffinement, jamais un risque de "vedette" invisible pour un pays.
+  // Règle de l'exploitant (2026-10-09) : la vedette du PAYS du visiteur, et
+  // rien d'autre — plus de repli sur la sélection mondiale quand son pays n'a
+  // rien de mis en avant (la section est alors simplement absente). Attend que
+  // le pays soit connu (paysPret) : plus de vedette étrangère affichée avant
+  // la détection.
   const loadFeaturedVehicles = useCallback(async () => {
+    if (!paysPret) return;
     setFeaturedLoading(true);
     try {
-      const byCountry = catalogCountry
-        ? await fetch(`/api/vehicles?featured=true&limit=12&country=${encodeURIComponent(catalogCountry)}`)
-        : null;
-      let list = [];
-      if (byCountry?.ok) {
-        const data = await byCountry.json();
-        list = Array.isArray(data) ? data : (data.vehicles || []);
-      }
-      let international = false;
-      if (!list.length) {
-        const response = await fetch("/api/vehicles?featured=true&limit=12");
-        if (response.ok) {
-          const data = await response.json();
-          list = Array.isArray(data) ? data : (data.vehicles || []);
-          international = !!catalogCountry && list.length > 0;
-        }
-      }
+      const r = await fetch(`/api/vehicles?featured=true&limit=12&country=${encodeURIComponent(catalogCountry)}`);
+      const data = r.ok ? await r.json() : [];
+      const list = Array.isArray(data) ? data : (data.vehicles || []);
       setFeaturedVehicles(list.map(normalizeVehicle));
-      setFeaturedInternational(international);
     } catch {
-      // Section vide si le backend est indisponible — jamais de repli sur
-      // des véhicules non curatés par un admin.
+      // Section vide si le backend est indisponible.
     } finally {
       setFeaturedLoading(false);
     }
-  }, [catalogCountry]);
+  }, [catalogCountry, paysPret]);
 
   useEffect(() => {
     const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 200));
@@ -398,14 +382,15 @@ export const VehicleProvider = ({ children }) => {
     }
   }, [authReady, loadMyOrders, token]);
 
-  // Chauffeurs, activités et pièces sont désormais filtrés PAR LE SERVEUR sur
-  // le pays du visiteur, avec repli mondial côté serveur (utils/repliMondial.js) :
+  // Chauffeurs, activités et pièces sont filtrés PAR LE SERVEUR sur le pays du
+  // visiteur — strictement depuis le 2026-10-09 (utils/repliMondial.js) :
   // charger le catalogue mondial entier pour le filtrer ensuite dans le
   // navigateur ne tenait qu'aux volumes actuels (12 activités, 1 chauffeur).
   // `paysOk`/`repliInternational` restent en place côté catalogue : ils
   // reconnaissent le repli au fait qu'aucune annonce reçue n'est du pays du
   // visiteur, et affichent le bandeau qui l'explique.
-  const paramsPays = catalogCountry ? `?country=${encodeURIComponent(catalogCountry)}` : "";
+  // `null` tant que le pays n'est pas connu : rien n'est chargé avant.
+  const paramsPays = paysPret ? `?country=${encodeURIComponent(catalogCountry)}` : null;
 
   useEffect(() => {
     const loadDrivers = async () => {
@@ -423,6 +408,7 @@ export const VehicleProvider = ({ children }) => {
     };
     const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 200));
     const cancelIdle = window.cancelIdleCallback || clearTimeout;
+    if (paramsPays === null) return undefined;
     const id = idle(loadDrivers);
     return () => cancelIdle(id);
   }, [paramsPays]);
@@ -445,6 +431,7 @@ export const VehicleProvider = ({ children }) => {
     };
     const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 200));
     const cancelIdle = window.cancelIdleCallback || clearTimeout;
+    if (paramsPays === null) return undefined;
     const id = idle(loadActivities);
     return () => cancelIdle(id);
   }, [paramsPays]);
@@ -463,6 +450,7 @@ export const VehicleProvider = ({ children }) => {
     };
     const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 200));
     const cancelIdle = window.cancelIdleCallback || clearTimeout;
+    if (paramsPays === null) return undefined;
     const id = idle(loadParts);
     return () => cancelIdle(id);
   }, [paramsPays]);

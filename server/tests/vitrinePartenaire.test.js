@@ -54,10 +54,9 @@ describe("Vitrine partenaire — périmètre", () => {
   });
 
   // Demander un pays AVEC un propriétaire reste légitime (l'administration le
-  // fait) : on rend alors le sous-ensemble, pas la flotte entière. Le repli
-  // mondial ne se déclenche que si le pays demandé ne donne rien — c'est ce qui
-  // évite la page vide sans pour autant ignorer un filtre explicite.
-  it("avec un pays précis, rend le sous-ensemble ; et la flotte entière si ce pays est vide", async () => {
+  // fait) : on rend alors le sous-ensemble, pas la flotte entière — et rien si
+  // ce pays est vide (plus de repli mondial depuis le 2026-10-09).
+  it("avec un pays précis, rend le sous-ensemble ; et rien si ce pays est vide", async () => {
     const { a } = await deuxPartenaires();
 
     const ma = await lister({ owner: a._id.toString(), country: "MA", limit: 50 });
@@ -66,11 +65,8 @@ describe("Vitrine partenaire — périmètre", () => {
     const fr = await lister({ owner: a._id.toString(), country: "FR", limit: 50 });
     expect(fr.vehicles.map((v) => v.title)).toEqual(["A2"]);
 
-    // Aucune annonce de ce partenaire en Côte d'Ivoire : plutôt qu'une vitrine
-    // vide, on montre tout — et on le signale.
     const ci = await lister({ owner: a._id.toString(), country: "CI", limit: 50 });
-    expect(ci.vehicles.map((v) => v.title).sort()).toEqual(["A1", "A2"]);
-    expect(ci.repliMondial).toBe(true);
+    expect(ci.vehicles).toEqual([]);
   });
 
   // LE point. Un filtre demandé mais incompréhensible doit ne RIEN rendre.
