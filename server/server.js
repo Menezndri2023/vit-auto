@@ -643,6 +643,13 @@ async function runStartupMigrations() {
       // opérateur se souvienne de le lancer après déploiement est justement ce
       // qui a causé l'incident. Rendu automatique et sans risque de répétition
       // (voir runOnceMigration.js).
+      // Comptes administrateurs vérifiés d'office (exploitant, 2026-10-09) :
+      // les nouveaux le sont à l'enregistrement (models/User.js).
+      await runOnceMigration("admins-verifies-2026-10-09", async () => {
+        const { default: User, ADMIN_VERIFIE } = await import("./models/User.js");
+        await User.updateMany({ role: "admin" }, { $set: { ...ADMIN_VERIFIE, "identity.verifiedAt": new Date() } });
+      });
+
       await runOnceMigration("vehicle-currency-reset-2026-07-28", async () => {
         const { default: Vehicle } = await import("./models/Vehicle.js");
         await Vehicle.updateMany({ currency: "USD" }, { $set: { currency: null } });

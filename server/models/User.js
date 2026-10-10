@@ -546,6 +546,10 @@ const userSchema = new mongoose.Schema({
 
 userSchema.pre("save", function (next) {
   if (!this.referralCode) this.referralCode = this._id.toString().slice(-8).toUpperCase();
+  // Un compte administrateur est vérifié d'office (décision de l'exploitant,
+  // 2026-10-09) : aucun document tiers à fournir, donc aucun message de
+  // vérification (identité, e-mail) ne doit lui être montré.
+  if (this.role === "admin") this.set(ADMIN_VERIFIE);
   next();
 });
 
@@ -598,6 +602,8 @@ userSchema.index(
 
 // Garde-fou modèle (en plus de la validation dans authController.js) : un compte
 // doit toujours avoir au moins un moyen de contact/connexion.
+export const ADMIN_VERIFIE = { emailVerified: true, kycStatus: "VERIFIE", documentsVerified: true, "identity.status": "verified" };
+
 // Validation du partenaire (2026-10-09) : confirmer son e-mail ou son
 // téléphone, voir son identité vérifiée, devenir fondateur ou changer de
 // métier peut rendre le partenaire « validé » (services/validationPartenaire.js).
