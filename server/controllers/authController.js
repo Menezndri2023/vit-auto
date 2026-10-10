@@ -1,3 +1,4 @@
+import { VERSION_CONSENTEMENT, consentementComplet, enregistrementConsentement } from "../constants/consentement.js";
 import logger from "../utils/logger.js";
 import { PASSWORD_ROUNDS, CODE_ROUNDS } from "../config/security.js";
 import bcrypt from "bcryptjs";
@@ -137,6 +138,9 @@ function safeUser(u) {
     entityType:       u.entityType || null,
     emailVerified:    u.emailVerified,
     phoneVerified:    u.phoneVerified,
+    // Faux tant que le compte n'a pas accepté la version EN VIGUEUR des
+    // consentements : le site ouvre alors la fenêtre qui les demande.
+    consentementAJour: u.consentements?.version === VERSION_CONSENTEMENT,
     identityStatus:   u.identity?.status || "not_submitted",
     documentsVerified: u.documentsVerified,
     profilePhoto:     u.profilePhoto,
@@ -245,6 +249,11 @@ export const register = async (req, res) => {
 
   if (!password || !firstName || !lastName) {
     return res.status(400).json({ message: "Données manquantes." });
+  }
+  // Consentements exprès (dossier CNDP, 2026-10-10) : conditions et
+  // politique de confidentialité, et hébergement hors du Maroc.
+  if (!consentementComplet(req.body.consentements)) {
+    return res.status(400).json({ code: "CONSENTEMENT_REQUIS", message: "Acceptez les conditions et l'hébergement de vos données pour créer votre compte." });
   }
   if (role === "partenaire" && (!activity || !entityType)) {
     return res.status(400).json({ message: "Activité et type de compte requis pour un partenaire." });
@@ -394,6 +403,7 @@ export const register = async (req, res) => {
       phone,
       country,
       birthDate,
+      consentements: enregistrementConsentement(req),
       password: hash,
       role: userRole,
       sellerType,
@@ -755,6 +765,10 @@ export const oauthGoogle = async (req, res) => {
         password:      randomPassword,
         emailVerified: true, // Google a déjà vérifié cette adresse
         profilePhoto:  payload.picture || null,
+        // Inscription Google depuis la page d'inscription : cases cochées et
+        // transmises. Depuis la page de connexion : pas encore — la fenêtre
+        // de consentement les demandera (Layout, consentementAJour).
+        ...(consentementComplet(req.body.consentements) ? { consentements: enregistrementConsentement(req) } : {}),
       });
     } else if (!user.googleId) {
       // Compte existant (mot de passe classique) avec le même e-mail — Google

@@ -58,8 +58,14 @@ const Register = () => {
   // le clic sans rien dire ; il amène désormais au champ qui manque.
   const champDateRef = useRef(null);
   const champPaysRef = useRef(null);
+  // Consentements exprès (dossier CNDP, 2026-10-10) : exigés par le serveur,
+  // pour l'inscription classique comme pour Google.
+  const [consentCgu, setConsentCgu] = useState(false);
+  const [consentTransfert, setConsentTransfert] = useState(false);
+  const consentOk = consentCgu && consentTransfert;
+  const consentRef = useRef(null);
   const allerAuChampManquant = () => {
-    const cible = (!form.birthDate ? champDateRef : champPaysRef).current;
+    const cible = (!consentOk ? consentRef : !form.birthDate ? champDateRef : champPaysRef).current;
     if (!cible) return;
     cible.scrollIntoView({ behavior: "smooth", block: "center" });
     cible.focus({ preventScroll: true });
@@ -157,6 +163,9 @@ const Register = () => {
     if (age < 18) {
       error(t("reg.under18")); return;
     }
+    if (!consentOk) {
+      error(t("consent.required")); consentRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); return;
+    }
     setSubmitting(true);
     setDuplicateAccount(false);
     try {
@@ -173,6 +182,7 @@ const Register = () => {
         entityType: form.role === "partenaire" ? form.entityType : undefined,
         rccm: form.role === "partenaire" && requiresBusinessDocs(form.entityType) ? form.rccm.trim() : undefined,
         referralCode: searchParams.get("ref") || undefined,
+        consentements: { cgu: consentCgu, transfert: consentTransfert },
       });
 
       // Le compte existe déjà (session active) mais l'inscription n'est pas
@@ -241,7 +251,7 @@ const Register = () => {
   // (déjà dans le formulaire, country pré-rempli par géo-IP) avant d'autoriser
   // ce bouton, pour garder la même vérification 18+ qu'à l'inscription classique
   // (voir oauthGoogleSchema/oauthGoogle côté serveur).
-  const googleDisabled = !form.birthDate || !form.country;
+  const googleDisabled = !form.birthDate || !form.country || !consentOk;
 
   const handleGoogleCredential = async (credential) => {
     if (!credential) { error(t("login.googleCancel")); return; }
@@ -254,6 +264,7 @@ const Register = () => {
         role:       form.role,
         activity:   form.role === "partenaire" ? form.activity : undefined,
         entityType: form.role === "partenaire" ? form.entityType : undefined,
+        consentements: { cgu: consentCgu, transfert: consentTransfert },
         rccm: form.role === "partenaire" && requiresBusinessDocs(form.entityType) ? form.rccm.trim() : undefined,
       });
       if (result?.requiresTwoFactor) {
@@ -340,6 +351,20 @@ const Register = () => {
             qu'un bouton grisé renvoyant vers des champs deux écrans plus bas
             (téléphone), les deux champs manquants s'affichent JUSTE sous le
             bouton, liés aux mêmes valeurs que le formulaire complet. */}
+        <fieldset className={styles.consentements} ref={consentRef} tabIndex={-1}>
+          <legend>{t("consent.title")}</legend>
+          <p>{t("consent.intro")}</p>
+          <label className={styles.consentement}>
+            <input type="checkbox" checked={consentCgu} onChange={(e) => setConsentCgu(e.target.checked)} />
+            <span>{t("consent.cgu")}</span>
+          </label>
+          <label className={styles.consentement}>
+            <input type="checkbox" checked={consentTransfert} onChange={(e) => setConsentTransfert(e.target.checked)} />
+            <span>{t("consent.transfert")}</span>
+          </label>
+          <Link to="/privacy" target="_blank" rel="noopener" className={styles.consentLien}>{t("consent.links")}</Link>
+        </fieldset>
+
         <div className={styles.googleBloc}>
           <GoogleAuthButton
             onCredential={handleGoogleCredential}

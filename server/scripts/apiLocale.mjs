@@ -215,6 +215,13 @@ async function semer(uri) {
   await ExchangeRate.insertMany(CURRENCIES, { ordered: false }).catch(() => {});
   await CountryConfig.insertMany(COUNTRIES, { ordered: false }).catch(() => {});
 
+  // Comptes semés : consentements déjà donnés (sinon la fenêtre de
+  // consentement, dossier CNDP, bloquerait le balayage navigateur).
+  {
+    const { VERSION_CONSENTEMENT } = await import("../constants/consentement.js");
+    const { default: User } = await import("../models/User.js");
+    await User.updateMany({}, { $set: { consentements: { version: VERSION_CONSENTEMENT, cguLe: new Date(), transfertLe: new Date(), ip: "127.0.0.1" } } });
+  }
   await mongoose.disconnect();
 }
 

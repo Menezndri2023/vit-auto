@@ -34,6 +34,8 @@ export const registerSchema = z.object({
   // numéro saisi au formulaire n'atteindrait jamais register(), exactement
   // comme birthDate et sellerType avant lui.
   rccm:       z.string().min(3).max(60).trim().optional(),
+  // Consentements (dossier CNDP) — exigés par register(), voir constants/consentement.js.
+  consentements: z.object({ cgu: z.boolean(), transfert: z.boolean() }).optional(),
 }).refine((data) => !!data.email || !!data.phone, {
   message: "Un email ou un numéro de téléphone est requis.",
   path:    ["email"],
@@ -52,6 +54,7 @@ export const oauthGoogleSchema = z.object({
   activity:   z.enum(ACTIVITIES).optional(),
   entityType: z.enum(ENTITY_TYPES).optional(),
   rccm:       z.string().min(3).max(60).trim().optional(),
+  consentements: z.object({ cgu: z.boolean(), transfert: z.boolean() }).optional(),
 });
 
 // identifier : email OU téléphone, saisi dans un champ unique (Login.jsx) — le

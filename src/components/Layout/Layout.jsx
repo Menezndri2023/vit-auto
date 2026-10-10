@@ -10,6 +10,7 @@ import BottomNav from "../BottomNav/BottomNav";
 import OfflineBanner from "../OfflineBanner/OfflineBanner";
 import Celebration from "../Celebration/Celebration";
 import WelcomeGuide from "../WelcomeGuide/WelcomeGuide";
+import FenetreConsentement from "../Consentement/FenetreConsentement";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { useNotifications } from "../../context/NotificationContext";
@@ -127,6 +128,7 @@ const Layout = ({ children }) => {
         {/* La bannière email s'affiche aussi en admin (important pour les admins non vérifiés) */}
         {showBanner && <EmailBanner email={user.email} />}
         <Celebration celebration={celebration} onDismiss={dismissCelebration} />
+        <FenetreConsentement />
         {children}
       </>
     );
@@ -139,6 +141,7 @@ const Layout = ({ children }) => {
       <Navbar />
       {showBanner && <EmailBanner email={user.email} />}
       <Celebration celebration={celebration} onDismiss={dismissCelebration} />
+      <FenetreConsentement />
       <WelcomeGuide />
       <main className={styles.main}>{children}</main>
       <Footer />

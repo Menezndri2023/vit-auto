@@ -381,7 +381,7 @@ async function partenaire(browser) {
       phone: `+2250702${String(100000 + (DECALAGE * 71) % 900000)}`, role: "partenaire", country: "CI", birthDate: "1990-04-04",
       // Un partenaire déclare son activité et son type de compte à
       // l'inscription (« Activité et type de compte requis pour un partenaire »).
-      activity: "loueur", entityType: "particulier" }),
+      activity: "loueur", entityType: "particulier", consentements: { cgu: true, transfert: true } }),
   });
   if (![200, 201].includes(inscritGratuit.status)) throw new Error(`inscription partenaire gratuit : ${inscritGratuit.status}`);
   const gratuit = await apiAs(emailGratuit, "Verif-Locale-2026!");
@@ -592,7 +592,7 @@ async function visiteur(browser) {
   ].filter(Boolean);
   // Client non vérifié : inscrit à l'instant par l'API (hors prod, e-mail vérifié d'office).
   const email = `visiteur-${DECALAGE}-${Date.now()}@vitauto-fixtures.fr`;
-  const inscription = await fetch(`${API}/api/auth/register`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://vit-auto.com" }, body: JSON.stringify({ firstName: "Nouveau", lastName: "Client", email, password: "Verif-Locale-2026!", phone: `+2250701${String(100000 + (DECALAGE * 53) % 900000)}`, role: "client", country: "CI", birthDate: "1995-03-03" }) });
+  const inscription = await fetch(`${API}/api/auth/register`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://vit-auto.com" }, body: JSON.stringify({ firstName: "Nouveau", lastName: "Client", email, password: "Verif-Locale-2026!", phone: `+2250701${String(100000 + (DECALAGE * 53) % 900000)}`, role: "client", country: "CI", birthDate: "1995-03-03", consentements: { cgu: true, transfert: true } }) });
   if (![200, 201].includes(inscription.status)) throw new Error(`inscription API : ${inscription.status} ${(await inscription.text()).slice(0, 120)}`);
   for (const [role, id] of [["visiteur", null], ["client non vérifié", email]]) {
     const { ctx, page } = await contexte(browser, role, journal);

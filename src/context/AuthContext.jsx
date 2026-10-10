@@ -197,7 +197,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // ── Méthodes publiques ─────────────────────────────────────────────────────
-  const register = async ({ firstName, lastName, email, password, phone, role, country, birthDate, activity, entityType, rccm, referralCode }) => {
+  const register = async ({ firstName, lastName, email, password, phone, role, country, birthDate, activity, entityType, rccm, referralCode, consentements }) => {
     // sellerType était silencieusement absent de ce payload depuis toujours : le
     // choix particulier/professionnel/entreprise fait à l'inscription (Register.jsx)
     // n'atteignait jamais le backend — createVehicle s'en sortait via un fallback
@@ -212,7 +212,7 @@ export const AuthProvider = ({ children }) => {
       // formulaire. C'est exactement ce qui était arrivé à sellerType — un
       // champ obligatoire qui n'atteignait jamais le serveur. `rccm` ajouté le
       // 2026-09-09 (Registre de Commerce exigé des entités professionnelles).
-      body:    JSON.stringify({ firstName, lastName, email, password, phone, role, country, birthDate, activity, entityType, rccm, referralCode }),
+      body:    JSON.stringify({ firstName, lastName, email, password, phone, role, country, birthDate, activity, entityType, rccm, referralCode, consentements }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -303,13 +303,13 @@ export const AuthProvider = ({ children }) => {
   // `entityType` ne sont fournis que depuis Register.jsx (voir authController.js
   // oauthGoogle : sans birthDate, un compte inexistant renvoie OAUTH_NO_ACCOUNT
   // au lieu d'être créé).
-  const oauthGoogle = async ({ credential, birthDate, country, role, activity, entityType, rccm }) => {
+  const oauthGoogle = async ({ credential, birthDate, country, role, activity, entityType, rccm, consentements }) => {
     const res  = await fetch("/api/auth/oauth/google", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       // Liste blanche, comme register() ci-dessus : un champ oublié ici est
       // perdu en silence.
-      body:    JSON.stringify({ credential, birthDate, country, role, activity, entityType, rccm }),
+      body:    JSON.stringify({ credential, birthDate, country, role, activity, entityType, rccm, consentements }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {

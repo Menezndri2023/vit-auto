@@ -144,11 +144,19 @@ export default function Privacy() {
         <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
           <Li><strong>Partenaires</strong> — informations strictement nécessaires à la réservation et à la livraison</Li>
           <Li><strong>Prestataires de paiement</strong> — Orange Money, Wave, MTN, Stripe, CMI</Li>
-          <Li><strong>Hébergeurs</strong> — Render (serveur), Vercel (frontend), MongoDB Atlas (base de données)</Li>
-          <Li><strong>Diagnostic technique</strong> — Sentry (rapports d'erreur et de performance, sans donnée publicitaire)</Li>
-          <Li><strong>Notifications push</strong> — Apple (APNs) et Google (Firebase Cloud Messaging), uniquement pour acheminer les notifications sur votre appareil</Li>
+          <Li><strong>Hébergeurs</strong> — MongoDB Atlas (base de données, Paris — France), Upstash (cache, Londres — Royaume-Uni), ImageKit (photos et documents, Francfort — Allemagne), Render (serveur, États-Unis), Vercel (site, États-Unis et réseau mondial)</Li>
+          <Li><strong>Messages</strong> — Resend (e-mails, États-Unis), Twilio (codes SMS, États-Unis), Meta (WhatsApp, États-Unis / Irlande)</Li>
+          <Li><strong>Diagnostic technique</strong> — Sentry (rapports d'erreur et de performance, Allemagne, sans donnée publicitaire)</Li>
+          <Li><strong>Notifications push</strong> — Apple (APNs) et Google (Firebase Cloud Messaging, États-Unis), uniquement pour acheminer les notifications sur votre appareil</Li>
+          <Li><strong>Connexion</strong> — Google, si vous choisissez « Continuer avec Google » (États-Unis)</Li>
           <Li><strong>Autorités compétentes</strong> — sur réquisition judiciaire uniquement</Li>
         </ul>
+        <p style={{ marginTop: 10 }}>
+          <strong>Transferts hors du Maroc :</strong> vos données sont donc hébergées et traitées en France, en Allemagne,
+          au Royaume-Uni et aux États-Unis. Vous y consentez expressément à la création de votre compte (case dédiée),
+          conformément à l'article 44 de la loi 09-08 ; chaque prestataire est tenu par ses conditions de protection des
+          données. Vous pouvez retirer ce consentement en supprimant votre compte.
+        </p>
       </Section>
 
       <Section title="10. Vos droits (RGPD & loi marocaine 09-08)">

@@ -1107,3 +1107,20 @@ export const getMaValidation = async (req, res) => {
     res.status(500).json({ message: "Erreur serveur." });
   }
 };
+
+// ── POST /api/users/me/consentements ───────────────────────────────────────
+// Compte créé avant le 2026-10-10 (ou par Google depuis la connexion) : la
+// fenêtre de consentement du site enregistre ici les deux accords exprès.
+export const accepterConsentements = async (req, res) => {
+  try {
+    const { consentementComplet, enregistrementConsentement } = await import("../constants/consentement.js");
+    if (!consentementComplet(req.body?.consentements)) {
+      return res.status(400).json({ code: "CONSENTEMENT_REQUIS", message: "Les deux accords sont nécessaires pour utiliser VIT AUTO." });
+    }
+    await User.updateOne({ _id: req.user._id }, { $set: { consentements: enregistrementConsentement(req) } });
+    res.json({ ok: true, consentementAJour: true });
+  } catch (err) {
+    logger.error("accepterConsentements:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};

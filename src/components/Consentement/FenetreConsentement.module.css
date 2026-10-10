@@ -1,0 +1,15 @@
+.fond { position: fixed; inset: 0; background: rgba(15, 27, 63, .55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 2000; }
+.fenetre { background: #fff; color: #0f1b3f; border-radius: 16px; padding: 22px 20px; max-width: 520px; width: 100%; max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 12px; box-sizing: border-box; font-size: .92rem; }
+.fenetre h2 { margin: 0; font-size: 1.2rem; }
+.fenetre p { margin: 0; color: #334155; }
+.ligne { display: flex; gap: 10px; align-items: flex-start; line-height: 1.45; cursor: pointer; min-height: 44px; }
+.ligne input { width: 20px; height: 20px; margin-top: 2px; flex: 0 0 auto; }
+.lien { font-weight: 600; font-size: .85rem; }
+.erreur { color: #b91c1c !important; }
+.bouton { min-height: 48px; border: 0; border-radius: 12px; background: #0f1b3f; color: #fff; font-weight: 700; font-size: 1rem; cursor: pointer; }
+.bouton:disabled { opacity: .5; cursor: not-allowed; }
+.secondaire { min-height: 44px; border: 0; background: none; color: #64748b; text-decoration: underline; cursor: pointer; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .fenetre { background: #0f172a; color: #e2e8f0; }
+  :root:not([data-theme="light"]) .fenetre p { color: #cbd5e1; }
+}

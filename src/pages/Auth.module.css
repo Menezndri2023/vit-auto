@@ -654,3 +654,11 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Consentements (dossier CNDP, 2026-10-10) */
+.consentements { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin: 0 0 16px; display: grid; gap: 10px; font-size: .9rem; color: #334155; }
+.consentements legend { font-weight: 700; padding: 0 6px; color: #0f1b3f; }
+.consentements p { margin: 0; }
+.consentement { display: flex; gap: 10px; align-items: flex-start; line-height: 1.45; cursor: pointer; min-height: 44px; }
+.consentement input { width: 20px; height: 20px; margin-top: 2px; flex: 0 0 auto; }
+.consentLien { font-size: .85rem; font-weight: 600; }

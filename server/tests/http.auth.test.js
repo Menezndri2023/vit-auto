@@ -14,7 +14,7 @@ const validPayload = (overrides = {}) => ({
   firstName: "Jean",
   lastName: "Testeur",
   email: `jean.${Date.now()}.${Math.random().toString(36).slice(2)}@example.test`,
-  password: "password123",
+  password: "password123", consentements: { cgu: true, transfert: true },
   birthDate: "1990-01-01",
   ...overrides,
 });

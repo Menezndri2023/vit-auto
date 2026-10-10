@@ -14,7 +14,7 @@ const inscrire = async (extra = {}) => {
     body: {
       firstName: "Test", lastName: "Partenaire",
       email: `p${++n}-${Date.now()}@exemple.test`,
-      password: "MotDePasse123",
+      password: "MotDePasse123", consentements: { cgu: true, transfert: true },
       role: "partenaire",
       activity: "loueur",
       birthDate: "1990-01-01",
@@ -74,7 +74,7 @@ describe("Registre de Commerce — bout en bout via la route HTTP", () => {
   const charge = (extra = {}) => ({
     firstName: "Jean", lastName: "Partenaire",
     email: `rc.${Date.now()}.${Math.random().toString(36).slice(2)}@example.test`,
-    password: "password123", birthDate: "1990-01-01",
+    password: "password123", consentements: { cgu: true, transfert: true }, birthDate: "1990-01-01",
     role: "partenaire", activity: "loueur",
     ...extra,
   });

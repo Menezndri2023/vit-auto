@@ -447,6 +447,14 @@ const userSchema = new mongoose.Schema({
   accountHealthNudgeCount:  { type: Number, default: 0 },
   listingReminderCount:     { type: Number, default: 0 },
 
+  // Consentements (2026-10-10, dossier CNDP) — voir constants/consentement.js.
+  consentements: {
+    version:     { type: String, default: null },
+    cguLe:       { type: Date, default: null },
+    transfertLe: { type: Date, default: null },
+    ip:          { type: String, default: null },
+  },
+
   // Validation du partenaire (2026-10-09) — calculée par
   // services/validationPartenaire.js à partir des documents exigés pour SON
   // métier et SON entité ; jamais saisie à la main. « valide » = il publie et

@@ -18,7 +18,7 @@ beforeAll(async () => {
 });
 
 const TWILIO = { TWILIO_ACCOUNT_SID: "AC_test", TWILIO_AUTH_TOKEN: "tok", TWILIO_VERIFY_SERVICE_SID: "VA_test" };
-const payload = (o = {}) => ({ firstName: "Awa", lastName: "Kone", password: "password123", birthDate: "1990-01-01", ...o });
+const payload = (o = {}) => ({ firstName: "Awa", lastName: "Kone", password: "password123", consentements: { cgu: true, transfert: true }, birthDate: "1990-01-01", ...o });
 const numero = () => `+22507${Math.floor(10000000 + Math.random() * 89999999)}`;
 
 beforeEach(() => {
