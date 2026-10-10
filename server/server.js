@@ -653,6 +653,15 @@ async function runStartupMigrations() {
         await User.updateMany({ role: "admin" }, { $set: { ...ADMIN_VERIFIE, "identity.verifiedAt": new Date() } });
       });
 
+      // Plus aucune analyse du visage (CNDP, 2026-10-09) : les scores de
+      // comparaison selfie / pièce déjà calculés sont effacés.
+      await runOnceMigration("scores-visage-effaces-2026-10-09", async () => {
+        const { default: User } = await import("./models/User.js");
+        const { default: Booking } = await import("./models/Booking.js");
+        await User.updateMany({ kycFaceMatchScore: { $ne: null } }, { $set: { kycFaceMatchScore: null } });
+        await Booking.updateMany({ "clientKycSnapshot.faceMatchScore": { $ne: null } }, { $set: { "clientKycSnapshot.faceMatchScore": null } });
+      });
+
       await runOnceMigration("vehicle-currency-reset-2026-07-28", async () => {
         const { default: Vehicle } = await import("./models/Vehicle.js");
         await Vehicle.updateMany({ currency: "USD" }, { $set: { currency: null } });

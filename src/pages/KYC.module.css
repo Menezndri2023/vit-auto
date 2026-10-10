@@ -736,16 +736,7 @@
   padding: 4px 16px;
   border-radius: 99px;
 }
-.faceMatchResult {
-  width: 100%;
-  padding: 10px 16px;
-  border-radius: 10px;
-  font-size: 0.86rem;
-  font-weight: 600;
-  text-align: center;
-}
-.faceMatchOk   { background: #d1fae5; color: #065f46; border: 1.5px solid #6ee7b7; }
-.faceMatchWarn { background: #fef3c7; color: #78350f; border: 1.5px solid #fde68a; }
+
 
 .selfieRules {
   background: var(--kyc-bg);

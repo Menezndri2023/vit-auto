@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { api } from "../utils/apiClient";
 import { hashDocument } from "../utils/kycEngine.js";
 import { extractDocumentOcr, checkDocumentQuality, initOcrWorker } from "../utils/ocrEngine.js";
-import { compareFaces, checkSelfieQuality } from "../utils/faceAnalysis.js";
+import { checkSelfieQuality } from "../utils/selfie.js";
 import { validateExpiryDate } from "../utils/idValidation.js";
 import { requiresBusinessDocs } from "../constants/partnerTaxonomy";
 import { LICENSE_CATEGORIES, LICENSE_CATEGORY_LABELS, INTERNATIONAL_LICENSE_CODE, INTERNATIONAL_LICENSE_LABEL } from "../constants/licenseCategories";
@@ -118,8 +118,6 @@ export default function KYC() {
   const [cameraActive,     setCameraActive]     = useState(false);
   const [cameraError,      setCameraError]      = useState("");
   const [videoReady,       setVideoReady]       = useState(false);
-  const [faceMatchScore,   setFaceMatchScore]   = useState(null);
-  const [faceMatchLoading, setFaceMatchLoading] = useState(false);
   const videoRef  = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -291,19 +289,14 @@ export default function KYC() {
     setCameraActive(false); setVideoReady(false);
   }, []);
 
-  const processSelfie = useCallback(async (url, frontUrl) => {
-    setSelfieError(""); setSelfieOk(false); setFaceMatchScore(null);
+  // Aucune analyse du visage (CNDP, 2026-10-09) : le selfie est une photo que
+  // l'équipe compare elle-même à la pièce d'identité.
+  const processSelfie = useCallback(async (url) => {
+    setSelfieError(""); setSelfieOk(false);
     const quality = await checkSelfieQuality(url);
     if (!quality.ok) { setSelfieError(quality.message); return; }
     setSelfieUrl(url); setSelfieOk(true);
-    const docUrl = frontUrl || docFrontUrl;
-    if (docUrl) {
-      setFaceMatchLoading(true);
-      try { const m = await compareFaces(docUrl, url); setFaceMatchScore(m.score); }
-      catch { setFaceMatchScore(50); }
-      finally { setFaceMatchLoading(false); }
-    }
-  }, [docFrontUrl]);
+  }, []);
 
   const handleStartCamera = useCallback(async () => {
     setCameraError(""); setCameraActive(true); setVideoReady(false);
@@ -336,16 +329,16 @@ export default function KYC() {
     canvas.getContext("2d").drawImage(video, 0, 0);
     const url = canvas.toDataURL("image/jpeg", 0.92);
     handleStopCamera();
-    await processSelfie(url, docFrontUrl);
-  }, [handleStopCamera, processSelfie, docFrontUrl]);
+    await processSelfie(url);
+  }, [handleStopCamera, processSelfie]);
 
   const handleSelfieUpload = useCallback(async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = async (ev) => await processSelfie(ev.target.result, docFrontUrl);
+    reader.onload = async (ev) => await processSelfie(ev.target.result);
     reader.readAsDataURL(file);
-  }, [processSelfie, docFrontUrl]);
+  }, [processSelfie]);
 
   // Selfie natif (iOS/Android) — appareil photo frontal natif ou galerie,
   // remplace le flux getUserMedia + cadre ovale custom (natif uniquement).
@@ -358,9 +351,9 @@ export default function KYC() {
         direction: CameraDirection.Front,
         quality: 90,
       });
-      if (photo.dataUrl) await processSelfie(photo.dataUrl, docFrontUrl);
+      if (photo.dataUrl) await processSelfie(photo.dataUrl);
     } catch { /* utilisateur a annulé */ }
-  }, [processSelfie, docFrontUrl]);
+  }, [processSelfie]);
 
   /* ════════ STEP 4 — Soumission ═══════════════════════════════════════════ */
   const handleSubmitKyc = async () => {
@@ -373,7 +366,6 @@ export default function KYC() {
         frontImageHash: docHash,
         backImageHash:  docBackHash,
         selfieUploaded: selfieOk,
-        faceMatchScore: faceMatchScore ?? 0,
         emailVerified,
         phoneVerified,
         frontImageData: docFrontUrl || null,
@@ -771,7 +763,7 @@ export default function KYC() {
             <span className={styles.cardHeaderIcon}>🤳</span>
             <div>
               <h2 className={styles.cardTitle}>Selfie de vérification</h2>
-              <p className={styles.cardDesc}>Prenez une photo de votre visage. Le système la compare avec votre document.</p>
+              <p className={styles.cardDesc}>Prenez une photo de votre visage. Notre équipe la compare à votre document — aucune analyse automatique du visage.</p>
             </div>
           </div>
 
@@ -822,17 +814,8 @@ export default function KYC() {
             <div className={styles.selfiePreview}>
               <img src={selfieUrl} alt="Selfie" className={styles.selfieImg} />
               <div className={styles.selfieBadge}>✓ Selfie enregistré</div>
-              {faceMatchLoading && <p className={styles.ocrProgressText}>Comparaison du visage avec le document…</p>}
-              {faceMatchScore !== null && !faceMatchLoading && (
-                <div className={[styles.faceMatchResult, faceMatchScore >= 65 ? styles.faceMatchOk : styles.faceMatchWarn].join(" ")}>
-                  {faceMatchScore >= 85
-                    ? `✅ Correspondance excellente (${faceMatchScore}%)`
-                    : faceMatchScore >= 65
-                    ? `✓ Correspondance acceptable (${faceMatchScore}%)`
-                    : `⚠ Score faible (${faceMatchScore}%) — examen manuel de votre dossier`}
-                </div>
-              )}
-              <button className={styles.retakeBtn} onClick={() => { setSelfieOk(false); setSelfieUrl(null); setFaceMatchScore(null); }}>
+              <p className={styles.ocrProgressText}>Notre équipe le comparera à votre pièce d'identité.</p>
+              <button className={styles.retakeBtn} onClick={() => { setSelfieOk(false); setSelfieUrl(null); }}>
                 🔄 Reprendre le selfie
               </button>
             </div>
@@ -878,10 +861,6 @@ export default function KYC() {
                   <SummaryItem ok={emailVerified}  label="Email vérifié" />
                   <SummaryItem ok={docImageOk}     label={`Document scanné (OCR ${ocrData?.ocrConfidence ?? 0}%)`} />
                   <SummaryItem ok={selfieOk}        label="Selfie enregistré" />
-                  {faceMatchScore !== null && (
-                    <SummaryItem ok={faceMatchScore >= 65} warn={faceMatchScore >= 40 && faceMatchScore < 65}
-                      label={`Correspondance visage : ${faceMatchScore}%`} />
-                  )}
                 </div>
               </div>
 

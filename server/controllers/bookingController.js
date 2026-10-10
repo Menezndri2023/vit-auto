@@ -1157,7 +1157,7 @@ export const createBooking = async (req, res) => {
           licenseExpiry:     clientUser.driverLicenseOcr?.expiryDate   || null,
           licenseCategories: clientUser.driverLicenseOcr?.categories   || null,
           ocrData:           clientUser.kycOcrData        || null,
-          faceMatchScore:    clientUser.kycFaceMatchScore || null,
+          faceMatchScore:    null, // plus d'analyse du visage (CNDP, 2026-10-09)
           kycStatus:         clientKycStatus,
           kycScore:          clientKycScore,
           snapshotAt:        new Date(),
@@ -1575,7 +1575,7 @@ export const createBookingsBatch = async (req, res) => {
       licenseExpiry:     clientUser.driverLicenseOcr?.expiryDate   || null,
       licenseCategories: clientUser.driverLicenseOcr?.categories   || null,
       ocrData:           clientUser.kycOcrData        || null,
-      faceMatchScore:    clientUser.kycFaceMatchScore || null,
+      faceMatchScore:    null, // plus d'analyse du visage (CNDP, 2026-10-09)
       kycStatus:         clientKycStatus,
       kycScore:          clientKycScore,
       snapshotAt:        new Date(),

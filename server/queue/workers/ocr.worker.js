@@ -25,11 +25,10 @@ export async function processOcrJob(job) {
     case "validate_kyc_data": {
       // Re-calcul du score KYC côté serveur pour validation
       const User = (await import("../../models/User.js")).default;
-      const user = await User.findById(userId).select("email phone kycOcrData kycFaceMatchScore emailVerified phoneVerified kycStatus identity.type identity.expiryDate identity.frontImage identity.backImage identity.selfie").lean();
+      const user = await User.findById(userId).select("email phone kycOcrData emailVerified phoneVerified kycStatus identity.type identity.expiryDate identity.frontImage identity.backImage identity.selfie").lean();
       if (!user) throw new Error(`Utilisateur ${userId} introuvable`);
 
       const ocrConf  = user.kycOcrData?.ocrConfidence || 0;
-      const faceConf = user.kycFaceMatchScore || 0;
       const hasDoc   = !!user.kycOcrData?.documentNumber;
       // Règle de l'exploitant (2026-10-07) : validation AUTOMATIQUE seulement si
       // tout est en règle — e-mail OU téléphone confirmé, et dossier complet
@@ -46,13 +45,15 @@ export async function processOcrJob(job) {
       if (user.phoneVerified) score += 15;
       if (user.kycOcrData?.documentNumber) score += 20;
       if (ocrConf >= 60)  score += 25;
-      if (faceConf >= 80) score += 15;
+      if (user.identity?.selfie) score += 15;   // selfie fourni — aucune analyse du visage (CNDP, 2026-10-09)
       if (user.kycOcrData?.firstName && user.kycOcrData?.lastName && user.kycOcrData?.birthDate) score += 10;
       score = Math.min(score, 100);
 
       const badge = score >= 80 ? "CERTIFIÉ" : score >= 60 ? "VÉRIFIÉ" : "INSUFFISANT";
-      const autoApprove = ocrConf >= 70 && faceConf >= 80
-        && contactConfirme && dossierComplet && hasDoc;
+      // Plus de score de visage (traitement biométrique, CNDP) : la pièce lue,
+      // le contact confirmé et le dossier complet suffisent (règle de
+      // l'exploitant) ; le selfie fait partie du dossier complet.
+      const autoApprove = ocrConf >= 70 && contactConfirme && dossierComplet && hasDoc;
       const dejaVerifie = user.kycStatus === "VERIFIE";
 
       await User.findByIdAndUpdate(userId, {
@@ -69,7 +70,7 @@ export async function processOcrJob(job) {
         $push: {
           kycAuditLog: {
             action:    autoApprove ? "SERVER_AUTO_VERIFIED" : "SERVER_SCORE_UPDATED",
-            note:      `Score recalculé serveur: ${score}/100 — OCR:${ocrConf}% Face:${faceConf}%`,
+            note:      `Score recalculé serveur: ${score}/100 — OCR:${ocrConf}%`,
             timestamp: new Date(),
           },
         },

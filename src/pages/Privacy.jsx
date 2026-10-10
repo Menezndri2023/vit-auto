@@ -84,7 +84,7 @@ export default function Privacy() {
           <Li>Traitement des réservations, commandes et paiements</Li>
           <Li>Calcul automatique des frais de livraison géolocalisée (Haversine — distance réelle partenaire ↔ client)</Li>
           <Li>Envoi du véhicule au bon endroit grâce à la position GPS du client, et affichage des véhicules disponibles près de vous</Li>
-          <Li>Vérification d'identité et prévention de la fraude (photo de pièce d'identité et selfie)</Li>
+          <Li>Vérification d'identité et prévention de la fraude (photo de pièce d'identité et selfie, examinés par notre équipe — aucune reconnaissance faciale automatique)</Li>
           <Li>Publication d'annonces de véhicules (photos prises ou importées depuis votre galerie)</Li>
           <Li>Envoi de notifications push sur l'avancement de vos réservations, messages et documents à signer</Li>
           <Li>Communication transactionnelle (confirmations, contrats, notifications)</Li>

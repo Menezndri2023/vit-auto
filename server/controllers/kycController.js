@@ -75,7 +75,6 @@ export const submitKyc = async (req, res) => {
       documentType,    // type sélectionné par l'utilisateur
       frontImageHash,  // SHA-256 de l'image recto
       selfieUploaded,  // boolean
-      faceMatchScore,  // score 0–100 de correspondance visage-document
       // Images base64 (stockées pour le partenaire)
       frontImageData,  // base64 du recto de la pièce
       backImageData,   // base64 du verso de la pièce
@@ -179,7 +178,6 @@ export const submitKyc = async (req, res) => {
     }
 
     // ── Calcul du statut KYC ──────────────────────────────────────────────────
-    const faceConf = Number(faceMatchScore || 0);
     const hasEmail = emailVerified || false;
     const hasPhone = phoneVerified || false;
 
@@ -196,7 +194,9 @@ export const submitKyc = async (req, res) => {
     if (hasPhone)       newKycScore += 15;
     if (frontImageHash) newKycScore += 20;
     if (ocrConf >= 60)  newKycScore += 25;
-    if (faceConf >= 80) newKycScore += 15;
+    // Aucune analyse du visage (CNDP, 2026-10-09) : la présence du selfie
+    // compte, l'équipe le compare elle-même à la pièce.
+    if (selfieUploaded) newKycScore += 15;
     if (safeOcrData.firstName && safeOcrData.lastName && safeOcrData.birthDate) newKycScore += 10;
     newKycScore = Math.min(newKycScore, 100);
 
@@ -204,10 +204,10 @@ export const submitKyc = async (req, res) => {
     else if (newKycScore >= 60) newKycBadge = "VÉRIFIÉ";
 
     // ── IMPORTANT ─────────────────────────────────────────────────────────────
-    // ocrConfidence et faceMatchScore sont calculés CÔTÉ CLIENT (Tesseract.js dans
+    // ocrConfidence est calculé CÔTÉ CLIENT (Tesseract.js dans
     // le navigateur) et transmis tels quels dans req.body : le serveur n'a aucun
     // moyen de vérifier indépendamment ces valeurs. Un utilisateur malveillant peut
-    // les falsifier (ex: {ocrConfidence:100, faceMatchScore:100}) pour obtenir un
+    // les falsifier (ex: {ocrConfidence:100}) pour obtenir un
     // statut "VERIFIE" sans jamais avoir fourni de vrai document. Tant qu'un OCR/
     // face-match serveur (ou un prestataire tiers) n'est pas branché, AUCUNE
     // soumission n'est auto-validée — un admin doit toujours confirmer via
@@ -248,7 +248,7 @@ export const submitKyc = async (req, res) => {
         kycSubmittedAt:     new Date(),
         kycDocumentHash:    frontImageHash || null,
         kycOcrData:         ocrProcessed,
-        kycFaceMatchScore:  faceConf,
+        kycFaceMatchScore:  null,
         documentsVerified:  newKycStatus === "VERIFIE",
         "identity.type":    documentType || safeOcrData.documentType || null,
         "identity.number":  encryptField(safeOcrData.documentNumber) || null,
@@ -265,7 +265,7 @@ export const submitKyc = async (req, res) => {
 
     // Journal d'audit
     const auditMsg = autoValidated
-      ? `Validation automatique — OCR: ${ocrConf}%, Face: ${faceConf}%`
+      ? `Validation automatique — OCR: ${ocrConf}%`
       : `Soumission KYC — Score: ${newKycScore}/100 — Statut: ${newKycStatus}`;
     await addAuditLog(req.user.id, autoValidated ? "AUTO_VERIFIED" : "SUBMITTED", null, auditMsg);
 
