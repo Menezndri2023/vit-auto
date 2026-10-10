@@ -41,6 +41,17 @@ async function payerReservation() {
 const rappel = async (body) => { const { req, res } = mockReqRes({ body }); await paydunyaWebhook(req, res); return res; };
 
 describe("PayDunya", () => {
+  it("en production, des clés de bac à sable ne sont jamais utilisées", async () => {
+    const { isConfigured } = await import("../services/payment/providers/paydunyaProvider.js");
+    const avant = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      expect(isConfigured()).toBe(false);
+      process.env.PAYDUNYA_MODE = "live";
+      expect(isConfigured()).toBe(true);
+    } finally { process.env.NODE_ENV = avant; process.env.PAYDUNYA_MODE = "test"; }
+  });
+
   it("crée la facture et renvoie la page de paiement PayDunya, même pour un moyen mobile money", async () => {
     const { res, payment } = await payerReservation();
     expect(res.body.checkoutUrl).toContain("paydunya.com");

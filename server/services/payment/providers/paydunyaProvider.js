@@ -21,7 +21,12 @@ const base = () => (process.env.PAYDUNYA_MODE === "live"
   : "https://app.paydunya.com/sandbox-api/v1");
 
 export function isConfigured() {
-  return !!(process.env.PAYDUNYA_MASTER_KEY && process.env.PAYDUNYA_PRIVATE_KEY && process.env.PAYDUNYA_TOKEN);
+  const cles = !!(process.env.PAYDUNYA_MASTER_KEY && process.env.PAYDUNYA_PRIVATE_KEY && process.env.PAYDUNYA_TOKEN);
+  // Des clés de BAC À SABLE posées en production feraient « payer » de vrais
+  // clients en argent fictif, et valideraient leurs réservations : en
+  // production, PayDunya n'est actif qu'en mode live.
+  if (process.env.NODE_ENV === "production" && process.env.PAYDUNYA_MODE !== "live") return false;
+  return cles;
 }
 
 const entetes = () => ({
