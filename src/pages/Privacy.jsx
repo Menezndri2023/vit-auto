@@ -51,7 +51,7 @@ export default function Privacy() {
           Politique de confidentialité
         </h1>
         <p style={{ margin: 0, color: "rgba(255,255,255,.65)", fontSize: "0.85rem" }}>
-          Dernière mise à jour : Juillet 2026 · VIT AUTO · vit-auto.com
+          Dernière mise à jour : Octobre 2026 · VIT AUTO · vit-auto.com
         </p>
       </div>
 
