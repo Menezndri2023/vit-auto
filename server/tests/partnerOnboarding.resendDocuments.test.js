@@ -108,6 +108,24 @@ describe("checkAndSendPartnerReminders — relance dossier Founding Partner bloq
     expect(reloaded.loi.signingToken).not.toBe("3".repeat(64)); // token régénéré, l'ancien pouvait être cassé/expiré
   });
 
+  it("ne relance jamais la signature d'un partenaire déjà validé (2026-10-10)", async () => {
+    // Plainte réelle : un loueur validé, dossier Founding Partner laissé en
+    // cours, continuait de recevoir des messages sur son dossier.
+    const partner = await createUser({ role: "partenaire", isFounder: true });
+    const doc = await PartnerOnboarding.create({
+      userId: partner._id, status: "loi_envoyee", companyInfo: { legalName: "Epsilon SARL" },
+      loi: { content: "Contenu LOI", signingToken: "5".repeat(64), signingTokenExpires: new Date(Date.now() - 1000) },
+    });
+    await PartnerOnboarding.updateOne({ _id: doc._id }, { $set: { updatedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000) } });
+
+    sendEmailMock.mockClear();
+    await checkAndSendPartnerReminders();
+    const reloaded = await PartnerOnboarding.findById(doc._id);
+    expect(reloaded.lastReminderSentAt).toBeFalsy();
+    expect(reloaded.loi.signingToken).toBe("5".repeat(64));
+    expect(sendEmailMock.mock.calls.some((c) => JSON.stringify(c).includes("Epsilon"))).toBe(false);
+  });
+
   it("ne relance pas deux fois un dossier déjà relancé récemment (cooldown)", async () => {
     const partner = await createUser({ role: "partenaire" });
     const doc = await PartnerOnboarding.create({

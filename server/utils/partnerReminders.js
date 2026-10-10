@@ -129,11 +129,15 @@ async function checkValidationPartenaires() {
 async function checkFoundingPartnerPendingSignature() {
   const docs = await PartnerOnboarding.find({ status: { $in: ["loi_envoyee", "accord_envoye"] } })
     .select("userId companyInfo status referenceNumber lastReminderSentAt reminderCount updatedAt")
-    .populate("userId", "firstName email isTestAccount deletedAt isActive")
+    .populate("userId", "firstName email isTestAccount deletedAt isActive validationPartenaire.statut")
     .lean();
   let sent = 0;
   for (const doc of docs) {
     if (!doc.userId?.email || !joignable(doc.userId)) continue;
+    // Un partenaire validé ne reçoit plus aucune relance liée à son dossier
+    // (règle de l'exploitant, 2026-10-10) : le programme Founding Partner
+    // n'est pas une pièce de validation, sa signature reste à son initiative.
+    if (doc.userId.validationPartenaire?.statut === "valide") continue;
     if (Date.now() - new Date(doc.updatedAt).getTime() < STALE_MS) continue;
     if (!isDue(doc.lastReminderSentAt, doc.reminderCount)) continue;
 

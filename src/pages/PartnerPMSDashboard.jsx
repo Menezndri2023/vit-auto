@@ -5,6 +5,8 @@ import { useToast } from "../context/ToastContext";
 import styles from "./PartnerPMSDashboard.module.css";
 import VerrouOutil from "../components/VerrouOutil/VerrouOutil.jsx";
 import { useOutils } from "../hooks/useOutils";
+import useValidationPartenaire, { estValide } from "../hooks/useValidationPartenaire";
+import CompteVerifie from "../components/CompteVerifie/CompteVerifie";
 
 const API = (path, token, opts = {}) =>
   fetch(`/api/pms${path}`, {
@@ -1004,6 +1006,7 @@ const VERIF_CRITERIA_LABELS = {
 };
 
 function PerformanceSection({ token, user }) {
+  const valide = estValide(useValidationPartenaire(token));
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [verif, setVerif]     = useState(null);
@@ -1102,8 +1105,8 @@ function PerformanceSection({ token, user }) {
         <h3 className={styles.badgesSectionTitle}>Badges VIT AUTO</h3>
         <div className={styles.badgesGrid}>
           {[
-            { icon:"✅", label:"VERIFIED",         desc:"Entreprise & documents vérifiés",      earned:data.score >= 50, gradient:"linear-gradient(135deg,#059669,#10b981)" },
-            { icon:"⭐", label:"FOUNDING PARTNER",  desc:"Programme obligatoire de tout partenaire (LOI + Accord)",  earned: !!user?.isFounder, gradient:"linear-gradient(135deg,#d97706,#f59e0b)" },
+            { icon:"✅", label:"VERIFIED",         desc:"Entreprise & documents vérifiés",      earned:valide, gradient:"linear-gradient(135deg,#059669,#10b981)" },
+            { icon:"⭐", label:"FOUNDING PARTNER",  desc:"Programme Founding Partner (LOI + Accord)",  earned: !!user?.isFounder, gradient:"linear-gradient(135deg,#d97706,#f59e0b)" },
             { icon:"🏆", label:"PREMIUM EXPORTER",  desc:"Score ≥ 85 + 50 commandes finalisées", earned:data.score >= 85, gradient:"linear-gradient(135deg,#7c3aed,#a855f7)" },
           ].map((b) => (
             <div key={b.label} className={`${styles.badgeCard} ${!b.earned ? styles.badgeLocked : ""}`}>
@@ -1121,7 +1124,13 @@ function PerformanceSection({ token, user }) {
           documents...), pas déduit automatiquement des commandes. Auparavant
           visible uniquement côté admin ou publiquement une fois vérifié — un
           partenaire ne savait jamais précisément ce qui lui manquait. */}
-      {verif && (
+      {valide && (
+        <div className={styles.badgesSection}>
+          <h3 className={styles.badgesSectionTitle}>🛡️ Vérification partenaire</h3>
+          <p className={styles.sectionSub}>✅ Compte vérifié : vos documents sont complets, aucune démarche n'est requise.</p>
+        </div>
+      )}
+      {verif && !valide && (
         <div className={styles.badgesSection}>
           <h3 className={styles.badgesSectionTitle}>
             🛡️ Vérification partenaire {verif.verification && `— ${verif.verification.trustScore}/100`}
@@ -1165,7 +1174,8 @@ function PerformanceSection({ token, user }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // SECTION: SOCIÉTÉ (liens vers certification existante)
 // ══════════════════════════════════════════════════════════════════════════════
-function CompanySection() {
+function CompanySection({ token }) {
+  const valide = estValide(useValidationPartenaire(token));
   const levels = [
     { n:1, icon:"🏢", label:"Entreprise",          route:"/partner-certification?level=1" },
     { n:2, icon:"👤", label:"Représentant",         route:"/partner-certification?level=2" },
@@ -1179,10 +1189,11 @@ function CompanySection() {
 
   return (
     <div className={styles.section}>
+      {valide && <CompteVerifie suite="La certification en 8 étapes est facultative : elle ajoute des badges de confiance à votre profil public." />}
       <div className={styles.sectionHeader}>
         <div>
           <h2 className={styles.sectionTitle}>🏢 Mon Entreprise</h2>
-          <p className={styles.sectionSub}>Certification VIT AUTO en 8 étapes</p>
+          <p className={styles.sectionSub}>Certification VIT AUTO en 8 étapes{valide ? " — facultative" : ""}</p>
         </div>
         <Link to="/partner-certification" className={styles.btnPrimary}>Ouvrir la certification</Link>
       </div>
@@ -1622,7 +1633,7 @@ export default function PartnerPMSDashboard() {
     switch (activeSection) {
       case "home":        return <HomeSection token={token} user={user} onNav={onNav} businessId={businessId} />;
       case "onboarding":  return <OnboardingSection token={token} />;
-      case "company":     return <CompanySection user={user} />;
+      case "company":     return <CompanySection token={token} />;
       case "showroom":    return <ShowroomSection token={token} showToast={showToast} />;
       case "fleet":       return <FleetSection />;
       case "leads":       return <LeadsSection token={token} showToast={showToast} businessId={businessId} businesses={businesses} />;

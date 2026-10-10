@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import useValidationPartenaire, { estValide } from "../hooks/useValidationPartenaire";
+import CompteVerifie from "../components/CompteVerifie/CompteVerifie";
 import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { ACTIVITIES, ACTIVITY_LABELS } from "../constants/partnerTaxonomy";
@@ -127,6 +129,7 @@ function useFormState(initial = {}) {
 // ── Composant principal ────────────────────────────────────────────────────────
 export default function PartnerOnboardingPortal() {
   const { token } = useAuth();
+  const validation = useValidationPartenaire(token);
   const { addToast } = useToast();
   const { countryCode } = useCurrency();
   const navigate = useNavigate();
@@ -433,6 +436,9 @@ export default function PartnerOnboardingPortal() {
 
   return (
     <div className={styles.portal}>
+      {estValide(validation) && (
+        <CompteVerifie suite="Le programme Founding Partner ci-dessous est facultatif : il donne droit à des avantages commerciaux, pas à la vérification." />
+      )}
       {/* ── Hero ── */}
       <div className={styles.hero}>
         <div className={styles.heroContent}>
@@ -442,7 +448,7 @@ export default function PartnerOnboardingPortal() {
             <span className={styles.heroAccent}>Fondateur</span>
           </h1>
           <p className={styles.heroSub}>
-            L'étape obligatoire de tout nouveau partenaire. Commission réduite, abonnement offert 12 mois, badge exclusif.
+            {estValide(validation) ? "Programme facultatif" : "L'étape obligatoire de tout nouveau partenaire"}. Commission réduite, abonnement offert 12 mois, badge exclusif.
           </p>
           <div className={styles.heroStats}>
             <div className={styles.heroStat}><span>12 mois</span><small>Abonnement offert</small></div>

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import useValidationPartenaire from "../../hooks/useValidationPartenaire";
 
 // Validation du partenaire (2026-10-09) : un seul bandeau, qui liste les
 // pièces exigées pour SON métier et SON entité (permis et CV pour un
@@ -8,12 +8,7 @@ import { Link } from "react-router-dom";
 // Remplace les bandeaux « KYC en attente » / « Certification requise », qui
 // réclamaient à un chauffeur des documents qu'on ne lui demande pas.
 export default function BandeauValidation({ token, styles, publicationOuverte }) {
-  const [v, setV] = useState(null);
-  useEffect(() => {
-    if (!token) return;
-    fetch("/api/users/me/validation", { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? r.json() : null)).then((d) => setV(d?.validation || null)).catch(() => {});
-  }, [token]);
+  const v = useValidationPartenaire(token);
   if (!v || v.statut === "valide") return null;
 
   if (v.statut === "suspendu") {

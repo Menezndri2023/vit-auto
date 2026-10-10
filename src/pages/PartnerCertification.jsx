@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../utils/apiClient";
 import { lireDocument } from "../utils/compresserDocument";
 import styles from "./PartnerCertification.module.css";
+import { useAuth } from "../context/AuthContext";
+import useValidationPartenaire, { estValide } from "../hooks/useValidationPartenaire";
+import CompteVerifie from "../components/CompteVerifie/CompteVerifie";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 // Lecture + compression des justificatifs : voir utils/compresserDocument.js.
@@ -108,6 +111,8 @@ function MultiCheck({ label, options, value = [], onChange }) {
 // ── Composant principal ───────────────────────────────────────────────────────
 export default function PartnerCertification() {
   const navigate = useNavigate();
+  const { token } = useAuth();
+  const validation = useValidationPartenaire(token);
 
   const [cert,          setCert]          = useState(null);
   const [activeLevel,   setActiveLevel]   = useState(1);
@@ -252,6 +257,10 @@ export default function PartnerCertification() {
         <div className={`${styles.toast} ${toast.type === "error" ? styles.toastError : styles.toastSuccess}`}>
           {toast.msg}
         </div>
+      )}
+
+      {estValide(validation) && (
+        <CompteVerifie suite="La certification ci-dessous est facultative : elle ajoute des badges de confiance à votre profil public." />
       )}
 
       {/* ── Hero ── */}
