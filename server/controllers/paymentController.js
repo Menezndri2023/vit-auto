@@ -7,7 +7,7 @@ import InsuranceRequest from "../models/InsuranceRequest.js";
 import IETransaction from "../models/IETransaction.js";
 import Notification from "../models/Notification.js";
 import AuditLog from "../models/AuditLog.js";
-import { initiateCheckout, stripeProvider, waveProvider, orangeMoneyProvider } from "../services/payment/gateway.js";
+import { initiateCheckout, stripeProvider, waveProvider, orangeMoneyProvider, paydunyaProvider, methodeDisponible, simulationAutorisee } from "../services/payment/gateway.js";
 import { completeIEEscrowPayment } from "./ieTransactionController.js";
 import { dispatch } from "../queue/index.js";
 import { captureException } from "../config/sentry.js";
@@ -42,7 +42,7 @@ async function logPaymentEvent(action, payment, source) {
 // IETransactionTracking.jsx — virement/mobile_money/crypto/lc uniquement, pas
 // de remise en main propre possible pour un container à l'international).
 const ALLOWED_METHODS = ["card", "cash", "orange_money", "wave", "mtn", "moov", "paypal"];
-const ONLINE_METHODS  = ["card", "orange_money", "wave"];
+const ONLINE_METHODS  = ["card", "orange_money", "wave", "mtn", "moov"];
 
 // ── Helpers partagés (webhooks + simulation) ────────────────────────────────
 // Cible d'un paiement — exactement un des trois (voir Payment.pre("validate")).
@@ -206,6 +206,11 @@ export const initiatePayment = async (req, res) => {
     if (!ONLINE_METHODS.includes(method)) {
       return res.status(400).json({ message: `Méthode non prise en charge par le paiement en ligne. Acceptées : ${ONLINE_METHODS.join(", ")}` });
     }
+    // Aucun compte marchand pour ce moyen et simulation fermée (production) :
+    // on le dit tout de suite, sans créer de paiement en attente.
+    if (!methodeDisponible(method)) {
+      return res.status(503).json({ code: "PAIEMENT_INDISPONIBLE", message: "Le paiement en ligne n'est pas encore ouvert pour ce moyen. Réglez selon les instructions de la réservation." });
+    }
     const targetCount = [bookingId, serviceRequestId, insuranceRequestId].filter(Boolean).length;
     if (targetCount !== 1) {
       return res.status(400).json({ message: "Fournissez exactement une cible : bookingId, serviceRequestId ou insuranceRequestId." });
@@ -288,10 +293,11 @@ export const initiatePayment = async (req, res) => {
     // (avec repli sur l'ID) et `._id` du second argument — une réservation
     // réelle ou un objet minimal font également l'affaire pour un devis.
     const bookingArg = paymentField === "booking" ? target : { _id: target._id, reference: target._id.toString().slice(-8).toUpperCase() };
-    const { checkoutUrl, providerRef, simulated, webhookToken } = await initiateCheckout({ payment, booking: bookingArg });
+    const { checkoutUrl, providerRef, simulated, webhookToken, fournisseur, montantXOF } = await initiateCheckout({ payment, booking: bookingArg });
     payment.checkoutUrl   = checkoutUrl;
     payment.transactionId = providerRef;
     payment.simulated     = simulated;
+    if (fournisseur) { payment.fournisseur = fournisseur; payment.montantFournisseur = montantXOF ?? null; }
     // Uniquement renseigné par orangeMoneyProvider.createCheckout — voir sa
     // vérification dans orangeMoneyWebhook ci-dessous.
     if (webhookToken) payment.webhookToken = webhookToken;
@@ -340,6 +346,14 @@ export const getPaymentStatus = async (req, res) => {
       return res.status(403).json({ message: "Accès refusé." });
     }
 
+    // PayDunya : si le rappel n'est pas encore arrivé, on lit le statut à la
+    // source — le client qui revient de la page de paiement voit tout de suite
+    // « payé ».
+    if (payment.status === "pending" && payment.fournisseur === "paydunya" && payment.transactionId) {
+      await appliquerStatutPaydunya(payment.transactionId).catch((e) => logger.warn("[PayDunya] lecture du statut :", e.message));
+      const frais = await Payment.findById(payment._id).select("status simulated amount devise method booking serviceRequest insuranceRequest");
+      return res.json({ payment: frais });
+    }
     res.json({ payment });
   } catch (err) {
     logger.error("getPaymentStatus:", err);
@@ -355,6 +369,9 @@ export const simulatePayment = async (req, res) => {
     if (!payment) return res.status(404).json({ message: "Paiement introuvable." });
     if (!payment.simulated) {
       return res.status(403).json({ message: "Ce paiement utilise un vrai fournisseur — impossible de le simuler." });
+    }
+    if (!simulationAutorisee()) {
+      return res.status(403).json({ message: "Simulation de paiement désactivée en production." });
     }
     if (payment.status !== "pending") {
       return res.status(409).json({ message: "Ce paiement n'est plus en attente." });
@@ -386,6 +403,41 @@ export const simulatePayment = async (req, res) => {
   } catch (err) {
     logger.error("simulatePayment:", err);
     res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── PayDunya (agrégateur, 2026-10-09) ───────────────────────────────────────
+// Le rappel prouve son origine par `hash` (SHA-512 de la clé principale), puis
+// le statut est TOUJOURS relu chez PayDunya et le montant comparé à celui
+// envoyé : un rappel forgé ou rejoué ne peut rien valider.
+async function appliquerStatutPaydunya(token) {
+  const payment = await Payment.findOne({ transactionId: token, fournisseur: "paydunya" }).select("status amount devise method booking serviceRequest insuranceRequest montantFournisseur transactionId");
+  if (!payment || payment.status !== "pending") return payment;
+  const st = await paydunyaProvider.confirm(token);
+  if (st.paymentId && st.paymentId !== payment._id.toString()) throw new Error("Facture PayDunya rattachée à un autre paiement.");
+  if (st.status === "completed") {
+    if (payment.montantFournisseur != null && Math.round(st.montant) !== Math.round(payment.montantFournisseur)) {
+      throw new Error(`Montant PayDunya inattendu (${st.montant} au lieu de ${payment.montantFournisseur}).`);
+    }
+    await completePayment(payment, { providerRef: token, source: "paydunya" });
+  } else if (st.status === "cancelled" || st.status === "failed") {
+    await failPayment(payment, st.failReason || `paydunya_${st.status}`);
+  }
+  return payment;
+}
+
+export const paydunyaWebhook = async (req, res) => {
+  try {
+    const data = req.body?.data || req.body || {};
+    if (!paydunyaProvider.verifierHash(data.hash)) return res.status(401).json({ message: "Rappel non authentifié." });
+    const token = data.invoice?.token || data.token;
+    if (!token) return res.status(400).json({ message: "Facture absente." });
+    await appliquerStatutPaydunya(String(token));
+    res.json({ received: true });
+  } catch (err) {
+    logger.error("paydunyaWebhook:", err.message);
+    captureException(err, { controller: "paymentController.paydunyaWebhook" });
+    res.status(400).json({ message: "Rappel invalide." });
   }
 };
 

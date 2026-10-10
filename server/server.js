@@ -283,6 +283,9 @@ const webhookLimiter = rateLimit({
 // fiable de la signature (voir services/payment/providers/*Provider.js).
 app.post("/api/payments/webhook/stripe", webhookLimiter, express.raw({ type: "application/json" }), paymentController.stripeWebhook);
 app.post("/api/payments/webhook/wave",   webhookLimiter, express.raw({ type: "application/json" }), paymentController.waveWebhook);
+// PayDunya (2026-10-09) : rappel en formulaire ; authentifié par son hash puis
+// par relecture du statut chez PayDunya (voir paydunyaWebhook).
+app.post("/api/payments/webhook/paydunya", webhookLimiter, express.urlencoded({ extended: true }), express.json(), paymentController.paydunyaWebhook);
 
 // ── Webhook WhatsApp (Meta Cloud API) — même raison : signature X-Hub-Signature-256
 // vérifiée sur le corps brut. Le challenge GET n'a besoin d'aucun body parsing.

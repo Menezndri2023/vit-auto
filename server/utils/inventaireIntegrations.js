@@ -25,6 +25,7 @@ export function inventaireIntegrations(env) {
     "WhatsApp — webhook (Meta)":       ["WHATSAPP_VERIFY_TOKEN", "WHATSAPP_APP_SECRET"],
     "Bot WhatsApp — IA (Anthropic)":   ["ANTHROPIC_API_KEY"],
     "Paiements — interrupteur":        ["PAYMENTS_ENABLED"],
+    "Paiement PayDunya (carte + mobile money)": ["PAYDUNYA_MASTER_KEY", "PAYDUNYA_PRIVATE_KEY", "PAYDUNYA_TOKEN", "PAYDUNYA_MODE"],
     "Paiement carte (Stripe)":         ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"],
     "Paiement Orange Money":           ["ORANGE_MONEY_CLIENT_ID", "ORANGE_MONEY_CLIENT_SECRET", "ORANGE_MONEY_MERCHANT_KEY"],
     "Paiement Wave":                   ["WAVE_API_KEY", "WAVE_WEBHOOK_SECRET"],

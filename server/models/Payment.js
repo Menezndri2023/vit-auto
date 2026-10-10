@@ -43,6 +43,11 @@ const paymentSchema = new mongoose.Schema({
 
   // ── Référence externe (ID transaction/session opérateur) ──
   transactionId: { type: String, default: null },
+  // Fournisseur réellement utilisé (« paydunya » pour l'agrégateur, qui
+  // encaisse carte et mobile money sur une seule page) et montant envoyé dans
+  // SA devise (XOF) — comparé au montant confirmé avant de valider.
+  fournisseur:         { type: String, default: null },
+  montantFournisseur:  { type: Number, default: null },
 
   // ── Détails selon méthode (données masquées) ──────────────
   paymentDetails: {

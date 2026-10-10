@@ -248,3 +248,37 @@ describe("paymentController.adminListPayments", () => {
     expect(m.res.body.pages).toBe(2);
   });
 });
+
+// Audit du 2026-10-09 : en production, sans compte marchand, le mode simulé
+// laissait un client marquer SA réservation « payée » sans argent.
+describe("paiement en ligne en production sans compte marchand", () => {
+  const enProduction = async (fn) => {
+    const avant = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try { await fn(); } finally { process.env.NODE_ENV = avant; }
+  };
+
+  it("refuse d'initier un paiement simulé (503), sans créer de paiement", async () => {
+    const client = await createUser({ role: "client" });
+    const booking = await createBookingDoc({ client: client._id });
+    await enProduction(async () => {
+      const { req, res } = mockReqRes({ user: client, body: { bookingId: booking._id.toString(), method: "wave" } });
+      await initiatePayment(req, res);
+      expect(res.status).toHaveBeenCalledWith(503);
+      expect(res.body.code).toBe("PAIEMENT_INDISPONIBLE");
+    });
+    expect(await Payment.countDocuments({ booking: booking._id })).toBe(0);
+  });
+
+  it("refuse de compléter un paiement simulé existant", async () => {
+    const client = await createUser({ role: "client" });
+    const booking = await createBookingDoc({ client: client._id });
+    const p = await Payment.create({ booking: booking._id, amount: 1000, method: "wave", status: "pending", simulated: true, user: client._id });
+    await enProduction(async () => {
+      const { req, res } = mockReqRes({ user: client, params: { id: p._id.toString() }, body: { outcome: "success" } });
+      await simulatePayment(req, res);
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+    expect((await Payment.findById(p._id).lean()).status).toBe("pending");
+  });
+});

@@ -52,7 +52,9 @@ export async function refundPayment({ paymentId, amount, reason, actorId = null,
   let refundAmount = amount != null ? Math.min(Number(amount), remaining) : remaining;
   if (!(refundAmount > 0)) return { ok: false, message: "Montant de remboursement invalide." };
 
-  const gatewayConfig = AUTOMATIC_PROVIDERS[payment.method];
+  // Encaissé par PayDunya : pas de remboursement par API, l'admin rembourse
+  // depuis son espace marchand (mode manuel ci-dessous).
+  const gatewayConfig = payment.fournisseur === "paydunya" ? null : AUTOMATIC_PROVIDERS[payment.method];
   // Un remboursement partiel demandé sur une méthode qui ne le supporte pas
   // (Wave) retombe en manuel plutôt que de rembourser plus que ce qui a été
   // demandé — jamais de décision financière silencieuse à la place de l'admin.
