@@ -21,7 +21,11 @@ const { createUser } = await import("./helpers/fixtures.js");
 // tout appelant existant le temps du filet email). Un délai fixe pour
 // "laisser le temps" est donc fragile sous charge (--maxWorkers) : on sonde
 // plutôt jusqu'à ce que la condition soit vraie, avec un plafond généreux.
-async function waitFor(predicate, { timeout = 3000, interval = 20 } = {}) {
+// ⚠️ 2026-10-18 : 3 s ne suffisaient pas en fin de suite complète (≈ 1 h 30,
+// machine chargée) — l'email du 1er test arrivait PENDANT le 2e, qui échouait
+// à son tour. Plafond relevé, et les assertions négatives sur un utilisateur
+// ne comptent plus que les envois qui lui sont adressés (envoisPour).
+async function waitFor(predicate, { timeout = 15000, interval = 20 } = {}) {
   const start = Date.now();
   while (Date.now() - start < timeout) {
     if (predicate()) return;
@@ -29,6 +33,8 @@ async function waitFor(predicate, { timeout = 3000, interval = 20 } = {}) {
   }
   if (!predicate()) throw new Error(`waitFor: condition non remplie après ${timeout}ms`);
 }
+
+const envoisPour = (user) => sendEmailMock.mock.calls.filter(([arg]) => arg?.to === user.email);
 
 describe("Filet email pour les notifications internes/push", () => {
   it("Notification.create déclenche l'email générique par défaut", async () => {
@@ -58,7 +64,7 @@ describe("Filet email pour les notifications internes/push", () => {
     // de se produire s'il devait avoir lieu.
     await new Promise((r) => setTimeout(r, 500));
 
-    expect(sendEmailMock).not.toHaveBeenCalled();
+    expect(envoisPour(user)).toHaveLength(0);
   });
 
   it("sendInternal transmet bien skipEmail jusqu'au document Notification", async () => {
@@ -68,7 +74,7 @@ describe("Filet email pour les notifications internes/push", () => {
     await sendInternal({ userId: user._id.toString(), type: "system", titre: "Via sendInternal", message: "Corps", skipEmail: true });
     await new Promise((r) => setTimeout(r, 500));
 
-    expect(sendEmailMock).not.toHaveBeenCalled();
+    expect(envoisPour(user)).toHaveLength(0);
   });
 
   it("sendInternalBroadcast (insertMany) déclenche aussi l'email générique pour chaque destinataire", async () => {
@@ -107,7 +113,7 @@ describe("Filet email pour les notifications internes/push", () => {
     });
     await new Promise((r) => setTimeout(r, 500));
 
-    expect(sendEmailMock).not.toHaveBeenCalled();
+    expect(envoisPour(user)).toHaveLength(0);
   });
 
   it("respecte notif_emailReminders:false (sendInternalBroadcast)", async () => {

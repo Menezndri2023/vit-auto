@@ -5,9 +5,18 @@ name: Surveillance production
 # En cas d'échec, GitHub envoie un e-mail au propriétaire du dépôt (réglage
 # par défaut des notifications Actions) — on apprend la panne avant les clients.
 #
-# Volontairement LÉGÈRE : cinq requêtes par passage. Une sonde en boucle
-# déclenche le challenge anti-robots de Vercel (403 partout, faux air de
-# panne) et consomme le limiteur de l'API (200 requêtes / 5 min).
+# Volontairement LÉGÈRE : une poignée de requêtes par passage. Une sonde en
+# boucle déclenche les défis anti-robots et consomme le limiteur de l'API
+# (200 requêtes / 5 min).
+#
+# ⚠️ Corrigé le 2026-10-18 : la sonde était ROUGE à chaque passage depuis sa
+# création (6/10) alors que le site allait bien. vit-auto.com passe par
+# Cloudflare, qui répond aux adresses des serveurs GitHub par son défi « Just a
+# moment… » (HTTP 403, en-tête cf-mitigated: challenge) — cinq fausses erreurs
+# et un « Catalogue vide (vehicles=?) » par e-mail, quatre fois par jour. Le
+# domaine public reste sondé ; un défi Cloudflare n'y est plus une panne mais
+# un avertissement, et le verdict se fait alors sur les ORIGINES directes
+# (Vercel pour le site, Render pour l'API), qui ne passent pas par ce filtre.
 on:
   schedule:
     - cron: "17 */6 * * *"
@@ -22,24 +31,51 @@ jobs:
         run: |
           set -u
           UA="Mozilla/5.0 (VIT AUTO surveillance; +https://vit-auto.com)"
+          SITE=https://vit-auto.com
+          ORIGINE_SITE=https://vit-auto.vercel.app
+          ORIGINE_API=https://vit-auto-api.onrender.com
           echec=0
+          # appeler url → $code, corps dans /tmp/r, en-têtes dans /tmp/h
+          appeler() {
+            code=$(curl -s -D /tmp/h -o /tmp/r -w "%{http_code}" -A "$UA" --max-time 60 "$1")
+          }
+          defi_cloudflare() {
+            [ "$code" = "403" ] && { grep -qi '^cf-mitigated: *challenge' /tmp/h || grep -q 'Just a moment' /tmp/r; }
+          }
           verifier() { # nom url motif-attendu
-            code=$(curl -s -o /tmp/r -w "%{http_code}" -A "$UA" --max-time 60 "$2")
+            appeler "$2"
             if [ "$code" != "200" ] || ! grep -q "$3" /tmp/r; then
-              echo "::error::$1 — HTTP $code — $(head -c 200 /tmp/r)"; echec=1
+              echo "::error::$1 — HTTP $code — $2 — $(head -c 200 /tmp/r)"; echec=1
             else
               echo "OK  $1"
             fi
           }
+
           # Render met jusqu'à une minute à réveiller l'API : un premier appel
           # sans verdict, pour ne pas confondre démarrage à froid et panne.
-          curl -s -o /dev/null -A "$UA" --max-time 90 https://vit-auto.com/api/health || true
-          verifier "Page d'accueil"         https://vit-auto.com/                          '<div id="root"'
-          verifier "API — santé"            https://vit-auto.com/api/health                '"healthy"'
-          verifier "API — chiffres publics" https://vit-auto.com/api/vehicles/public-stats '"vehicles"'
-          verifier "Catalogue — vitrine"    https://vit-auto.com/api/spotlight/hero        '"items"'
+          curl -s -o /dev/null -A "$UA" --max-time 90 "$ORIGINE_API/api/health" || true
+
+          # 1. Domaine public. Un défi Cloudflare n'est pas une panne : on le
+          #    signale et l'on juge sur les origines.
+          appeler "$SITE/api/health"
+          if [ "$code" = "200" ] && grep -q '"healthy"' /tmp/r; then
+            API=$SITE; FRONT=$SITE
+            echo "OK  Domaine public"
+          elif defi_cloudflare; then
+            API=$ORIGINE_API; FRONT=$ORIGINE_SITE
+            echo "::warning::Cloudflare présente son défi anti-robots aux serveurs GitHub (HTTP 403) — verdict sur les origines Vercel et Render"
+          else
+            echo "::error::Domaine public — HTTP $code — $(head -c 200 /tmp/r)"; echec=1
+            API=$ORIGINE_API; FRONT=$ORIGINE_SITE
+          fi
+
+          # 2. Site, API et catalogue.
+          verifier "Page d'accueil"         "$FRONT/"                         '<div id="root"'
+          verifier "API — santé"            "$API/api/health"                 '"healthy"'
+          verifier "API — chiffres publics" "$API/api/vehicles/public-stats"  '"vehicles"'
+          n=$(grep -o '"vehicles":[0-9]*' /tmp/r | cut -d: -f2)
+          verifier "Catalogue — vitrine"    "$API/api/spotlight/hero"         '"items"'
           # Le catalogue ne doit pas être vide : un tableau d'éléments vide est
           # la signature de la panne « aucune image / page blanche » de septembre.
-          n=$(curl -s -A "$UA" --max-time 60 https://vit-auto.com/api/vehicles/public-stats | grep -o '"vehicles":[0-9]*' | cut -d: -f2)
           if [ -z "${n:-}" ] || [ "$n" -lt 1 ]; then echo "::error::Catalogue vide (vehicles=${n:-?})"; echec=1; else echo "OK  Catalogue : $n véhicules"; fi
           exit $echec
