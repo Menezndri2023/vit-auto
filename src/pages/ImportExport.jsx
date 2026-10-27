@@ -402,6 +402,43 @@ const ImportExport = () => {
       </div>
     </section>
 
+    {/* ── LES TROIS SERVICES ──
+        Exploitant, 2026-10-27 : l'import-export s'organise en trois services,
+        et trois seulement — Vehicle Trade, Parts Trade, Logistique. Cotation,
+        comparaison, documents et suivi restent communs. Chaque carte mène à
+        ce qui existe réellement : annonces export, pièces importées à la
+        commande, transitaires rattachés à la transaction. ── */}
+    <section className={styles.zonesSection} aria-labelledby="ie-trois-services">
+      <div className={styles.inner}>
+        <div className={styles.sectionHeader}>
+          <span className={styles.sectionTag}>{t("ie.svcTag")}</span>
+          <h2 id="ie-trois-services">{t("ie.svcTitle")}</h2>
+          <p>{t("ie.svcSub")}</p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18 }}>
+          {[
+            { cle: "Veh", icone: "🚢", couleur: "#ff4d2d", principal: { to: "/import-export/listings", label: t("ie.svcVehCta") }, second: { onClick: () => openModal(), label: t("ie.svcQuote") } },
+            { cle: "Parts", icone: "🔩", couleur: "#0ea5e9", principal: { to: "/catalogue?mode=Pieces&vente=import", label: t("ie.svcPartsCta") }, second: { onClick: () => openModal("Silver"), label: t("ie.askCatalog") } },
+            { cle: "Log", icone: "📦", couleur: "#0f1b3f", principal: { href: "#importateur", label: t("ie.svcLogCta") }, second: { to: "/transit/inscription", label: t("ie.svcLogPartner") } },
+          ].map((svc) => (
+            <article key={svc.cle} style={{ display: "flex", flexDirection: "column", background: "#fff", border: `1.5px solid ${svc.couleur}33`, borderRadius: 16, padding: "22px 22px 20px" }}>
+              <div style={{ fontSize: "1.8rem", marginBottom: 8 }} aria-hidden="true">{svc.icone}</div>
+              <h3 style={{ margin: "0 0 8px", color: svc.couleur, fontSize: "1.1rem", fontWeight: 800 }}>{t(`ie.svc${svc.cle}Title`)}</h3>
+              <p style={{ margin: "0 0 16px", color: "#475569", fontSize: ".9rem", lineHeight: 1.55, flex: 1 }}>{t(`ie.svc${svc.cle}Desc`)}</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                {svc.principal.to
+                  ? <Link className={styles.svcBtn} to={svc.principal.to}>{svc.principal.label}</Link>
+                  : <a className={styles.svcBtn} href={svc.principal.href}>{svc.principal.label}</a>}
+                {svc.second.to
+                  ? <Link className={styles.svcBtnGhost} to={svc.second.to}>{svc.second.label}</Link>
+                  : <button type="button" className={styles.svcBtnGhost} onClick={svc.second.onClick}>{svc.second.label}</button>}
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+
     {/* ── PAYS COUVERTS ── */}
     <section className={styles.countriesBar}>
       <div className={styles.countriesInner}>

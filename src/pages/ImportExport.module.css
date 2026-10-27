@@ -1027,3 +1027,35 @@
 
 /* 10,6 px → 11,2 px (audit 2026-09-15). */
 .zoneTag { font-size: 0.7rem; }
+
+/* ── Les trois services — boutons sur carte blanche ──
+   .secondaryBtn est pensé pour les fonds sombres (blanc translucide) : sur une
+   carte blanche il serait invisible. */
+.svcBtn,
+.svcBtnGhost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 700;
+  font-size: .88rem;
+  text-decoration: none;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.svcBtn {
+  background: linear-gradient(135deg, #ff4d2d, #e03519);
+  color: #fff;
+  border: none;
+}
+.svcBtnGhost {
+  background: #fff;
+  color: #0f1b3f;
+  border: 1.5px solid #cbd5e1;
+}
+.svcBtnGhost:hover { border-color: #0f1b3f; }
+.svcBtn:focus-visible,
+.svcBtnGhost:focus-visible { outline: 3px solid #0ea5e9; outline-offset: 2px; }

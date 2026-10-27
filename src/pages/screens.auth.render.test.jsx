@@ -24,6 +24,21 @@ describe("Connexion, inscription et Import/Export — rendu", () => {
   it("Inscription", () => { renderPage(<Register />, { route: "/register" }); verifier("Inscription"); });
   it("Import / Export", () => { renderPage(<ImportExport />, { route: "/import-export" }); verifier("Import/Export"); });
 
+  // Exploitant, 2026-10-27 : trois services, et trois seulement, chacun menant
+  // à ce qui existe réellement.
+  it("Import / Export présente les trois services avec leurs vraies destinations", () => {
+    renderPage(<ImportExport />, { route: "/import-export" });
+    const section = screen.getByRole("heading", { name: /Trois services, un seul compte/i }).closest("section");
+    const titres = [...section.querySelectorAll("h3")].map((h) => h.textContent);
+    expect(titres).toEqual(["Vehicle Trade", "Parts Trade", "Logistique"]);
+    const liens = [...section.querySelectorAll("a")].map((a) => a.getAttribute("href"));
+    expect(liens).toContain("/import-export/listings");
+    expect(liens).toContain("/catalogue?mode=Pieces&vente=import");
+    expect(liens).toContain("/transit/inscription");
+    // Jamais présenté comme transporteur ou transitaire.
+    expect(section.textContent).toMatch(/ni transporteur ni transitaire/);
+  });
+
   // Le nom des champs n'était porté que par le `placeholder` : il disparaît
   // dès la première frappe, et celui qui relit son formulaire ne sait plus
   // quel champ il regarde. Un intitulé <label> associé reste affiché — et

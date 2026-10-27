@@ -20,6 +20,10 @@ export default {
   "catalogue.weatherDependent": { fr: "· 🌤️ selon météo", en: "· 🌤️ weather permitting", ar: "· 🌤️ حسب الطقس", es: "· 🌤️ según el tiempo", zh: "· 🌤️ 视天气而定" },
   "catalogue.leisureByCity":    { fr: "Activités & loisirs par ville", en: "Activities & leisure by city", ar: "الأنشطة والترفيه حسب المدينة", es: "Actividades y ocio por ciudad", zh: "按城市浏览活动与休闲" },
   "catalogue.partsByBrand":     { fr: "Pièces détachées par marque", en: "Spare parts by brand", ar: "قطع الغيار حسب العلامة", es: "Repuestos por marca", zh: "按品牌浏览零配件" },
+  "catalogue.partModeLabel": { fr: "Mode de vente des pièces", en: "Parts sale mode", ar: "طريقة بيع القطع", es: "Modo de venta de las piezas", zh: "配件销售方式" },
+  "catalogue.partModeAll": { fr: "Toutes", en: "All", ar: "الكل", es: "Todas", zh: "全部" },
+  "catalogue.partModeStock": { fr: "En stock", en: "In stock", ar: "متوفرة", es: "En stock", zh: "现货" },
+  "catalogue.partModeImport": { fr: "Importées à la commande", en: "Imported to order", ar: "مستوردة عند الطلب", es: "Importadas bajo pedido", zh: "按需进口" },
   "catalogue.yourCountry":      { fr: "votre pays", en: "your country", ar: "بلدك", es: "tu país", zh: "您所在的国家" },
   "catalogue.electric":         { fr: "Électrique", en: "Electric", ar: "كهربائية", es: "Eléctrico", zh: "电动" },
 

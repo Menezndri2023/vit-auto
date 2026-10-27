@@ -69,3 +69,29 @@ describe("Catalogue — pays du visiteur seulement", () => {
     expect(container.textContent).not.toMatch(/Aucune annonce dans votre pays/i);
   });
 });
+
+// Entrée « Parts Trade » de la page Import/Export (2026-10-27) :
+// /catalogue?mode=Pieces&vente=import n'affiche que les pièces importées à la
+// commande.
+describe("Catalogue — pièces filtrées par mode de vente", () => {
+  const piece = (id, saleMode, title) => ({
+    _id: id, id, title, category: "freinage", saleMode, price: 40, country: "MA", ville: "Casablanca",
+    images: [`https://ik.imagekit.io/vitauto/${id}.jpg`], status: "approved", available: true,
+  });
+
+  it("?vente=import ne montre que les pièces importées, bouton présélectionné", async () => {
+    try { sessionStorage.setItem("vit_pays_choisi", "MA"); } catch { /* stockage indisponible */ }
+    simulerApi({
+      routes: {
+        // GET /api/parts renvoie un TABLEAU (partController.getParts).
+        "/api/parts": [piece("p1", "direct", "Plaquettes en stock"), piece("p2", "import", "Disques importés")],
+        "/api/vehicles": { vehicles: [], total: 0, pages: 1 },
+      },
+    });
+    const { container } = renderPage(<Catalogue />, { route: "/catalogue?mode=Pieces&vente=import", path: "/catalogue" });
+
+    expect(await screen.findByText(/Disques importés/, {}, { timeout: 4000 })).toBeTruthy();
+    expect(container.textContent).not.toMatch(/Plaquettes en stock/);
+    expect(screen.getByRole("button", { name: /Importées à la commande/ }).getAttribute("aria-pressed")).toBe("true");
+  });
+});

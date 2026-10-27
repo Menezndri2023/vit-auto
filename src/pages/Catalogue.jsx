@@ -334,6 +334,12 @@ const Catalogue = () => {
     const c = searchParams.get("partCategory");
     return c && PART_CATEGORIES.includes(c) ? c : "Tous";
   });
+  // Pièces — mode de vente (?vente=direct|import) : l'entrée « Parts Trade »
+  // de la page Import/Export ouvre les pièces importées à la commande.
+  const [partSaleMode, setPartSaleMode] = useState(() => {
+    const v = searchParams.get("vente");
+    return v === "direct" || v === "import" ? v : "Tous";
+  });
   const [maxPrice,     setMaxPrice]     = useState(300);
   // Prix max vente/import — échelle totalement différente de la location
   // journalière (10-300 USD/j) : un véhicule à vendre ou une annonce
@@ -531,6 +537,7 @@ const Catalogue = () => {
     let list = (parts || []).filter((p) =>
       paysOk(p.country)
       && (partCategoryFilter === "Tous" || p.category === partCategoryFilter)
+      && (partSaleMode === "Tous" || (p.saleMode || "direct") === partSaleMode)
       && (!q
         || (p.title || "").toLowerCase().includes(q)
         || (p.reference || "").toLowerCase().includes(q)
@@ -543,7 +550,7 @@ const Catalogue = () => {
     if (sortKey === "price_desc") list = [...list].sort((a, b) => (b.price || 0) - (a.price || 0));
     if (sortKey === "newest")     list = [...list].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
     return list;
-  }, [parts, isPartsMode, searchTerm, sortKey, paysOk, nomDuPays, partCategoryFilter]);
+  }, [parts, isPartsMode, searchTerm, sortKey, paysOk, nomDuPays, partCategoryFilter, partSaleMode]);
 
   // Villes ayant réellement des annonces de location — alimente le maillage
   // interne vers les pages locales (/location-voiture/:ville). Sans ces liens,
@@ -750,6 +757,17 @@ const Catalogue = () => {
               </div>
             </>
           ) : isPartsMode ? (
+            <>
+            <div className={styles.typePillsRow} role="group" aria-label={t("catalogue.partModeLabel")}>
+              {[["Tous", "📦", "catalogue.partModeAll"], ["direct", "🏬", "catalogue.partModeStock"], ["import", "🌍", "catalogue.partModeImport"]].map(([mode, icone, cle]) => (
+                <button key={mode} type="button" aria-pressed={partSaleMode === mode}
+                  className={`${styles.typePill} ${partSaleMode === mode ? styles.typePillActive : ""}`}
+                  onClick={() => { setPartSaleMode(mode); setParam("vente", mode === "Tous" ? "" : mode); }}>
+                  <span>{icone}</span>
+                  <span>{t(cle)}</span>
+                </button>
+              ))}
+            </div>
             <div className={styles.typePillsRow}>
               {PART_CATEGORY_PILLS.map((pc) => (
                 <button key={pc} type="button"
@@ -760,6 +778,7 @@ const Catalogue = () => {
                 </button>
               ))}
             </div>
+            </>
           ) : isOthersMode ? (
             <div className={styles.typePillsRow}>
               {ACTIVITY_TYPE_PILLS.map((at) => (
@@ -1238,10 +1257,10 @@ const Catalogue = () => {
             {partsFiltered.length === 0 ? (
               <div className={styles.ieEmpty}>
                 <span style={{ fontSize: "3rem" }}>🔩</span>
-                <h3>{searchTerm || partCategoryFilter !== "Tous" ? t("catalogue.noFilterResults") : t("catalogue.noPartsAvailable")}</h3>
-                <p>{searchTerm || partCategoryFilter !== "Tous" ? t("catalogue.tryAnotherFilter") : t("catalogue.partsComingSoon")}</p>
-                {(searchTerm || partCategoryFilter !== "Tous") && (
-                  <button className={styles.ieEmptyBtn} onClick={() => { setSearchTerm(""); setPartCategoryFilter("Tous"); setParam("partCategory", ""); }}>
+                <h3>{searchTerm || partCategoryFilter !== "Tous" || partSaleMode !== "Tous" ? t("catalogue.noFilterResults") : t("catalogue.noPartsAvailable")}</h3>
+                <p>{searchTerm || partCategoryFilter !== "Tous" || partSaleMode !== "Tous" ? t("catalogue.tryAnotherFilter") : t("catalogue.partsComingSoon")}</p>
+                {(searchTerm || partCategoryFilter !== "Tous" || partSaleMode !== "Tous") && (
+                  <button className={styles.ieEmptyBtn} onClick={() => { setSearchTerm(""); setPartCategoryFilter("Tous"); setParam("partCategory", ""); setPartSaleMode("Tous"); setParam("vente", ""); }}>
                     {t("catalogue.clearFilters")}
                   </button>
                 )}
