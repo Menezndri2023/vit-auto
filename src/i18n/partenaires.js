@@ -19,7 +19,8 @@
  *
  * GRILLE UNIQUE depuis le 2026-10-27 (exploitant) : une seule colonne pour
  * tous, fondateurs compris — location 10 %, vente 2 %, export 3 %, chauffeur
- * 10 %, loisirs 10 %, pièces 5 % (server/config/defaultPricingConfig.js).
+ * 10 %, loisirs 10 %, pièces 5 % en local et 7 % à l'export
+ * (server/config/defaultPricingConfig.js).
  * L'avantage fondateur « commission réduite » n'existe donc plus : il est
  * remplacé par l'accompagnement au lancement, réellement assuré.
  */
@@ -128,7 +129,7 @@ export default {
   "part.c.leisureNote": { fr: "Quad, plongée, jetski… Ex. 40,00 $US → 4,00 $US", en: "Quad biking, diving, jet ski… E.g. $40.00 → $4.00", ar: "دراجات رباعية وغوص وجت سكي… مثال: ٤٠٫٠٠ دولاراً ← ٤٫٠٠ دولارات", es: "Quad, buceo, moto de agua… Ej. 40,00 US$ → 4,00 US$", zh: "四驱摩托、潜水、水上摩托…… 例：40.00 美元 → 4.00 美元" },
   // Ligne absente de la grille alors que le secteur existe depuis 2026-09-14.
   "part.c.parts":      { fr: "Pièces détachées", en: "Spare parts", ar: "قطع الغيار", es: "Repuestos", zh: "零配件" },
-  "part.c.partsNote": { fr: "Sur le prix de la pièce seul, jamais sur la livraison ni les frais d'importation — même taux pour une pièce en stock ou importée à la commande.", en: "On the part's price alone, never on delivery or import charges — same rate for a part in stock or imported to order.", ar: "على ثمن القطعة وحده، لا على التوصيل ولا رسوم الاستيراد — النسبة نفسها للقطعة المتوفرة أو المستوردة عند الطلب.", es: "Solo sobre el precio de la pieza, nunca sobre la entrega ni los gastos de importación — mismo porcentaje para una pieza en stock o importada bajo pedido.", zh: "仅按配件价格计算，不含配送与进口费用——现货与按需进口配件费率相同。" },
+  "part.c.partsNote": { fr: "Sur le prix de la pièce seul, jamais sur la livraison ni les frais d'importation. 7 % pour une vente à l'export (pièce importée à la commande ou livrée hors de votre pays).", en: "On the part's price alone, never on delivery or import charges. 7% for an export sale (part imported to order or shipped outside your country).", ar: "على ثمن القطعة وحده، لا على التوصيل ولا رسوم الاستيراد. ٧٪ للبيع للتصدير (قطعة مستوردة عند الطلب أو مُرسلة خارج بلدك).", es: "Solo sobre el precio de la pieza, nunca sobre la entrega ni los gastos de importación. 7 % en una venta a la exportación (pieza importada bajo pedido o enviada fuera de tu país).", zh: "仅按配件价格计算，不含配送与进口费用。出口销售（按需进口或寄往您所在国家以外）为 7%。" },
   "part.c.insurance":     { fr: "Assurance", en: "Insurance", ar: "التأمين", es: "Seguro", zh: "保险" },
   "part.c.insuranceNote": { fr: "Selon accord partenaire", en: "According to the partner agreement", ar: "حسب اتفاقية الشريك", es: "Según el acuerdo con el socio", zh: "依合作协议而定" },
   "part.c.serviceFee":     { fr: "Frais de service client", en: "Customer service fee", ar: "رسوم خدمة العميل", es: "Gastos de servicio al cliente", zh: "客户服务费" },

@@ -647,7 +647,7 @@ async function runStartupMigrations() {
       // qui a causé l'incident. Rendu automatique et sans risque de répétition
       // (voir runOnceMigration.js).
       // Grille de commissions unique (exploitant, 2026-10-27) : location 10 %,
-      // vente 2 %, vente export 3 %, pièces 5 %, chauffeur 10 %, loisirs 10 %,
+      // vente 2 %, vente export 3 %, pièces 5 % (7 % à l'export), chauffeur 10 %, loisirs 10 %,
       // fondateur = standard. Le document PricingConfig de production porte
       // encore l'ancienne grille et l'emporte sur les valeurs par défaut — sans
       // cette migration, le code annoncerait 10 % et la base facturerait 15 %.

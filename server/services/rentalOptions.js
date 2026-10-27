@@ -1,4 +1,4 @@
-import { getRentalOptionPrice } from "./pricingEngine.js";
+import { getRentalOptionPrice, getRentalOptionFournisseur } from "./pricingEngine.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // OPTIONS SUPPLÉMENTAIRES DE LOCATION — accordées aux conditions du partenaire
@@ -100,9 +100,11 @@ export async function resolveRentalOptions(rentalPolicy = null) {
  * Tarifie les options d'une réservation et refuse celles que le partenaire ne
  * propose pas.
  *
- * @returns {Promise<{ montant:number, refusees:string[] }>}
+ * @returns {Promise<{ montant:number, montantVitAuto:number, refusees:string[] }>}
  *   `montant` : total pour toute la durée, dans la devise de PricingConfig
  *   (les options au forfait « rental » comptent une fois, quelle que soit la durée).
+ *   `montantVitAuto` : la part de `montant` fournie par VIT AUTO — seule
+ *   part des options soumise à commission (exploitant, 2026-10-27).
  *   `refusees` : libellés des options demandées mais non proposées — la
  *   réservation doit être rejetée, jamais silencieusement allégée : le client
  *   a choisi ces options, il ne doit pas découvrir leur absence sur place.
@@ -113,6 +115,7 @@ export async function priceRentalOptions(optionsDemandees, rentalPolicy, jours =
 
   const duree = Number.isFinite(Number(jours)) && Number(jours) > 0 ? Number(jours) : 1;
   let montant = 0;
+  let montantVitAuto = 0;
   const refusees = [];
 
   for (const [id, active] of Object.entries(optionsDemandees || {})) {
@@ -120,8 +123,10 @@ export async function priceRentalOptions(optionsDemandees, rentalPolicy, jours =
     const option = parId[id];
     if (!option) continue;               // identifiant inconnu : ignoré, comme avant
     if (!option.offered) { refusees.push(option.label); continue; }
-    montant += option.unit === "rental" ? option.pricePerDay : option.pricePerDay * duree;
+    const prix = option.unit === "rental" ? option.pricePerDay : option.pricePerDay * duree;
+    montant += prix;
+    if (await getRentalOptionFournisseur(id) === "vitauto") montantVitAuto += prix;
   }
 
-  return { montant, refusees };
+  return { montant, montantVitAuto, refusees };
 }

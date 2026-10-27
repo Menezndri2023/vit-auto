@@ -16,7 +16,7 @@ VIT AUTO est une plateforme internationale de **vente, location, service chauffe
 
 ## 3. Argumentaire Founding Partner
 
-- **Grille unique depuis le 2026-10-27**, la même pour tous : location, chauffeur et loisirs 10 %, vente 2 %, vente à l'export 3 %, pièces 5 % — commission uniquement sur une opération conclue (détail : `docs/commissions.md`).
+- **Grille unique depuis le 2026-10-27**, la même pour tous : location, chauffeur et loisirs 10 %, vente 2 %, vente à l'export 3 %, pièces 5 % (7 % à l'export) — commission uniquement sur une opération conclue (détail : `docs/commissions.md`).
 - L'avantage fondateur n'est plus tarifaire : **outils pro offerts 12 mois**, accompagnement au lancement (dossier, documents, premières publications), badge et mise en avant.
 - Argument clé : inscription et publication gratuites, aucun abonnement obligatoire — le partenaire ne paie que s'il conclut.
 - Ne jamais promettre un volume de clients ou de ventes.

@@ -43,7 +43,7 @@ Réservé aux **Founding Partners**. Formulaire dédié : véhicule, pays d'orig
 
 - Signature électronique d'une LOI puis d'un Accord (même lien, même jeton de signature).
 - Donne accès à : publication Import/Export, plafond d'annonces élevé (particulier), outils pro offerts 12 mois.
-- **Commissions** : grille unique pour tous, fondateurs compris (2026-10-27) — location, chauffeur et loisirs **10 %**, vente **2 %**, vente à l'export **3 %**, pièces **5 %**. Référence : `docs/commissions.md`.
+- **Commissions** : grille unique pour tous, fondateurs compris (2026-10-27) — location, chauffeur et loisirs **10 %**, vente **2 %**, vente à l'export **3 %**, pièces **5 %** en local, **7 %** à l'export. Référence : `docs/commissions.md`.
 
 ## 4. Recevoir des commandes
 

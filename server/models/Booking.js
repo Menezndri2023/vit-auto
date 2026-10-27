@@ -408,6 +408,11 @@ const bookingSchema = new mongoose.Schema({
     unitPriceEntered: { type: Number, default: null },
     currency:       { type: String, default: null },
     saleMode:       { type: String, enum: ["direct", "import", null], default: null },
+    // Vente transfrontalière (exploitant, 2026-10-27) : pièce importée à la
+    // commande OU livrée hors du pays du vendeur. Figé à la création — il fixe
+    // la clé de commission `piece_import` (7 %) au lieu de `piece` (5 %), y
+    // compris aux recalculs du règlement.
+    international:  { type: Boolean, default: false },
     importFeesUSD:  { type: Number, default: 0 },
     depositPercent: { type: Number, default: 0 },
     depositUSD:     { type: Number, default: 0 },
@@ -442,6 +447,14 @@ const bookingSchema = new mongoose.Schema({
   // toutes implicitement en FCFA/XOF) ───────────────────────
   montantBase:    { type: Number, default: 0 },
   montantOptions: { type: Number, default: 0 },
+  // Part de montantOptions fournie par VIT AUTO (PricingConfig.
+  // rentalOptionsFournisseur) — la seule soumise à commission.
+  montantOptionsVitAuto: { type: Number, default: 0 },
+  // Règle d'assiette figée à la création. null = réservation antérieure au
+  // 2026-10-27 : commission sur le montant total, jamais recalculée
+  // autrement. "prestation-2026-10-27" : prestation + options VIT AUTO −
+  // remise fidélité, hors livraison et options du partenaire.
+  assietteRegle:  { type: String, default: null },
   montantTotal:   { type: Number, default: 0 },
   devise:         { type: String, default: "USD" },
   // Fidélité (voir bookingController.js — createBooking/awardLoyaltyPoints) —

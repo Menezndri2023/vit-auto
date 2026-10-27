@@ -127,12 +127,12 @@ export default function ConditionsPartenaires() {
       <Art n="5" title="Commissions et paiements">
         <p>Les commissions appliquées sont les suivantes :</p>
         <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
-          <Li><strong>Location :</strong> 10 % du montant de la réservation</Li>
+          <Li><strong>Location :</strong> 10 % du prix de la location et des options fournies par VIT AUTO (hors livraison et options fournies par le partenaire, comme son assurance)</Li>
           <Li><strong>Vente :</strong> 2 % du prix de vente final, dû uniquement lorsqu'une vente issue d'un prospect apporté par VIT AUTO est effectivement conclue (voir ci-dessous « Attribution des prospects »)</Li>
           <Li><strong>Vente d'un véhicule à l'export (import/export) :</strong> 3 % du prix, prélevée à la libération des fonds — ce taux remplace celui de la vente, il ne s'y ajoute pas</Li>
-          <Li><strong>Pièces détachées :</strong> 5 % du prix des pièces seul (hors livraison et frais d'importation), en vente directe comme en importation à la commande</Li>
-          <Li><strong>Chauffeur :</strong> 10 % du montant de la course</Li>
-          <Li><strong>Activités et loisirs :</strong> 10 % du montant de la réservation</Li>
+          <Li><strong>Pièces détachées :</strong> 5 % du prix des pièces seul (hors livraison et frais d'importation) en vente locale ; 7 % à l'export, c'est-à-dire pour une pièce importée à la commande ou livrée hors du pays du vendeur</Li>
+          <Li><strong>Chauffeur :</strong> 10 % du prix de la course</Li>
+          <Li><strong>Activités et loisirs :</strong> 10 % du prix de l'activité</Li>
           <Li><strong>Logistique (transport, transit) :</strong> aucune commission à ce jour ; le prix du transport est celui du prestataire</Li>
           <Li><strong>Assurance :</strong> commission négociée directement avec le partenaire assureur (généralement 5–15 %)</Li>
           <Li><strong>Crédit / Leasing :</strong> commission négociée avec la banque ou le courtier (généralement 1–3 % du montant financé)</Li>

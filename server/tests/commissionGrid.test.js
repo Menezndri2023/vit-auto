@@ -8,13 +8,13 @@ import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import { appliquerGrilleUnique } from "../scripts/setCommissionRates.mjs";
 
 // Grille UNIQUE (exploitant, 2026-10-27) : location 10 %, vente et essai 2 %,
-// vente de véhicule à l'export 3 %, pièces détachées 5 % (directe comme
-// importée), chauffeur 10 %, activités et loisirs 10 %. Fondateur = standard,
+// vente de véhicule à l'export 3 %, pièces détachées 5 % en local et 7 % à
+// l'export, chauffeur 10 %, activités et loisirs 10 %. Fondateur = standard,
 // abonné = standard. La logistique n'a pas de taux décidé : aucune commission.
 
 const GRILLE = {
   location: 0.10, vente: 0.02, essai: 0.02, import_export: 0.03,
-  piece: 0.05, piece_import: 0.05, chauffeur: 0.10, activite: 0.10,
+  piece: 0.05, piece_import: 0.07, chauffeur: 0.10, activite: 0.10,
 };
 
 const abonnePremium = async () => {
@@ -50,11 +50,11 @@ describe("Grille de commissions", () => {
   });
 
   it("aucun cumul : une transaction ne porte qu'un seul taux", async () => {
-    // Une pièce importée paie 5 %, pas 5 % + 3 % ; une vente à l'export paie
+    // Une pièce exportée paie 7 %, pas 7 % + 3 % ; une vente à l'export paie
     // 3 %, pas 2 % + 3 %. Le moteur renvoie UN taux par clé, et la clé est
     // choisie une fois par transaction (cleCommission, ieTransactionController).
     const p = await createUser({ role: "partenaire" });
-    expect(await resolveCommissionRate("piece_import", p._id)).toBe(0.05);
+    expect(await resolveCommissionRate("piece_import", p._id)).toBe(0.07);
     expect(await resolveCommissionRate("import_export", p._id)).toBe(0.03);
     expect(await resolveCommissionRate("import_export", p._id))
       .toBeLessThan(GRILLE.vente + GRILLE.import_export);

@@ -232,6 +232,7 @@ export default function AdminPanel() {
   const [subscriptionsForm,setSubscriptionsForm]= useState(null);
   const [boostsForm,       setBoostsForm]       = useState(null);
   const [rentalOptsForm,   setRentalOptsForm]   = useState(null);
+  const [fournisseurForm,  setFournisseurForm]  = useState(null);
   const [servicesForm,     setServicesForm]     = useState(null);
   const [adsConfigForm,    setAdsConfigForm]    = useState(null);
   const [discountCampaigns, setDiscountCampaigns] = useState([]);
@@ -1440,6 +1441,7 @@ export default function AdminPanel() {
         setSubscriptionsForm(config.subscriptions);
         setBoostsForm(config.boosts);
         setRentalOptsForm(config.rentalOptions);
+        setFournisseurForm(config.rentalOptionsFournisseur || {});
         setServicesForm(config.services);
         setAdsConfigForm(config.ads);
       }
@@ -6975,6 +6977,35 @@ export default function AdminPanel() {
                       <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "rentalOptions"}
                         onClick={() => savePricingSection("rentalOptions", rentalOptsForm)}>
                         {bizSaving === "rentalOptions" ? "…" : "💾 Enregistrer les options de location"}
+                      </button>
+                    </div>
+                  )}
+
+                  {fournisseurForm && (
+                    <div className={styles.chartCard}>
+                      <h3 className={styles.chartTitle}>🧾 Fournisseur des options — assiette de la commission</h3>
+                      <p style={{ fontSize: ".78rem", color: "#64748b", margin: "4px 0 0" }}>
+                        Seules les options <strong>fournies par VIT AUTO</strong> entrent dans la base de la commission
+                        (location, chauffeur, loisirs) ; une option fournie par le partenaire — son assurance, son GPS —
+                        en est exclue, comme la livraison. Ne basculer sur « VIT AUTO » que si VIT AUTO fournit
+                        réellement le service. S'applique aux réservations créées après l'enregistrement.
+                      </p>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, maxWidth: 760, marginTop: 10 }}>
+                        {[["gps", "GPS"], ["babySeat", "Siège bébé"], ["insurance", "Assurance"], ["driver", "Chauffeur"], ["additionalDriver", "Conducteur additionnel"], ["unlimitedMileage", "Km illimité"], ["airportDelivery", "Remise gare/aéroport"]].map(([key, label]) => (
+                          <div key={key}>
+                            <label htmlFor={`fournisseur-${key}`} style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label}</label>
+                            <select id={`fournisseur-${key}`} style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem", minHeight: 44 }}
+                              value={fournisseurForm[key] === "vitauto" ? "vitauto" : "partenaire"}
+                              onChange={(e) => setFournisseurForm((p) => ({ ...p, [key]: e.target.value }))}>
+                              <option value="partenaire">Partenaire (hors commission)</option>
+                              <option value="vitauto">VIT AUTO (soumis à commission)</option>
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                      <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "rentalOptionsFournisseur"}
+                        onClick={() => savePricingSection("rentalOptionsFournisseur", fournisseurForm)}>
+                        {bizSaving === "rentalOptionsFournisseur" ? "…" : "💾 Enregistrer les fournisseurs"}
                       </button>
                     </div>
                   )}

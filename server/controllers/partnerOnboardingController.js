@@ -1626,7 +1626,7 @@ export async function generateLOI(doc, user, date) {
   const std          = config.commissions.standard;
   const lignesCommission = grilleFondateurIdentique(config, loiTier)
     ? `  ✓  Commission Grid ................... same grid as every VIT-AUTO partner, charged only on completed transactions:
-                                         rental, driver and leisure ${pctTexte(std.location)} · sales ${pctTexte(std.vente)} · export sales ${pctTexte(std.import_export)} · spare parts ${pctTexte(std.piece ?? 0.05)}`
+                                         rental, driver and leisure ${pctTexte(std.location)} · sales ${pctTexte(std.vente)} · export sales ${pctTexte(std.import_export)} · spare parts ${pctTexte(std.piece ?? 0.05)} (export ${pctTexte(std.piece_import ?? 0.07)})`
     : `  ✓  Rental Commission ................. ${pctTexte(fpRate.location)} for ${fpDuration} months, then standard rate (${stdLocation}%)
   ✓  Sales Commission .................. ${pctTexte(fpRate.vente)} for ${fpDuration} months, then standard rate (${stdVente}%)
   ✓  Driver Commission ................. ${doc.commissions?.chauffeur || 10}%`;
@@ -1753,14 +1753,17 @@ export async function generateAgreement(doc, user, date) {
      Vehicle Rental         ${pctTexte(std.location)}
      Vehicle Sales          ${pctTexte(std.vente)}
      Export Vehicle Sales   ${pctTexte(std.import_export)}   (replaces the sales rate, never added to it)
-     Spare Parts            ${pctTexte(std.piece ?? 0.05)}    (parts price only, excluding delivery and import charges)
+     Spare Parts            ${pctTexte(std.piece ?? 0.05)}    local sale (parts price only, excluding delivery and import charges)
+     Spare Parts Export     ${pctTexte(std.piece_import ?? 0.07)}    imported to order or shipped outside the seller's country
      Professional Driver    ${pctTexte(std.chauffeur)}
      Activities & Leisure   ${pctTexte(std.activite ?? 0.10)}
      Logistics              no commission at this stage
      Premium Subscription   FREE for ${fpDuration} months, then optional
 
 3.2  Each transaction bears a single rate — the one in force when the
-     transaction is created. Rates are never cumulated.
+     transaction is created. Rates are never cumulated. Rental, driver and
+     leisure commissions apply to the service price and to options supplied
+     by VIT-AUTO only — never to delivery or to options the Partner supplies.
 
 3.3  Agreement signing date: ${date}`
     : `3.1  Preferential rate for ${fpDuration} months from the Agreement signing date, then automatic return to the standard rate:

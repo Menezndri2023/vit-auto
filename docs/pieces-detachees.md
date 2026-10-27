@@ -52,7 +52,7 @@ vendeur à la confirmation ; le vendeur le déclare reçu.
 | Mode | Taux (tous partenaires) |
 |---|---|
 | Vente directe (`piece`) | **5 %** |
-| Vente importation (`piece_import`) | **5 %** |
+| Vente à l'export (`piece_import`) : importée à la commande **ou** livrée hors du pays du vendeur (`Booking.piece.international`) | **7 %** |
 
 Avant le 2026-10-27 : 10 % / 7 % fondateur en vente directe, 7 % / 5 % en importation.
 Référence : `docs/commissions.md`.

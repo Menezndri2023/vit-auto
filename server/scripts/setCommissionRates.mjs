@@ -3,11 +3,11 @@
  *
  * GRILLE UNIQUE (exploitant, 2026-10-27) — une seule colonne, pour tous :
  *   location 10 % · vente et essai 2 % · vente de véhicule à l'export 3 % ·
- *   pièces détachées 5 % (directe comme importée) · chauffeur 10 % ·
+ *   pièces détachées 5 % en local, 7 % à l'export · chauffeur 10 % ·
  *   activités et loisirs 10 %.
  * Elle remplace la grille à deux colonnes du 2026-09-12 (standard 15/5/5/15/15,
  * fondateur 10/3/3/10/10). Chaque ligne est égale ou inférieure à l'ancien taux
- * fondateur : aucun partenaire ne paie plus qu'avant.
+ * fondateur, sauf la pièce à l'export (5 % fondateur → 7 %, choix de l'exploitant).
  *
  * La source des taux est config/defaultPricingConfig.js — ce script ne les
  * recopie pas, il écrit ceux-là dans le document PricingConfig de la base

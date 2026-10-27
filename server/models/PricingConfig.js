@@ -17,10 +17,11 @@ const rateByType = {
   // Activités et loisirs (Quad, plongée…) — 10 % (grille unique, 2026-10-27).
   activite:      { type: Number, default: 0.10, min: 0, max: 1 },
   // Pièces détachées — sur le prix de la pièce seul, jamais sur la livraison
-  // ni les frais d'importation : 5 %, vente directe comme importation (grille
-  // unique, 2026-10-27 ; auparavant 10 % / 7 %).
+  // ni les frais d'importation : 5 % en vente locale, 7 % à l'export (importée
+  // à la commande ou livrée hors du pays du vendeur) — grille unique du
+  // 2026-10-27 ; auparavant 10 % / 7 %.
   piece:         { type: Number, default: 0.05, min: 0, max: 1 },
-  piece_import:  { type: Number, default: 0.05, min: 0, max: 1 },
+  piece_import:  { type: Number, default: 0.07, min: 0, max: 1 },
 };
 
 const foundingRateByType = {
@@ -100,6 +101,22 @@ const pricingConfigSchema = new mongoose.Schema({
     additionalDriver: { type: Number, default: 0, min: 0 },
     unlimitedMileage: { type: Number, default: 0, min: 0 },
     airportDelivery:  { type: Number, default: 0, min: 0 },
+  },
+
+  // QUI fournit chaque option de location (exploitant, 2026-10-27) : seules
+  // les options fournies par VIT AUTO entrent dans l'assiette de la
+  // commission ; celles que le partenaire fournit (son assurance, son GPS…)
+  // en sont exclues, comme la livraison. Aujourd'hui, toutes sont fournies
+  // par le partenaire. Basculer une option sur "vitauto" quand VIT AUTO la
+  // fournit réellement (ex. assurance via l'assureur partenaire de VIT AUTO).
+  rentalOptionsFournisseur: {
+    gps:              { type: String, enum: ["partenaire", "vitauto"], default: "partenaire" },
+    babySeat:         { type: String, enum: ["partenaire", "vitauto"], default: "partenaire" },
+    insurance:        { type: String, enum: ["partenaire", "vitauto"], default: "partenaire" },
+    driver:           { type: String, enum: ["partenaire", "vitauto"], default: "partenaire" },
+    additionalDriver: { type: String, enum: ["partenaire", "vitauto"], default: "partenaire" },
+    unlimitedMileage: { type: String, enum: ["partenaire", "vitauto"], default: "partenaire" },
+    airportDelivery:  { type: String, enum: ["partenaire", "vitauto"], default: "partenaire" },
   },
 
   subscriptions: {

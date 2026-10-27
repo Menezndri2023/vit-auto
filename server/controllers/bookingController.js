@@ -232,19 +232,35 @@ async function generateReference(type) {
 
 // ── Notifier un utilisateur ────────────────────────────────────────────────────
 // ── Commission recalculée au règlement : clé de taux et assiette ────────────
-// Une pièce importée relève du taux « piece_import », pas « piece » (5 % l'un
-// et l'autre depuis la grille unique du 2026-10-27, réglables séparément), et
+// Une vente de pièce transfrontalière (importée à la commande ou livrée hors du
+// pays du vendeur) relève du taux « piece_import » (7 %), une vente locale de
+// « piece » (5 %) — exploitant, 2026-10-27 ; et
 // sa commission ne porte que sur le prix des pièces (montantBase), jamais sur
 // la livraison ni les frais d'importation — règle de l'exploitant du 2026-09-14, appliquée à la création mais perdue aux trois
 // recalculs du règlement (recordTransaction, partnerConfirm, adminForceComplete),
 // qui taxaient le montant total au taux « piece » (audit du 2026-10-05).
 export function cleCommission(booking) {
   if (booking?.type !== "piece") return booking?.type;
-  return booking.piece?.saleMode === "import" ? "piece_import" : "piece";
+  return booking.piece?.international || booking.piece?.saleMode === "import" ? "piece_import" : "piece";
 }
+//
+// Location, chauffeur, loisirs (exploitant, 2026-10-27) : l'assiette est la
+// prestation vendue par VIT AUTO — prix + options fournies par VIT AUTO −
+// remise fidélité. Les options fournies par le partenaire (son assurance…) et
+// la livraison, qu'il assure, en sont exclues. Appliqué aux seules
+// réservations créées sous cette règle (`assietteRegle`) : une réservation
+// antérieure garde sa commission sur le total.
+//
+// Écrit comme « montant final − exclusions » pour rester juste quand l'admin
+// clôture à un montant différent (adminForceComplete) ou que les dates
+// changent : seules les parts du partenaire sont retirées.
+export const ASSIETTE_REGLE = "prestation-2026-10-27";
 export function assietteCommission(booking, montantFinal) {
   if (booking?.type === "piece" && Number.isFinite(booking.montantBase)) return booking.montantBase;
-  return montantFinal;
+  if (booking?.assietteRegle !== ASSIETTE_REGLE) return montantFinal;
+  const optionsPartenaire = Math.max((booking.montantOptions || 0) - (booking.montantOptionsVitAuto || 0), 0);
+  const exclusions = (booking.location?.deliveryFee || 0) + optionsPartenaire;
+  return Math.max((Number(montantFinal) || 0) - exclusions, 0);
 }
 
 export async function notify(userId, type, titre, message, lien = "/dashboard") {
@@ -1016,6 +1032,7 @@ export const createBooking = async (req, res) => {
       montantBase = Math.round(partObj.price * quantity * 100) / 100;
       pieceData = {
         quantity, unitPriceUSD: partObj.price, saleMode: partObj.saleMode,
+        international: partObj.saleMode === "import" || (!!partObj.country && country !== partObj.country),
         unitPriceEntered: partObj.priceEntered ?? null, currency: partObj.priceEntryCurrency || partObj.currency || null,
         importFeesUSD, depositPercent,
         depositUSD: Math.round((montantBase + importFeesUSD) * (depositPercent / 100) * 100) / 100,
@@ -1035,8 +1052,9 @@ export const createBooking = async (req, res) => {
     // partenaire qui ne la propose pas : la réservation partait, et le
     // désaccord se découvrait à la remise des clés.
     let montantOptions = 0;
+    let montantOptionsVitAuto = 0;
     if (type === "location" && location?.options) {
-      const { montant, refusees } = await priceRentalOptions(
+      const { montant, montantVitAuto, refusees } = await priceRentalOptions(
         location.options, rentalPolicyBusiness?.rentalPolicy, location.days || 1
       );
       if (refusees.length) {
@@ -1049,6 +1067,7 @@ export const createBooking = async (req, res) => {
         });
       }
       montantOptions = montant;
+      montantOptionsVitAuto = montantVitAuto;
     }
 
     // ── Frais de livraison — recalculé côté serveur, jamais accepté depuis le client ──
@@ -1127,8 +1146,11 @@ export const createBooking = async (req, res) => {
       montantOptions = pieceData.importFeesUSD;
     }
     const montantTotal    = Math.max(montantBase + montantOptions + deliveryFee - loyaltyDiscount, 0);
-    const commissionRate  = await resolveCommissionRate(type === "piece" ? (pieceData?.saleMode === "import" ? "piece_import" : "piece") : type, ownerId);
-    const commissionAmount = Math.round((type === "piece" ? montantBase : montantTotal) * commissionRate * 100) / 100;
+    const commissionRate  = await resolveCommissionRate(type === "piece" ? cleCommission({ type, piece: pieceData }) : type, ownerId);
+    const assietteRegle    = type === "piece" ? null : ASSIETTE_REGLE;
+    const commissionAmount = Math.round(assietteCommission({
+      type, montantBase, montantOptions, montantOptionsVitAuto, assietteRegle, location: { deliveryFee },
+    }, montantTotal) * commissionRate * 100) / 100;
     const serviceFeeFCFA  = await computeServiceFee(montantTotal);
     const partnerPayout   = Math.max(montantTotal - commissionAmount - serviceFeeFCFA, 0);
 
@@ -1224,6 +1246,8 @@ export const createBooking = async (req, res) => {
       leasing:  type === "leasing"  ? leasingData : undefined,
       montantBase,
       montantOptions,
+      montantOptionsVitAuto,
+      assietteRegle,
       montantTotal,
       loyaltyPointsRedeemed,
       loyaltyDiscount,
@@ -1654,7 +1678,9 @@ export const createBookingsBatch = async (req, res) => {
           client:  req.user._id,
           vehicle: vehicle._id,
           location: { startDate, endDate, days, pickupMethod: "retrait", deliveryFee: 0 },
-          montantBase, montantOptions: 0, montantTotal,
+          // Panier : retrait sans option ni livraison — l'assiette vaut le
+          // total, mais la règle est posée pour que les recalculs la suivent.
+          montantBase, montantOptions: 0, montantOptionsVitAuto: 0, assietteRegle: ASSIETTE_REGLE, montantTotal,
           cautionAmount: vehicle.caution || 0,
           devise: "USD",
           commissionRate, commissionAmount, serviceFeeFCFA, partnerPayout,
@@ -3408,7 +3434,7 @@ export const modifyBookingDates = async (req, res) => {
     // changer de dates faisait repayer le plein tarif alors que les points
     // restaient dépensés (audit du 2026-10-05). Même formule qu'à la création.
     const newMontantTotal = Math.max(newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0) - (booking.loyaltyDiscount || 0), 0);
-    const newCommissionAmount = Math.round(newMontantTotal * (booking.commissionRate || 0) * 100) / 100;
+    const newCommissionAmount = Math.round(assietteCommission(booking, newMontantTotal) * (booking.commissionRate || 0) * 100) / 100;
 
     // Contrôle de chevauchement + écriture dans une transaction — même pattern
     // que createBooking (bug réel corrigé en audit) : le contrôle précédent
@@ -3518,7 +3544,7 @@ export const extendBooking = async (req, res) => {
     const priceDelta = newMontantBase - (booking.montantBase || 0);
     // Remise fidélité conservée (voir modifyBookingDates).
     const newMontantTotal = Math.max(newMontantBase + (booking.montantOptions || 0) + (booking.location.deliveryFee || 0) - (booking.loyaltyDiscount || 0), 0);
-    const newCommissionAmount = Math.round(newMontantTotal * (booking.commissionRate || 0) * 100) / 100;
+    const newCommissionAmount = Math.round(assietteCommission(booking, newMontantTotal) * (booking.commissionRate || 0) * 100) / 100;
 
     // Contrôle de chevauchement + écriture dans une transaction — même
     // correctif que modifyBookingDates ci-dessus (bug réel corrigé en audit) :

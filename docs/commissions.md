@@ -14,8 +14,8 @@ comptes gratuits paient le même taux.
 | Location de véhicules | `location` | **10 %** | réservation réglée / clôturée |
 | Vente de véhicules (demande d'essai, essai) | `vente` (`essai` → `vente`) | **2 %** | vente déclarée par le partenaire puis confirmée par l'admin, dans la fenêtre d'attribution de 90 jours |
 | Vente d'un véhicule à l'export (annonces import-export) | `import_export` | **3 %** | libération des fonds de la transaction IE |
-| Pièces détachées, en stock | `piece` | **5 %** | commande réglée / réception |
-| Pièces détachées, importées à la commande | `piece_import` | **5 %** | idem |
+| Pièces détachées, vente locale (en stock, livrée dans le pays du vendeur) | `piece` | **5 %** | réception confirmée par le client |
+| Pièces détachées, vente à l'export (importée à la commande **ou** livrée hors du pays du vendeur) | `piece_import` | **7 %** | idem |
 | Chauffeurs professionnels | `chauffeur` | **10 %** | course réglée / clôturée |
 | Activités et loisirs | `activite` | **10 %** | réservation réglée / clôturée |
 | Logistique (transport, transit, douane) | `services.transport`, `services.transit`, `services.douanes` | **aucune** (taux non décidé) | — |
@@ -26,7 +26,8 @@ comptes gratuits paient le même taux.
 - **Pas de cumul.** Chaque transaction prend **une** clé, choisie une seule fois
   (`cleCommission` dans `bookingController.js`, `"import_export"` dans
   `ieTransactionController.computeIeCommission`). Une vente export paie 3 %, pas 2 % + 3 % ;
-  une pièce importée paie 5 %, pas 5 % + 3 %.
+  une pièce exportée paie 7 %, pas 7 % + 3 %. Le caractère « export » d'une pièce est figé
+  sur la commande (`Booking.piece.international`) à sa création.
 - **Logistique.** Aucune commission automatique tant que son modèle (commission
   contractuelle, forfait de mise en relation ou de coordination) n'est pas décidé. Le prix
   du transport reste celui du prestataire.
@@ -46,12 +47,19 @@ comptes gratuits paient le même taux.
 | Pièces | prix des pièces (`montantBase`) | livraison, frais d'importation |
 | Vente (demande d'essai) | prix de vente final déclaré, converti en USD | — |
 | Export (IE) | part exportateur du paiement (`ventilation.exportateur`) ; en achat direct, le prix du véhicule seul | logistique, droits et taxes, frais VIT AUTO |
-| Location, chauffeur, loisirs | **montant total** de la réservation : prix + options (GPS, siège, assurance…) + frais de livraison − remise fidélité | caution (hors total, réglée au partenaire) |
+| Location, chauffeur, loisirs | prix de la prestation + options **fournies par VIT AUTO** − remise fidélité | options fournies par le partenaire (son assurance, son GPS…), livraison, caution |
 
-⚠️ **À valider par l'exploitant** : pour la location, le chauffeur et les loisirs,
-l'assiette inclut les options et la livraison. Si seule la prestation doit être taxée,
-c'est une modification de `createBooking` et des trois recalculs du règlement
-(`assietteCommission`). Elle n'est pas faite tant qu'elle n'est pas décidée.
+Règle de l'exploitant du **2026-10-27**. Le fournisseur de chaque option se règle dans
+l'admin (Configuration métier → « Fournisseur des options », `PricingConfig.
+rentalOptionsFournisseur`). Aujourd'hui, **toutes** les options sont fournies par le
+partenaire : l'assiette d'une location est donc son prix seul (moins la remise fidélité).
+Passer une option sur « VIT AUTO » uniquement quand VIT AUTO fournit réellement le service
+(par exemple l'assurance via l'assureur partenaire de VIT AUTO).
+
+La règle est figée sur la réservation (`Booking.assietteRegle`, `montantOptionsVitAuto`).
+Une réservation créée avant le 2026-10-27 garde sa commission sur le montant total.
+Recalcul au règlement ou au changement de dates : `assietteCommission` retire du montant
+final la livraison et la part des options fournie par le partenaire.
 
 Les frais de service client (0,5 %, minimum 1 $US, maximum 25 $US) sont payés par le
 **client** ; ce n'est pas une commission partenaire.
@@ -61,8 +69,8 @@ Les frais de service client (0,5 %, minimum 1 $US, maximum 25 $US) sont payés p
 Le mécanisme reste en place : `foundingPartner.entreprise|particulier` dans `PricingConfig`,
 pendant `durationMonths` (12) à compter de `PartnerOnboarding.commissions.lockedAt`.
 Depuis le 2026-10-27, ses taux sont **égaux** au standard. Chaque ligne de la nouvelle
-grille est égale ou inférieure à l'ancien taux fondateur, donc aucun fondateur ne paie plus
-qu'avant.
+grille est égale ou inférieure à l'ancien taux fondateur, **sauf** la pièce à l'export
+(5 % fondateur → 7 %, choix explicite de l'exploitant).
 
 L'avantage fondateur est désormais :
 - outils avancés de l'espace pro offerts 12 mois (`services/fondateur.js`, `planAccess.js`) ;
@@ -91,4 +99,4 @@ la colonne « Fondateur » et la mention « retour au standard ».
 |---|---|
 | 2026-09-12 | standard 15 / 5 / 5 / 15 / 15 — fondateur 10 / 3 / 3 / 10 / 10 (location / vente / export / chauffeur / loisirs) |
 | 2026-09-14 | + pièces 10 % / 7 %, importation 7 % / 5 % |
-| **2026-10-27** | **grille unique** 10 / 2 / 3 / 10 / 10, pièces 5 % |
+| **2026-10-27** | **grille unique** 10 / 2 / 3 / 10 / 10, pièces 5 % local / 7 % export |

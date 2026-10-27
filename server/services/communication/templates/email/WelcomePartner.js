@@ -43,7 +43,7 @@ export function welcomePartnerTemplate({ firstName, companyName, partnerType, da
       <strong>Programme Founding Partner.</strong><br>
       Inscription et publication gratuites, outils pro offerts pendant 12 mois après signature de votre accord.
       Commissions (grille unique, uniquement sur une opération conclue) : location, chauffeur et loisirs 10 %,
-      vente 2 %, vente à l'export 3 %, pièces détachées 5 %.
+      vente 2 %, vente à l'export 3 %, pièces détachées 5 % (7 % à l'export).
     `, "info")}
 
     ${btn("Suivre mon dossier", dashboardUrl || BRAND.baseUrl + "/partner-onboarding", "primary")}

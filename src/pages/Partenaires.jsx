@@ -54,7 +54,7 @@ const COMMISSIONS = [
   { cle: "export",     taux: "3 %",  icon: "🌍" },
   { cle: "driver",     taux: "10 %", icon: "👨‍✈️" },
   { cle: "leisure",    taux: "10 %", icon: "🎈" },
-  { cle: "parts",      taux: "5 %",  icon: "🔩" },
+  { cle: "parts",      taux: "5 % / 7 %", icon: "🔩" },
   { cle: "insurance",  tauxCle: "part.negotiated", icon: "🛡️" },
   { cle: "serviceFee", tauxCle: "part.c.serviceFeeValue", icon: "⚙️" },
 ];

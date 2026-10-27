@@ -11,10 +11,11 @@ export const DEFAULT_PRICING_CONFIG = {
   // GRILLE UNIQUE (exploitant, 2026-10-27) — remplace la grille à deux
   // colonnes du 2026-09-12 (standard 15/5/5/15/15, fondateur 10/3/3/10/10) :
   //   location 10 % · vente (essai, demande d'essai) 2 % · vente de véhicule à
-  //   l'export 3 % · pièces détachées 5 % (directe comme importée) · chauffeur
+  //   l'export 3 % · pièces détachées 5 % en vente locale, 7 % à l'export
+  //   (importée à la commande ou livrée hors du pays du vendeur) · chauffeur
   //   10 % · activités et loisirs 10 %.
   // Une seule clé par transaction, jamais additionnées : une pièce importée
-  // paie 5 % (`piece_import`), pas 5 % + 3 % ; une vente export paie 3 %
+  // paie 7 % (`piece_import`), pas 7 % + 3 % ; une vente export paie 3 %
   // (`import_export`), pas 2 % + 3 %. La logistique (`services.transport`,
   // `services.transit`) reste sans commission tant que son modèle n'est pas
   // décidé. `leasing` est hors du barème du 2026-10-27 : inchangé.
@@ -22,8 +23,8 @@ export const DEFAULT_PRICING_CONFIG = {
   // `premium` est VOLONTAIREMENT identique à `standard` : l'abonnement ne
   // change rien aux commissions (voir subscription.test.js).
   commissions: {
-    standard: { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.05 },
-    premium:  { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.05 },
+    standard: { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.07 },
+    premium:  { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.07 },
   },
   // Grille FONDATEUR — depuis le 2026-10-27, IDENTIQUE au standard : la
   // nouvelle grille est égale ou inférieure à l'ancienne grille fondateur sur
@@ -34,8 +35,8 @@ export const DEFAULT_PRICING_CONFIG = {
   // configurable, limité dans le temps et traçable sans toucher au code.
   foundingPartner: {
     durationMonths: 12,
-    entreprise:  { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.05 },
-    particulier: { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.05 },
+    entreprise:  { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.07 },
+    particulier: { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.07 },
   },
   serviceFee: { minUSD: 1, percent: 0.005, maxUSD: 25 },
   importEstimateFee: { percent: 0.03, minUSD: 333, maxUSD: 1666 },
@@ -44,6 +45,10 @@ export const DEFAULT_PRICING_CONFIG = {
   // taux ~600 XOF/USD en vigueur à la migration : 10000→16.67, 7000→11.67,
   // 15000→25, 50000→83.33.
   rentalOptions: { gps: 16.67, babySeat: 11.67, insurance: 25, driver: 83.33, additionalDriver: 0, unlimitedMileage: 0, airportDelivery: 0 },
+  // Fournisseur de chaque option (2026-10-27) : seules les options "vitauto"
+  // entrent dans l'assiette de la commission. Toutes sont fournies par le
+  // partenaire aujourd'hui (voir models/PricingConfig.js).
+  rentalOptionsFournisseur: { gps: "partenaire", babySeat: "partenaire", insurance: "partenaire", driver: "partenaire", additionalDriver: "partenaire", unlimitedMileage: "partenaire", airportDelivery: "partenaire" },
   subscriptions: {
     individuel_plus: { priceUSD: 9.99 },
     business:         { priceUSD: 19.99 },

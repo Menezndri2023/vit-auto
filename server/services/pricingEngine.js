@@ -140,6 +140,12 @@ export async function getAdConfig(adKey) {
 // Options de location véhicule (gps/babySeat/insurance/driver) — remplace
 // PRIX_OPTIONS en dur dans bookingController.js. `option` : une des 4 clés
 // ci-dessus, prix fixe par jour de location en USD.
+// "vitauto" | "partenaire" — voir PricingConfig.rentalOptionsFournisseur.
+export async function getRentalOptionFournisseur(option) {
+  const config = await getConfig();
+  return config.rentalOptionsFournisseur?.[option] === "vitauto" ? "vitauto" : "partenaire";
+}
+
 export async function getRentalOptionPrice(option) {
   const config = await getConfig();
   return config.rentalOptions?.[option] ?? 0;
