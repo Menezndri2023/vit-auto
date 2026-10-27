@@ -37,8 +37,7 @@ describe("Secteurs d'activité et page Tarifs — rendu", () => {
     expect(container.textContent).not.toMatch(/Individuel Plus/);
     expect(container.textContent).not.toMatch(/pour les particuliers/i);
     // Depuis la grille du 2026-09-09, aucun ABONNEMENT ne réduit la
-    // commission — l'Offre Partenaire Fondateur, elle, la réduit bel et bien
-    // pendant 12 mois (voir PricingConfig et la grille affichée plus bas).
+    // commission ; depuis le 2026-10-27, l'Offre Partenaire Fondateur non plus.
     //
     // L'assertion était « le texte ne contient nulle part "commission
     // réduite" », et elle passait pour une mauvaise raison : jusqu'au
@@ -50,7 +49,13 @@ describe("Secteurs d'activité et page Tarifs — rendu", () => {
     // de l'URL (i18n/langueUrl.js) : la page se rend en français, et
     // l'assertion doit dire ce qu'elle voulait dire.
     expect(container.textContent).toMatch(/jamais une remise sur la commission/i);
-    expect(container.textContent).toMatch(/commissions sont identiques pour tous les plans/i);
+    // Grille unique depuis le 2026-10-27 : fondateurs compris, plus de taux
+    // préférentiel — la colonne « Fondateur » ne s'affiche que si un taux
+    // fondateur diffère du standard.
+    expect(container.textContent).toMatch(/identique pour tous les partenaires et tous les plans/i);
+    expect(container.textContent).toMatch(/ne se cumulent jamais/i);
+    expect(container.textContent).not.toMatch(/Taux préférentiel/i);
+    expect(container.textContent).toMatch(/Pièces détachées/);
 
     // Le report météo (Activity.weatherDependent) existe pour TOUS depuis
     // toujours : il était vendu en Business jusqu'au 2026-09-26. Il doit

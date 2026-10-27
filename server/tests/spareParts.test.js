@@ -9,6 +9,8 @@ import { mockReqRes } from "./helpers/mockReqRes.js";
 import { calculerLivraisonPiece } from "../services/partShipping.js";
 import CountryConfig from "../models/CountryConfig.js";
 import ExchangeRate from "../models/ExchangeRate.js";
+import PricingConfig from "../models/PricingConfig.js";
+import { DEFAULT_PRICING_CONFIG } from "../config/defaultPricingConfig.js";
 
 // Secteur « pièces détachées » (2026-09-14) : publication → commande livrée →
 // confirmation → expédition → réception confirmée → commission.
@@ -144,7 +146,7 @@ describe("Pièces détachées — commande, de la transmission à la réception"
     },
   });
 
-  it("crée la commande, réserve le stock, transmet directement au vendeur, commission sur la pièce seule (10 %)", async () => {
+  it("crée la commande, réserve le stock, transmet directement au vendeur, commission sur la pièce seule (5 %)", async () => {
     const owner = await createUser({ role: "partenaire", partnerActivity: "pieces", country: "MA", certificationBadge: "verifie" });
     const part = await publier(owner);
     const c = await client();
@@ -159,8 +161,8 @@ describe("Pièces détachées — commande, de la transmission à la réception"
     expect(b.montantBase).toBe(80);
     expect(b.piece.delivery.feeUSD).toBe(5);
     expect(b.montantTotal).toBe(85);
-    expect(b.commissionRate).toBe(0.10);
-    expect(b.commissionAmount).toBe(8);          // 10 % de 80, pas de 85
+    expect(b.commissionRate).toBe(0.05);
+    expect(b.commissionAmount).toBe(4);          // 5 % de 80, pas de 85
     expect(b.payment).toBeNull();                // jamais de paiement en ligne
     expect(b.adminValidation.status).toBe("approved");
     expect(b.adminValidation.validatedByType).toBe("SYSTEM");
@@ -184,7 +186,13 @@ describe("Pièces détachées — commande, de la transmission à la réception"
     m = commande(c, part2); await createBooking(m.req, m.res); expect(m.res.body.code).toBe("MIN_ORDER_QTY");
   });
 
-  it("importation : frais d'importation et acompte portés par la commande, taux 7 %", async () => {
+  it("importation : frais d'importation et acompte portés par la commande, taux « piece_import »", async () => {
+    // Depuis la grille unique (2026-10-27), `piece` et `piece_import` valent
+    // tous deux 5 % : à valeurs égales, ce test ne verrait plus une commande
+    // importée taxée sous la mauvaise clé. On donne donc à `piece_import` un
+    // taux distinct, propre à ce test.
+    const std = { ...DEFAULT_PRICING_CONFIG.commissions.standard, piece_import: 0.07 };
+    await PricingConfig.create({ ...DEFAULT_PRICING_CONFIG, key: "global", commissions: { standard: std, premium: std } });
     const owner = await createUser({ role: "partenaire", partnerActivity: "pieces", country: "MA", certificationBadge: "verifie" });
     const part = await publier(owner, { saleMode: "import", stock: null, importInfo: { originCountry: "DE", leadTimeDays: 21, feesUSD: 30, customsIncluded: true, depositPercent: 50 } });
     const c = await client();

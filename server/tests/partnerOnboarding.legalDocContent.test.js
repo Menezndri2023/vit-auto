@@ -77,3 +77,38 @@ describe("generateLOI / generateAgreement — correspondance avec les champs cho
     expect(loi).not.toContain("Country of Registration: —");
   });
 });
+
+// Grille unique (exploitant, 2026-10-27) : fondateur = standard. La LOI et
+// l'Accord sont signés — ils doivent imprimer les taux réellement facturés,
+// sans « taux préférentiel » ni « retour au standard » qui n'existent plus.
+describe("generateLOI / generateAgreement — grille de commissions", () => {
+  const docFondateur = (ref) => ({
+    referenceNumber: ref, activity: "loueur", partnerType: "agence_location",
+    legalEntityType: "entreprise", companyInfo: { legalName: "Atlas Rent SARL" }, commissions: { chauffeur: 10 },
+  });
+
+  it("l'Accord imprime la grille unique, sans colonne fondateur ni retour au standard", async () => {
+    const user = await createUser({ role: "partenaire" });
+    const agreement = await generateAgreement(docFondateur("VA-FP-2026-GRILLE1"), user, date);
+    expect(agreement).toMatch(/Vehicle Rental\s+10%/);
+    expect(agreement).toMatch(/Vehicle Sales\s+2%/);
+    expect(agreement).toMatch(/Export Vehicle Sales\s+3%/);
+    expect(agreement).toMatch(/Spare Parts\s+5%/);
+    expect(agreement).toMatch(/Professional Driver\s+10%/);
+    expect(agreement).toMatch(/Activities & Leisure\s+10%/);
+    expect(agreement).toMatch(/Logistics\s+no commission/);
+    expect(agreement).toContain("Rates are never cumulated");
+    expect(agreement).toContain('"Vehicle Sales" rate of Article 3.1 (2%)');
+    expect(agreement).not.toMatch(/Preferential rate|Standard Rate|automatic return to the standard/);
+    expect(agreement).not.toContain("not retroactively");
+    expect(agreement).not.toMatch(/\d\.\d{5,}%/); // jamais « 7.000000000000001% »
+  });
+
+  it("la LOI annonce la même grille", async () => {
+    const user = await createUser({ role: "partenaire" });
+    const loi = await generateLOI(docFondateur("VA-FP-2026-GRILLE2"), user, date);
+    expect(loi).toContain("same grid as every VIT-AUTO partner");
+    expect(loi).toMatch(/sales 2%.*export sales 3%.*spare parts 5%/);
+    expect(loi).not.toMatch(/then standard rate/);
+  });
+});

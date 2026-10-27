@@ -43,19 +43,20 @@ const PROFILS = [
   { icon: "👤", cle: "w3" }, { icon: "👨‍✈️", cle: "w4" },
 ];
 
-// Grille de commissions. Les taux sont ceux réellement facturés
-// (server/scripts/setCommissionRates.mjs) ; la ligne « pièces détachées »
-// manquait, et les frais de service annonçaient « 15 DH fixe » là où le moteur
-// applique max(1 $US ; 0,5 %) plafonné à 25 $US.
+// Grille de commissions — UNE colonne depuis le 2026-10-27 (exploitant) : les
+// fondateurs paient la même grille que tous (server/config/defaultPricingConfig.js).
+// Les taux sont ceux réellement facturés ; les frais de service annonçaient
+// autrefois « 15 DH fixe » là où le moteur applique max(1 $US ; 0,5 %)
+// plafonné à 25 $US.
 const COMMISSIONS = [
-  { cle: "rental",     standard: "15 %", founder: "10 %", icon: "🚗" },
-  { cle: "sale",       standard: "5 %",  founder: "3 %",  icon: "🏷️" },
-  { cle: "export",     standard: "5 %",  founder: "3 %",  icon: "🌍" },
-  { cle: "driver",     standard: "15 %", founder: "10 %", icon: "👨‍✈️" },
-  { cle: "leisure",    standard: "15 %", founder: "10 %", icon: "🎈" },
-  { cle: "parts",      standard: "10 %", founder: "7 %",  icon: "🔩" },
-  { cle: "insurance",  standardCle: "part.negotiated", founderCle: "part.negotiated", icon: "🛡️" },
-  { cle: "serviceFee", standardCle: "part.c.serviceFeeValue", founderCle: "part.c.serviceFeeValue", icon: "⚙️" },
+  { cle: "rental",     taux: "10 %", icon: "🚗" },
+  { cle: "sale",       taux: "2 %",  icon: "🏷️" },
+  { cle: "export",     taux: "3 %",  icon: "🌍" },
+  { cle: "driver",     taux: "10 %", icon: "👨‍✈️" },
+  { cle: "leisure",    taux: "10 %", icon: "🎈" },
+  { cle: "parts",      taux: "5 %",  icon: "🔩" },
+  { cle: "insurance",  tauxCle: "part.negotiated", icon: "🛡️" },
+  { cle: "serviceFee", tauxCle: "part.c.serviceFeeValue", icon: "⚙️" },
 ];
 
 const FOURNIR = ["p1", "p2", "p3", "p4", "p5", "p6"];
@@ -270,16 +271,12 @@ export default function Partenaires() {
             }}>
               <div style={{ fontSize: "1.5rem", marginBottom: 10 }}>{c.icon}</div>
               <div style={{ fontWeight: 800, fontSize: "1rem", marginBottom: 12 }}>{t(`part.c.${c.cle}`)}</div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ color: "rgba(255,255,255,.85)", fontSize: "0.82rem" }}>{t("part.standard")}</span>
-                <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>{c.standard || t(c.standardCle)}</span>
-              </div>
               <div style={{
                 display: "flex", justifyContent: "space-between",
                 background: "rgba(255,215,0,.15)", borderRadius: 8, padding: "6px 10px",
               }}>
-                <span style={{ color: "#ffd700", fontSize: "0.82rem", fontWeight: 700 }}>{t("part.founder")}</span>
-                <span style={{ color: "#ffd700", fontWeight: 900, fontSize: "0.9rem" }}>{c.founder || t(c.founderCle)}</span>
+                <span style={{ color: "#ffd700", fontSize: "0.82rem", fontWeight: 700 }}>{t("part.standard")}</span>
+                <span style={{ color: "#ffd700", fontWeight: 900, fontSize: "0.9rem" }}>{c.taux || t(c.tauxCle)}</span>
               </div>
               <div style={{ color: "rgba(255,255,255,.70)", fontSize: "0.76rem", marginTop: 8 }}>{t(`part.c.${c.cle}Note`)}</div>
             </div>

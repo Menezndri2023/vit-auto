@@ -175,27 +175,31 @@ export default function FoundingPartnerLegal() {
           </Art>
 
           <Art n="3" title="Commercial Conditions">
-            Preferential rates are guaranteed for 12 months from activation:
+            Commission rates applicable to the Partner:
             <div style={{ overflowX: "auto", marginTop: 12 }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.84rem" }}>
                 <thead>
                   <tr style={{ background: "#f8fafc" }}>
                     <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: "2px solid #e2e8f0" }}>Transaction Type</th>
-                    <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: "2px solid #e2e8f0" }}>Standard Rate</th>
-                    <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: "2px solid #e2e8f0" }}>Founding Partner Rate</th>
+                    <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: "2px solid #e2e8f0" }}>Commission Rate</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Vehicle Rental</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>15%</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>10%</td></tr>
-                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Vehicle Sales</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>3%</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>2%</td></tr>
-                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Professional Driver</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>10%</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>10%</td></tr>
-                  <tr><td style={{ padding: "8px 10px" }}>Premium Subscription</td><td style={{ padding: "8px 10px" }}>Paid</td><td style={{ padding: "8px 10px", fontWeight: 700, color: "#059669" }}>FREE (12 months)</td></tr>
+                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Vehicle Rental</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>10%</td></tr>
+                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Vehicle Sales</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>2%</td></tr>
+                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Vehicle Export Sale (replaces the sales rate, never added to it)</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>3%</td></tr>
+                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Spare Parts (parts price only, excluding delivery and import charges)</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>5%</td></tr>
+                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Professional Driver</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>10%</td></tr>
+                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Activities & Leisure</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>10%</td></tr>
+                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Logistics (transport, transit)</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>None at this stage</td></tr>
+                  <tr><td style={{ padding: "8px 10px" }}>Advanced pro tools (subscription)</td><td style={{ padding: "8px 10px", fontWeight: 700, color: "#059669" }}>FREE for 12 months</td></tr>
                 </tbody>
               </table>
             </div>
             <p style={{ marginTop: 10 }}>
-              After the 12-month period, standard rates apply unless renewed by mutual written agreement.
-              Commission rates are locked from the Agreement signing date.
+              Founding Partners pay the same commission rates as every VIT AUTO partner. Each transaction bears a
+              single rate — the one in force when the transaction is created — and rates are never cumulated.
+              After the 12-month period, advanced pro tools become optional paid features; listing remains free.
             </p>
           </Art>
 

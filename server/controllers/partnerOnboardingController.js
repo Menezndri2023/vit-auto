@@ -1583,6 +1583,22 @@ function effectivePartnerType(doc) {
   return (doc.activity && ACTIVITY_TO_PARTNER_TYPE[doc.activity]) || doc.partnerType;
 }
 
+// Taux en pourcentage lisible : 0.07 × 100 vaut 7.000000000000001 en virgule
+// flottante — un accord ne doit jamais l'imprimer.
+const pctTexte = (v) => `${Math.round(v * 10000) / 100}%`;
+
+// Grille unique (exploitant, 2026-10-27) : quand aucun taux fondateur ne
+// diffère du standard, la LOI et l'Accord n'annoncent ni « taux
+// préférentiel » ni « retour au standard » — deux colonnes identiques
+// promettraient une remise qui n'existe pas. Si l'admin fixe un jour un
+// tarif fondateur distinct, l'ancienne présentation revient d'elle-même.
+const CLES_GRILLE = ["location", "vente", "import_export", "chauffeur", "activite", "piece", "piece_import"];
+function grilleFondateurIdentique(config, tier) {
+  const fp = config.foundingPartner?.[tier] || {};
+  const std = config.commissions?.standard || {};
+  return CLES_GRILLE.every((k) => fp[k] == null || fp[k] === std[k]);
+}
+
 export async function generateLOI(doc, user, date) {
   const company   = doc.companyInfo?.legalName   || "—";
   const contact   = doc.companyInfo?.mainContact || `${user.firstName || ""} ${user.lastName || ""}`.trim() || "—";
@@ -1607,6 +1623,13 @@ export async function generateLOI(doc, user, date) {
   const stdLocation  = Math.round(config.commissions.standard.location * 100);
   const stdVente     = Math.round(config.commissions.standard.vente * 100);
   const businessSub  = config.subscriptions.business?.priceUSD ?? 0;
+  const std          = config.commissions.standard;
+  const lignesCommission = grilleFondateurIdentique(config, loiTier)
+    ? `  ✓  Commission Grid ................... same grid as every VIT-AUTO partner, charged only on completed transactions:
+                                         rental, driver and leisure ${pctTexte(std.location)} · sales ${pctTexte(std.vente)} · export sales ${pctTexte(std.import_export)} · spare parts ${pctTexte(std.piece ?? 0.05)}`
+    : `  ✓  Rental Commission ................. ${pctTexte(fpRate.location)} for ${fpDuration} months, then standard rate (${stdLocation}%)
+  ✓  Sales Commission .................. ${pctTexte(fpRate.vente)} for ${fpDuration} months, then standard rate (${stdVente}%)
+  ✓  Driver Commission ................. ${doc.commissions?.chauffeur || 10}%`;
 
   return `LETTER OF INTENT — VIT-AUTO FOUNDING PARTNER PROGRAM
 ══════════════════════════════════════════════════════════════
@@ -1653,9 +1676,7 @@ Reference        : ${doc.referenceNumber}
 FOUNDING PARTNER BENEFITS
 
   ✓  Free Premium Subscription ......... ${fpDuration} months (value: $${(businessSub * fpDuration).toFixed(0)}+)
-  ✓  Rental Commission ................. ${fpRate.location * 100}% for ${fpDuration} months, then standard rate (${stdLocation}%)
-  ✓  Sales Commission .................. ${fpRate.vente * 100}% for ${fpDuration} months, then standard rate (${stdVente}%)
-  ✓  Driver Commission ................. ${doc.commissions?.chauffeur || 10}%
+${lignesCommission}
   ✓  Exclusive "Founding Partner" Badge  on all listings
   ✓  Priority Catalog Placement ........ permanent top positioning
   ✓  Early Feature Access .............. all new features first
@@ -1721,6 +1742,48 @@ export async function generateAgreement(doc, user, date) {
   const stdActivite = Math.round((config.commissions.standard.activite ?? 0.15) * 100);
   const fpExport    = Math.round((fpRate.import_export ?? 0.03) * 100);
   const fpActivite  = Math.round((fpRate.activite ?? 0.10) * 100);
+  const std         = config.commissions.standard;
+  const unique      = grilleFondateurIdentique(config, agrTier);
+  const article3 = unique
+    ? `3.1  Commission rates — the same grid applies to every VIT-AUTO partner,
+     Founding Partners included:
+
+     Transaction Type       Rate
+     ─────────────────────────────────────────────────────────────────
+     Vehicle Rental         ${pctTexte(std.location)}
+     Vehicle Sales          ${pctTexte(std.vente)}
+     Export Vehicle Sales   ${pctTexte(std.import_export)}   (replaces the sales rate, never added to it)
+     Spare Parts            ${pctTexte(std.piece ?? 0.05)}    (parts price only, excluding delivery and import charges)
+     Professional Driver    ${pctTexte(std.chauffeur)}
+     Activities & Leisure   ${pctTexte(std.activite ?? 0.10)}
+     Logistics              no commission at this stage
+     Premium Subscription   FREE for ${fpDuration} months, then optional
+
+3.2  Each transaction bears a single rate — the one in force when the
+     transaction is created. Rates are never cumulated.
+
+3.3  Agreement signing date: ${date}`
+    : `3.1  Preferential rate for ${fpDuration} months from the Agreement signing date, then automatic return to the standard rate:
+
+     Transaction Type       Standard Rate   Founding Partner Rate (${fpDuration} months)
+     ─────────────────────────────────────────────────────────────────
+     Vehicle Rental         ${stdLocation}%             ${pctTexte(fpRate.location)}
+     Vehicle Sales          ${stdVente}%              ${pctTexte(fpRate.vente)}
+     Export Sales           ${stdExport}%              ${fpExport}%
+     Professional Driver    ${stdDrv}%             ${drvRate}%
+     Activities & Leisure   ${stdActivite}%             ${fpActivite}%
+     Premium Subscription   Paid            FREE (${fpDuration} months)
+
+3.2  The Founding Partner rate above applies for the first ${fpDuration} months
+     from the Agreement signing date (Article 3.3). From month ${fpDuration + 1}
+     onward, the Standard Rate applies automatically, without requiring
+     a new agreement or admin action.
+
+3.3  Commission rates locked from Agreement signing date: ${date}`;
+  const tauxVente = unique
+    ? `${pctTexte(std.vente)}`
+    : `${pctTexte(fpRate.vente)}
+        during the Founding Partner period, then ${stdVente}%`;
 
   return `FOUNDING PARTNER AGREEMENT
 ══════════════════════════════════════════════════════════════
@@ -1774,23 +1837,7 @@ ARTICLE 2 — FOUNDING PARTNER STATUS
 
 ARTICLE 3 — COMMERCIAL CONDITIONS
 
-3.1  Preferential rate for ${fpDuration} months from the Agreement signing date, then automatic return to the standard rate:
-
-     Transaction Type       Standard Rate   Founding Partner Rate (${fpDuration} months)
-     ─────────────────────────────────────────────────────────────────
-     Vehicle Rental         ${stdLocation}%             ${fpRate.location * 100}%
-     Vehicle Sales          ${stdVente}%              ${fpRate.vente * 100}%
-     Export Sales           ${stdExport}%              ${fpExport}%
-     Professional Driver    ${stdDrv}%             ${drvRate}%
-     Activities & Leisure   ${stdActivite}%             ${fpActivite}%
-     Premium Subscription   Paid            FREE (${fpDuration} months)
-
-3.2  The Founding Partner rate above applies for the first ${fpDuration} months
-     from the Agreement signing date (Article 3.3). From month ${fpDuration + 1}
-     onward, the Standard Rate applies automatically, without requiring
-     a new agreement or admin action.
-
-3.3  Commission rates locked from Agreement signing date: ${date}
+${article3}
 
 3.4  Vehicle sales originated by VIT-AUTO (test-drive and call-back requests).
      VIT-AUTO is not an online vehicle store: the sale is concluded directly
@@ -1799,8 +1846,7 @@ ARTICLE 3 — COMMERCIAL CONDITIONS
      identified by a unique reference, and follows the process to its outcome.
      a) Attribution window: any prospect supplied by VIT-AUTO remains
         attributed to VIT-AUTO for ${leadWindow} days from the request date.
-     b) Commission: the "Vehicle Sales" rate of Article 3.1 (${fpRate.vente * 100}%
-        during the Founding Partner period, then ${stdVente}%), applied to the
+     b) Commission: the "Vehicle Sales" rate of Article 3.1 (${tauxVente}), applied to the
         final sale price and due only when such a prospect purchases the
         vehicle concerned from the Partner within the attribution window. No
         subscription, registration or listing fee applies to vehicle sales.
@@ -1824,7 +1870,7 @@ ARTICLE 5 — PLATFORM OBLIGATIONS
 
 5.1  VIT-AUTO agrees to:
      a) Provide and maintain a verified Founding Partner profile
-     b) Apply the preferential commission rates in Article 3
+     b) Apply the commission rates in Article 3
      c) Grant permanent priority placement in search catalog
      d) Provide dedicated onboarding and integration support
      e) Give early access to all new platform features
@@ -1855,8 +1901,8 @@ ARTICLE 8 — TERM AND TERMINATION
 8.3  VIT-AUTO may terminate immediately for material breach,
      fraud, or non-compliance with platform quality standards.
 
-8.4  Upon termination, standard commission rates apply retroactively
-     only from the termination date, not retroactively.
+8.4  Upon termination, Founding Partner benefits end from the termination
+     date only; rates already applied to past transactions are not revised.
 
 ARTICLE 9 — DISPUTE RESOLUTION
 

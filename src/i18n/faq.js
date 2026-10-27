@@ -15,7 +15,8 @@
  *    1,5 % ou 2 % sur les ventes » — la grille réellement facturée
  *    (server/scripts/setCommissionRates.mjs) est : standard location 15 %,
  *    vente et essai 5 %, export 5 %, chauffeur 15 % ; fondateur 10 %, 3 %,
- *    3 %, 10 %. Un partenaire pouvait lire 3 % et payer 5 %.
+ *    3 %, 10 %. Un partenaire pouvait lire 3 % et payer 5 %. Grille unique
+ *    depuis le 2026-10-27 : 10 / 2 / 3 (export) / 5 (pièces) / 10 / 10.
  *  · « 15 DH de base + 3 DH/km » — tarif marocain servi à tous les pays,
  *    alors que le calcul est par pays (server/services/deliveryFee.js).
  *  · « 20+ pays » — 28 pays configurés.
@@ -153,12 +154,13 @@ export default {
   },
   "faq.partners.2.q": { fr: "Quelles sont les commissions ?", en: "What are the commission rates?", ar: "ما هي نسب العمولة؟", es: "¿Cuáles son las comisiones?", zh: "佣金是多少？" },
   "faq.partners.2.a": {
-    fr: "Tarif standard : 15 % sur les locations, 5 % sur les ventes et demandes d'essai, 5 % sur l'export, 15 % sur les courses chauffeur, 15 % sur les activités et loisirs, 10 % sur les pièces détachées (7 % en importation). Pendant les 12 mois qui suivent la signature de l'accord Founding Partner, ces taux passent à 10 % sur les locations, 3 % sur les ventes et l'export, 10 % sur le chauffeur — puis reviennent automatiquement au tarif standard. Les abonnements n'accordent aucune remise sur la commission.",
-    en: "Standard rates: 15% on rentals, 5% on sales and test-drive requests, 5% on exports, 15% on chauffeur trips, 15% on activities and leisure, 10% on spare parts (7% when imported). For the 12 months following the Founding Partner agreement, these become 10% on rentals, 3% on sales and exports, 10% on chauffeur — then revert automatically to standard. Subscriptions grant no commission discount.",
-    ar: "التعرفة القياسية: ١٥٪ على التأجير، و٥٪ على البيع وطلبات تجربة القيادة، و٥٪ على التصدير، و١٥٪ على رحلات السائق، و١٥٪ على الأنشطة والترفيه، و١٠٪ على قطع الغيار (٧٪ عند الاستيراد). وخلال الاثني عشر شهراً التالية لتوقيع اتفاقية الشريك المؤسس تصبح: ١٠٪ على التأجير، و٣٪ على البيع والتصدير، و١٠٪ على السائق — ثم تعود تلقائياً إلى التعرفة القياسية. الاشتراكات لا تمنح أي خصم على العمولة.",
-    es: "Tarifa estándar: 15 % en alquileres, 5 % en ventas y solicitudes de prueba, 5 % en exportación, 15 % en trayectos con chófer, 15 % en actividades y ocio, 10 % en repuestos (7 % si se importan). Durante los 12 meses posteriores a la firma del acuerdo Founding Partner, pasan a 10 % en alquileres, 3 % en ventas y exportación, 10 % en chófer — y luego vuelven automáticamente a la tarifa estándar. Las suscripciones no dan ningún descuento sobre la comisión.",
-    zh: "标准费率：租赁 15%，销售与试驾申请 5%，出口 5%，司机服务 15%，活动与休闲 15%，零配件 10%（进口件 7%）。签署 Founding Partner 协议后的 12 个月内，上述费率降为租赁 10%、销售与出口 3%、司机 10%，期满自动恢复标准费率。订阅套餐不提供任何佣金折扣。",
+    fr: "Une grille unique, pour tous les partenaires — Partenaires Fondateurs compris : 10 % sur les locations, 2 % sur les ventes et demandes d'essai, 3 % sur la vente d'un véhicule à l'export, 5 % sur les pièces détachées (sur le prix des pièces seul, en stock comme importées), 10 % sur les courses chauffeur, 10 % sur les activités et loisirs. Une transaction ne porte qu'un seul taux : ils ne se cumulent jamais. La logistique n'est soumise à aucune commission à ce jour, et les abonnements n'accordent aucune remise sur la commission.",
+    en: "A single grid for every partner — Founding Partners included: 10% on rentals, 2% on sales and test-drive requests, 3% on the export sale of a vehicle, 5% on spare parts (on the parts price alone, in stock or imported), 10% on chauffeur trips, 10% on activities and leisure. A transaction bears a single rate: rates are never cumulated. Logistics carries no commission at this stage, and subscriptions grant no commission discount.",
+    ar: "جدول واحد لجميع الشركاء — بمن فيهم الشركاء المؤسسون: ١٠٪ على التأجير، و٢٪ على البيع وطلبات تجربة القيادة، و٣٪ على بيع مركبة للتصدير، و٥٪ على قطع الغيار (على ثمن القطع وحده، متوفرة أو مستوردة)، و١٠٪ على رحلات السائق، و١٠٪ على الأنشطة والترفيه. لا تحمل المعاملة إلا نسبة واحدة: لا تُجمع النسب أبداً. لا تخضع الخدمات اللوجستية لأي عمولة حالياً، والاشتراكات لا تمنح أي خصم على العمولة.",
+    es: "Una tabla única para todos los socios — Socios Fundadores incluidos: 10 % en alquileres, 2 % en ventas y solicitudes de prueba, 3 % en la venta de un vehículo a la exportación, 5 % en repuestos (solo sobre el precio de las piezas, en stock o importadas), 10 % en trayectos con chófer, 10 % en actividades y ocio. Una transacción lleva un solo porcentaje: nunca se acumulan. La logística no tiene comisión por ahora, y las suscripciones no dan ningún descuento sobre la comisión.",
+    zh: "所有合作伙伴（含创始合作伙伴）统一费率：租赁 10%，销售与试驾申请 2%，车辆出口销售 3%，零配件 5%（仅按配件价格，现货或进口均同），司机服务 10%，活动与休闲 10%。每笔交易仅适用一个费率，绝不叠加。物流目前不收取佣金，订阅套餐不提供任何佣金折扣。",
   },
+
   "faq.partners.3.q": { fr: "Comment sont versés mes revenus ?", en: "How are my earnings paid out?", ar: "كيف تُدفع أرباحي؟", es: "¿Cómo se abonan mis ingresos?", zh: "我的收入如何结算？" },
   "faq.partners.3.a": {
     fr: "Après chaque réservation confirmée et terminée, le montant net (prix − commission − frais de service) est versé via la méthode de paiement renseignée dans votre profil.",

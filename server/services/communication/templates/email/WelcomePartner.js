@@ -40,9 +40,10 @@ export function welcomePartnerTemplate({ firstName, companyName, partnerType, da
     ${stepTimeline(steps)}
 
     ${infoBox(`
-      <strong>Programme limité à 20 Founding Partners.</strong><br>
-      En tant que partenaire fondateur, vous bénéficiez d'une commission de 10% sur les transactions directes
-      et de 2% sur les transactions de votre réseau.
+      <strong>Programme Founding Partner.</strong><br>
+      Inscription et publication gratuites, outils pro offerts pendant 12 mois après signature de votre accord.
+      Commissions (grille unique, uniquement sur une opération conclue) : location, chauffeur et loisirs 10 %,
+      vente 2 %, vente à l'export 3 %, pièces détachées 5 %.
     `, "info")}
 
     ${btn("Suivre mon dossier", dashboardUrl || BRAND.baseUrl + "/partner-onboarding", "primary")}

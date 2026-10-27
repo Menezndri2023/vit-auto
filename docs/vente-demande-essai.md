@@ -9,7 +9,7 @@ construit. Il répond point par point à la consigne « avant de coder, fournir�
 |---|---|---|
 | Annonce | `Vehicle` avec `type:"vente"`, véhicule situé dans le pays du visiteur | `ImportExportListing` (et `Vehicle` dont `country` est un pays d'origine d'import) |
 | Parcours | Visibilité → lead → **demande d'essai** → RDV → essai → opportunité → vente conclue **hors plateforme** | Réservation gratuite + négociation, ou **achat direct** au prix affiché, paiement escrow sur la plateforme (`IETransaction`, 14 étapes) |
-| Commission | 5 % (3 % fondateur) du prix final déclaré, due uniquement si vente conclue dans la fenêtre d'attribution | `commissions.*.import_export`, prélevée à la libération des fonds |
+| Commission | 2 % du prix final déclaré (grille unique, 2026-10-27), due uniquement si vente conclue dans la fenêtre d'attribution | `commissions.*.import_export` (3 %), prélevée à la libération des fonds |
 | Code | `SalesLead` (nouveau) | `ieTransactionController.js`, `createDirectPurchase` |
 
 Le CTA de la fiche véhicule tranche : `estAImporter` (pays d'origine d'import ≠ pays
@@ -189,16 +189,15 @@ SMS (`generic`) + WhatsApp texte, chacun silencieux si non configuré.
 ## 7. Règles de commission
 
 - Taux = ligne **« vente »** de la grille (`resolveCommissionRate("vente", partenaire)`) :
-  **5 % standard, 3 % pendant les 12 mois Partenaire Fondateur** — grille définitive de
-  l'exploitant (2026-09-12) : location 15/10, vente 5/3, export 5/3, chauffeur 15/10,
-  activités-loisirs 15/10. Pas de taux à part dans `salesLead`.
+  **2 %, pour tous** — grille unique de l'exploitant (2026-10-27), voir
+  `docs/commissions.md` (auparavant 5 % / 3 % fondateur). Pas de taux à part dans `salesLead`.
 - Assiette : prix de vente final déclaré, converti en USD (`currencyEngine`).
 - Due uniquement si `status` atteint `SOLD` **et** `sale.soldAt ≤ attribution.expiresAt`.
 - Écriture `CommissionLedger` `{transactionType:"sale", transactionId: lead._id,
   type:"platform_fee"}` : `pending` à la déclaration, `confirmed` à la confirmation
   admin, `cancelled` si rejetée. Unique par lead (index existant).
 - Aucun abonnement, frais d'inscription ou de publication n'est exigé pour ce flux.
-  Le taux `commissions.standard.vente` (5 %) reste celui des anciens `Booking`
+  Le taux `commissions.standard.vente` (2 %) est aussi celui des `Booking`
   « essai » conclus sur place ; il n'intervient pas ici.
 
 ## 8. Règles d'attribution
@@ -254,7 +253,7 @@ Tout ce qui précède est construit et vérifié :
   onglet admin « Leads vente (essais) » (`AdminSalesLeads`), constantes `src/constants/salesLeads.js`.
 - Tests : `server/tests/salesLead.test.js` (16 tests : création, qualification 1/2/3,
   auto-transmission, doublon, masquage des coordonnées, autre créneau par jeton, refus, SLA
-  en trois paliers, résultat d'essai, suivi client, vente en XOF → commission 5 % (3 % fondateur) en USD,
+  en trois paliers, résultat d'essai, suivi client, vente en XOF → commission 2 % en USD (grille unique, 2026-10-27),
   ledger, attribution expirée, rejet admin, funnel, transitions interdites) ;
   `src/pages/screens.essai.render.test.jsx` (3 écrans).
 - Vérification bout en bout en conditions de production (dist/ sous CSP de `vercel.json`, API

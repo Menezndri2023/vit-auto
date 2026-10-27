@@ -646,6 +646,19 @@ async function runStartupMigrations() {
       // opérateur se souvienne de le lancer après déploiement est justement ce
       // qui a causé l'incident. Rendu automatique et sans risque de répétition
       // (voir runOnceMigration.js).
+      // Grille de commissions unique (exploitant, 2026-10-27) : location 10 %,
+      // vente 2 %, vente export 3 %, pièces 5 %, chauffeur 10 %, loisirs 10 %,
+      // fondateur = standard. Le document PricingConfig de production porte
+      // encore l'ancienne grille et l'emporte sur les valeurs par défaut — sans
+      // cette migration, le code annoncerait 10 % et la base facturerait 15 %.
+      // Seules les clés du barème sont écrites (leasing et le reste du document
+      // sont conservés). Les réservations déjà créées gardent le taux figé à
+      // leur création (Booking.commissionRate) : rien n'est recalculé.
+      await runOnceMigration("grille-commissions-unique-2026-10-27", async () => {
+        const { appliquerGrilleUnique } = await import("./scripts/setCommissionRates.mjs");
+        await appliquerGrilleUnique();
+      });
+
       // Comptes administrateurs vérifiés d'office (exploitant, 2026-10-09) :
       // les nouveaux le sont à l'enregistrement (models/User.js).
       await runOnceMigration("admins-verifies-2026-10-09", async () => {

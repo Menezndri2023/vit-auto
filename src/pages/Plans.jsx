@@ -18,13 +18,13 @@ const FALLBACK_PRICING = {
     // Ce repli s'affiche une fraction de seconde sur une page de TARIFS : des
     // valeurs périmées y annoncent brièvement des taux que le client ne paiera
     // pas. Il doit rester le miroir exact de server/config/defaultPricingConfig.js.
-    standard: { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05, activite: 0.15 },
-    premium:  { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05, activite: 0.15 },
+    standard: { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.05 },
+    premium:  { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.05 },
   },
   foundingPartner: {
     durationMonths: 12,
-    entreprise:  { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10, activite: 0.10 },
-    particulier: { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10, activite: 0.10 },
+    entreprise:  { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.05 },
+    particulier: { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.05 },
   },
   serviceFee: { minUSD: 1, percent: 0.005, maxUSD: 25 },
   subscriptions: {
@@ -244,8 +244,14 @@ export default function Plans() {
     { label: t("plans.comm.driver"),  color: "#f59e0b", standard: std.chauffeur,     founder: fp.entreprise?.chauffeur },
     { label: t("plans.comm.ie"),      color: "#0ea5e9", standard: std.import_export, founder: fp.entreprise?.import_export },
     { label: t("plans.comm.leisure"), color: "#ec4899", standard: std.activite ?? FALLBACK_PRICING.commissions.standard.activite, founder: fp.entreprise?.activite ?? FALLBACK_PRICING.foundingPartner.entreprise.activite },
+    { label: t("plans.comm.parts"),   color: "#64748b", standard: std.piece ?? FALLBACK_PRICING.commissions.standard.piece, founder: fp.entreprise?.piece ?? FALLBACK_PRICING.foundingPartner.entreprise.piece },
     { label: t("plans.comm.leasing"), color: "#8b5cf6", standard: std.leasing,       founder: null },
   ];
+
+  // Grille unique depuis le 2026-10-27 : la colonne « Fondateur » ne s'affiche
+  // que si l'admin fixe un jour un taux fondateur DIFFÉRENT du standard — deux
+  // colonnes identiques laisseraient croire à une remise inexistante.
+  const afficherFondateur = COMMISSIONS.some((r) => r.founder != null && r.founder !== r.standard);
 
   return (
     <div className={styles.page}>
@@ -287,7 +293,7 @@ export default function Plans() {
               {t("plans.founder.title")}
             </h3>
             <p style={{ margin: 0, color: "#78350f", fontSize: "0.88rem" }}>
-              {t("plans.founder.sub")} {t("plans.founderTail", { n: fp.durationMonths })}
+              {t("plans.founder.sub")} {afficherFondateur ? t("plans.founderTail", { n: fp.durationMonths }) : t("plans.founderTailTools", { n: fp.durationMonths })}
             </p>
           </div>
           <Link to="/partenaires#offre-fondateur" style={{
@@ -444,7 +450,7 @@ export default function Plans() {
             <p>{t("plans.comm.sub")}</p>
           </div>
 
-          <div className={styles.commTable}>
+          <div className={styles.commTable} style={{ "--comm-cols": afficherFondateur ? 2 : 1 }}>
             {/* Header */}
             <div className={styles.commRow + " " + styles.commHead}>
               <div className={styles.commCell}>{t("plans.comm.service")}</div>
@@ -453,8 +459,8 @@ export default function Plans() {
                   réduits, l'abonnement ne retranche plus rien par-dessus.
                   Afficher deux colonnes au contenu identique laissait croire à
                   un avantage inexistant. */}
-              <div className={`${styles.commCell} ${styles.commCellActive}`}>{t("plans.comm.founder")}</div>
-              <div className={styles.commCell}>{t("plans.comm.standard")}</div>
+              {afficherFondateur && <div className={`${styles.commCell} ${styles.commCellActive}`}>{t("plans.comm.founder")}</div>}
+              <div className={styles.commCell}>{t(afficherFondateur ? "plans.comm.standard" : "plans.comm.single")}</div>
             </div>
             {/* Rows */}
             {COMMISSIONS.map((row) => (
@@ -462,11 +468,13 @@ export default function Plans() {
                 <div className={styles.commCell}>
                   <span style={{ color: row.color, fontWeight: 700 }}>{row.label}</span>
                 </div>
-                <div className={`${styles.commCell} ${styles.commCellActive}`}>
-                  <span className={styles.commRate} style={{ color: "#f59e0b" }}>
-                    {row.founder != null ? `${pct(row.founder)} (${t("plans.comm.months", { n: fp.durationMonths })})` : "—"}
-                  </span>
-                </div>
+                {afficherFondateur && (
+                  <div className={`${styles.commCell} ${styles.commCellActive}`}>
+                    <span className={styles.commRate} style={{ color: "#f59e0b" }}>
+                      {row.founder != null ? `${pct(row.founder)} (${t("plans.comm.months", { n: fp.durationMonths })})` : "—"}
+                    </span>
+                  </div>
+                )}
                 <div className={styles.commCell}>
                   <span className={styles.commRate}>{pct(row.standard)}</span>
                 </div>
@@ -477,7 +485,7 @@ export default function Plans() {
               <div className={styles.commCell}>
                 <span style={{ color: "#6366f1", fontWeight: 700 }}>{t("plans.comm.clientFee")}</span>
               </div>
-              <div className={`${styles.commCell} ${styles.commCellActive}`} style={{ gridColumn: "span 2", fontSize: "0.82rem", color: "#64748b" }}>
+              <div className={`${styles.commCell} ${styles.commCellActive}`} style={{ gridColumn: `span ${afficherFondateur ? 2 : 1}`, fontSize: "0.82rem", color: "#64748b" }}>
                 {t("plans.comm.feeFormula", { min: fmtUSD(sf.minUSD), pct: sf.percent * 100, max: fmtUSD(sf.maxUSD) })}
               </div>
             </div>
@@ -493,10 +501,12 @@ export default function Plans() {
               <span style={{ color: "#10b981" }}>📊</span>
               <span>{t("plans.ex.sale", { prix: fmtUSD(10000), net: fmtUSD(10000 * (1 - std.vente) - 25), taux: pct(std.vente) })}</span>
             </div>
-            <div className={styles.commExample}>
-              <span style={{ color: "#f59e0b" }}>👑</span>
-              <span>{t("plans.ex.founder", { loue: fmtUSD(50), net: fmtUSD(50 * (1 - (fp.entreprise?.location ?? std.location)) - 1), taux: pct(fp.entreprise?.location) })}</span>
-            </div>
+            {afficherFondateur && (
+              <div className={styles.commExample}>
+                <span style={{ color: "#f59e0b" }}>👑</span>
+                <span>{t("plans.ex.founder", { loue: fmtUSD(50), net: fmtUSD(50 * (1 - (fp.entreprise?.location ?? std.location)) - 1), taux: pct(fp.entreprise?.location) })}</span>
+              </div>
+            )}
           </div>
         </div>
       </section>

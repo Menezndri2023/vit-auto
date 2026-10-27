@@ -448,12 +448,12 @@ export default function PartnerOnboardingPortal() {
             <span className={styles.heroAccent}>Fondateur</span>
           </h1>
           <p className={styles.heroSub}>
-            {estValide(validation) ? "Programme facultatif" : "L'étape obligatoire de tout nouveau partenaire"}. Commission réduite, abonnement offert 12 mois, badge exclusif.
+            {estValide(validation) ? "Programme facultatif" : "L'étape obligatoire de tout nouveau partenaire"}. Accompagnement au lancement, abonnement offert 12 mois, badge exclusif.
           </p>
           <div className={styles.heroStats}>
             <div className={styles.heroStat}><span>12 mois</span><small>Abonnement offert</small></div>
             <div className={styles.heroStatDivider} />
-            <div className={styles.heroStat}><span>-33%</span><small>Sur les commissions</small></div>
+            <div className={styles.heroStat}><span>0</span><small>Frais d'inscription</small></div>
             <div className={styles.heroStatDivider} />
             <div className={styles.heroStat}><span>20+</span><small>Pays couverts</small></div>
           </div>
@@ -534,8 +534,7 @@ export default function PartnerOnboardingPortal() {
             <h4>Avantages Fondateur</h4>
             <ul>
               <li>✓ 12 mois offerts</li>
-              <li>✓ Location : 10% (vs 15%)</li>
-              <li>✓ Vente : 2% (vs 3%)</li>
+              <li>✓ Accompagnement au lancement</li>
               <li>✓ Badge exclusif</li>
               <li>✓ Priorité catalogue</li>
               <li>✓ Accès early features</li>
@@ -1383,11 +1382,11 @@ function StepReview({ onboarding, saving, status, onSubmit, onBack, onEditStep, 
           </div>
           <div className={styles.commissionItem}>
             <span>Commission Location</span>
-            <strong>{onboarding?.commissions?.location || 10}% <small>(standard 15%)</small></strong>
+            <strong>{onboarding?.commissions?.location || 10}%</strong>
           </div>
           <div className={styles.commissionItem}>
             <span>Commission Vente</span>
-            <strong>{onboarding?.commissions?.vente || 2}% <small>(standard 3%)</small></strong>
+            <strong>{onboarding?.commissions?.vente || 2}%</strong>
           </div>
           <div className={styles.commissionItem}>
             <span>Badge</span>
@@ -1738,7 +1737,7 @@ function SubmittedScreen({ onboarding, onNavigate }) {
 const WHY_JOIN = [
   { icon: "🌍", title: "International Visibility",   text: "Your inventory shown to buyers, dealerships, rental companies and fleet operators across 20+ countries." },
   { icon: "🛡️", title: "Verified Founding Partner Badge", text: "A recognizable badge on every listing, backed by VIT-AUTO's Partner Verification Policy." },
-  { icon: "💰", title: "Preferential Commissions",    text: "10% on rentals and 2% on sales (vs. 15%/3% standard), locked for 12 months from activation." },
+  { icon: "💰", title: "One Simple Commission Grid",  text: "10% on rentals, chauffeur and leisure, 2% on sales, 3% on export sales, 5% on spare parts — charged only on completed transactions, never cumulated." },
   { icon: "🔌", title: "Inventory Integration",       text: "API, XML feeds, CSV imports or DMS synchronization — bring your existing catalog in, not one car at a time." },
   { icon: "🎁", title: "12 Months Free Premium",      text: "No registration fee, no mandatory subscription during the Founding Partner phase." },
   { icon: "🤝", title: "Dedicated Partner Success",   text: "Direct line to VIT-AUTO's team for onboarding, integration and early feature access." },
@@ -1813,11 +1812,11 @@ function PublicHero() {
         <div className={styles.publicHeroContent}>
           <div className={styles.heroLabel}>VIT-AUTO · FOUNDING PARTNER PROGRAM</div>
           <h1>Join the VIT-AUTO International<br /><span className={styles.heroAccent}>Founding Partner Program</span></h1>
-          <p>Reduced commissions, 12 months free Premium subscription, exclusive "Founding Partner" badge — the mandatory step for every new partner.</p>
+          <p>Launch support, 12 months free Premium subscription, exclusive "Founding Partner" badge — the mandatory step for every new partner.</p>
           <div className={styles.heroStats}>
             <div className={styles.heroStat}><span>12 mo.</span><small>Free Premium</small></div>
             <div className={styles.heroStatDivider} />
-            <div className={styles.heroStat}><span>-33%</span><small>On commissions</small></div>
+            <div className={styles.heroStat}><span>0</span><small>Sign-up fee</small></div>
             <div className={styles.heroStatDivider} />
             <div className={styles.heroStat}><span>20+</span><small>Countries</small></div>
           </div>

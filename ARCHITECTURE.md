@@ -1065,7 +1065,7 @@ Commission déduite → Versement propriétaire
 Étape 5 : Checklist activation (11 items)
     └─ onboardingStatus = ACTIF
 
-→ Commissions : 10% ventes directes + 2% réseau
+→ Commissions : voir docs/commissions.md (grille unique du 2026-10-27 ; les tableaux ci-dessous sont historiques)
 ```
 
 ### 8.5 Commissions

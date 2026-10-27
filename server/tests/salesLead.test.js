@@ -300,20 +300,20 @@ describe("Demande d'essai — après l'essai, opportunité, vente et commission"
     expect(m.res.body.code).toBe("USE_DECLARE_SALE");
   });
 
-  it("vente déclarée en XOF → commission 5 % (partenaire standard) en USD, ledger pending ; admin confirme → SOLD, ledger confirmé, véhicule vendu", async () => {
+  it("vente déclarée en XOF → commission 2 % (grille unique) en USD, ledger pending ; admin confirme → SOLD, ledger confirmé, véhicule vendu", async () => {
     const id = lead._id.toString();
     let m = mockReqRes({ params: { id }, user: ctx.partner, body: { finalPrice: 6_000_000, currency: "XOF" } });
     await c.partnerDeclareSale(m.req, m.res);
     expect(m.res.statusCode).toBe(200);
     expect(m.res.body.lead.status).toBe("SALE_PENDING");
     expect(m.res.body.lead.sale.finalPriceUSD).toBe(10000);
-    expect(m.res.body.lead.commission.rate).toBe(0.05);
-    expect(m.res.body.lead.commission.amountUSD).toBe(500);
+    expect(m.res.body.lead.commission.rate).toBe(0.02);
+    expect(m.res.body.lead.commission.amountUSD).toBe(200);
     expect(m.res.body.lead.commission.dueWithinAttribution).toBe(true);
     const ledger = await CommissionLedger.findOne({ transactionId: id, transactionType: "sale" });
     expect(ledger.status).toBe("pending");
-    expect(ledger.commissionAmount).toBe(500);
-    expect(ledger.commissionRate).toBe(5);
+    expect(ledger.commissionAmount).toBe(200);
+    expect(ledger.commissionRate).toBe(2);
 
     // Rejouer la déclaration ne crée pas de seconde ligne.
     await SalesLead.updateOne({ _id: id }, { $set: { status: "NEGOTIATION" } });
@@ -334,18 +334,18 @@ describe("Demande d'essai — après l'essai, opportunité, vente et commission"
     await c.getPartnerStats(m.req, m.res);
     expect(m.res.body.stats.sales).toBe(1);
     expect(m.res.body.stats.conversionRate).toBe(100);
-    // La seconde déclaration (6 100 000 XOF ≈ 10 166,67 USD × 5 %) a remplacé la première.
-    expect(m.res.body.stats.commissionUSD).toBeCloseTo(508.33, 1);
+    // La seconde déclaration (6 100 000 XOF ≈ 10 166,67 USD × 2 %) a remplacé la première.
+    expect(m.res.body.stats.commissionUSD).toBeCloseTo(203.33, 1);
     expect(m.res.body.stats.revenueUSD).toBeCloseTo(10166.67, 1);
   });
 
-  it("un Partenaire Fondateur actif est facturé 3 % (grille fondateur) au lieu de 5 %", async () => {
+  it("un Partenaire Fondateur actif paie la même grille que tous (2 %), jamais plus", async () => {
     await PartnerOnboarding.create({ userId: ctx.partner._id, isFoundingPartner: true, legalEntityType: "entreprise", commissions: { lockedAt: new Date() } });
     const m = mockReqRes({ params: { id: lead._id.toString() }, user: ctx.partner, body: { finalPrice: 10000, currency: "USD" } });
     await c.partnerDeclareSale(m.req, m.res);
     expect(m.res.statusCode).toBe(200);
-    expect(m.res.body.lead.commission.rate).toBe(0.03);
-    expect(m.res.body.lead.commission.amountUSD).toBe(300);
+    expect(m.res.body.lead.commission.rate).toBe(0.02);
+    expect(m.res.body.lead.commission.amountUSD).toBe(200);
   });
 
   it("hors fenêtre d'attribution : déclaration acceptée mais commission nulle", async () => {

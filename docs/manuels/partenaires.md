@@ -42,11 +42,8 @@ Réservé aux **Founding Partners**. Formulaire dédié : véhicule, pays d'orig
 ## 3. Le programme Founding Partner
 
 - Signature électronique d'une LOI puis d'un Accord (même lien, même jeton de signature).
-- Donne accès à : publication Import/Export, plafond d'annonces élevé (particulier), commissions préférentielles.
-- **Commissions Founding Partner** (première année après signature) :
-  - Entreprise / Professionnel / Exportateur : **10 % location, 2 % vente/Import-Export**
-  - Particulier : **5 % location, 1 % vente**
-  - Après 12 mois : entreprise/pro/exportateur repasse au tarif standard (15 %/3 %) ; particulier reste à un tarif réduit permanent (7 %/2 %).
+- Donne accès à : publication Import/Export, plafond d'annonces élevé (particulier), outils pro offerts 12 mois.
+- **Commissions** : grille unique pour tous, fondateurs compris (2026-10-27) — location, chauffeur et loisirs **10 %**, vente **2 %**, vente à l'export **3 %**, pièces **5 %**. Référence : `docs/commissions.md`.
 
 ## 4. Recevoir des commandes
 

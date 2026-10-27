@@ -56,7 +56,7 @@ il déclare son secteur à sa première demande.
 **Un loueur qui propose ses véhicules avec chauffeur** utilise l'option
 « avec chauffeur » de son annonce de location — ce n'est pas un second
 métier. Le partenaire chauffeur, lui, est un secteur à part entière, avec sa
-commission (15 % / 10 % fondateur).
+commission (10 %, grille unique — voir `docs/commissions.md`).
 
 ## Cumul de secteurs et quotas — par plan
 

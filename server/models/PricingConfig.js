@@ -14,14 +14,13 @@ const rateByType = {
   chauffeur:     { type: Number, required: true, min: 0, max: 1 },
   import_export: { type: Number, required: true, min: 0, max: 1 },
   leasing:       { type: Number, required: true, min: 0, max: 1 },
-  // Activités et loisirs (Quad, plongée…) — 15 % standard, 10 % fondateur.
-  activite:      { type: Number, default: 0.15, min: 0, max: 1 },
-  // Pièces détachées (2026-09-14) — sur le prix de la pièce seul, jamais sur
-  // la livraison ni les frais d'importation : vente directe 10 % / 7 %
-  // fondateur, vente importation 7 % / 5 % (logistique et risque portés par
-  // le vendeur, paniers plus élevés).
-  piece:         { type: Number, default: 0.10, min: 0, max: 1 },
-  piece_import:  { type: Number, default: 0.07, min: 0, max: 1 },
+  // Activités et loisirs (Quad, plongée…) — 10 % (grille unique, 2026-10-27).
+  activite:      { type: Number, default: 0.10, min: 0, max: 1 },
+  // Pièces détachées — sur le prix de la pièce seul, jamais sur la livraison
+  // ni les frais d'importation : 5 %, vente directe comme importation (grille
+  // unique, 2026-10-27 ; auparavant 10 % / 7 %).
+  piece:         { type: Number, default: 0.05, min: 0, max: 1 },
+  piece_import:  { type: Number, default: 0.05, min: 0, max: 1 },
 };
 
 const foundingRateByType = {

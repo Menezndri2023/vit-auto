@@ -8,29 +8,34 @@
 // que la migration a tourné une fois.
 export const DEFAULT_PRICING_CONFIG = {
   key: "global",
-  // GRILLE DÉFINITIVE (exploitant, 2026-09-12) — standard / fondateur :
-  //   location 15 / 10 · vente (essai) 5 / 3 · export 5 / 3 · chauffeur 15 / 10
-  //   · activités et loisirs 15 / 10. `essai` est facturé au taux `vente`
-  // (voir pricingEngine) ; la vente par demande d'essai (SalesLead) suit la
-  // même ligne `vente`.
+  // GRILLE UNIQUE (exploitant, 2026-10-27) — remplace la grille à deux
+  // colonnes du 2026-09-12 (standard 15/5/5/15/15, fondateur 10/3/3/10/10) :
+  //   location 10 % · vente (essai, demande d'essai) 2 % · vente de véhicule à
+  //   l'export 3 % · pièces détachées 5 % (directe comme importée) · chauffeur
+  //   10 % · activités et loisirs 10 %.
+  // Une seule clé par transaction, jamais additionnées : une pièce importée
+  // paie 5 % (`piece_import`), pas 5 % + 3 % ; une vente export paie 3 %
+  // (`import_export`), pas 2 % + 3 %. La logistique (`services.transport`,
+  // `services.transit`) reste sans commission tant que son modèle n'est pas
+  // décidé. `leasing` est hors du barème du 2026-10-27 : inchangé.
   //
   // `premium` est VOLONTAIREMENT identique à `standard` : l'abonnement ne
   // change rien aux commissions (voir subscription.test.js).
   commissions: {
-    standard: { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05, activite: 0.15, piece: 0.10, piece_import: 0.07 },
-    premium:  { vente: 0.05, location: 0.15, chauffeur: 0.15, import_export: 0.05, leasing: 0.05, activite: 0.15, piece: 0.10, piece_import: 0.07 },
+    standard: { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.05 },
+    premium:  { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.05 },
   },
-  // Grille FONDATEUR — la faveur commerciale, pendant douze mois à compter de
-  // la SIGNATURE de l'accord (PartnerOnboarding.commissions.lockedAt). Au-delà,
-  // retour automatique au standard ci-dessus, sans palier intermédiaire.
-  //
-  // Même grille pour les deux types d'entité : le barème arrêté ne distingue
-  // pas. Le chauffeur y figure désormais — il en était exclu — et l'export d'un
-  // particulier, auparavant absent (retour au standard), y est explicite.
+  // Grille FONDATEUR — depuis le 2026-10-27, IDENTIQUE au standard : la
+  // nouvelle grille est égale ou inférieure à l'ancienne grille fondateur sur
+  // chaque ligne, donc aucun fondateur ne paie plus qu'avant. L'avantage
+  // fondateur n'est plus tarifaire (accompagnement, badge, mise en avant).
+  // Le mécanisme (douze mois à compter de PartnerOnboarding.commissions.lockedAt)
+  // est conservé : un tarif fondateur futur, s'il est décidé, reste
+  // configurable, limité dans le temps et traçable sans toucher au code.
   foundingPartner: {
     durationMonths: 12,
-    entreprise:  { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.07, piece_import: 0.05 },
-    particulier: { location: 0.10, vente: 0.03, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.07, piece_import: 0.05 },
+    entreprise:  { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.05 },
+    particulier: { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.05 },
   },
   serviceFee: { minUSD: 1, percent: 0.005, maxUSD: 25 },
   importEstimateFee: { percent: 0.03, minUSD: 333, maxUSD: 1666 },
@@ -57,7 +62,7 @@ export const DEFAULT_PRICING_CONFIG = {
     change_devises:   { enabled: true, commissionRate: 0, fixedFeeUSD: 0 },
   },
   // Vente par demande d'essai — commission = ligne `vente` de la grille
-  // (5 % / 3 % fondateur) ; ici seulement attribution 90 jours et délais
+  // (2 %) ; ici seulement attribution 90 jours et délais
   // (voir docs/vente-demande-essai.md).
   salesLead: {
     attributionDays: 90,

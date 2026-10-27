@@ -12,13 +12,14 @@ VIT AUTO est une plateforme internationale de **vente, location, service chauffe
 |---|---|---|
 | Particulier qui loue/vend 1-3 véhicules | Compte "particulier" standard | Publication après simple vérification d'identité (KYC), pas de paperasse entreprise |
 | Concessionnaire / agence établie | Certification partenaire (professionnel/entreprise) | Accès complet vente + location, badge de confiance |
-| Exportateur / importateur international | **Founding Partner Program** | Accès à l'Import/Export international, commissions préférentielles la première année, plafond d'annonces élevé même en particulier |
+| Exportateur / importateur international | **Founding Partner Program** | Accès à l'Import/Export international, outils pro offerts la première année, plafond d'annonces élevé même en particulier |
 
-## 3. Argumentaire Founding Partner (commissions)
+## 3. Argumentaire Founding Partner
 
-- **Année 1** après signature : 10 % sur la location, 2 % sur la vente et l'Import/Export (contre le tarif standard 15 %/3 % pour un partenaire non-Founding).
-- Pour un partenaire **particulier**, ce taux tombe à 5 %/1 % (et reste réduit en permanence à 7 %/2 % même après un an).
-- Argument clé : signer tôt = capter le tarif réduit avant l'ouverture générale du marché.
+- **Grille unique depuis le 2026-10-27**, la même pour tous : location, chauffeur et loisirs 10 %, vente 2 %, vente à l'export 3 %, pièces 5 % — commission uniquement sur une opération conclue (détail : `docs/commissions.md`).
+- L'avantage fondateur n'est plus tarifaire : **outils pro offerts 12 mois**, accompagnement au lancement (dossier, documents, premières publications), badge et mise en avant.
+- Argument clé : inscription et publication gratuites, aucun abonnement obligatoire — le partenaire ne paie que s'il conclut.
+- Ne jamais promettre un volume de clients ou de ventes.
 
 ## 4. Argument différenciant : le calculateur de coût d'importation
 

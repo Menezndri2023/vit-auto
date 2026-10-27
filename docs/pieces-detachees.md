@@ -47,12 +47,15 @@ inclut `piece` — aucun paiement en ligne tant qu'aucun prestataire n'est
 branché). Pour une importation, l'acompte annoncé sur l'annonce est réglé au
 vendeur à la confirmation ; le vendeur le déclare reçu.
 
-## 3. Commission (validée par l'exploitant le 2026-09-14, modifiable dans PricingConfig)
+## 3. Commission (grille unique de l'exploitant du 2026-10-27, modifiable dans PricingConfig)
 
-| Mode | Standard | Partenaire Fondateur |
-|---|---|---|
-| Vente directe (`piece`) | **10 %** | **7 %** |
-| Vente importation (`piece_import`) | **7 %** | **5 %** |
+| Mode | Taux (tous partenaires) |
+|---|---|
+| Vente directe (`piece`) | **5 %** |
+| Vente importation (`piece_import`) | **5 %** |
+
+Avant le 2026-10-27 : 10 % / 7 % fondateur en vente directe, 7 % / 5 % en importation.
+Référence : `docs/commissions.md`.
 
 Assiette : **le prix des pièces seul** (`montantBase`) — jamais la livraison
 ni les frais d'importation, qui reviennent intégralement au vendeur.

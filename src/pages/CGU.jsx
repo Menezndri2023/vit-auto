@@ -116,10 +116,13 @@ export default function CGU() {
 
       <Art n="6" title="Commissions et frais">
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          <Li><strong>Location :</strong> 15 % du montant (10 % pour les Partenaires Fondateurs)</Li>
-          <Li><strong>Vente :</strong> 3 % du prix de vente (2 % pour les Partenaires Fondateurs)</Li>
+          <Li><strong>Location :</strong> 10 % du montant</Li>
+          <Li><strong>Vente :</strong> 2 % du prix de vente</Li>
+          <Li><strong>Vente d'un véhicule à l'export :</strong> 3 % du prix (remplace le taux de vente, ne s'y ajoute pas)</Li>
+          <Li><strong>Pièces détachées :</strong> 5 % du prix des pièces, hors livraison et frais d'importation</Li>
           <Li><strong>Chauffeur :</strong> 10 % du montant de la course</Li>
-          <Li><strong>Frais de service :</strong> 15 DH fixes par réservation, à la charge du client</Li>
+          <Li><strong>Activités et loisirs :</strong> 10 % du montant de la réservation</Li>
+          <Li><strong>Frais de service :</strong> 0,5 % du montant (minimum 1,00 $US, maximum 25,00 $US), à la charge du client</Li>
           <Li><strong>Livraison GPS :</strong> 15 DH de base + 3 DH/km, calculée dynamiquement, à la charge du client</Li>
           <Li><strong>Assurance / Crédit / Leasing :</strong> commissions négociées avec les partenaires concernés</Li>
         </ul>

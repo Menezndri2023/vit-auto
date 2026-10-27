@@ -29,7 +29,7 @@ const BOOKING_TYPE_TO_PRICING_TYPE = {
   chauffeur: "chauffeur",
   leasing:   "leasing",
   // Activités et loisirs : sans cette entrée, le type retombait sur un taux
-  // absent de la grille → 5 % par défaut, au lieu de 15 % / 10 % fondateur.
+  // absent de la grille → 5 % par défaut, au lieu du taux loisirs.
   activite:  "activite",
   // Pièces détachées : le contrôleur passe directement "piece" ou
   // "piece_import" selon le mode de vente de l'annonce.

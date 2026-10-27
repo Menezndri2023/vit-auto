@@ -54,7 +54,7 @@ export default function ConditionsPartenaires() {
           Conditions Générales Partenaires
         </h1>
         <p style={{ margin: 0, color: "rgba(255,255,255,.65)", fontSize: "0.85rem" }}>
-          En vigueur depuis le 1er Janvier 2026 · VIT AUTO · vit-auto.com
+          En vigueur depuis le 1er Janvier 2026 · mise à jour le 27 octobre 2026 · VIT AUTO · vit-auto.com
         </p>
       </div>
 
@@ -127,16 +127,22 @@ export default function ConditionsPartenaires() {
       <Art n="5" title="Commissions et paiements">
         <p>Les commissions appliquées sont les suivantes :</p>
         <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
-          <Li><strong>Location :</strong> 15 % du montant de la réservation (10 % pendant 12 mois pour tout Partenaire Fondateur, entreprise comme particulier, puis retour au tarif standard)</Li>
-          <Li><strong>Vente :</strong> 5 % du prix de vente final (3 % pendant 12 mois pour tout Partenaire Fondateur), dû uniquement lorsqu'une vente issue d'un prospect apporté par VIT AUTO est effectivement conclue (voir ci-dessous « Attribution des prospects »)</Li>
-          <Li><strong>Vente à l'export (import/export) :</strong> 5 % du prix (3 % pendant 12 mois pour tout Partenaire Fondateur), prélevée à la libération des fonds</Li>
-          <Li><strong>Chauffeur :</strong> 15 % du montant de la course (10 % pendant 12 mois pour tout Partenaire Fondateur)</Li>
-          <Li><strong>Activités et loisirs :</strong> 15 % du montant de la réservation (10 % pendant 12 mois pour tout Partenaire Fondateur)</Li>
+          <Li><strong>Location :</strong> 10 % du montant de la réservation</Li>
+          <Li><strong>Vente :</strong> 2 % du prix de vente final, dû uniquement lorsqu'une vente issue d'un prospect apporté par VIT AUTO est effectivement conclue (voir ci-dessous « Attribution des prospects »)</Li>
+          <Li><strong>Vente d'un véhicule à l'export (import/export) :</strong> 3 % du prix, prélevée à la libération des fonds — ce taux remplace celui de la vente, il ne s'y ajoute pas</Li>
+          <Li><strong>Pièces détachées :</strong> 5 % du prix des pièces seul (hors livraison et frais d'importation), en vente directe comme en importation à la commande</Li>
+          <Li><strong>Chauffeur :</strong> 10 % du montant de la course</Li>
+          <Li><strong>Activités et loisirs :</strong> 10 % du montant de la réservation</Li>
+          <Li><strong>Logistique (transport, transit) :</strong> aucune commission à ce jour ; le prix du transport est celui du prestataire</Li>
           <Li><strong>Assurance :</strong> commission négociée directement avec le partenaire assureur (généralement 5–15 %)</Li>
           <Li><strong>Crédit / Leasing :</strong> commission négociée avec la banque ou le courtier (généralement 1–3 % du montant financé)</Li>
-          <Li><strong>Frais de service client :</strong> 15 DH fixes par transaction (à la charge du client)</Li>
+          <Li><strong>Frais de service client :</strong> 0,5 % du montant, au minimum 1,00 $US et au plus 25,00 $US par transaction (à la charge du client)</Li>
           <Li><strong>Livraison GPS :</strong> 15 DH de base + 3 DH/km, calculée dynamiquement, à la charge du client</Li>
         </ul>
+        <p style={{ marginTop: 12 }}>
+          Une même transaction ne porte qu'un seul taux : les commissions ne se cumulent pas. Le taux applicable
+          est celui en vigueur à la création de la réservation ou de la transaction.
+        </p>
         <p style={{ marginTop: 12 }}>
           Les commissions sur les réservations (location, chauffeur, activités) sont automatiquement déduites à chaque transaction. Le solde net est viré
           au partenaire dans un délai de <strong>2 à 5 jours ouvrés</strong> après confirmation de la réservation.
@@ -149,7 +155,7 @@ export default function ConditionsPartenaires() {
           parcours jusqu'au résultat. Tout prospect apporté par VIT AUTO reste attribué à VIT AUTO pendant
           <strong> 90 jours</strong> à compter de sa demande : si, durant cette période, ce prospect achète
           auprès du partenaire le véhicule concerné, la vente est réputée provenir de VIT AUTO et la commission
-          « Vente » ci-dessus (5 %, ou 3 % en période Partenaire Fondateur) est due sur le prix de vente final. Le partenaire déclare la vente (prix final, date) depuis son
+          « Vente » ci-dessus (2 %) est due sur le prix de vente final. Le partenaire déclare la vente (prix final, date) depuis son
           espace ; VIT AUTO la confirme avant facturation. Aucun abonnement, frais d'inscription ni frais de
           publication n'est exigé pour la mise en vente. Le contournement du parcours (coordonnées obtenues via
           VIT AUTO puis vente non déclarée) constitue un manquement au sens de l'article 3.
@@ -164,14 +170,15 @@ export default function ConditionsPartenaires() {
           à toute publication d'annonce sur la plateforme. Il donne accès aux avantages suivants :
         </p>
         <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
-          <Li>Accès gratuit à toutes les fonctionnalités (sans abonnement mensuel)</Li>
-          <Li>Commission réduite pendant 12 mois, entreprise comme particulier : location 10 %, vente et export 3 %, chauffeur 10 %, activités et loisirs 10 %</Li>
+          <Li>Inscription et publication gratuites, sans abonnement obligatoire</Li>
+          <Li>Outils avancés de l'espace pro offerts pendant 12 mois à compter de la signature de l'accord (facultatifs et payants ensuite)</Li>
+          <Li>Accompagnement au lancement : aide à la complétion du dossier, vérification des documents et publication des premières offres</Li>
           <Li>Badge "Partenaire Fondateur" affiché sur toutes les annonces</Li>
           <Li>Mise en avant prioritaire dans les résultats de recherche et le catalogue</Li>
         </ul>
         <p style={{ marginTop: 12 }}>
-          Passé les 12 premiers mois, chaque Partenaire Fondateur revient automatiquement au tarif standard
-          (location 15 %, vente et export 5 %, chauffeur 15 %, activités et loisirs 15 %). VIT AUTO se réserve le droit d'ajuster cette offre avec un préavis de <strong>30 jours</strong>.
+          Les Partenaires Fondateurs paient la même grille de commissions que l'ensemble des partenaires (article 5),
+          sans période de majoration. VIT AUTO se réserve le droit d'ajuster cette offre avec un préavis de <strong>30 jours</strong>.
         </p>
       </Art>
 

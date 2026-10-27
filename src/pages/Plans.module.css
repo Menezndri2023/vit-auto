@@ -322,9 +322,11 @@
 
 .commRow {
   display: grid;
-  /* 3 colonnes : service, Fondateur, standard. La colonne « Abonné » a été
-     retiree, les taux d'abonnement etant identiques au standard. */
-  grid-template-columns: 1.2fr repeat(2, 1fr);
+  /* Service + une colonne par grille affichée (--comm-cols, posé par
+     Plans.jsx) : « Fondateur » n'apparaît que si ses taux diffèrent du
+     standard. La colonne « Abonné » a été retirée, les taux d'abonnement étant
+     identiques au standard. */
+  grid-template-columns: 1.2fr repeat(var(--comm-cols, 2), 1fr);
   border-bottom: 1px solid #f0f4fa;
 }
 
@@ -541,7 +543,6 @@
 /* ═══════════════════ RESPONSIVE ═══════════════════ */
 @media (max-width: 1100px) {
   .plansGrid { grid-template-columns: repeat(2, 1fr); }
-  .commRow  { grid-template-columns: 1.2fr repeat(4, 1fr); }
   .howGrid  { grid-template-columns: repeat(2, 1fr); }
 }
 
@@ -550,7 +551,7 @@
   .plansSection, .commSection, .howSection { padding: 48px 20px; }
   .plansGrid { grid-template-columns: 1fr; max-width: 440px; margin: 0 auto; }
   .commTable { overflow-x: auto; }
-  .commRow { min-width: 560px; }
+  .commRow { min-width: calc(220px + var(--comm-cols, 2) * 170px); }
   .howGrid { grid-template-columns: 1fr 1fr; gap: 14px; }
   .finalInner { padding: 40px 24px; border-radius: 18px; }
   .finalBtns { flex-direction: column; width: 100%; }

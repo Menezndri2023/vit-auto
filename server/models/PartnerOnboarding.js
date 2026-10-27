@@ -129,12 +129,12 @@ const partnerOnboardingSchema = new mongoose.Schema({
   // Le commentaire précédent décrivait deux paliers dans le temps (5 %/1 % la
   // première année, 7 %/2 % ensuite) et renvoyait à `foundingPartnerRates.js`
   // comme « seule source de vérité » : ni ce fichier ni la fonction
-  // `foundingRateFor` n'ont jamais existé dans le dépôt. Grille réelle :
-  // location 10 %, essai et vente 3 %, chauffeur 10 % pendant douze mois, puis
-  // retour au standard (15 %, 5 %, 15 %).
+  // `foundingRateFor` n'ont jamais existé dans le dépôt. Grille réelle depuis
+  // le 2026-10-27 (grille unique, fondateur = standard) : location 10 %,
+  // essai et vente 2 %, chauffeur 10 %.
   commissions: {
     location:  { type: Number, default: 10 },
-    vente:     { type: Number, default: 3 },
+    vente:     { type: Number, default: 2 },
     chauffeur: { type: Number, default: 10 },
     lockedAt:  { type: Date, default: null },
   },

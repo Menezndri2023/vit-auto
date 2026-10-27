@@ -41,7 +41,7 @@ const MONTH_NAMES = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Jui
 // PricingConfig (server/config/defaultPricingConfig.js), remplacées dès que
 // commissionRates est chargé pour ne jamais afficher un taux périmé si
 // l'admin modifie les commissions depuis le panneau Configuration métier.
-const DEFAULT_COMM_RATE = { location: 0.15, essai: 0.03, chauffeur: 0.10, leasing: 0.05 };
+const DEFAULT_COMM_RATE = { location: 0.10, essai: 0.02, vente: 0.02, chauffeur: 0.10, leasing: 0.05, activite: 0.10, piece: 0.05 };
 const SERVICE_FEE = 1; // repli d'affichage — le vrai frais est calculé côté serveur (pricingEngine.computeServiceFee, plancher 1 USD)
 
 const MOIS = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
@@ -424,10 +424,10 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
 
   // ── Contrat & finances ────────────────────────────────────────────────────
   const contractId = orderDetail?.contract?._id || order.contract || null;
-  // Taux RÉEL de la commande quand il est connu (pièce : 10 %/7 % sur la
-  // pièce seule) — le barème par type affichait « 15 % » à côté d'un montant
+  // Taux RÉEL de la commande quand il est connu (pièce : 5 % sur la pièce
+  // seule ; une ancienne commande garde le taux figé à sa création) — le barème par type affichait « 15 % » à côté d'un montant
   // calculé à 10 %.
-  const commRate   = order.commissionRate ?? commRates[order.type] ?? DEFAULT_COMM_RATE[order.type] ?? 0.15;
+  const commRate   = order.commissionRate ?? commRates[order.type] ?? DEFAULT_COMM_RATE[order.type] ?? 0.10;
   const totalAmt   = order.montantTotal || order.total || 0;
   const commAmt    = order.commissionAmount || Math.round(totalAmt * commRate);
   const netAmt     = order.partnerPayout    || Math.max(totalAmt - commAmt - SERVICE_FEE, 0);

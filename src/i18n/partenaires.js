@@ -1,8 +1,8 @@
 /**
  * Traductions — page /partenaires.
  *
- * La grille de commissions de cette page était la bonne (15/10, 5/3, 5/3,
- * 15/10, 15/10) — c'est la FAQ qui était fausse. Trois choses ont tout de même
+ * La grille de commissions de cette page était la bonne au 2026-09-12 (15/10,
+ * 5/3, 5/3, 15/10, 15/10) — c'est la FAQ qui était fausse. Trois choses ont tout de même
  * été corrigées ici :
  *
  *  · « Frais service client : 15 DH fixe » — la page /plans annonce
@@ -15,8 +15,13 @@
  *    limitées » — respectivement périmé, inventé et invérifiable. La rareté
  *    des places n'existe nulle part dans le code.
  *
- * La ligne « pièces détachées » manquait à la grille : elle est ajoutée
- * (10 % standard, 7 % fondateur ; 7 % / 5 % en importation).
+ * La ligne « pièces détachées » manquait à la grille : elle est ajoutée.
+ *
+ * GRILLE UNIQUE depuis le 2026-10-27 (exploitant) : une seule colonne pour
+ * tous, fondateurs compris — location 10 %, vente 2 %, export 3 %, chauffeur
+ * 10 %, loisirs 10 %, pièces 5 % (server/config/defaultPricingConfig.js).
+ * L'avantage fondateur « commission réduite » n'existe donc plus : il est
+ * remplacé par l'accompagnement au lancement, réellement assuré.
  */
 export default {
 
@@ -52,10 +57,10 @@ export default {
     es: "Como socio fundador, disfrutas de ventajas exclusivas durante 12 meses, visibilidad prioritaria y acceso anticipado a todas las funciones futuras.",
     zh: "作为创始合作伙伴，您可享 12 个月专属权益、优先曝光，并抢先使用未来所有新功能。",
   },
-  "part.f1.label": { fr: "Gratuit 12 mois", en: "Free for 12 months", ar: "مجاناً لمدة ١٢ شهراً", es: "Gratis 12 meses", zh: "12 个月免费" },
-  "part.f1.desc":  { fr: "Aucun abonnement, aucune carte requise pendant un an complet.", en: "No subscription, no card required for a full year.", ar: "بلا اشتراك وبلا بطاقة طوال سنة كاملة.", es: "Sin suscripción ni tarjeta durante un año completo.", zh: "整整一年无需订阅、无需绑卡。" },
-  "part.f2.label": { fr: "Commission réduite", en: "Reduced commission", ar: "عمولة مخفّضة", es: "Comisión reducida", zh: "佣金优惠" },
-  "part.f2.desc":  { fr: "Pendant 12 mois, entreprise comme particulier : location 10 % (au lieu de 15 %), vente et export 3 % (au lieu de 5 %), chauffeur et loisirs 10 % (au lieu de 15 %).", en: "For 12 months, companies and individuals alike: rentals 10% (instead of 15%), sales and exports 3% (instead of 5%), chauffeur and leisure 10% (instead of 15%).", ar: "لمدة ١٢ شهراً، للشركات والأفراد على حد سواء: التأجير ١٠٪ (بدل ١٥٪)، والبيع والتصدير ٣٪ (بدل ٥٪)، والسائق والترفيه ١٠٪ (بدل ١٥٪).", es: "Durante 12 meses, empresas y particulares: alquiler 10 % (en vez de 15 %), venta y exportación 3 % (en vez de 5 %), chófer y ocio 10 % (en vez de 15 %).", zh: "12 个月内，企业与个人同享：租赁 10%（原 15%）、销售与出口 3%（原 5%）、司机与休闲 10%（原 15%）。" },
+  "part.f1.label": { fr: "Outils pro offerts 12 mois", en: "Pro tools free for 12 months", ar: "أدوات احترافية مجانية لمدة ١٢ شهراً", es: "Herramientas pro gratis 12 meses", zh: "专业工具免费 12 个月" },
+  "part.f1.desc": { fr: "Tous les outils avancés de l'espace pro, sans abonnement ni carte, pendant douze mois à compter de la signature. L'inscription et la publication restent gratuites ensuite.", en: "Every advanced tool of the pro space, with no subscription or card, for twelve months from signing. Sign-up and listing stay free afterwards.", ar: "كل الأدوات المتقدمة في الفضاء الاحترافي، بلا اشتراك ولا بطاقة، لمدة اثني عشر شهراً من التوقيع. ويبقى التسجيل والنشر مجانيين بعد ذلك.", es: "Todas las herramientas avanzadas del espacio pro, sin suscripción ni tarjeta, durante doce meses desde la firma. El registro y la publicación siguen siendo gratuitos después.", zh: "自签署之日起十二个月内，无需订阅或银行卡即可使用专业空间全部高级工具。此后注册与发布依然免费。" },
+  "part.f2.label":    { fr: "Accompagnement au lancement", en: "Launch support", ar: "مرافقة عند الانطلاق", es: "Acompañamiento en el lanzamiento", zh: "上线陪伴支持" },
+  "part.f2.desc":     { fr: "Un conseiller VIT AUTO vous aide à compléter votre dossier, vérifie vos documents et vous accompagne dans la publication de vos premières offres.", en: "A VIT AUTO advisor helps you complete your file, checks your documents and guides you through publishing your first offers.", ar: "يساعدك مستشار من VIT AUTO على استكمال ملفك، ويتحقق من وثائقك، ويرافقك في نشر عروضك الأولى.", es: "Un asesor de VIT AUTO te ayuda a completar tu expediente, verifica tus documentos y te acompaña en la publicación de tus primeras ofertas.", zh: "VIT AUTO 顾问协助您完善资料、审核文件，并指导您发布首批报价。" },
   "part.f3.label": { fr: "Badge Fondateur", en: "Founder badge", ar: "شارة المؤسس", es: "Insignia Fundador", zh: "创始人徽章" },
   "part.f3.desc":  { fr: "Mention exclusive « Partenaire Fondateur » sur toutes vos annonces.", en: "Exclusive “Founding Partner” mention on all your listings.", ar: "إشارة حصرية «شريك مؤسس» على كل إعلاناتك.", es: "Mención exclusiva «Socio Fundador» en todos tus anuncios.", zh: "您的所有车源均标注专属「创始合作伙伴」。" },
   "part.f4.label": { fr: "Mise en avant permanente", en: "Permanent boost", ar: "تمييز دائم", es: "Destacado permanente", zh: "永久推广位" },
@@ -109,22 +114,21 @@ export default {
     es: "Sin costes ocultos. Sabes exactamente lo que pagas. En venta, VIT AUTO no es una tienda en línea: te aportamos contactos cualificados (solicitudes de prueba), tú mantienes el control del vehículo, del precio, de la negociación y del cierre — sin suscripción ni gastos de publicación, comisión solo sobre la venta cerrada.",
     zh: "没有隐藏费用，您清楚知道支付了什么。在销售方面，VIT AUTO 不是网店：我们为您带来优质意向客户（试驾申请），车辆、价格、议价与成交均由您掌控——无订阅费、无发布费，仅在成交后收取佣金。",
   },
-  "part.standard": { fr: "Standard", en: "Standard", ar: "قياسي", es: "Estándar", zh: "标准" },
-  "part.founder":  { fr: "👑 Fondateur", en: "👑 Founder", ar: "👑 مؤسس", es: "👑 Fundador", zh: "👑 创始人" },
+  "part.standard": { fr: "Commission", en: "Commission", ar: "العمولة", es: "Comisión", zh: "佣金" },
   "part.negotiated": { fr: "Négociée", en: "Negotiated", ar: "تفاوضية", es: "Negociada", zh: "面议" },
   "part.c.rental":    { fr: "Location", en: "Rental", ar: "التأجير", es: "Alquiler", zh: "租赁" },
-  "part.c.rentalNote":{ fr: "Ex. 50,00 $US loué → 7,50 $US de commission (5,00 $US en Partenaire Fondateur)", en: "E.g. $50.00 rented → $7.50 commission ($5.00 as a Founding Partner)", ar: "مثال: تأجير بـ ٥٠٫٠٠ دولاراً ← عمولة ٧٫٥٠ دولاراً (٥٫٠٠ دولارات للشريك المؤسس)", es: "Ej. 50,00 US$ alquilados → 7,50 US$ de comisión (5,00 US$ como Socio Fundador)", zh: "例：租金 50.00 美元 → 佣金 7.50 美元（创始合作伙伴为 5.00 美元）" },
+  "part.c.rentalNote": { fr: "Ex. 50,00 $US loué → 5,00 $US de commission", en: "E.g. $50.00 rented → $5.00 commission", ar: "مثال: تأجير بـ ٥٠٫٠٠ دولاراً ← عمولة ٥٫٠٠ دولارات", es: "Ej. 50,00 US$ alquilado → 5,00 US$ de comisión", zh: "例：租金 50.00 美元 → 佣金 5.00 美元" },
   "part.c.sale":      { fr: "Vente", en: "Sale", ar: "البيع", es: "Venta", zh: "销售" },
-  "part.c.saleNote":  { fr: "Du prix de vente final, uniquement si la vente est conclue avec un prospect apporté par VIT AUTO (90 jours). Ex. 10 000,00 $US → 500,00 $US (300,00 $US fondateur)", en: "On the final sale price, only if the sale closes with a lead brought by VIT AUTO (90 days). E.g. $10,000.00 → $500.00 ($300.00 for founders)", ar: "من سعر البيع النهائي، وفقط إذا أُبرمت الصفقة مع عميل جلبته VIT AUTO (٩٠ يوماً). مثال: ١٠٬٠٠٠٫٠٠ دولار ← ٥٠٠٫٠٠ دولار (٣٠٠٫٠٠ دولار للمؤسس)", es: "Sobre el precio final de venta, solo si se cierra con un contacto aportado por VIT AUTO (90 días). Ej. 10 000,00 US$ → 500,00 US$ (300,00 US$ fundador)", zh: "按最终成交价计算，且仅当成交客户由 VIT AUTO 引入（90 天内）。例：10,000.00 美元 → 500.00 美元（创始人 300.00 美元）" },
+  "part.c.saleNote":  { fr: "Du prix de vente final, uniquement si la vente est conclue avec un prospect apporté par VIT AUTO (90 jours). Ex. 10 000,00 $US → 200,00 $US", en: "On the final sale price, only if the sale closes with a lead brought by VIT AUTO (90 days). E.g. $10,000.00 → $200.00", ar: "على سعر البيع النهائي، فقط إذا أُبرم البيع مع عميل محتمل جلبته VIT AUTO (٩٠ يوماً). مثال: ١٠٬٠٠٠٫٠٠ دولار ← ٢٠٠٫٠٠ دولار", es: "Sobre el precio de venta final, solo si la venta se cierra con un contacto aportado por VIT AUTO (90 días). Ej. 10 000,00 US$ → 200,00 US$", zh: "按最终成交价计算，仅当成交客户由 VIT AUTO 引荐（90 天内）时收取。例：10,000.00 美元 → 200.00 美元" },
   "part.c.export":     { fr: "Vente à l'export", en: "Export sale", ar: "البيع للتصدير", es: "Venta a la exportación", zh: "出口销售" },
-  "part.c.exportNote": { fr: "Prélevée à la libération des fonds (séquestre)", en: "Taken when the escrowed funds are released", ar: "تُقتطع عند الإفراج عن أموال الضمان", es: "Se cobra al liberar los fondos en depósito", zh: "在托管资金放款时扣取" },
+  "part.c.exportNote": { fr: "Vente d'un véhicule à l'export, prélevée à la libération des fonds (séquestre). Jamais cumulée avec le taux de vente.", en: "Export sale of a vehicle, taken when the escrowed funds are released. Never added to the sale rate.", ar: "بيع مركبة للتصدير، تُقتطع عند الإفراج عن أموال الضمان. لا تُضاف أبداً إلى نسبة البيع.", es: "Venta de un vehículo a la exportación, se cobra al liberar los fondos en depósito. Nunca se suma al porcentaje de venta.", zh: "车辆出口销售，在托管资金放款时扣取，绝不与销售费率叠加。" },
   "part.c.driver":     { fr: "Chauffeur", en: "Chauffeur", ar: "السائق", es: "Chófer", zh: "司机服务" },
-  "part.c.driverNote": { fr: "Ex. 30,00 $US → 4,50 $US de commission (3,00 $US fondateur)", en: "E.g. $30.00 → $4.50 commission ($3.00 for founders)", ar: "مثال: ٣٠٫٠٠ دولاراً ← عمولة ٤٫٥٠ دولاراً (٣٫٠٠ دولارات للمؤسس)", es: "Ej. 30,00 US$ → 4,50 US$ de comisión (3,00 US$ fundador)", zh: "例：30.00 美元 → 佣金 4.50 美元（创始人 3.00 美元）" },
+  "part.c.driverNote": { fr: "Ex. 30,00 $US → 3,00 $US de commission", en: "E.g. $30.00 → $3.00 commission", ar: "مثال: ٣٠٫٠٠ دولاراً ← عمولة ٣٫٠٠ دولارات", es: "Ej. 30,00 US$ → 3,00 US$ de comisión", zh: "例：30.00 美元 → 佣金 3.00 美元" },
   "part.c.leisure":     { fr: "Activités et loisirs", en: "Activities & leisure", ar: "الأنشطة والترفيه", es: "Actividades y ocio", zh: "活动与休闲" },
-  "part.c.leisureNote": { fr: "Quad, plongée, jetski… Ex. 40,00 $US → 6,00 $US (4,00 $US fondateur)", en: "Quad biking, diving, jet ski… E.g. $40.00 → $6.00 ($4.00 for founders)", ar: "دراجات رباعية وغوص وجت سكي… مثال: ٤٠٫٠٠ دولاراً ← ٦٫٠٠ دولارات (٤٫٠٠ دولارات للمؤسس)", es: "Quad, buceo, moto acuática… Ej. 40,00 US$ → 6,00 US$ (4,00 US$ fundador)", zh: "沙滩车、潜水、水上摩托……例：40.00 美元 → 6.00 美元（创始人 4.00 美元）" },
+  "part.c.leisureNote": { fr: "Quad, plongée, jetski… Ex. 40,00 $US → 4,00 $US", en: "Quad biking, diving, jet ski… E.g. $40.00 → $4.00", ar: "دراجات رباعية وغوص وجت سكي… مثال: ٤٠٫٠٠ دولاراً ← ٤٫٠٠ دولارات", es: "Quad, buceo, moto de agua… Ej. 40,00 US$ → 4,00 US$", zh: "四驱摩托、潜水、水上摩托…… 例：40.00 美元 → 4.00 美元" },
   // Ligne absente de la grille alors que le secteur existe depuis 2026-09-14.
   "part.c.parts":      { fr: "Pièces détachées", en: "Spare parts", ar: "قطع الغيار", es: "Repuestos", zh: "零配件" },
-  "part.c.partsNote":  { fr: "Sur le prix de la pièce seul, jamais sur la livraison ni les frais d'importation. 7 % / 5 % pour une pièce importée à la commande.", en: "On the part's price alone, never on delivery or import charges. 7% / 5% for a part imported to order.", ar: "على ثمن القطعة وحده، لا على التوصيل ولا رسوم الاستيراد. ٧٪ / ٥٪ للقطعة المستوردة عند الطلب.", es: "Solo sobre el precio de la pieza, nunca sobre la entrega ni los gastos de importación. 7 % / 5 % para una pieza importada bajo pedido.", zh: "仅按配件价格计算，不含配送与进口费用。按需进口的配件为 7% / 5%。" },
+  "part.c.partsNote": { fr: "Sur le prix de la pièce seul, jamais sur la livraison ni les frais d'importation — même taux pour une pièce en stock ou importée à la commande.", en: "On the part's price alone, never on delivery or import charges — same rate for a part in stock or imported to order.", ar: "على ثمن القطعة وحده، لا على التوصيل ولا رسوم الاستيراد — النسبة نفسها للقطعة المتوفرة أو المستوردة عند الطلب.", es: "Solo sobre el precio de la pieza, nunca sobre la entrega ni los gastos de importación — mismo porcentaje para una pieza en stock o importada bajo pedido.", zh: "仅按配件价格计算，不含配送与进口费用——现货与按需进口配件费率相同。" },
   "part.c.insurance":     { fr: "Assurance", en: "Insurance", ar: "التأمين", es: "Seguro", zh: "保险" },
   "part.c.insuranceNote": { fr: "Selon accord partenaire", en: "According to the partner agreement", ar: "حسب اتفاقية الشريك", es: "Según el acuerdo con el socio", zh: "依合作协议而定" },
   "part.c.serviceFee":     { fr: "Frais de service client", en: "Customer service fee", ar: "رسوم خدمة العميل", es: "Gastos de servicio al cliente", zh: "客户服务费" },

@@ -1507,8 +1507,8 @@ function OnboardingSection({ token }) {
           <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:"1rem" }}>
             {[
               { label: "Abonnement", val: "GRATUIT", sub: "12 mois" },
-              { label: "Commission Location", val: `${data?.commissions?.location || 10}%`, sub: "standard 15%" },
-              { label: "Commission Vente", val: `${data?.commissions?.vente || 2}%`, sub: "standard 3%" },
+              { label: "Commission Location", val: `${data?.commissions?.location || 10}%`, sub: "grille unique" },
+              { label: "Commission Vente", val: `${data?.commissions?.vente || 2}%`, sub: "grille unique" },
               { label: "Badge", val: "👑 Fondateur", sub: "Exclusif" },
             ].map((item, i) => (
               <div key={i} style={{ textAlign:"center" }}>
@@ -1529,8 +1529,8 @@ function OnboardingSection({ token }) {
           <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:"1rem" }}>
             {[
               { label: "Abonnement", val: "12 mois", sub: "GRATUIT" },
-              { label: "Location", val: "10%", sub: "vs 15% standard" },
-              { label: "Vente", val: "2%", sub: "vs 3% standard" },
+              { label: "Location", val: "10%", sub: "grille unique" },
+              { label: "Vente", val: "2%", sub: "grille unique" },
               { label: "Badge", val: "👑", sub: "Founding Partner" },
             ].map((item, i) => (
               <div key={i} style={{ textAlign:"center" }}>

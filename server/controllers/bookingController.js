@@ -232,10 +232,10 @@ async function generateReference(type) {
 
 // ── Notifier un utilisateur ────────────────────────────────────────────────────
 // ── Commission recalculée au règlement : clé de taux et assiette ────────────
-// Une pièce importée relève du taux « piece_import » (7 % / 5 % fondateur), pas
-// « piece » (10 % / 7 %), et sa commission ne porte que sur le prix des pièces
-// (montantBase), jamais sur la livraison ni les frais d'importation — règle de
-// l'exploitant du 2026-09-14, appliquée à la création mais perdue aux trois
+// Une pièce importée relève du taux « piece_import », pas « piece » (5 % l'un
+// et l'autre depuis la grille unique du 2026-10-27, réglables séparément), et
+// sa commission ne porte que sur le prix des pièces (montantBase), jamais sur
+// la livraison ni les frais d'importation — règle de l'exploitant du 2026-09-14, appliquée à la création mais perdue aux trois
 // recalculs du règlement (recordTransaction, partnerConfirm, adminForceComplete),
 // qui taxaient le montant total au taux « piece » (audit du 2026-10-05).
 export function cleCommission(booking) {
