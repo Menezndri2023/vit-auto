@@ -32,6 +32,7 @@ import { SectorRequestsSection } from "./admin/sections/SectorRequestsSection.js
 import { DossiersImportSection } from "./admin/sections/DossiersImportSection.jsx";
 import { ZoneTransitSection } from "./admin/sections/ZoneTransitSection.jsx";
 import { LogistiqueSection } from "./admin/sections/LogistiqueSection.jsx";
+import { DirectionSection } from "./admin/sections/DirectionSection.jsx";
 import { CatalogueSection } from "./admin/sections/CatalogueSection.jsx";
 import { MarketingSection } from "./admin/sections/MarketingSection.jsx";
 import { lienPublic } from "../utils/origineApi.js";
@@ -2935,6 +2936,7 @@ export default function AdminPanel() {
     paiements:        "finance",
     escrow:           "finance",
     analytics:        "finance",
+    direction:        "finance",
     // Support & modération
     support:          "support",
     assistance:       "support",
@@ -2986,6 +2988,7 @@ export default function AdminPanel() {
       items: [
         { key: "dashboard",  icon: "📊", label: "Vue d'ensemble" },
         { key: "analytics",  icon: "📈", label: "Analytics" },
+        { key: "direction",  icon: "🧭", label: "Direction" },
       ],
     },
     {
@@ -6637,6 +6640,7 @@ export default function AdminPanel() {
       )}
 
       {/* ══════════════════════ WIP STUBS ══════════════════════ */}
+      {activeTab === "direction" && <DirectionSection headers={headers} />}
       {activeTab === "analytics" && (
         <div className={styles.tabContent}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>

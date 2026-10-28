@@ -62,7 +62,9 @@ describe("Monétisation logistique désactivée", () => {
 
   it("une opération conclue : sa valeur est mesurée, le revenu VIT AUTO lu dans le registre reste 0", async () => {
     // Une commission d'un AUTRE pôle ne doit pas être comptée comme revenu logistique.
-    await CommissionLedger.create({ transactionType: "booking", transactionId: "autre-pole", partner: client._id, grossAmount: 100, commissionRate: 10, commissionAmount: 10, netAmount: 90, currency: "USD", status: "confirmed" }).catch(() => null);
+    // (Écriture VALIDE — une écriture qui échouerait en silence ne prouverait rien.)
+    await CommissionLedger.create({ transactionType: "booking", transactionId: "autre-pole", type: "platform_fee", partnerId: client._id, grossAmount: 100, commissionRate: 10, commissionAmount: 10, currency: "USD", status: "paid" });
+    expect(await CommissionLedger.countDocuments({ transactionType: "booking" })).toBe(1);
     await operationConclue(2400);
     const i = await L.calculerIndicateurs();
     expect(i.demandes).toMatchObject({ qualifiees: 1, devisAcceptes: 1, commandesConfirmees: 1, operationsConclues: 1, annulations: 0, litiges: 0 });

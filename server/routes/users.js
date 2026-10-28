@@ -1,4 +1,5 @@
 import express from "express";
+import { monActivation } from "../controllers/directionController.js";
 import { rateLimit } from "express-rate-limit";
 import * as u from "../controllers/usersController.js";
 import { authenticate, authorizeAdmin, requireAdminScope, requireGeneralAdmin } from "../middleware/auth.js";
@@ -20,6 +21,7 @@ const strictLimiter = rateLimit({
 // ── Utilisateur connecté ───────────────────────────────────────────────────
 router.get("/me",              authenticate, u.getMyProfile);
 router.get("/me/validation",   authenticate, u.getMaValidation);
+router.get("/me/activation",   authenticate, monActivation);   // inscrit → vérifié → activé (services/activationPartenaire.js)
 router.post("/me/consentements", authenticate, u.accepterConsentements);
 router.patch("/me",            authenticate, u.updateMyProfile);
 router.post("/me/identity",    authenticate, u.submitIdentity);

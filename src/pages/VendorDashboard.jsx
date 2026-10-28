@@ -1,4 +1,5 @@
 import BandeauValidation from "../components/BandeauValidation/BandeauValidation";
+import BandeauActivation from "../components/BandeauActivation/BandeauActivation";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useOngletVisible } from "../hooks/useOngletVisible";
 import { useAuth } from "../context/AuthContext";
@@ -3382,6 +3383,7 @@ export default function VendorDashboard() {
       {/* Validation du partenaire (2026-10-09) : pièces exigées selon son
           métier et son entité, calculées par le serveur. */}
       {!user.isFounder && <BandeauValidation token={token} styles={styles} publicationOuverte={!!user.publishingGranted} />}
+      <BandeauActivation token={token} styles={styles} />
 
       {/* ── Plan Banner ── */}
       {!subLoading && (
