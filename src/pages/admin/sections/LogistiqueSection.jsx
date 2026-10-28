@@ -50,7 +50,11 @@ function Indicateurs({ appel }) {
       {erreur && <p className={css.erreur}>{erreur}</p>}
       {!i ? <p className={css.muted}>Chargement…</p> : (
         <>
-          <p className={css.muted}>Modèle : mise en relation gratuite (FREE_REFERRAL). Revenu logistique de VIT AUTO : <strong>0</strong>.</p>
+          <p className={css.muted}>
+            Monétisation : <strong>désactivée</strong> — modèle {i.monetisation?.modeEconomique || "FREE_REFERRAL"}, commission {i.monetisation?.commissionActive ? "active" : "inactive"},
+            taux {i.monetisation?.taux ?? "aucun"}, frais de mise en relation {i.monetisation?.fraisMiseEnRelationUSD ?? "aucun"}.
+            Revenu logistique de VIT AUTO lu dans le registre des commissions : <strong>{i.revenusVitAuto?.montantUSD ?? 0}</strong> ({i.revenusVitAuto?.ecritures ?? 0} écriture).
+          </p>
           <div className={css.grille3}>
             {[
               ["Demandes créées", i.demandes.creees], ["Soumises", i.demandes.soumises], ["Validées", i.demandes.valides],
@@ -84,6 +88,14 @@ function Indicateurs({ appel }) {
                     <tr key={p.prestataire}><td>{p.prestataire}</td><td>{p.sollicitations}</td><td>{p.reponses}</td><td>{p.devis}</td><td>{p.retenus}</td><td>{p.conclues}</td><td>{indispo(p.delaiMoyenReponseH, " h")}</td></tr>
                   ))}
                 </tbody>
+              </table>
+            </div>
+          )}
+          {i.evenementsDeclencheursPotentiels?.length > 0 && (
+            <div className={css.tableWrap} style={{ marginTop: 12 }}>
+              <table className={css.table}>
+                <thead><tr><th>Événement qui pourrait déclencher une rémunération</th><th>Usage envisageable</th><th>Nombre</th><th>État</th></tr></thead>
+                <tbody>{i.evenementsDeclencheursPotentiels.map((e) => <tr key={e.code}><td>{e.libelle}</td><td>{e.usage}</td><td>{e.nombre}</td><td>Inactif</td></tr>)}</tbody>
               </table>
             </div>
           )}

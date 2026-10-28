@@ -132,11 +132,59 @@ délais de première réponse et jusqu'au premier devis, conversions, performanc
 trajets les plus demandés, motifs d'annulation et de refus. L'export CSV ne contient aucune
 donnée personnelle.
 
+## Notifications et langues (2026-10-28)
+
+- Chaque étape notifie dans l'application **et par e-mail** (modèle `templates/email/Logistique.js`) :
+  demande reçue, qualification, sollicitation du prestataire, devis reçu ou actualisé, devis accepté,
+  étapes de transport, enlèvement confirmé, réception confirmée, annulation. L'e-mail respecte la
+  préférence « confirmations » du profil (`notif_bookingConfirmations`), ignore les comptes inactifs et
+  passe par le service central, qui écarte les adresses ayant rebondi. Tout texte saisi est échappé.
+- Espaces client, prestataire et exportateur traduits en cinq langues (`src/i18n/logistique.js`) ;
+  dates, montants et noms de pays au format de la langue. L'administration reste en français.
+
 ## Limites connues
 
-- Écrans en français uniquement, comme les autres espaces connectés (Mes importations, Zone Transit).
-- Notifications in-app et temps réel ; pas d'e-mail ni de WhatsApp dédiés pour l'instant.
-- Aucun suivi GPS : seules les étapes et références de suivi déclarées par le prestataire sont affichées.
+- Les messages d'erreur renvoyés par le serveur et les e-mails sont en français, comme le reste du site.
+- Pas de WhatsApp logistique : l'envoi sortant WhatsApp exige des modèles de message approuvés par Meta
+  et le consentement du destinataire ; l'intégration existante ne sert qu'au robot de réponse.
+- Aucun suivi GPS, volontairement : seules les étapes et références de suivi déclarées par le
+  prestataire sont affichées — le système n'invente jamais une position ni un événement.
+
+## Monétisation : désactivée, mesurée (décision du 2026-10-28)
+
+**Mise en relation gratuite, sans commission obligatoire, sans frais automatiques, sans abonnement
+imposé. Aucun mécanisme de facturation logistique n'est développé ni activé.**
+
+- Configuration explicite : `PricingConfig.logistique` = `{ modeEconomique: "FREE_REFERRAL",
+  commissionActive: false, taux: null, fraisMiseEnRelationUSD: null }`, verrouillée par des validateurs
+  (toute autre valeur est refusée à l'écriture), non éditable depuis l'admin, exposée en lecture seule
+  par `GET /api/pricing/config` et dans les indicateurs (`monetisation`).
+- Le **revenu logistique de VIT AUTO** est lu dans le registre des commissions (`CommissionLedger`,
+  type « logistique ») — aucune écriture de ce type ne peut être créée par le code : il vaut 0, et une
+  écriture anormale se verrait. Il est toujours présenté **séparément** de la valeur des transactions.
+- Mesures fiables, calculées sur des jalons horodatés la première fois qu'un statut est atteint :
+  demandes créées, soumises, **qualifiées**, transmises ; prestataires sollicités et ayant répondu ;
+  devis reçus et acceptés ; commandes confirmées ; **opérations réellement conclues** (réception
+  confirmée) ; annulations et litiges avec leurs motifs ; délais ; conversions (« indisponible » sans
+  données) ; **valeur déclarée** des devis, commandes et opérations conclues, par devise.
+
+### Événements qui pourraient un jour déclencher une rémunération — aucun n'est actif
+
+Mesurés dans les indicateurs (`evenementsDeclencheursPotentiels`, `actif: false`) et dans l'export CSV,
+sans qu'aucun code ne calcule, facture ni encaisse quoi que ce soit à leur survenue.
+
+| Code | Jalon | Événement | Usage envisageable |
+|---|---|---|---|
+| `demande_qualifiee` | `valideeLe` | Demande qualifiée par VIT AUTO | forfait de qualification ou de mise en relation |
+| `devis_accepte` | `devisAccepteLe` | Devis accepté par le demandeur | commission sur le devis retenu ou forfait de mise en relation |
+| `commande_confirmee` | `commandeConfirmeeLe` | Commande confirmée par le prestataire | commission contractuelle à la confirmation |
+| `transport_commence` | `transportDebuteLe` | Transport commencé (déclaré) | forfait de coordination |
+| `operation_conclue` | `clotureeLe` | Réception confirmée — opération conclue | commission sur l'opération réellement conclue (le plus protecteur pour le client) |
+
+Une activation exigerait : une décision commerciale explicite, une validation juridique du rôle de
+VIT AUTO (et, en cas d'encaissement pour compte de tiers, des obligations réglementaires), des contrats
+avec les prestataires, puis une modification contrôlée du code — les validateurs actuels refusent toute
+autre configuration que la gratuité.
 
 ## Décisions à prendre avant toute monétisation
 

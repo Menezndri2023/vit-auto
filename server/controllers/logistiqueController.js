@@ -2,10 +2,15 @@ import mongoose from "mongoose";
 import DemandeLogistique from "../models/DemandeLogistique.js";
 import Prestataire from "../models/Prestataire.js";
 import Notification from "../models/Notification.js";
+import User from "../models/User.js";
+import { sendEmail } from "../config/email.js";
+import { logistiqueNotificationTemplate } from "../services/communication/templates/email/Logistique.js";
 import Booking from "../models/Booking.js";
 import IETransaction from "../models/IETransaction.js";
 import SparePart from "../models/SparePart.js";
 import { libelleIncoterm } from "../services/incotermService.js";
+import { getConfig } from "../services/pricingEngine.js";
+import CommissionLedger from "../models/CommissionLedger.js";
 import logger from "../utils/logger.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { prochainNumero, formatReference } from "../utils/sequence.js";
@@ -18,7 +23,7 @@ import { logAction } from "../middleware/auditLog.js";
 import {
   STATUTS, TYPES_BESOIN, MODES_TRANSPORT, LIBELLES_STATUT, JALONS, STATUTS_TERMINAUX,
   ANNULABLE_PAR_CLIENT, LITIGE_OUVRABLE, ETAPES_PRESTATAIRE, DEVIS_OUVERTS,
-  TYPES_PRESTATAIRE_LOGISTIQUE, MODELE_ECONOMIQUE,
+  TYPES_PRESTATAIRE_LOGISTIQUE, MODELE_ECONOMIQUE, EVENEMENTS_DECLENCHEURS_POTENTIELS,
   DONNEURS_ORDRE, PAYEURS, POSTES_COUT, NATURES_DEVIS, DOCUMENTS_PAR_ROLE,
 } from "../constants/logistique.js";
 
@@ -41,8 +46,29 @@ const txt = (v, max) => String(v ?? "").trim().slice(0, max);
 const num = (v) => (v === "" || v == null || !Number.isFinite(Number(v)) ? null : Number(v));
 const idEgal = (a, b) => a && b && String(a._id || a) === String(b._id || b);
 
-async function notifier(userId, titre, message, lien) {
+// Notification dans l'application + e-mail (2026-10-28). L'e-mail respecte la
+// préférence « confirmations » du profil (notif_bookingConfirmations), ignore
+// les comptes inactifs et passe par le service central, qui écarte les
+// adresses ayant rebondi et n'envoie rien sans fournisseur configuré (tests).
+async function envoyerEmailLogistique(userId, titre, message, lien) {
+  try {
+    const u = await User.findById(userId).select("email firstName country isActive notif_bookingConfirmations").lean();
+    if (!u?.email || u.isActive === false || u.notif_bookingConfirmations === false) return;
+    await sendEmail({
+      to: u.email,
+      subject: `VIT-AUTO Logistique — ${titre}`,
+      html: logistiqueNotificationTemplate({ firstName: u.firstName, titre, message, lien, country: u.country }),
+      template: "logistique_notification",
+      userId: u._id,
+    });
+  } catch (err) {
+    logger.error("logistique e-mail (non bloquant) :", err.message);
+  }
+}
+
+async function notifier(userId, titre, message, lien, { email = true } = {}) {
   if (!userId) return;
+  if (email) envoyerEmailLogistique(userId, titre, message, lien);
   const notif = await Notification.create({ user: userId, type: "logistique", titre, message, lien }).catch((err) => {
     logger.error("logistique notifier (non bloquant) :", err.message);
     return null;
@@ -401,6 +427,7 @@ export const creerDemande = async (req, res) => {
     }
 
     if (!brouillon) {
+      notifier(req.user._id, "Demande de transport reçue", `${demande.reference} — ${demande.depart.ville} → ${demande.arrivee.ville}. VIT AUTO l'examine et consultera des prestataires adaptés.`, `/logistique/demandes/${demande._id}`);
       notifyAdmins("logistique", "Nouvelle demande logistique",
         `${demande.reference} — ${demande.depart.ville} (${demande.depart.pays}) → ${demande.arrivee.ville} (${demande.arrivee.pays})`,
         "/admin?tab=logistique").catch(() => {});
@@ -1100,6 +1127,14 @@ export async function calculerIndicateurs({ depuis = null, jusqua = null } = {})
     if (copie && d.jalons?.clotureeLe) ajouterMontant(montants.conclues, copie.devise, copie.montant);
   }
 
+  // Configuration RÉELLEMENT en vigueur (PricingConfig.logistique, verrouillée
+  // sur FREE_REFERRAL) et revenu lu dans le registre des commissions — pas une
+  // constante : si une écriture logistique y apparaissait, elle se verrait.
+  const config = await getConfig();
+  const cfgLog = config.logistique || {};
+  const ecrituresLogistiques = await CommissionLedger.find({ transactionType: "logistique" }).select("commissionAmount").lean().catch(() => []);
+  const revenuEncaisse = Math.round(ecrituresLogistiques.reduce((t, e) => t + (e.commissionAmount || 0), 0) * 100) / 100;
+
   const avecDevis = soumises.filter((d) => d.jalons?.premierDevisLe).length;
   const acceptes = soumises.filter((d) => d.jalons?.devisAccepteLe).length;
   const commandes = soumises.filter((d) => d.jalons?.commandeConfirmeeLe).length;
@@ -1110,10 +1145,19 @@ export async function calculerIndicateurs({ depuis = null, jusqua = null } = {})
   return {
     periode: { depuis, jusqua },
     modeleEconomique: MODELE_ECONOMIQUE,
+    monetisation: {
+      active: false,
+      modeEconomique: cfgLog.modeEconomique || MODELE_ECONOMIQUE,
+      commissionActive: cfgLog.commissionActive === true,
+      taux: cfgLog.taux ?? null,
+      fraisMiseEnRelationUSD: cfgLog.fraisMiseEnRelationUSD ?? null,
+      source: "PricingConfig.logistique (verrouillée par validateurs)",
+    },
     demandes: {
       creees: demandes.length,
       soumises: soumises.length,
       valides,
+      qualifiees: valides,
       transmises,
       avecDevis,
       devisAcceptes: acceptes,
@@ -1141,7 +1185,17 @@ export async function calculerIndicateurs({ depuis = null, jusqua = null } = {})
     // Montants DÉCLARÉS entre les parties, par devise — jamais additionnés
     // entre devises, jamais un revenu de VIT AUTO.
     montantsDeclares: montants,
-    revenusVitAuto: { montantUSD: 0, note: "Mise en relation gratuite (FREE_REFERRAL) : aucune rémunération logistique." },
+    // Valeur des transactions (montantsDeclares) ≠ revenu de VIT AUTO.
+    revenusVitAuto: {
+      montantUSD: revenuEncaisse,
+      ecritures: ecrituresLogistiques.length,
+      source: "CommissionLedger (transactionType « logistique »)",
+      note: "Mise en relation gratuite (FREE_REFERRAL) : aucune rémunération logistique.",
+    },
+    // Mesurés pour une décision future ; aucun n'est actif.
+    evenementsDeclencheursPotentiels: EVENEMENTS_DECLENCHEURS_POTENTIELS.map((e) => ({
+      ...e, actif: false, nombre: soumises.filter((d) => d.jalons?.[e.jalon]).length,
+    })),
     zones: [...zones.entries()].map(([route, n]) => ({ route, demandes: n })).sort((a, b) => b.demandes - a.demandes).slice(0, 15),
     types,
     motifs: { annulation: motifsAnnulation.slice(0, 50), refusPrestataires: motifsRefusPrestataires.slice(0, 50) },
@@ -1173,7 +1227,10 @@ export const exporterIndicateurs = async (req, res) => {
       ["delais.demandeAuPremierDevisH", val(i.delais.demandeAuPremierDevisH)],
       ...Object.entries(i.conversions).map(([k, v]) => [`conversion.${k}.pourcent`, val(v)]),
       ...Object.entries(i.montantsDeclares).flatMap(([k, parDevise]) => Object.entries(parDevise).map(([dev, m]) => [`montantDeclare.${k}.${dev}`, String(m)])),
-      ["revenusVitAuto.USD", "0"],
+      ["revenusVitAuto.USD", String(i.revenusVitAuto.montantUSD)],
+      ["monetisation.active", "non"],
+      ["monetisation.modeEconomique", i.monetisation.modeEconomique],
+      ...i.evenementsDeclencheursPotentiels.map((e) => [`evenementPotentiel.${e.code}.nombre (inactif)`, String(e.nombre)]),
     ];
     // csvRow neutralise les injections de formule (=, +, -, @) et échappe.
     const csv = lignes.map(csvRow).join("\n");

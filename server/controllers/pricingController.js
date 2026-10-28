@@ -45,6 +45,9 @@ export const getPublicConfig = async (_req, res) => {
       services:        config.services,
       ads:             config.ads,
       rentalOptions:   config.rentalOptions,
+      // Lecture seule : la logistique est une mise en relation gratuite,
+      // verrouillée (models/PricingConfig.js).
+      logistique:      config.logistique || { modeEconomique: "FREE_REFERRAL", commissionActive: false, taux: null, fraisMiseEnRelationUSD: null },
       // Interrupteur unique des paiements (server/config/featureFlags.js) :
       // l'interface le lit ici plutôt que de le redéclarer, sinon les deux
       // finissent par diverger et un bouton payant redevient cliquable alors

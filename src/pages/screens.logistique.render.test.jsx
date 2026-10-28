@@ -96,7 +96,9 @@ describe("VIT-AUTO Logistique — écrans", () => {
         prestataires: { sollicites: 0, ayantRepondu: 0, devisRecus: 0, performance: [] },
         delais: { premiereReponseH: null, demandeAuPremierDevisH: null },
         conversions: { demandeVersDevis: null, devisVersCommande: null, commandeVersConclue: null },
-        montantsDeclares: { devis: {}, commandes: {}, conclues: {} }, revenusVitAuto: { montantUSD: 0 }, zones: [], types: {}, motifs: { annulation: [], refusPrestataires: [] },
+        montantsDeclares: { devis: {}, commandes: {}, conclues: {} }, revenusVitAuto: { montantUSD: 0, ecritures: 0 }, zones: [], types: {}, motifs: { annulation: [], refusPrestataires: [] },
+        monetisation: { active: false, modeEconomique: "FREE_REFERRAL", commissionActive: false, taux: null, fraisMiseEnRelationUSD: null },
+        evenementsDeclencheursPotentiels: [{ code: "operation_conclue", libelle: "Réception confirmée — opération conclue", usage: "commission sur l'opération conclue", nombre: 0, actif: false }],
       } },
       "/api/logistique/admin/demandes": { demandes: [] },
     } });
@@ -105,6 +107,8 @@ describe("VIT-AUTO Logistique — écrans", () => {
     expect(await screen.findByText(/Revenus encaissés par VIT AUTO/)).toBeTruthy();
     expect(container.textContent).toMatch(/indisponible/);
     expect(container.textContent).toMatch(/aucune rémunération logistique/);
+    expect(container.textContent).toMatch(/Monétisation : désactivée/);
+    expect(container.textContent).toMatch(/Inactif/);
     verifier("Logistique admin");
   });
 });

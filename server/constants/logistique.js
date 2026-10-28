@@ -124,3 +124,17 @@ export const DOCUMENTS_PAR_ROLE = {
   vendeur:     ["facture_commerciale", "liste_colisage", "justificatif_export", "autre"],
   prestataire: ["document_transport", "preuve_livraison", "assurance", "autre"],
 };
+
+// ── Événements qui POURRAIENT un jour déclencher une rémunération ──────────
+// (exploitant, 2026-10-28 : monétisation logistique NON décidée.) Documentés
+// et mesurés dans les indicateurs, AUCUN n'est actif : aucun code ne calcule,
+// ne facture ni n'encaisse quoi que ce soit à leur survenue. Une activation
+// exigera une décision commerciale, une validation juridique, des contrats et
+// une modification explicite du code (voir docs/logistique.md).
+export const EVENEMENTS_DECLENCHEURS_POTENTIELS = [
+  { code: "demande_qualifiee",   jalon: "valideeLe",           libelle: "Demande qualifiée par VIT AUTO",            usage: "forfait de qualification ou de mise en relation" },
+  { code: "devis_accepte",       jalon: "devisAccepteLe",      libelle: "Devis accepté par le demandeur",            usage: "commission sur le devis retenu ou forfait de mise en relation" },
+  { code: "commande_confirmee",  jalon: "commandeConfirmeeLe", libelle: "Commande confirmée par le prestataire",     usage: "commission contractuelle à la confirmation" },
+  { code: "transport_commence",  jalon: "transportDebuteLe",   libelle: "Transport commencé (déclaré)",              usage: "forfait de coordination" },
+  { code: "operation_conclue",   jalon: "clotureeLe",          libelle: "Réception confirmée — opération conclue",   usage: "commission sur l'opération réellement conclue (le plus protecteur pour le client)" },
+];
