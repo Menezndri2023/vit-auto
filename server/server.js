@@ -47,6 +47,7 @@ import dossiersImportRoutes from "./routes/dossiersImport.js";
 import transitRoutes from "./routes/transit.js";
 import logistiqueRoutes from "./routes/logistique.js";
 import incotermRoutes from "./routes/incoterms.js";
+import prospectsRoutes from "./routes/prospects.js";
 import importCostRoutes    from "./routes/importCost.js";
 import reportRoutes        from "./routes/reports.js";
 import invoiceRoutes       from "./routes/invoices.js";
@@ -480,6 +481,7 @@ app.use("/api/dossiers-import", apiLimiter,       dossiersImportRoutes);  // Sui
 app.use("/api/transit",         apiLimiter,       transitRoutes);         // Zone Transit : prestataires sur invitation
 app.use("/api/logistique",      apiLimiter,       logistiqueRoutes);      // VIT-AUTO Logistique : mise en relation gratuite
 app.use("/api/incoterms",       apiLimiter,       incotermRoutes);        // Incoterms® 2020 : référentiel, aide au choix, conditions de commande
+app.use("/api/prospects",       apiLimiter,       prospectsRoutes);       // Prospects : CRM partenaire + demandes d'essai VIT AUTO, vue unifiée
 app.use("/api/invoices",       apiLimiter,       invoiceRoutes);
 app.use("/api/ads",            catalogueLimiter, adsRoutes);
 app.use("/api/geo",            apiLimiter,       geoRoutes);

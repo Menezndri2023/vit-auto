@@ -1,3 +1,4 @@
+import { INCOTERM_CODES } from "../constants/incoterms.js";
 import mongoose from "mongoose";
 
 const leadSchema = new mongoose.Schema({
@@ -51,7 +52,8 @@ const leadSchema = new mongoose.Schema({
     min:      { type: Number, default: null },
     max:      { type: Number, default: null },
     currency: { type: String, default: "USD" },
-    incoterm: { type: String, enum: ["FOB", "CIF", "EXW", "DAP", "autre", null], default: null },
+    // Onze règles Incoterms® 2020 (2026-10-28) ; « autre » conservé pour l'existant.
+    incoterm: { type: String, enum: [...INCOTERM_CODES, "autre", null], default: null },
     financing: { type: String, enum: ["cash", "credit", "lc", "wire", "autre", null], default: null },
   },
 

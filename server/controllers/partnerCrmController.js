@@ -1,3 +1,4 @@
+import { evaluerActivations, CHAMPS_PARTENAIRE } from "../services/activationPartenaire.js";
 import mongoose from "mongoose";
 import PartnerCrm, { STATUT_PIPELINE, CONTACT_CHANNELS, PRIORITY_LEVELS } from "../models/PartnerCrm.js";
 import User from "../models/User.js";
@@ -107,6 +108,18 @@ export const adminList = async (req, res) => {
       PartnerCrm.countDocuments(filter),
     ]);
 
+    // Statut RÉEL des prospects devenus partenaires (inscrit / vérifié /
+    // activé, calculé — services/activationPartenaire.js), à côté du statut
+    // de pipeline saisi par l'équipe commerciale.
+    const lies = items.map((i) => i.linkedUserId?._id || i.linkedUserId).filter(Boolean);
+    if (lies.length) {
+      const users = await User.find({ _id: { $in: lies }, role: "partenaire" }).select(CHAMPS_PARTENAIRE).lean();
+      const act = await evaluerActivations(users);
+      for (const i of items) {
+        const a = act.get(String(i.linkedUserId?._id || i.linkedUserId));
+        if (a) i.activation = { statut: a.statut, manquants: a.manquants.map((m) => m.code), offres: a.offres.total, demandesRecues: a.premieresDemandes.recues };
+      }
+    }
     res.json({ items, total, page: pageNum, limit: limitNum });
   } catch (err) {
     logger.error("partnerCrm.adminList:", err);
@@ -144,7 +157,13 @@ export const adminGetOne = async (req, res) => {
     if (!doc) return res.status(404).json({ message: "Prospect introuvable." });
 
     const liveStats = await computeLinkedStats(doc.linkedUserId?._id || doc.linkedUserId);
-    res.json({ crm: doc, liveStats });
+    let activation = null;
+    const lie = doc.linkedUserId?._id || doc.linkedUserId;
+    if (lie) {
+      const u = await User.findOne({ _id: lie, role: "partenaire" }).select(CHAMPS_PARTENAIRE).lean();
+      if (u) activation = (await evaluerActivations([u])).get(String(u._id)) || null;
+    }
+    res.json({ crm: doc, liveStats, activation });
   } catch (err) {
     logger.error("partnerCrm.adminGetOne:", err);
     res.status(500).json({ message: "Erreur serveur." });
