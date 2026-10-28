@@ -1,6 +1,6 @@
 import { evaluerActivations, CHAMPS_PARTENAIRE } from "../services/activationPartenaire.js";
 import mongoose from "mongoose";
-import PartnerCrm, { STATUT_PIPELINE, CONTACT_CHANNELS, PRIORITY_LEVELS } from "../models/PartnerCrm.js";
+import PartnerCrm, { STATUT_PIPELINE, STATUTS_CRM, STATUT_ABANDON, CONTACT_CHANNELS, PRIORITY_LEVELS } from "../models/PartnerCrm.js";
 import User from "../models/User.js";
 import PartnerBusiness from "../models/PartnerBusiness.js";
 import PartnerOnboarding from "../models/PartnerOnboarding.js";
@@ -11,6 +11,37 @@ import logger from "../utils/logger.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const isValidId = (v) => typeof v === "string" && mongoose.Types.ObjectId.isValid(v);
+
+// ── Doublons (2026-10-28) ────────────────────────────────────────────────────
+// Correspondances POSSIBLES, jamais une fusion : même e-mail, même téléphone
+// (huit derniers chiffres, indicatif et séparateurs ignorés) ou même nom
+// d'entreprise à la casse près — dans le CRM, et parmi les comptes partenaires
+// déjà inscrits. L'équipe décide ; la création peut être confirmée.
+const huitChiffres = (tel) => String(tel || "").replace(/\D/g, "").slice(-8);
+const regexTel = (tel) => {
+  const d = huitChiffres(tel);
+  return d.length === 8 ? new RegExp(`${d.split("").join("\\D*")}\\D*$`) : null;
+};
+
+export async function correspondancesPossibles({ entreprise, contactEmail, contactTel }, exclureId = null) {
+  const email = contactEmail ? String(contactEmail).trim().toLowerCase() : null;
+  const tel = regexTel(contactTel);
+  const nom = entreprise?.trim() ? new RegExp(`^\\s*${escapeRegex(entreprise.trim())}\\s*$`, "i") : null;
+  const ouCrm = [email && { contactEmail: email }, tel && { contactTel: tel }, nom && { entreprise: nom }].filter(Boolean);
+  const ouUser = [email && { email }, tel && { phone: tel }].filter(Boolean);
+  const [crm, comptes] = await Promise.all([
+    ouCrm.length ? PartnerCrm.find({ $or: ouCrm, ...(exclureId ? { _id: { $ne: exclureId } } : {}) })
+      .select("referenceNumber entreprise contactEmail contactTel statut").limit(10).lean() : [],
+    ouUser.length ? User.find({ role: "partenaire", $or: ouUser }).select("firstName lastName email phone").limit(10).lean() : [],
+  ]);
+  const raisons = (x, champs) => champs.filter(([cle, test]) => test && test(x[cle])).map(([cle]) => cle);
+  return [
+    ...crm.map((c) => ({ type: "prospect", _id: c._id, libelle: `${c.entreprise} (${c.referenceNumber || "—"})`, statut: c.statut,
+      motifs: raisons(c, [["contactEmail", email && ((v) => v === email)], ["contactTel", tel && ((v) => tel.test(v || ""))], ["entreprise", nom && ((v) => nom.test(v || ""))]]) })),
+    ...comptes.map((u) => ({ type: "compte", _id: u._id, libelle: `${u.firstName || ""} ${u.lastName || ""} — ${u.email}`.trim(),
+      motifs: raisons(u, [["email", email && ((v) => v === email)], ["phone", tel && ((v) => tel.test(v || ""))]]) })),
+  ];
+}
 
 const pushStatusHistory = (doc, statut, changedBy) => {
   doc.statusHistory.push({ statut, changedAt: new Date(), changedBy: changedBy || null });
@@ -79,9 +110,16 @@ async function computeLinkedStats(linkedUserId) {
 // ── GET /api/partner-crm/admin/list ──────────────────────────────────────────
 export const adminList = async (req, res) => {
   try {
-    const { statut, pays, secteur, assignedTo, search, page = 1, limit = 50 } = req.query;
+    const { statut, pays, secteur, assignedTo, search, source, aRelancer, page = 1, limit = 50 } = req.query;
     const filter = {};
-    if (statut && STATUT_PIPELINE.includes(statut)) filter.statut = statut;
+    if (statut && STATUTS_CRM.includes(statut)) filter.statut = statut;
+    if (source) filter.source = { $regex: escapeRegex(String(source).slice(0, 100)), $options: "i" };
+    // Échéance dépassée ou du jour, hors prospects abandonnés.
+    if (aRelancer === "1" || aRelancer === "true") {
+      const finJour = new Date(); finJour.setHours(23, 59, 59, 999);
+      filter.nextFollowUpDate = { $ne: null, $lte: finJour };
+      if (!filter.statut) filter.statut = { $ne: STATUT_ABANDON };
+    }
     if (pays) filter.pays = String(pays).toUpperCase();
     if (secteur) filter.secteur = { $regex: escapeRegex(String(secteur).slice(0, 100)), $options: "i" };
     if (assignedTo && isValidId(assignedTo)) filter.assignedTo = assignedTo;
@@ -91,6 +129,8 @@ export const adminList = async (req, res) => {
         { entreprise: { $regex: safe, $options: "i" } },
         { contactNom: { $regex: safe, $options: "i" } },
         { contactEmail: { $regex: safe, $options: "i" } },
+        { contactTel: { $regex: safe, $options: "i" } },
+        { referenceNumber: { $regex: safe, $options: "i" } },
       ];
     }
 
@@ -130,14 +170,27 @@ export const adminList = async (req, res) => {
 // ── GET /api/partner-crm/admin/stats ─────────────────────────────────────────
 export const adminStats = async (req, res) => {
   try {
-    const [total, byStatut] = await Promise.all([
+    const finJour = new Date(); finJour.setHours(23, 59, 59, 999);
+    const [total, byStatut, aRelancer, lies] = await Promise.all([
       PartnerCrm.countDocuments(),
       PartnerCrm.aggregate([{ $group: { _id: "$statut", count: { $sum: 1 } } }]),
+      PartnerCrm.countDocuments({ nextFollowUpDate: { $ne: null, $lte: finJour }, statut: { $ne: STATUT_ABANDON } }),
+      PartnerCrm.distinct("linkedUserId", { linkedUserId: { $ne: null } }),
     ]);
-    const counts = Object.fromEntries(STATUT_PIPELINE.map((s) => [s, 0]));
+    const counts = Object.fromEntries(STATUTS_CRM.map((s) => [s, 0]));
     for (const g of byStatut) if (g._id in counts) counts[g._id] = g.count;
 
-    res.json({ total, byStatut: counts });
+    // Activation RÉELLE des comptes liés (calculée), à côté des étapes saisies
+    // à la main : « Actif » dans le pipeline n'est qu'une déclaration.
+    const activationReelle = { comptesLies: 0, inscrit: 0, verifie: 0, active: 0, suspendu: 0 };
+    if (lies.length) {
+      const users = await User.find({ _id: { $in: lies }, role: "partenaire" }).select(CHAMPS_PARTENAIRE).lean();
+      for (const a of (await evaluerActivations(users)).values()) {
+        activationReelle.comptesLies += 1;
+        activationReelle[a.statut] += 1;
+      }
+    }
+    res.json({ total, byStatut: counts, aRelancer, activationReelle });
   } catch (err) {
     logger.error("partnerCrm.adminStats:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -153,6 +206,7 @@ export const adminGetOne = async (req, res) => {
       .populate("linkedBusinessId", "companyName country ville")
       .populate("linkedOnboardingId", "referenceNumber status")
       .populate("statusHistory.changedBy", "firstName lastName")
+      .populate("echanges.par", "firstName lastName")
       .lean();
     if (!doc) return res.status(404).json({ message: "Prospect introuvable." });
 
@@ -163,7 +217,8 @@ export const adminGetOne = async (req, res) => {
       const u = await User.findOne({ _id: lie, role: "partenaire" }).select(CHAMPS_PARTENAIRE).lean();
       if (u) activation = (await evaluerActivations([u])).get(String(u._id)) || null;
     }
-    res.json({ crm: doc, liveStats, activation });
+    const doublons = await correspondancesPossibles(doc, doc._id);
+    res.json({ crm: doc, liveStats, activation, doublons });
   } catch (err) {
     logger.error("partnerCrm.adminGetOne:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -176,7 +231,7 @@ export const adminCreate = async (req, res) => {
     const {
       entreprise, pays, ville, secteur,
       contactNom, contactTel, contactEmail, website,
-      source, assignedTo, priority,
+      source, assignedTo, priority, confirmerDoublon,
     } = req.body;
 
     if (!entreprise?.trim()) {
@@ -187,6 +242,15 @@ export const adminCreate = async (req, res) => {
     }
     if (priority && !PRIORITY_LEVELS.includes(priority)) {
       return res.status(400).json({ message: "Priorité invalide." });
+    }
+
+    // Doublon possible : on le montre, on ne bloque pas définitivement —
+    // deux filiales peuvent partager un standard téléphonique.
+    if (confirmerDoublon !== true) {
+      const doublons = await correspondancesPossibles({ entreprise, contactEmail, contactTel });
+      if (doublons.length) {
+        return res.status(409).json({ code: "DOUBLON_POSSIBLE", message: "Ce prospect ressemble à une fiche ou à un compte existant.", doublons });
+      }
     }
 
     const doc = new PartnerCrm({
@@ -258,6 +322,7 @@ export const adminUpdate = async (req, res) => {
     if (b.lastContactChannel !== undefined && CONTACT_CHANNELS.includes(b.lastContactChannel)) update.lastContactChannel = b.lastContactChannel;
     if (b.lastContactDate !== undefined) update.lastContactDate = b.lastContactDate ? new Date(b.lastContactDate) : null;
     if (b.nextFollowUpDate !== undefined) update.nextFollowUpDate = b.nextFollowUpDate ? new Date(b.nextFollowUpDate) : null;
+    if (b.prochaineAction !== undefined) update.prochaineAction = String(b.prochaineAction || "").trim().slice(0, 300);
     if (b.assignedTo !== undefined) {
       if (b.assignedTo && !isValidId(b.assignedTo)) return res.status(400).json({ message: "Responsable commercial invalide." });
       update.assignedTo = b.assignedTo || null;
@@ -281,20 +346,25 @@ export const adminUpdate = async (req, res) => {
 // ── PATCH /api/partner-crm/admin/:id/statut ──────────────────────────────────
 export const adminUpdateStatut = async (req, res) => {
   try {
-    const { statut } = req.body;
-    if (!statut || !STATUT_PIPELINE.includes(statut)) {
+    const { statut, motif } = req.body;
+    if (!statut || !STATUTS_CRM.includes(statut)) {
       return res.status(400).json({ message: "Statut invalide." });
+    }
+    const motifPropre = String(motif || "").trim().slice(0, 500);
+    if (statut === STATUT_ABANDON && !motifPropre) {
+      return res.status(400).json({ message: "Indiquez le motif de l'abandon." });
     }
 
     const doc = await PartnerCrm.findById(req.params.id);
     if (!doc) return res.status(404).json({ message: "Prospect introuvable." });
 
     doc.statut = statut;
+    doc.motifAbandon = statut === STATUT_ABANDON ? motifPropre : null;
     if (statut === "INSCRIT" && !doc.dateInscription) doc.dateInscription = new Date();
     pushStatusHistory(doc, statut, req.user.id);
     await doc.save();
 
-    res.json({ success: true, statut: doc.statut, dateInscription: doc.dateInscription });
+    res.json({ success: true, statut: doc.statut, dateInscription: doc.dateInscription, motifAbandon: doc.motifAbandon });
   } catch (err) {
     logger.error("partnerCrm.adminUpdateStatut:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -325,8 +395,10 @@ export const adminLink = async (req, res) => {
     }
 
     const inscritIdx = STATUT_PIPELINE.indexOf("INSCRIT");
-    if (STATUT_PIPELINE.indexOf(doc.statut) < inscritIdx) {
+    // Un prospect abandonné qui s'inscrit quand même revient dans le pipeline.
+    if (doc.statut === STATUT_ABANDON || STATUT_PIPELINE.indexOf(doc.statut) < inscritIdx) {
       doc.statut = "INSCRIT";
+      doc.motifAbandon = null;
       pushStatusHistory(doc, "INSCRIT", req.user.id);
     }
     if (!doc.dateInscription) doc.dateInscription = new Date();
@@ -335,6 +407,37 @@ export const adminLink = async (req, res) => {
     res.json({ success: true, crm: doc });
   } catch (err) {
     logger.error("partnerCrm.adminLink:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── POST /api/partner-crm/admin/:id/echanges ─────────────────────────────────
+// Ajoute un échange réellement eu lieu ; met à jour « dernier contact », et en
+// option la prochaine action et son échéance.
+export const adminAddEchange = async (req, res) => {
+  try {
+    const { canal = "other", resume, date, prochaineAction, nextFollowUpDate } = req.body || {};
+    const texte = String(resume || "").trim().slice(0, 2000);
+    if (!texte) return res.status(400).json({ message: "Résumez l'échange." });
+    if (!CONTACT_CHANNELS.includes(canal) || canal === "") return res.status(400).json({ message: "Canal invalide." });
+    const quand = date ? new Date(date) : new Date();
+    if (Number.isNaN(quand.getTime()) || quand > new Date(Date.now() + 86400000)) {
+      return res.status(400).json({ message: "Date invalide : un échange enregistré a déjà eu lieu." });
+    }
+
+    const doc = await PartnerCrm.findById(req.params.id);
+    if (!doc) return res.status(404).json({ message: "Prospect introuvable." });
+    doc.echanges.push({ date: quand, canal, resume: texte, par: req.user._id || req.user.id });
+    if (!doc.lastContactDate || quand >= doc.lastContactDate) {
+      doc.lastContactDate = quand;
+      doc.lastContactChannel = canal;
+    }
+    if (prochaineAction !== undefined) doc.prochaineAction = String(prochaineAction || "").trim().slice(0, 300);
+    if (nextFollowUpDate !== undefined) doc.nextFollowUpDate = nextFollowUpDate ? new Date(nextFollowUpDate) : null;
+    await doc.save();
+    res.status(201).json({ success: true, echanges: doc.echanges, lastContactDate: doc.lastContactDate });
+  } catch (err) {
+    logger.error("partnerCrm.adminAddEchange:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

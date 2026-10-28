@@ -33,7 +33,29 @@ Le statut de pipeline saisi à la main reste distinct.
 
 `Lead.budget.incoterm` accepte les onze règles Incoterms® 2020 (+ « autre »).
 
+## Écran « CRM Partenaires » (admin, 2026-10-28)
+
+Onglet existant d'AdminPanel, enrichi sur les mêmes routes `/api/partner-crm/admin/*`
+(aucun second backend) :
+
+- recherche (entreprise, contact, e-mail, téléphone, référence) ; filtres statut, pays,
+  secteur (métier), origine, responsable, « à relancer » ; pagination serveur (50/page) ;
+- colonne **Activation** (calculée) et **Prochaine action** (rouge si l'échéance est
+  dépassée ou du jour) ;
+- fiche : activation réelle, correspondances possibles, journal des échanges en ajout
+  seul (`echanges[]`, `POST /admin/:id/echanges`), prochaine action + échéance,
+  abandon avec motif obligatoire (`ABANDONNE`, hors progression ; un compte lié remet
+  le prospect à `INSCRIT`) ;
+- **doublons** : à la création, même e-mail, même téléphone (8 derniers chiffres) ou
+  même nom → 409 `DOUBLON_POSSIBLE` avec les correspondances (fiches CRM et comptes
+  partenaires) ; « Créer quand même » envoie `confirmerDoublon: true`. Jamais de fusion ;
+- indicateurs : comptes par étape, à relancer, abandonnés, et **activés (réel)**
+  distinct de « convertis (déclarés) » ;
+- permissions : toutes les routes exigent la portée `partners` (l'admin général passe) ;
+  suppression réservée à l'admin général ;
+- une erreur de chargement s'affiche comme une erreur, jamais comme « aucun prospect ».
+
 ## Limite
 
-Pas encore d'écran dédié : la vue est disponible par l'API ; l'espace partenaire
-garde ses deux écrans (CRM du PMS, demandes d'essai).
+La vue unifiée `/api/prospects` (clients des partenaires) n'a pas encore d'écran ;
+l'espace partenaire garde ses deux écrans (CRM du PMS, demandes d'essai).

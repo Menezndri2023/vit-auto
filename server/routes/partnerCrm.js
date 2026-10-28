@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticate as protect, authorizeAdmin, requireGeneralAdmin } from "../middleware/auth.js";
+import { authenticate as protect, authorizeAdmin, requireGeneralAdmin, requireAnyAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 import {
   adminList,
@@ -10,11 +10,15 @@ import {
   adminUpdateStatut,
   adminLink,
   adminDelete,
+  adminAddEchange,
 } from "../controllers/partnerCrmController.js";
 
 const router = Router();
 
-const isAdmin = [protect, authorizeAdmin];
+// Portée « partners » (Onboarding, certification, vérification, CRM — voir
+// constants/adminScopes.js) : un admin KYC ou support n'a pas à lire le
+// pipeline commercial. L'admin général passe toujours.
+const isAdmin = [protect, authorizeAdmin, requireAnyAdminScope("partners")];
 
 router.get   ("/admin/list",          isAdmin, adminList);
 router.get   ("/admin/stats",         isAdmin, adminStats);
@@ -23,6 +27,7 @@ router.post  ("/admin",               isAdmin, adminCreate);
 router.patch ("/admin/:id",           isAdmin, validateObjectId(), adminUpdate);
 router.patch ("/admin/:id/statut",    isAdmin, validateObjectId(), adminUpdateStatut);
 router.patch ("/admin/:id/link",      isAdmin, validateObjectId(), adminLink);
+router.post  ("/admin/:id/echanges",  isAdmin, validateObjectId(), adminAddEchange);
 // Suppression réservée au super admin — nettoyage de doublons, pas un usage courant.
 // Suppression d'un prospect : action irréversible réservée à
 // l'administrateur général (requireGeneralAdmin exprime cette intention

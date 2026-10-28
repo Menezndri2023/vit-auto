@@ -35,6 +35,10 @@ import { LogistiqueSection } from "./admin/sections/LogistiqueSection.jsx";
 import { DirectionSection } from "./admin/sections/DirectionSection.jsx";
 import { CatalogueSection } from "./admin/sections/CatalogueSection.jsx";
 import { MarketingSection } from "./admin/sections/MarketingSection.jsx";
+import { BadgeActivation, ProchaineAction, BlocActivation, BlocDoublons, JournalEchanges, Abandon } from "./admin/sections/CrmSuivi.jsx";
+
+// CRM partenaires : taille de page côté serveur (adminList plafonne à 200).
+const CRM_PAR_PAGE = 50;
 import { lienPublic } from "../utils/origineApi.js";
 import VitrinePartage from "../components/VitrinePartage/VitrinePartage.jsx";
 
@@ -477,7 +481,11 @@ export default function AdminPanel() {
   const [crmStats,     setCrmStats]     = useState(null);
   const [crmLoading,   setCrmLoading]   = useState(false);
   const [crmView,      setCrmView]      = useState("liste"); // "liste" | "pipeline"
-  const [crmFilter,    setCrmFilter]    = useState({ statut: "", pays: "", secteur: "", assignedTo: "" });
+  const [crmFilter,    setCrmFilter]    = useState({ statut: "", pays: "", secteur: "", assignedTo: "", source: "", aRelancer: false });
+  const [crmPage,      setCrmPage]      = useState(1);
+  const [crmTotal,     setCrmTotal]     = useState(0);
+  const [crmErreur,    setCrmErreur]    = useState("");
+  const [crmDoublons,  setCrmDoublons]  = useState(null); // correspondances signalées à la création
   const [crmSearch,    setCrmSearch]    = useState("");
   const [crmDetail,    setCrmDetail]    = useState(null); // dossier ouvert (modal détail)
   const [crmDetailData, setCrmDetailData] = useState(null); // { crm, liveStats }
@@ -2223,35 +2231,49 @@ export default function AdminPanel() {
   const loadPartnerCrm = useCallback(async () => {
     if (!token) return;
     setCrmLoading(true);
+    setCrmErreur("");
     try {
-      const params = new URLSearchParams({ limit: "200" });
+      const params = new URLSearchParams({ limit: String(CRM_PAR_PAGE), page: String(crmPage) });
       if (crmFilter.statut)     params.set("statut", crmFilter.statut);
       if (crmFilter.pays)       params.set("pays", crmFilter.pays);
       if (crmFilter.secteur)    params.set("secteur", crmFilter.secteur);
       if (crmFilter.assignedTo) params.set("assignedTo", crmFilter.assignedTo);
+      if (crmFilter.source)     params.set("source", crmFilter.source);
+      if (crmFilter.aRelancer)  params.set("aRelancer", "1");
       if (crmSearch)            params.set("search", crmSearch);
       const [listRes, statsRes] = await Promise.all([
         fetch(`/api/partner-crm/admin/list?${params}`, { headers }),
         fetch("/api/partner-crm/admin/stats",           { headers }),
       ]);
-      if (listRes.ok)  setCrmList((await listRes.json()).items || []);
+      // Une erreur s'affiche comme une erreur — jamais comme « aucun prospect ».
+      if (listRes.ok) {
+        const l = await listRes.json();
+        setCrmList(l.items || []);
+        setCrmTotal(l.total || 0);
+      } else {
+        setCrmErreur((await listRes.json().catch(() => ({}))).message || `Chargement impossible (${listRes.status}).`);
+      }
       if (statsRes.ok) setCrmStats(await statsRes.json());
-    } catch { /* ignore */ }
+    } catch { setCrmErreur("Erreur réseau : la liste n'a pas pu être chargée."); }
     setCrmLoading(false);
-  }, [token, headers, crmFilter, crmSearch]);
+  }, [token, headers, crmFilter, crmSearch, crmPage]);
+  // Nouveau filtre ou nouvelle recherche : retour à la première page.
+  useEffect(() => { setCrmPage(1); }, [crmFilter, crmSearch]);
 
-  const crmCreateProspect = async () => {
+  const crmCreateProspect = async (confirmerDoublon = false) => {
     if (crmSubmitting) return;
     if (!crmNewForm.entreprise.trim()) { showToast("Le nom de l'entreprise est requis", "error"); return; }
     setCrmSubmitting(true);
     try {
       const r = await fetch("/api/partner-crm/admin", {
         method: "POST", headers,
-        body: JSON.stringify(crmNewForm),
+        body: JSON.stringify({ ...crmNewForm, confirmerDoublon }),
       });
       const data = await r.json();
+      if (r.status === 409 && data.code === "DOUBLON_POSSIBLE") { setCrmDoublons(data.doublons || []); return; }
       if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
       showToast("Prospect créé", "success");
+      setCrmDoublons(null);
       setCrmCreating(false);
       setCrmNewForm({ entreprise: "", pays: "", ville: "", secteur: "", contactNom: "", contactTel: "", contactEmail: "", website: "", source: "", assignedTo: "", priority: "medium" });
       loadPartnerCrm();
@@ -2287,6 +2309,7 @@ export default function AdminPanel() {
           secteur: data.crm.secteur || "", contactNom: data.crm.contactNom || "", contactTel: data.crm.contactTel || "",
           contactEmail: data.crm.contactEmail || "", website: data.crm.website || "",
           internalNotes: data.crm.internalNotes || "", source: data.crm.source || "",
+          prochaineAction: data.crm.prochaineAction || "",
           priority: data.crm.priority || "medium", assignedTo: data.crm.assignedTo?._id || "",
           lastContactDate: data.crm.lastContactDate ? new Date(data.crm.lastContactDate).toISOString().slice(0, 10) : "",
           lastContactChannel: data.crm.lastContactChannel || "",
@@ -8766,7 +8789,9 @@ export default function AdminPanel() {
           ACTIF:                { l: "Actif",                   c: "#16a34a", bg: "#dcfce7" },
           PREMIERE_TRANSACTION: { l: "1ère transaction 🎉",     c: "#059669", bg: "#d1fae5" },
           PARTENAIRE_FIDELE:    { l: "Partenaire fidèle 🌟",    c: "#b45309", bg: "#fef3c7" },
+          ABANDONNE:            { l: "Abandonné",               c: "#b91c1c", bg: "#fee2e2" },
         };
+        const pages = Math.max(1, Math.ceil(crmTotal / CRM_PAR_PAGE));
         const CRM_ORDER = ["LEAD","CONTACTE","INTERESSE","QUALIFIE","NEGOCIATION","INSCRIT","ACTIF","PREMIERE_TRANSACTION","PARTENAIRE_FIDELE"];
         const totalConverti = (crmStats?.byStatut?.ACTIF || 0) + (crmStats?.byStatut?.PREMIERE_TRANSACTION || 0) + (crmStats?.byStatut?.PARTENAIRE_FIDELE || 0);
         const totalEnCours = (crmStats?.byStatut?.CONTACTE || 0) + (crmStats?.byStatut?.INTERESSE || 0) + (crmStats?.byStatut?.QUALIFIE || 0) + (crmStats?.byStatut?.NEGOCIATION || 0);
@@ -8830,11 +8855,20 @@ export default function AdminPanel() {
                   </select>
                 </div>
                 <div style={{ display:"flex", justifyContent:"flex-end" }}>
-                  <button disabled={crmSubmitting} onClick={crmCreateProspect}
+                  <button disabled={crmSubmitting} onClick={() => crmCreateProspect(false)}
                     style={{ padding:"8px 20px", border:"none", borderRadius:8, background:"#16a34a", color:"#fff", fontWeight:800, fontSize:".82rem", cursor: crmSubmitting ? "not-allowed" : "pointer", opacity: crmSubmitting ? .6 : 1 }}>
                     💾 Créer le prospect
                   </button>
                 </div>
+                {crmDoublons && (
+                  <div style={{ marginTop:10 }}>
+                    <BlocDoublons doublons={crmDoublons} titre="Ce prospect ressemble à une fiche ou à un compte existant" />
+                    <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
+                      <button onClick={() => setCrmDoublons(null)} className={styles.btnGhost}>Corriger la saisie</button>
+                      <button disabled={crmSubmitting} onClick={() => crmCreateProspect(true)} className={styles.btnPrimary}>Créer quand même</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -8845,7 +8879,10 @@ export default function AdminPanel() {
                 { icon:"🎯", label:"Leads",             value: crmStats?.byStatut?.LEAD || 0, color:"#64748b" },
                 { icon:"💬", label:"En cours",          value: totalEnCours, color:"#d97706" },
                 { icon:"📝", label:"Inscrits",          value: crmStats?.byStatut?.INSCRIT || 0, color:"#0284c7" },
-                { icon:"🌟", label:"Convertis",         value: totalConverti, color:"#16a34a" },
+                { icon:"🌟", label:"Convertis (déclarés)", value: totalConverti, color:"#16a34a" },
+                { icon:"✅", label:"Activés (réel)",    value: crmStats?.activationReelle?.active ?? 0, color:"#15803d" },
+                { icon:"⏰", label:"À relancer",        value: crmStats?.aRelancer ?? 0, color:"#b91c1c" },
+                { icon:"🚫", label:"Abandonnés",        value: crmStats?.byStatut?.ABANDONNE || 0, color:"#94a3b8" },
               ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
             </div>
 
@@ -8856,7 +8893,7 @@ export default function AdminPanel() {
               <select value={crmFilter.statut} onChange={e=>setCrmFilter(f=>({...f,statut:e.target.value}))}
                 style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }}>
                 <option value="">Tous les statuts</option>
-                {CRM_ORDER.map(s => <option key={s} value={s}>{CRM_ST[s].l}</option>)}
+                {[...CRM_ORDER, "ABANDONNE"].map(s => <option key={s} value={s}>{CRM_ST[s].l}</option>)}
               </select>
               <select value={crmFilter.pays} onChange={e=>setCrmFilter(f=>({...f,pays:e.target.value}))}
                 style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }}>
@@ -8870,11 +8907,20 @@ export default function AdminPanel() {
                 <option value="">Tous les responsables</option>
                 {adminAccounts.map(a => <option key={a._id} value={a._id}>{a.firstName} {a.lastName}</option>)}
               </select>
-              <span style={{ marginLeft:"auto", fontSize:".76rem", color:"#94a3b8" }}>{crmList.length} entrée(s)</span>
+              <input placeholder="Origine" value={crmFilter.source} onChange={e=>setCrmFilter(f=>({...f,source:e.target.value}))}
+                style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem", width:120 }} />
+              <label style={{ fontSize:".8rem", color:"#334155", display:"flex", gap:4, alignItems:"center" }}>
+                <input type="checkbox" checked={crmFilter.aRelancer} onChange={e=>setCrmFilter(f=>({...f,aRelancer:e.target.checked}))} /> À relancer
+              </label>
+              <span style={{ marginLeft:"auto", fontSize:".76rem", color:"#94a3b8" }}>{crmTotal} prospect(s){pages > 1 ? ` · page ${crmPage}/${pages}` : ""}</span>
             </div>
 
             {crmLoading ? (
               <div style={{ textAlign:"center", padding:"2rem", color:"#94a3b8" }}>Chargement…</div>
+            ) : crmErreur ? (
+              <div role="alert" style={{ textAlign:"center", padding:"1.5rem", color:"#b91c1c", background:"#fef2f2", borderRadius:10 }}>
+                {crmErreur} <button onClick={loadPartnerCrm} style={{ marginLeft:8, border:"1px solid #fecaca", background:"#fff", borderRadius:6, padding:"3px 10px", cursor:"pointer" }}>Réessayer</button>
+              </div>
             ) : crmList.length === 0 ? (
               <div style={{ textAlign:"center", padding:"2rem", color:"#94a3b8" }}>
                 <div style={{ fontSize:"2rem", marginBottom:8 }}>🎯</div>
@@ -8886,7 +8932,7 @@ export default function AdminPanel() {
                   <thead>
                     <tr>
                       <th>Entreprise</th><th>Pays / Ville</th><th>Secteur</th><th>Contact</th>
-                      <th>Statut</th><th>Responsable</th><th>Dernier contact</th><th></th>
+                      <th>Statut</th><th>Activation</th><th>Responsable</th><th>Dernier contact</th><th>Prochaine action</th><th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -8903,8 +8949,10 @@ export default function AdminPanel() {
                               {st.l}
                             </span>
                           </td>
+                          <td><BadgeActivation activation={c.activation} /></td>
                           <td>{c.assignedTo ? `${c.assignedTo.firstName} ${c.assignedTo.lastName}` : "—"}</td>
                           <td>{c.lastContactDate ? new Date(c.lastContactDate).toLocaleDateString("fr-FR") : "—"}</td>
+                          <td>{c.statut === "ABANDONNE" ? "—" : <ProchaineAction libelle={c.prochaineAction} echeance={c.nextFollowUpDate} />}</td>
                           <td><button onClick={(e)=>{e.stopPropagation();crmOpenDetail(c._id);}} style={{ border:"none", background:"transparent", cursor:"pointer" }}>👁️</button></td>
                         </tr>
                       );
@@ -8945,6 +8993,14 @@ export default function AdminPanel() {
               </div>
             )}
 
+            {!crmLoading && !crmErreur && pages > 1 && (
+              <div style={{ display:"flex", justifyContent:"center", gap:8, marginTop:12 }}>
+                <button disabled={crmPage <= 1} onClick={() => setCrmPage((n) => n - 1)} className={styles.btnGhost}>← Précédente</button>
+                <span style={{ fontSize:".8rem", color:"#64748b", alignSelf:"center" }}>Page {crmPage} / {pages}</span>
+                <button disabled={crmPage >= pages} onClick={() => setCrmPage((n) => n + 1)} className={styles.btnGhost}>Suivante →</button>
+              </div>
+            )}
+
             {/* Modal détail / édition */}
             {crmDetail && (
               <div className={styles.overlay} onClick={() => setCrmDetail(null)}>
@@ -8952,7 +9008,7 @@ export default function AdminPanel() {
                   {!crmDetailData || !crmEditData ? (
                     <div style={{ textAlign:"center", padding:"2rem", color:"#94a3b8" }}>Chargement…</div>
                   ) : (() => {
-                    const { crm, liveStats } = crmDetailData;
+                    const { crm, liveStats, activation, doublons } = crmDetailData;
                     const st = CRM_ST[crm.statut] || CRM_ST.LEAD;
                     return (
                       <>
@@ -8965,6 +9021,9 @@ export default function AdminPanel() {
                           <button onClick={()=>setCrmDetail(null)} style={{ border:"none", background:"transparent", fontSize:"1.1rem", cursor:"pointer", color:"#94a3b8" }}>✕</button>
                         </div>
 
+                        <Abandon crm={crm} headers={headers} notifier={showToast} onFait={() => { loadPartnerCrm(); crmOpenDetail(crm._id); }} />
+                        <BlocActivation activation={activation} />
+                        <BlocDoublons doublons={doublons} />
                         {crm.linkedUserId ? (
                           <div style={{ background:"#f0fdf4", border:"1px solid #dcfce7", borderRadius:8, padding:10, marginBottom:12, fontSize:".8rem" }}>
                             🔗 Lié au compte <strong>{crm.linkedUserId.firstName} {crm.linkedUserId.lastName}</strong> ({crm.linkedUserId.email})
@@ -9026,8 +9085,13 @@ export default function AdminPanel() {
                             </select>
                           </div>
                           <div>
-                            <label style={{ fontSize:".72rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:3 }}>Prochain suivi</label>
+                            <label style={{ fontSize:".72rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:3 }}>Échéance prochaine action</label>
                             <input type="date" value={crmEditData.nextFollowUpDate} onChange={e=>setCrmEditData(d=>({...d,nextFollowUpDate:e.target.value}))}
+                              style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".8rem", boxSizing:"border-box" }} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize:".72rem", fontWeight:700, color:"#64748b", display:"block", marginBottom:3 }}>Prochaine action</label>
+                            <input value={crmEditData.prochaineAction} onChange={e=>setCrmEditData(d=>({...d,prochaineAction:e.target.value}))}
                               style={{ width:"100%", padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".8rem", boxSizing:"border-box" }} />
                           </div>
                           <div>
@@ -9053,10 +9117,12 @@ export default function AdminPanel() {
                             style={{ width:"100%", padding:"8px 10px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".8rem", resize:"vertical", fontFamily:"inherit", boxSizing:"border-box" }} />
                         </div>
 
+                        <JournalEchanges key={`${crm._id}-${crm.echanges?.length || 0}`} crm={crm} headers={headers} notifier={showToast} onEnregistre={() => { loadPartnerCrm(); crmOpenDetail(crm._id); }} />
+
                         {crm.statusHistory?.length > 0 && (
                           <div style={{ marginBottom:12, fontSize:".74rem", color:"#94a3b8" }}>
-                            <strong style={{ color:"#64748b" }}>Historique : </strong>
-                            {crm.statusHistory.slice(-5).map((h) => `${CRM_ST[h.statut]?.l || h.statut} (${new Date(h.changedAt).toLocaleDateString("fr-FR")})`).join(" → ")}
+                            <strong style={{ color:"#64748b" }}>Étapes : </strong>
+                            {crm.statusHistory.map((h) => `${CRM_ST[h.statut]?.l || h.statut} (${new Date(h.changedAt).toLocaleDateString("fr-FR")})`).join(" → ")}
                           </div>
                         )}
 

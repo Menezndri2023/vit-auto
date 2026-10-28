@@ -18,11 +18,17 @@ export const STATUT_PIPELINE = [
   "PARTENAIRE_FIDELE",
 ];
 
+// Abandon (2026-10-28) : hors de la progression, atteignable depuis n'importe
+// quelle étape, toujours avec un motif. Gardé à part pour que les comparaisons
+// d'ordre du pipeline (adminLink) ne le prennent pas pour une étape « après ».
+export const STATUT_ABANDON = "ABANDONNE";
+export const STATUTS_CRM = [...STATUT_PIPELINE, STATUT_ABANDON];
+
 export const CONTACT_CHANNELS = ["whatsapp", "wechat", "email", "phone", "meeting", "other", ""];
 export const PRIORITY_LEVELS = ["high", "medium", "low"];
 
 const statusHistoryEntrySchema = new mongoose.Schema({
-  statut:    { type: String, enum: STATUT_PIPELINE, required: true },
+  statut:    { type: String, enum: STATUTS_CRM, required: true },
   changedAt: { type: Date, default: Date.now },
   changedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
 }, { _id: false });
@@ -42,7 +48,8 @@ const partnerCrmSchema = new mongoose.Schema({
   website:      { type: String, trim: true, default: null },
 
   // ── Pipeline ───────────────────────────────────────────────────────────────
-  statut:        { type: String, enum: STATUT_PIPELINE, default: "LEAD", index: true },
+  statut:        { type: String, enum: STATUTS_CRM, default: "LEAD", index: true },
+  motifAbandon:  { type: String, trim: true, default: null },
   statusHistory: [statusHistoryEntrySchema],
 
   // ── Documents & contrat ────────────────────────────────────────────────────
@@ -72,12 +79,22 @@ const partnerCrmSchema = new mongoose.Schema({
   // rester cohérent avec la vue Founding Partners existante ──────────────────
   lastContactDate:    { type: Date, default: null },
   lastContactChannel: { type: String, enum: CONTACT_CHANNELS, default: "" },
-  nextFollowUpDate:   { type: Date, default: null },
+  nextFollowUpDate:   { type: Date, default: null },   // échéance de la prochaine action
+  prochaineAction:    { type: String, trim: true, default: "" },
   priority:           { type: String, enum: PRIORITY_LEVELS, default: "medium" },
   internalNotes:      { type: String, trim: true, default: "" },
   source:             { type: String, trim: true, default: null }, // salon, recommandation, prospection directe...
 
   assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null }, // responsable commercial
+
+  // Journal des échanges, en ajout seul : chaque appel, message ou rendez-vous
+  // réellement eu lieu. `internalNotes` reste la note libre, réécrite à volonté.
+  echanges: [{
+    date:   { type: Date, default: Date.now },
+    canal:  { type: String, enum: CONTACT_CHANNELS, default: "other" },
+    resume: { type: String, trim: true, required: true },
+    par:    { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  }],
 
   // ── Liaison vers le vrai compte une fois le prospect inscrit ─────────────────
   linkedUserId:       { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
@@ -116,6 +133,7 @@ partnerCrmSchema.index({ pays: 1, statut: 1 });
 partnerCrmSchema.index({ assignedTo: 1 });
 partnerCrmSchema.index({ contactEmail: 1 });
 partnerCrmSchema.index({ createdAt: -1 });
+partnerCrmSchema.index({ nextFollowUpDate: 1 });
 
 const PartnerCrm =
   mongoose.models.PartnerCrm || mongoose.model("PartnerCrm", partnerCrmSchema);
