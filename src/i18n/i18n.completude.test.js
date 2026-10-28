@@ -13,6 +13,7 @@ import aide from "./aide";
 import catalogue from "./catalogue";
 import partenaires from "./partenaires";
 import importExport from "./importExport";
+import logistique from "./logistique";
 import { CODES, LANGUES } from "./langueUrl";
 
 // ── Une traduction incomplète est pire qu'une traduction absente ────────────
@@ -22,7 +23,7 @@ import { CODES, LANGUES } from "./langueUrl";
 // signale — et surtout, la page déclare `hreflang="ar"` aux moteurs pour un
 // contenu qui n'existe pas vraiment en arabe. Ce test rend l'oubli bruyant.
 
-const MODULES = { accueil, pagesPubliques, services, pourquoi, chrome, faq, aide, catalogue, partenaires, importExport };
+const MODULES = { accueil, pagesPubliques, services, pourquoi, chrome, faq, aide, catalogue, partenaires, importExport, logistique };
 
 describe("complétude des traductions", () => {
   it("chaque clé porte les cinq langues, non vides", () => {
