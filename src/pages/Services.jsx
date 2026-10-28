@@ -25,9 +25,10 @@ const SERVICES = [
   { cle: "registration", icon: "🪪",   color: "#10b981", bg: "rgba(16,185,129,.10)",  link: "/services/immatriculation", cta: "svc.ctaRequest" },
   { cle: "warranty",     icon: "🛡️",  color: "#0891b2", bg: "rgba(8,145,178,.10)",   link: "/services/garantie",       cta: "svc.ctaRequest" },
   { cle: "financing",    icon: "🏦",   color: "#ff4d2d", bg: "rgba(255,77,45,.10)",   link: "/services/financement",    cta: "svc.ctaRequest" },
-  { cle: "fx",           icon: "💱",   color: "#0f1b3f", bg: "rgba(15,27,63,.08)",    link: "/services/change_devises", cta: "svc.ctaRequest" },
   { cle: "inspection",   icon: "🔍",   color: "#0ea5e9", bg: "rgba(14,165,233,.10)",  link: "/services/inspection",     cta: "svc.ctaRequest" },
-  { cle: "escrow",       icon: "🔒",   color: "#0891b2", bg: "rgba(8,145,178,.10)",   link: "/services/sequestre",      cta: "svc.ctaRequest" },
+  // Change de devises et séquestre retirés le 2026-10-28 : activités soumises
+  // à agrément, suspendues tant qu'aucun prestataire agréé n'est branché
+  // (le serveur refuse aussi les demandes — models/ServiceRequest.js).
 ];
 
 // Les quatre étapes réutilisent les intitulés de la section « Pourquoi » de

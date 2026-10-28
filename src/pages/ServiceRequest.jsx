@@ -145,6 +145,20 @@ export default function ServiceRequest() {
     }
   };
 
+  // Séquestre et change de devises : suspendus (activités soumises à
+  // agrément) — le serveur refuse aussi toute demande.
+  if (["sequestre", "change_devises"].includes(category)) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.header}>
+          <h1>{meta?.title || "Service"} — indisponible</h1>
+          <p>Ce service n'est pas proposé pour le moment : il exige un prestataire agréé, qui n'est pas encore en place.</p>
+          <p>Retournez à la <Link to="/services">liste des services</Link>.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!meta) {
     return (
       <div className={styles.page}>

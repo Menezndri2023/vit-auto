@@ -1,5 +1,5 @@
 import logger from "../utils/logger.js";
-import ServiceRequest, { SERVICE_REQUEST_CATEGORIES } from "../models/ServiceRequest.js";
+import ServiceRequest, { SERVICE_REQUEST_CATEGORIES, SERVICES_SUSPENDUS } from "../models/ServiceRequest.js";
 import Notification from "../models/Notification.js";
 import { getServiceConfig } from "../services/pricingEngine.js";
 
@@ -41,6 +41,9 @@ export const createRequest = async (req, res) => {
     const { category, vehicle, vehicleInfo, details, notes } = req.body;
     if (!SERVICE_REQUEST_CATEGORIES.includes(category)) {
       return res.status(400).json({ message: `Catégorie invalide. Attendu : ${SERVICE_REQUEST_CATEGORIES.join(", ")}.` });
+    }
+    if (SERVICES_SUSPENDUS.includes(category)) {
+      return res.status(403).json({ message: "Ce service n'est pas disponible : il exige un prestataire agréé, qui n'est pas encore en place.", code: "SERVICE_SUSPENDU" });
     }
     const request = await ServiceRequest.create({
       client: req.user._id,
@@ -109,6 +112,9 @@ export const setDecision = async (req, res) => {
     }
     const request = await ServiceRequest.findById(req.params.id);
     if (!request) return res.status(404).json({ message: "Demande introuvable." });
+    if (status === "approved" && SERVICES_SUSPENDUS.includes(request.category)) {
+      return res.status(409).json({ message: "Service suspendu (activité soumise à agrément) : la demande ne peut qu'être refusée.", code: "SERVICE_SUSPENDU" });
+    }
     // Une décision déjà payée ne doit jamais être rejouée — sinon le montant/
     // la commission peuvent être réécrits (voire annulés) après encaissement,
     // sans que completePayment() (qui ne vérifie que isPaid) ne s'en aperçoive.

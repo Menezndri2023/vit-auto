@@ -31,10 +31,36 @@ describe("createRequest", () => {
     const client = await createUser();
     const { req, res } = mockReqRes({
       user: client,
-      body: { category: "change_devises", details: { amount: 1000, fromCurrency: "USD", toCurrency: "XOF" } },
+      body: { category: "inspection", details: { lieu: "Casablanca", vin: "VF1ABC" } },
     });
     await createRequest(req, res);
-    expect(res.body.request.details.fromCurrency).toBe("USD");
+    expect(res.body.request.details.lieu).toBe("Casablanca");
+  });
+
+  // Séquestre et change de devises : activités soumises à agrément, suspendues
+  // (exploitant, 2026-10-28).
+  it("refuse une nouvelle demande de séquestre ou de change de devises", async () => {
+    const client = await createUser();
+    for (const category of ["sequestre", "change_devises"]) {
+      const { req, res } = mockReqRes({ user: client, body: { category, details: { amountUSD: 5000 } } });
+      await createRequest(req, res);
+      expect(res.statusCode, category).toBe(403);
+      expect(res.body.code).toBe("SERVICE_SUSPENDU");
+    }
+    expect(await ServiceRequest.countDocuments({ category: { $in: ["sequestre", "change_devises"] } })).toBe(0);
+  });
+
+  it("une demande de séquestre existante ne peut qu'être refusée, jamais approuvée", async () => {
+    const client = await createUser();
+    const admin = await createUser({ role: "admin" });
+    const ancienne = await ServiceRequest.create({ client: client._id, category: "sequestre" });
+    let m = mockReqRes({ user: admin, params: { id: String(ancienne._id) }, body: { status: "approved", quotedAmountUSD: 5000 } });
+    await setDecision(m.req, m.res);
+    expect(m.res.statusCode).toBe(409);
+    m = mockReqRes({ user: admin, params: { id: String(ancienne._id) }, body: { status: "rejected", note: "Service suspendu" } });
+    await setDecision(m.req, m.res);
+    expect(m.res.statusCode).toBe(200);
+    expect((await ServiceRequest.findById(ancienne._id).lean()).status).toBe("rejected");
   });
 });
 

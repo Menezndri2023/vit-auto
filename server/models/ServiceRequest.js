@@ -10,6 +10,13 @@ import mongoose from "mongoose";
 // Même gabarit que InsuranceRequest (décision manuelle admin, pas de
 // prestataire tiers intégré), généralisé par `category` pour éviter de
 // dupliquer des modèles/controllers/routes quasi identiques.
+// Services SUSPENDUS (exploitant, 2026-10-28) : le séquestre (VIT AUTO qui
+// détiendrait des fonds pour compte de tiers) et le change de devises sont des
+// activités soumises à agrément. Ils ne sont plus proposés tant qu'aucun
+// prestataire agréé n'est branché : aucune nouvelle demande, aucune
+// approbation. Les demandes existantes sont conservées et peuvent être refusées.
+export const SERVICES_SUSPENDUS = ["sequestre", "change_devises"];
+
 export const SERVICE_REQUEST_CATEGORIES = [
   "inspection", "transport", "transit", "douanes", "immatriculation", "garantie", "financement", "change_devises", "sequestre",
 ];
