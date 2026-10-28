@@ -639,8 +639,8 @@ export async function declareSale(lead, { actorId, source = "DASHBOARD", finalPr
   if (priceUSD == null) throw new LeadError(400, `Devise ${cur} inconnue.`);
 
   const within = !lead.attribution.expiresAt || date <= new Date(lead.attribution.expiresAt);
-  // Ligne « vente » de la grille : 5 % standard, 3 % pendant les douze mois
-  // Partenaire Fondateur du VENDEUR (grille définitive de l'exploitant).
+  // Ligne « vente » de la grille unique (2 %, fondateur = standard, voir
+  // docs/commissions.md) ; taux × prix, sans minimum.
   const rate = await resolveCommissionRate("vente", lead.partner?._id || lead.partner);
   const amountUSD = within ? Math.round(priceUSD * rate * 100) / 100 : 0;
 

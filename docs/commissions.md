@@ -113,3 +113,26 @@ la colonne « Fondateur » et la mention « retour au standard ».
 | 2026-09-12 | standard 15 / 5 / 5 / 15 / 15 — fondateur 10 / 3 / 3 / 10 / 10 (location / vente / export / chauffeur / loisirs) |
 | 2026-09-14 | + pièces 10 % / 7 %, importation 7 % / 5 % |
 | **2026-10-27** | **grille unique** 10 / 2 / 3 / 10 / 10, pièces 5 % local / 7 % export |
+
+## Commission minimale : aucune (décision provisoire, 2026-10-28)
+
+Commission = assiette × taux de la grille, arrondie au centime. Aucun plancher, nulle part :
+ni dans `resolveCommissionRate`, ni dans `bookingController` (création, règlement,
+confirmation, clôture forcée), ni dans `salesLeadService.declareSale`, ni dans
+`computeIeCommission`, ni dans les factures. Garanti par `tests/commissionSansMinimum.test.js`.
+
+Seul repli existant, qui n'est pas un plancher : un type absent de la grille prend
+5 % (`?? 0.05` dans `pricingEngine.resolveCommissionRate`).
+
+**Si un minimum est décidé un jour**, il se configurerait à un seul endroit :
+une section `commissions.minimums` de `PricingConfig` (par catégorie et par devise), lue
+par une fonction unique `appliquerMinimum(cle, montant, devise)` dans `pricingEngine.js`,
+appelée là où `commissionAmount` est calculé. La décision doit préciser : catégories,
+montant, devise, exceptions (fondateurs compris), date d'effet, et sort des opérations
+en cours. Rien de cela n'existe aujourd'hui.
+
+⚠️ **Écart à trancher : le frais de service.** La phrase ci-dessus (« payés par le client »)
+ne correspond pas au serveur : `bookingController` le **retire du reversement partenaire**
+(`partnerPayout = total − commission − serviceFee`) sans l'ajouter au total client, alors
+que la page de réservation l'ajoute au total client (1 $US fixe, même pour un essai). Ce
+frais a un plancher de 1 $US : c'est le seul montant plancher de la plateforme.
