@@ -50,6 +50,8 @@ const normalizeBooking = (b) => {
     vehicleId:     veh?._id?.toString() || (typeof veh === "string" ? veh : null),
     // Réservation chauffeur — cible d'avis distincte du véhicule (voir Review.targetType).
     driverId:      drv?._id?.toString() || (typeof drv === "string" ? drv : null),
+    // Activité réservée — cible d'avis du pôle Experiences (Review.targetType "activity").
+    activityId:    act?._id?.toString() || (typeof b.activity === "string" ? b.activity : null),
     vehicleType:   veh?.vehicleType || veh?.type || null,
     vehicleMode:   veh?.type === "vente" ? "Acheter" : (veh?.type || null),
     // Infos client
@@ -438,10 +440,20 @@ function DeliveryNegotiationStatus({ status }) {
 // POST /api/reviews indépendant — voir reviewController.createReview, qui
 // dispatch déjà par targetType — soumis dans l'ordre au clic final, en ne
 // renvoyant jamais une étape déjà acceptée (retry-safe si une étape échoue).
+// Ressource notée en premier : véhicule, chauffeur, activité (Experiences) ou
+// pièce (Parts) — une seule par réservation, comme côté serveur.
+function cibleAvis(booking) {
+  if (booking.vehicleId)  return { type: "vehicle",  id: booking.vehicleId,  placeholder: "Partagez votre expérience avec ce véhicule...", prestataire: "Notez l'agence", detail: "Accueil, ponctualité, état du véhicule remis, service rendu." };
+  if (booking.driverId)   return { type: "driver",   id: booking.driverId,   placeholder: "Partagez votre expérience avec ce chauffeur...", prestataire: "Notez l'agence", detail: "Accueil, ponctualité, service rendu." };
+  if (booking.activityId) return { type: "activity", id: booking.activityId, placeholder: "Comment s'est passée l'activité ? Encadrement, sécurité, matériel...", prestataire: "Notez le prestataire", detail: "Accueil, ponctualité, organisation, sécurité." };
+  if (booking.partId)     return { type: "part",     id: booking.partId,     placeholder: "La pièce est-elle conforme ? Qualité, emballage, délai...", prestataire: "Notez le vendeur", detail: "Conformité, délai de livraison, communication." };
+  return null;
+}
+
 function ReviewModal({ booking, token, onClose, onSuccess }) {
-  const isDriverBooking = !booking.vehicleId && !!booking.driverId;
-  const primaryTargetType = isDriverBooking ? "driver" : "vehicle";
-  const primaryTargetId   = isDriverBooking ? booking.driverId : booking.vehicleId;
+  const cible = cibleAvis(booking);
+  const primaryTargetType = cible?.type;
+  const primaryTargetId   = cible?.id;
 
   const STEPS = [
     {
@@ -450,16 +462,16 @@ function ReviewModal({ booking, token, onClose, onSuccess }) {
       targetId: primaryTargetId,
       title: "Laisser un avis",
       subtitle: booking.vehicleName,
-      placeholder: isDriverBooking ? "Partagez votre expérience avec ce chauffeur..." : "Partagez votre expérience avec ce véhicule...",
+      placeholder: cible?.placeholder,
       requireComment: true,
     },
     {
       key: "partner",
       targetType: "partner",
       targetId: booking.ownerId || null,
-      title: "Notez l'agence",
-      subtitle: "Accueil, ponctualité, état du véhicule remis, service rendu.",
-      placeholder: "Partagez votre expérience avec l'agence (optionnel)...",
+      title: cible?.prestataire || "Notez l'agence",
+      subtitle: cible?.detail,
+      placeholder: "Partagez votre expérience avec ce partenaire (optionnel)...",
       requireComment: false,
     },
     {
@@ -1748,12 +1760,12 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
             🏁 {validating ? "…" : "Terminer la mission"}
           </button>
         )}
-        {isCompleted && (booking.vehicleId || booking.driverId) && !booking.hasReview && (
+        {isCompleted && cibleAvis(booking) && !booking.hasReview && (
           <button className={styles.btnReview} onClick={() => onReview(booking)}>
             ⭐ Laisser un avis
           </button>
         )}
-        {isCompleted && (booking.vehicleId || booking.driverId) && booking.hasReview && (
+        {isCompleted && cibleAvis(booking) && booking.hasReview && (
           <span className={styles.btnReview} style={{ opacity: 0.6, cursor: "default" }}>
             ✅ Avis publié
           </span>

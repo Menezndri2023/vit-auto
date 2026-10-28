@@ -75,7 +75,7 @@ describe("Catalogue — pays du visiteur seulement", () => {
 // commande.
 describe("Catalogue — pièces filtrées par mode de vente", () => {
   const piece = (id, saleMode, title) => ({
-    _id: id, id, title, category: "freinage", saleMode, price: 40, country: "MA", ville: "Casablanca",
+    _id: id, id, title, category: "FREINAGE", saleMode, price: 40, country: "MA", ville: "Casablanca",
     images: [`https://ik.imagekit.io/vitauto/${id}.jpg`], status: "approved", available: true,
   });
 

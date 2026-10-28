@@ -6,6 +6,7 @@ import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
 import ReportButton from "../components/ReportButton/ReportButton";
 import PriceTag from "../components/PriceTag/PriceTag";
+import AvisRessource from "../components/AvisRessource/AvisRessource";
 import DeliveryMapPicker from "../components/DeliveryMapPicker/DeliveryMapPicker";
 import {
   PART_CATEGORY_LABELS, PART_CATEGORY_ICONS, PART_CONDITION_LABELS, MAX_PART_QUANTITY,
@@ -301,6 +302,8 @@ const PartOrder = () => {
       <button onClick={handleSubmit} disabled={submitting || stockInsuffisant || needsPosition} className={dbStyles.submitBtn}>
         {submitting ? "Envoi en cours…" : "Commander cette pièce"}
       </button>
+
+      <AvisRessource targetType="part" targetId={part._id} />
     </div>
   );
 };

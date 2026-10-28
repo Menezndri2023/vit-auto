@@ -6,6 +6,7 @@ import { useToast } from "../context/ToastContext";
 import { useCurrency } from "../context/CurrencyContext";
 import ReportButton from "../components/ReportButton/ReportButton";
 import PriceTag from "../components/PriceTag/PriceTag";
+import AvisRessource from "../components/AvisRessource/AvisRessource";
 import { ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS, isWeatherDependent, WEATHER_CONDITION_TEXT } from "../constants/activityTypes";
 import styles from "./Booking.module.css";
 import { especesUniquement, MESSAGE_ESPECES } from "../constants/paiement";
@@ -417,6 +418,8 @@ const ActivityBooking = () => {
         className={dbStyles.submitBtn}>
         {submitting ? "Envoi en cours…" : wantEssai ? "Réserver l'essai" : "Réserver"}
       </button>
+
+      <AvisRessource targetType="activity" targetId={activity._id || activity.id} />
     </div>
   );
 };

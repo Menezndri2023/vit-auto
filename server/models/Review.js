@@ -25,9 +25,12 @@ const reviewSchema = new mongoose.Schema({
   // platform : le client note son expérience VIT AUTO (targetId = booking._id,
   //   pas d'entité dédiée à cibler).
   // client : le partenaire note le client (targetId = booking.client).
+  // activity / part (2026-10-27, pôles Experiences et Parts) : le client note
+  // l'activité réalisée ou la pièce reçue — même règle que vehicle/driver :
+  // une réservation TERMINÉE, un seul avis par cible.
   targetType: {
     type: String,
-    enum: ["vehicle", "driver", "partner", "platform", "client"],
+    enum: ["vehicle", "driver", "activity", "part", "partner", "platform", "client"],
     required: true,
   },
   targetId: {
@@ -65,8 +68,10 @@ reviewSchema.statics.recalcTargetStats = async function (targetType, targetId) {
   if (targetType === "platform") return;
 
   const Model =
-    targetType === "vehicle" ? mongoose.model("Vehicle") :
-    targetType === "driver"  ? mongoose.model("Driver")  :
+    targetType === "vehicle"  ? mongoose.model("Vehicle")   :
+    targetType === "driver"   ? mongoose.model("Driver")    :
+    targetType === "activity" ? mongoose.model("Activity")  :
+    targetType === "part"     ? mongoose.model("SparePart") :
     mongoose.model("User"); // "partner" et "client" ciblent tous deux un User
 
   const aggs = await this.aggregate([

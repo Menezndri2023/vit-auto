@@ -7,9 +7,13 @@ import { isMalformedObjectId } from "../utils/objectId.js";
 // Champ Booking correspondant à chaque targetType — permet un contrôle
 // "déjà noté" par cible (au lieu du seul champ historique `review`) et de
 // tracer l'avis sur la réservation sans requête Review supplémentaire.
+// activity/part partagent `review` avec vehicle/driver : une réservation ne
+// porte qu'UNE ressource principale, donc un seul avis sur elle.
 const BOOKING_REVIEW_FIELD = {
   vehicle:  "review",
   driver:   "review",
+  activity: "review",
+  part:     "review",
   partner:  "partnerReviewByClient",
   platform: "platformReviewByClient",
   client:   "clientReviewByPartner",
@@ -39,14 +43,19 @@ export const createReview = async (req, res) => {
 
     const booking = await Booking.findById(bookingId)
       .populate("vehicle", "owner")
-      .populate("driver", "owner");
+      .populate("driver", "owner")
+      .populate("activity", "owner")
+      .populate("part", "owner");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
     if (booking.status !== "completed") {
       return res.status(400).json({ message: "La commande doit être terminée pour laisser un avis." });
     }
 
-    const ownerId = booking.vehicle?.owner || booking.driver?.owner || null;
+    // Propriétaire de la ressource — activité et pièce comprises : sans elles,
+    // un client ne pouvait noter ni le prestataire de loisirs ni le vendeur
+    // de pièces, et le vendeur ne pouvait pas noter son client.
+    const ownerId = booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner || booking.part?.owner || null;
     const isClient  = booking.client?.toString() === req.user._id.toString();
     const isPartner = ownerId?.toString() === req.user._id.toString();
 
@@ -65,11 +74,15 @@ export const createReview = async (req, res) => {
         // Compatibilité : appel historique sans targetType → déduit du contenu de la commande.
         if (booking.vehicle) effectiveTargetType = "vehicle";
         else if (booking.driver) effectiveTargetType = "driver";
+        else if (booking.activity) effectiveTargetType = "activity";
+        else if (booking.part) effectiveTargetType = "part";
         else return res.status(400).json({ message: "Aucune ressource associée à cette commande." });
       }
       resolvedTargetId =
         effectiveTargetType === "vehicle"  ? booking.vehicle?._id :
         effectiveTargetType === "driver"   ? booking.driver?._id  :
+        effectiveTargetType === "activity" ? booking.activity?._id :
+        effectiveTargetType === "part"     ? booking.part?._id :
         effectiveTargetType === "partner"  ? ownerId :
         /* platform */                        booking._id;
       if (!resolvedTargetId) {
@@ -98,7 +111,7 @@ export const createReview = async (req, res) => {
     // Notifier le destinataire pertinent (pas de notification pour "platform" —
     // signal interne VIT AUTO — ni pour "client" — signal de fiabilité interne
     // au partenaire, pour éviter tout jeu/représailles).
-    if (effectiveTargetType === "vehicle" || effectiveTargetType === "driver") {
+    if (["vehicle", "driver", "activity", "part"].includes(effectiveTargetType)) {
       if (ownerId) await notifyNewReview(ownerId, req.user.firstName, note, "Nouvel avis reçu ⭐", `${req.user.firstName} a laissé un avis ${note}/5 sur votre annonce.`);
     } else if (effectiveTargetType === "partner") {
       if (ownerId) await notifyNewReview(ownerId, req.user.firstName, note, "Nouvel avis sur votre agence ⭐", `${req.user.firstName} a laissé un avis ${note}/5 sur votre agence.`);
@@ -173,7 +186,7 @@ export const getShowcaseReviews = async (req, res) => {
 
     const reviews = await Review.find({
       visible: true,
-      targetType: { $in: ["vehicle", "driver", "partner"] },
+      targetType: { $in: ["vehicle", "driver", "activity", "part", "partner"] },
       note: { $gte: 4 },
       commentaire: { $nin: [null, ""] },
     })
@@ -227,6 +240,15 @@ export const adminListReviews = async (req, res) => {
     const Vehicle = (await import("../models/Vehicle.js")).default;
     const Driver  = (await import("../models/Driver.js")).default;
     const User    = (await import("../models/User.js")).default;
+    const Activity  = (await import("../models/Activity.js")).default;
+    const SparePart = (await import("../models/SparePart.js")).default;
+    const activityIds = reviews.filter((r) => r.targetType === "activity").map((r) => r.targetId);
+    const partIds     = reviews.filter((r) => r.targetType === "part").map((r) => r.targetId);
+    const [activities, parts] = await Promise.all([
+      activityIds.length ? Activity.find({ _id: { $in: activityIds } }).select("title").lean() : [],
+      partIds.length     ? SparePart.find({ _id: { $in: partIds } }).select("title").lean() : [],
+    ]);
+    const titreMap = Object.fromEntries([...activities, ...parts].map((x) => [String(x._id), x.title]));
     const vehicleIds = reviews.filter((r) => r.targetType === "vehicle").map((r) => r.targetId);
     const driverIds  = reviews.filter((r) => r.targetType === "driver").map((r) => r.targetId);
     const userIds    = reviews.filter((r) => r.targetType === "partner" || r.targetType === "client").map((r) => r.targetId);
@@ -243,6 +265,7 @@ export const adminListReviews = async (req, res) => {
       targetLabel:
         r.targetType === "vehicle" ? vehicleMap[String(r.targetId)] :
         r.targetType === "driver"  ? driverMap[String(r.targetId)]  :
+        r.targetType === "activity" || r.targetType === "part" ? titreMap[String(r.targetId)] :
         r.targetType === "partner" || r.targetType === "client" ? userMap[String(r.targetId)] :
         undefined,
     }));
