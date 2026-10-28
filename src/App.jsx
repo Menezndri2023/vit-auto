@@ -83,6 +83,8 @@ const IEClientDashboard     = lazy(() => import("./pages/IEClientDashboard"));
 const MesImportations       = lazy(() => import("./pages/MesImportations"));
 const TransitInscription    = lazy(() => import("./pages/TransitInscription"));
 const EspaceTransit         = lazy(() => import("./pages/EspaceTransit"));
+const Logistique            = lazy(() => import("./pages/Logistique"));
+const LogistiquePrestataire = lazy(() => import("./pages/LogistiquePrestataire"));
 const IEAssignedTransactions = lazy(() => import("./pages/IEAssignedTransactions"));
 const ImporterDashboard     = lazy(() => import("./pages/ImporterDashboard"));
 const KYC                   = lazy(() => import("./pages/KYC"));
@@ -167,6 +169,10 @@ function AppRoutes({ splashDone, onSplashDone }) {
           <Route path="/mes-importations/:id"            element={<ErrorBoundary><MesImportations /></ErrorBoundary>} />
           {/* Zone Transit : prestataires logistiques, inscription sur invitation seulement. */}
           <Route path="/transit/inscription"             element={<ErrorBoundary><TransitInscription /></ErrorBoundary>} />
+          <Route path="/transit/logistique"              element={<ErrorBoundary><LogistiquePrestataire /></ErrorBoundary>} />
+          <Route path="/transit/logistique/:id"          element={<ErrorBoundary><LogistiquePrestataire /></ErrorBoundary>} />
+          <Route path="/logistique"                      element={<ErrorBoundary><Logistique /></ErrorBoundary>} />
+          <Route path="/logistique/demandes/:id"         element={<ErrorBoundary><Logistique /></ErrorBoundary>} />
           <Route path="/transit"                         element={<ErrorBoundary><EspaceTransit /></ErrorBoundary>} />
           <Route path="/transit/:id"                     element={<ErrorBoundary><EspaceTransit /></ErrorBoundary>} />
           <Route path="/import-export/assigned"          element={<ErrorBoundary><IEAssignedTransactions /></ErrorBoundary>} />

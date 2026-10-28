@@ -2,6 +2,8 @@ import logger from "../utils/logger.js";
 import ServiceRequest, { SERVICE_REQUEST_CATEGORIES } from "../models/ServiceRequest.js";
 import Notification from "../models/Notification.js";
 import { getServiceConfig } from "../services/pricingEngine.js";
+
+const CATEGORIES_LOGISTIQUE = ["transport", "transit", "douanes"];
 import { generateGenericReceiptPDF } from "../utils/pdfGenerator.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { signalerNonBloquant } from "../utils/nonBloquant.js";
@@ -119,7 +121,13 @@ export const setDecision = async (req, res) => {
       const amount = Number(quotedAmountUSD) || 0;
       request.quotedAmountUSD = amount;
       const svc = await getServiceConfig(request.category);
-      if (svc?.enabled) {
+      // Logistique (transport, transit, douanes) : mise en relation GRATUITE
+      // (exploitant, 2026-10-27, modèle FREE_REFERRAL). Aucune commission ni
+      // frais, quel que soit le réglage de PricingConfig.services — un taux
+      // saisi par erreur dans l'admin ne doit pas facturer un transport.
+      if (CATEGORIES_LOGISTIQUE.includes(request.category)) {
+        request.commission = { rate: 0, amount: 0 };
+      } else if (svc?.enabled) {
         const rate = svc.commissionRate || 0;
         request.commission = {
           rate,

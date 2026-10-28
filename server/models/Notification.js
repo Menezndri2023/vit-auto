@@ -108,6 +108,8 @@ const notificationSchema = new mongoose.Schema({
       // sert aux PANNES : les mélanger obligeait à choisir entre rater une
       // panne et recevoir chaque dossier partenaire par e-mail.
       "dossier_admin",
+      // VIT-AUTO Logistique (2026-10-27) : demandes, devis, étapes.
+      "logistique",
       // Système
       "system",
       "info",

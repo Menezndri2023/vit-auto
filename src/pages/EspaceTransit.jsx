@@ -32,6 +32,7 @@ function Liste() {
     <div className={styles.page}>
       <h1 className={styles.titre}>🚢 Zone Transit</h1>
       <p className={styles.intro}>Les importations que VIT AUTO vous a confiées.</p>
+      <p className={styles.intro}><Link to="/transit/logistique" className={styles.bouton}>📦 Demandes logistiques (devis)</Link></p>
       {etat.chargement && <p className={styles.attente}>Chargement…</p>}
       {etat.erreur && <p className={styles.erreur}>{etat.erreur}</p>}
       {!etat.chargement && !etat.erreur && etat.dossiers.length === 0 && <div className={styles.vide}><p>Aucun dossier ne vous est encore affecté.</p></div>}

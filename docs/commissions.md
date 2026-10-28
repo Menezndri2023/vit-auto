@@ -18,8 +18,21 @@ comptes gratuits paient le même taux.
 | Pièces détachées, vente à l'export (importée à la commande **ou** livrée hors du pays du vendeur) | `piece_import` | **7 %** | idem |
 | Chauffeurs professionnels | `chauffeur` | **10 %** | course réglée / clôturée |
 | Activités et loisirs | `activite` | **10 %** | réservation réglée / clôturée |
-| Logistique (transport, transit, douane) | `services.transport`, `services.transit`, `services.douanes` | **aucune** (taux non décidé) | — |
+| Logistique (transport, transit, douane) | — | **aucune** — mise en relation gratuite verrouillée (`FREE_REFERRAL`, voir `docs/logistique.md`) | — |
 | Leasing | `leasing` | 5 % (hors barème du 2026-10-27, inchangé) | — |
+
+## Les six pôles
+
+| Pôle | Clés de taux | Taux |
+|---|---|---|
+| VIT-AUTO Rental (location courte et longue durée) | `location`, `leasing` | 10 % (leasing 5 %, hors barème) |
+| VIT-AUTO Sales (concessionnaires, vendeurs, particuliers) | `vente` (demande d'essai, essai) | 2 % |
+| VIT-AUTO Trade (importateurs, exportateurs, B2B) | `import_export` (vente d'un véhicule à l'export) ; logistique gratuite | 3 % ; logistique 0 |
+| VIT-AUTO Parts (vendeurs, distributeurs, grossistes) | `piece` (local), `piece_import` (export) | 5 % / 7 % |
+| VIT-AUTO Mobility (chauffeurs, transferts, services avec chauffeur) | `chauffeur` | 10 % |
+| VIT-AUTO Experiences (loisirs, excursions, quad, buggy, karting) | `activite` | 10 % |
+
+Tous reliés par **VIT-AUTO Marketplace** (catalogue, compte, recherche communs).
 
 ## Règles
 

@@ -119,6 +119,19 @@ const pricingConfigSchema = new mongoose.Schema({
     airportDelivery:  { type: String, enum: ["partenaire", "vitauto"], default: "partenaire" },
   },
 
+  // VIT-AUTO Logistique (exploitant, 2026-10-27) — modèle A, mise en relation
+  // GRATUITE. Section volontairement VERROUILLÉE : les validateurs refusent
+  // toute valeur autre que « gratuit, aucun taux, aucun frais », et elle
+  // n'est pas éditable depuis l'admin (businessConfigController.SECTIONS).
+  // Une monétisation future exigera une décision, une validation juridique et
+  // un changement de code explicite — jamais un simple réglage.
+  logistique: {
+    modeEconomique:         { type: String, enum: ["FREE_REFERRAL"], default: "FREE_REFERRAL" },
+    commissionActive:       { type: Boolean, default: false, validate: { validator: (v) => v === false, message: "Commission logistique non autorisée." } },
+    taux:                   { type: Number, default: null, validate: { validator: (v) => v == null, message: "Aucun taux logistique n'est autorisé." } },
+    fraisMiseEnRelationUSD: { type: Number, default: null, validate: { validator: (v) => v == null, message: "Aucun frais de mise en relation n'est autorisé." } },
+  },
+
   subscriptions: {
     individuel_plus: { priceUSD: { type: Number, required: true, min: 0 } },
     business:         { priceUSD: { type: Number, required: true, min: 0 } },

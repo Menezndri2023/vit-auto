@@ -19,7 +19,7 @@ const SERVICES = [
   // Les onze services suivants partagent le même appel à l'action : une seule
   // clé (`svc.ctaRequest`) au lieu de onze copies à traduire.
   { cle: "insurance",    icon: "🔒",   color: "#0891b2", bg: "rgba(8,145,178,.10)",   link: "/insurance-request",       cta: "svc.ctaRequest" },
-  { cle: "transport",    icon: "🚢",   color: "#0ea5e9", bg: "rgba(14,165,233,.10)",  link: "/services/transport",      cta: "svc.ctaRequest" },
+  { cle: "transport",    icon: "🚢",   color: "#0ea5e9", bg: "rgba(14,165,233,.10)",  link: "/logistique",              cta: "svc.ctaRequest" }, // VIT-AUTO Logistique : devis comparés, mise en relation gratuite
   { cle: "transit",      icon: "🛃",   color: "#6366f1", bg: "rgba(99,102,241,.10)",  link: "/services/transit",        cta: "svc.ctaRequest" },
   { cle: "customs",      icon: "🏛️",  color: "#f59e0b", bg: "rgba(245,158,11,.10)",  link: "/services/douanes",        cta: "svc.ctaRequest" },
   { cle: "registration", icon: "🪪",   color: "#10b981", bg: "rgba(16,185,129,.10)",  link: "/services/immatriculation", cta: "svc.ctaRequest" },

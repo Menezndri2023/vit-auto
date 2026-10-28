@@ -48,6 +48,8 @@ export const DEFAULT_PRICING_CONFIG = {
   // Fournisseur de chaque option (2026-10-27) : seules les options "vitauto"
   // entrent dans l'assiette de la commission. Toutes sont fournies par le
   // partenaire aujourd'hui (voir models/PricingConfig.js).
+  // Logistique : mise en relation gratuite, verrouillée (models/PricingConfig.js).
+  logistique: { modeEconomique: "FREE_REFERRAL", commissionActive: false, taux: null, fraisMiseEnRelationUSD: null },
   rentalOptionsFournisseur: { gps: "partenaire", babySeat: "partenaire", insurance: "partenaire", driver: "partenaire", additionalDriver: "partenaire", unlimitedMileage: "partenaire", airportDelivery: "partenaire" },
   subscriptions: {
     individuel_plus: { priceUSD: 9.99 },

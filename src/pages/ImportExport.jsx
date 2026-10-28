@@ -419,7 +419,7 @@ const ImportExport = () => {
           {[
             { cle: "Veh", icone: "🚢", couleur: "#ff4d2d", principal: { to: "/import-export/listings", label: t("ie.svcVehCta") }, second: { onClick: () => openModal(), label: t("ie.svcQuote") } },
             { cle: "Parts", icone: "🔩", couleur: "#0ea5e9", principal: { to: "/catalogue?mode=Pieces&vente=import", label: t("ie.svcPartsCta") }, second: { onClick: () => openModal("Silver"), label: t("ie.askCatalog") } },
-            { cle: "Log", icone: "📦", couleur: "#0f1b3f", principal: { href: "#importateur", label: t("ie.svcLogCta") }, second: { to: "/transit/inscription", label: t("ie.svcLogPartner") } },
+            { cle: "Log", icone: "📦", couleur: "#0f1b3f", principal: { to: "/logistique", label: t("ie.svcLogCta") }, second: { to: "/transit/inscription", label: t("ie.svcLogPartner") } },
           ].map((svc) => (
             <article key={svc.cle} style={{ display: "flex", flexDirection: "column", background: "#fff", border: `1.5px solid ${svc.couleur}33`, borderRadius: 16, padding: "22px 22px 20px" }}>
               <div style={{ fontSize: "1.8rem", marginBottom: 8 }} aria-hidden="true">{svc.icone}</div>

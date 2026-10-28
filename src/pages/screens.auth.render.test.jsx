@@ -35,6 +35,7 @@ describe("Connexion, inscription et Import/Export — rendu", () => {
     expect(liens).toContain("/import-export/listings");
     expect(liens).toContain("/catalogue?mode=Pieces&vente=import");
     expect(liens).toContain("/transit/inscription");
+    expect(liens).toContain("/logistique");                  // demande de transport, mise en relation gratuite
     // Jamais présenté comme transporteur ou transitaire.
     expect(section.textContent).toMatch(/ni transporteur ni transitaire/);
   });

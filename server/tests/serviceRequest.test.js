@@ -87,12 +87,14 @@ describe("setDecision (admin)", () => {
       serviceFee: { minUSD: 1, percent: 0.005, maxUSD: 25 },
       boosts: { "24h": 2, "7d": 5, "30d": 12, international: 20 },
       subscriptions: { individuel_plus: { priceUSD: 9.99 }, business: { priceUSD: 19.99 }, exportateur: { priceUSD: 49.99 } },
-      services: { transport: { enabled: true, commissionRate: 0.1, fixedFeeUSD: 5 } },
+      services: { inspection: { enabled: true, commissionRate: 0.1, fixedFeeUSD: 5 } },
     });
 
     const client = await createUser();
     const admin = await createUser({ role: "admin" });
-    const request = await ServiceRequest.create({ client: client._id, category: "transport" });
+    // Catégorie NON logistique : depuis le 2026-10-27, transport / transit /
+    // douanes sont gratuits quelle que soit la config (voir logistique.test.js).
+    const request = await ServiceRequest.create({ client: client._id, category: "inspection" });
 
     const { req, res } = mockReqRes({ user: admin, params: { id: request._id.toString() }, body: { status: "approved", quotedAmountUSD: 1000 } });
     await setDecision(req, res);
