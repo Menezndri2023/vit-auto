@@ -44,6 +44,22 @@ Règles :
 - L'acceptation fige une **copie exacte** du devis (`devisAccepte.copie`) avec sa date.
 - Un devis expiré ne peut pas être accepté.
 
+## Rattachement à une commande Parts ou Trade
+
+- Le formulaire propose les commandes **du client** (`GET /commandes-rattachables`) : commandes de
+  pièces (`Booking` type `piece`) et transactions VIT-AUTO Trade (`IETransaction`), hors annulées.
+  Choisir une commande **préremplit** trajet et marchandise ; le client corrige librement. Un pays
+  d'origine écrit en toutes lettres (« Émirats Arabes Unis ») n'est pas converti : le champ reste vide.
+- Seule la **référence** est stockée (`liens.booking` ou `liens.transaction`) ; les données de la
+  commande ne sont pas recopiées. Le serveur vérifie que la commande appartient au client et
+  n'est pas annulée, et refuse une seconde demande active sur la même commande (409
+  `DEMANDE_EXISTANTE`, avec l'identifiant de la demande ouverte).
+- Visible : client (lien vers la commande), admin (référence et statut de la commande),
+  prestataire (seulement la nature : « Commande de pièces détachées » / « Transaction VIT-AUTO Trade »).
+- Accès direct : bouton « Organiser le transport » sur une commande de pièces (tableau de bord) et sur
+  le suivi d'une transaction Trade (`/logistique?commande=booking:<id>` ou `transaction:<id>`).
+- Une demande peut toujours exister sans commande. Le rattachement ne déclenche ni paiement ni commission.
+
 ## Confidentialité
 
 - Un prestataire ne voit **que** les demandes où il est sollicité.
@@ -70,8 +86,6 @@ donnée personnelle.
 
 - Écrans en français uniquement, comme les autres espaces connectés (Mes importations, Zone Transit).
 - Notifications in-app et temps réel ; pas d'e-mail ni de WhatsApp dédiés pour l'instant.
-- Le rattachement à une commande Trade ou Parts (`liens.booking`, `liens.transaction`) existe dans le
-  modèle mais n'est pas encore proposé dans le formulaire.
 - Aucun suivi GPS : seules les étapes et références de suivi déclarées par le prestataire sont affichées.
 
 ## Décisions à prendre avant toute monétisation

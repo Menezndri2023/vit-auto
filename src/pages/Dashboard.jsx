@@ -1770,6 +1770,11 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
             ✅ Avis publié
           </span>
         )}
+        {/* VIT-AUTO Logistique : demande de transport rattachée à la commande,
+            mise en relation gratuite (aucun paiement ni frais déclenché). */}
+        {booking.type === "piece" && !["cancelled", "rejected"].includes(booking.status) && (
+          <Link to={`/logistique?commande=booking:${booking.id}`} className={styles.btnContract}>📦 Organiser le transport</Link>
+        )}
         {(isCompleted || booking.status === "cancelled") && booking.type === "location" && booking.vehicleId && (
           <Link to={`/booking/${booking.vehicleId}`} className={styles.btnContract}>
             🔁 Réserver à nouveau

@@ -139,6 +139,7 @@ function Detail({ id, appel, onRetour }) {
           {d.typeBesoin === "vehicule" ? [m.vehicule?.marque, m.vehicule?.modele, m.vehicule?.annee].filter(Boolean).join(" ") : m.description}
           {m.poidsKg ? ` · ${m.poidsKg} kg` : ""}{d.dateSouhaitee ? ` · souhaité le ${fmtDate(d.dateSouhaitee)}` : ""}
         </p>
+        {d.commandeLiee && <p className={css.muted}>Commande liée : {d.commandeLiee.libelle}{d.commandeLiee.reference ? ` — ${d.commandeLiee.reference}` : ""}{d.liens?.booking?.status ? ` (statut : ${d.liens.booking.status})` : d.liens?.transaction?.status ? ` (statut : ${d.liens.transaction.status})` : ""}</p>}
         <p className={css.muted}>Client : {d.client ? `${d.client.firstName || ""} ${d.client.lastName || ""}`.trim() : "—"} · {d.contact?.telephone} {d.contact?.email}</p>
         {m.contraintes && <p className={css.muted}>Contraintes : {m.contraintes}</p>}
         {d.litige?.motif && <p className={css.erreur}>Litige : {d.litige.motif}</p>}

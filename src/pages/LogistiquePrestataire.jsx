@@ -137,6 +137,7 @@ function Detail({ id }) {
                 <dt>Quantité</dt><dd>{m.quantite}</dd>
                 {m.poidsKg != null && <><dt>Poids</dt><dd>{m.poidsKg} kg</dd></>}
                 {(m.longueurCm || m.largeurCm || m.hauteurCm) && <><dt>Dimensions</dt><dd>{m.longueurCm || "?"} × {m.largeurCm || "?"} × {m.hauteurCm || "?"} cm</dd></>}</>}
+          {d.commandeLiee && <><dt>Commande liée</dt><dd>{d.commandeLiee.libelle}</dd></>}
           <dt>Mode souhaité</dt><dd>{MODES_TRANSPORT.find((x) => x.code === d.modeSouhaite)?.libelle}</dd>
           <dt>Date souhaitée</dt><dd>{fmtDate(d.dateSouhaitee)}</dd>
           {m.contraintes && <><dt>Contraintes</dt><dd>{m.contraintes}</dd></>}

@@ -31,6 +31,7 @@ router.post ("/prestataire/demandes/:id/etape",              authenticate, prest
 router.post ("/prestataire/demandes/:id/preuve",             authenticate, prestataire, vid, l.deposerPreuveLivraison);
 
 // Client (connexion obligatoire, comme pour tout service)
+router.get  ("/commandes-rattachables",             authenticate,      l.commandesRattachables);
 router.post ("/demandes",                           authenticate,      l.creerDemande);
 router.get  ("/demandes",                           authenticate,      l.mesDemandes);
 router.get  ("/demandes/:id",                       authenticate, vid, l.lireDemandeClient);

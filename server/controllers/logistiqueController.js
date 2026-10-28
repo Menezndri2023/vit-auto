@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import DemandeLogistique from "../models/DemandeLogistique.js";
 import Prestataire from "../models/Prestataire.js";
 import Notification from "../models/Notification.js";
+import Booking from "../models/Booking.js";
+import IETransaction from "../models/IETransaction.js";
 import logger from "../utils/logger.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
 import { prochainNumero, formatReference } from "../utils/sequence.js";
@@ -129,7 +131,22 @@ function vueClient(demande) {
     devis: (d.devis || []).filter((x) => !["remplace", "retire"].includes(x.statut)),
     evenements: (d.evenements || []).filter((e) => e.visibleClient),
     libelleStatut: LIBELLES_STATUT[d.statut],
+    commandeLiee: commandeLiee(d),
   };
+}
+
+// Résumé non sensible de la commande rattachée (type + référence), à partir
+// des liens peuplés ou bruts.
+function commandeLiee(d) {
+  if (d.liens?.booking) {
+    const b = d.liens.booking;
+    return { type: "booking", id: String(b._id || b), reference: b.reference || null, libelle: "Commande de pièces détachées" };
+  }
+  if (d.liens?.transaction) {
+    const t = d.liens.transaction;
+    return { type: "transaction", id: String(t._id || t), reference: `TXN-${String(t._id || t).slice(-8).toUpperCase()}`, libelle: "Transaction VIT-AUTO Trade" };
+  }
+  return null;
 }
 
 // Le prestataire sollicité voit le besoin, jamais l'identité ni les
@@ -142,6 +159,9 @@ function vuePrestataire(demande, prestataireId) {
     modeSouhaite: d.modeSouhaite, marchandise: d.marchandise, dateSouhaitee: d.dateSouhaitee,
     documentsDisponibles: d.documentsDisponibles, statut: d.statut, libelleStatut: LIBELLES_STATUT[d.statut],
     createdAt: d.createdAt,
+    // Seulement la NATURE de la commande liée : ni montant, ni vendeur, ni
+    // identifiant exploitable.
+    commandeLiee: commandeLiee(d) ? { libelle: commandeLiee(d).libelle } : null,
     retenu,
     contact: retenu ? d.contact : undefined,
     sollicitation: (d.sollicitations || []).find((s) => idEgal(s.prestataire, prestataireId)) || null,
@@ -171,6 +191,89 @@ const echec = (res, nom) => (err) => {
   if (!res.headersSent) res.status(500).json({ message: "Erreur serveur." });
 };
 
+// ── Rattachement à une commande Parts ou Trade ─────────────────────────────
+// Une demande logistique peut référencer UNE commande du client : une
+// commande de pièces (Booking type "piece") ou une transaction VIT-AUTO Trade
+// (IETransaction). Seule la référence est stockée — les données de la
+// commande ne sont pas recopiées, le formulaire ne fait que préremplir.
+// Le rattachement ne déclenche ni paiement ni commission.
+const STATUTS_COMMANDE_EXCLUS = { booking: ["cancelled", "rejected"], transaction: ["cancelled"] };
+const STATUTS_DEMANDE_INACTIFS = ["annulee"];
+const codePays = (v) => (typeof v === "string" && /^[A-Za-z]{2}$/.test(v.trim()) ? v.trim().toUpperCase() : "");
+
+async function demandeActiveLiee(lien) {
+  const champ = lien.type === "booking" ? "liens.booking" : "liens.transaction";
+  return DemandeLogistique.findOne({ [champ]: lien.id, statut: { $nin: STATUTS_DEMANDE_INACTIFS } }).select("_id reference").lean();
+}
+
+function resumeCommandePiece(b) {
+  const titre = b.part?.title || "Pièces détachées";
+  const qte = b.piece?.quantity || 1;
+  return {
+    type: "booking", id: String(b._id), reference: b.reference || null, libelle: `Pièces — ${qte} × ${titre}`,
+    prefill: {
+      typeBesoin: "pieces",
+      depart:  { pays: codePays(b.part?.country), ville: b.part?.ville || "" },
+      arrivee: { pays: codePays(b.piece?.delivery?.country), ville: b.piece?.delivery?.ville || "" },
+      marchandise: { description: `${qte} × ${titre}`, quantite: qte },
+    },
+  };
+}
+
+function resumeTransactionTrade(t) {
+  const l = t.listing || {};
+  return {
+    type: "transaction", id: String(t._id), reference: `TXN-${String(t._id).slice(-8).toUpperCase()}`,
+    libelle: `Véhicule — ${l.title || [l.make, l.model, l.year].filter(Boolean).join(" ") || "VIT-AUTO Trade"}`,
+    prefill: {
+      typeBesoin: "vehicule",
+      // sourceCountry est parfois un NOM (« Émirats Arabes Unis ») : on ne
+      // prérempli le pays que s'il s'agit d'un code ISO, sans deviner.
+      depart:  { pays: codePays(l.sourceCountry), ville: l.sourceCity || "" },
+      arrivee: { pays: codePays(t.destCountry), ville: t.destCity || "" },
+      marchandise: { vehicule: { marque: l.make || "", modele: l.model || "", annee: l.year || null } },
+    },
+  };
+}
+
+// Vérifie qu'une commande existe, appartient au client et n'est pas annulée.
+async function verifierLien(userId, lien) {
+  if (!lien || !["booking", "transaction"].includes(lien.type) || !mongoose.isValidObjectId(lien.id)) return { erreur: [400, "Commande à rattacher invalide."] };
+  if (lien.type === "booking") {
+    const b = await Booking.findById(lien.id).select("client type status").lean();
+    if (!b || !idEgal(b.client, userId) || b.type !== "piece") return { erreur: [404, "Commande introuvable."] };
+    if (STATUTS_COMMANDE_EXCLUS.booking.includes(b.status)) return { erreur: [409, "Cette commande est annulée."] };
+  } else {
+    const t = await IETransaction.findById(lien.id).select("client status").lean();
+    if (!t || !idEgal(t.client, userId)) return { erreur: [404, "Commande introuvable."] };
+    if (STATUTS_COMMANDE_EXCLUS.transaction.includes(t.status)) return { erreur: [409, "Cette transaction est annulée."] };
+  }
+  return { ok: true };
+}
+
+export const commandesRattachables = async (req, res) => {
+  try {
+    const [pieces, trades] = await Promise.all([
+      Booking.find({ client: req.user._id, type: "piece", status: { $nin: STATUTS_COMMANDE_EXCLUS.booking } })
+        .select("reference piece part status createdAt").populate("part", "title country ville").sort({ createdAt: -1 }).limit(50).lean(),
+      IETransaction.find({ client: req.user._id, status: { $nin: STATUTS_COMMANDE_EXCLUS.transaction } })
+        .select("listing destCountry destCity status createdAt").populate("listing", "title make model year sourceCountry sourceCity").sort({ createdAt: -1 }).limit(50).lean(),
+    ]);
+    const commandes = [...pieces.map(resumeCommandePiece), ...trades.map(resumeTransactionTrade)];
+    // Indique la demande logistique déjà ouverte pour chaque commande.
+    const liees = await DemandeLogistique.find({
+      client: req.user._id, statut: { $nin: STATUTS_DEMANDE_INACTIFS },
+      $or: [{ "liens.booking": { $ne: null } }, { "liens.transaction": { $ne: null } }],
+    }).select("_id reference liens").lean();
+    const parId = new Map();
+    for (const d of liees) {
+      if (d.liens?.booking) parId.set(String(d.liens.booking), { _id: d._id, reference: d.reference });
+      if (d.liens?.transaction) parId.set(String(d.liens.transaction), { _id: d._id, reference: d.reference });
+    }
+    res.json({ commandes: commandes.map((c) => ({ ...c, demandeExistante: parId.get(c.id) || null })) });
+  } catch (err) { echec(res, "commandesRattachables")(err); }
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // CLIENT
 // ═══════════════════════════════════════════════════════════════════════════
@@ -192,8 +295,21 @@ export const creerDemande = async (req, res) => {
       return res.status(400).json({ message: "Type de besoin, départ et arrivée requis, même pour un brouillon.", code: "CHAMPS_MANQUANTS", champs: manque });
     }
 
+    // Rattachement facultatif : vérifié côté serveur, jamais cru sur parole.
+    const liens = { booking: null, transaction: null };
+    if (req.body.lien) {
+      const v = await verifierLien(req.user._id, req.body.lien);
+      if (v.erreur) return res.status(v.erreur[0]).json({ message: v.erreur[1], code: "LIEN_INVALIDE" });
+      const existante = await demandeActiveLiee(req.body.lien);
+      if (existante) {
+        return res.status(409).json({ message: `Une demande logistique est déjà ouverte pour cette commande (${existante.reference}).`, code: "DEMANDE_EXISTANTE", demandeId: existante._id });
+      }
+      liens[req.body.lien.type] = req.body.lien.id;
+    }
+
     const demande = new DemandeLogistique({
       ...saisie,
+      liens,
       reference: await genererReference(),
       client: req.user._id,
       statut: brouillon ? "brouillon" : "recue",
@@ -231,7 +347,10 @@ export const lireDemandeClient = async (req, res) => {
     if (!demande) return;
     marquerDevisExpires(demande);
     if (demande.isModified()) await demande.save();
-    await demande.populate("devis.prestataire", "raisonSociale types pays");
+    await demande.populate([
+      { path: "devis.prestataire", select: "raisonSociale types pays" },
+      { path: "liens.booking", select: "reference" },
+    ]);
     res.json({ demande: vueClient(demande) });
   } catch (err) { echec(res, "lireDemandeClient")(err); }
 };
@@ -550,8 +669,10 @@ export const lireDemandeAdmin = async (req, res) => {
       { path: "client", select: "firstName lastName email phone" },
       { path: "sollicitations.prestataire", select: "raisonSociale types pays telephone" },
       { path: "devis.prestataire", select: "raisonSociale" },
+      { path: "liens.booking", select: "reference type status montantTotal" },
+      { path: "liens.transaction", select: "status destCountry destCity" },
     ]);
-    res.json({ demande: { ...demande.toObject(), libelleStatut: LIBELLES_STATUT[demande.statut] } });
+    res.json({ demande: { ...demande.toObject(), libelleStatut: LIBELLES_STATUT[demande.statut], commandeLiee: commandeLiee(demande) } });
   } catch (err) { echec(res, "lireDemandeAdmin")(err); }
 };
 

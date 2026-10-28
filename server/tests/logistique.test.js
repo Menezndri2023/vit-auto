@@ -8,7 +8,9 @@ import CommissionLedger from "../models/CommissionLedger.js";
 import Invoice from "../models/Invoice.js";
 import { DEFAULT_PRICING_CONFIG } from "../config/defaultPricingConfig.js";
 import { setDecision } from "../controllers/serviceRequestController.js";
-import { createUser } from "./helpers/fixtures.js";
+import { createUser, createIETransaction } from "./helpers/fixtures.js";
+import Booking from "../models/Booking.js";
+import SparePart from "../models/SparePart.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -346,5 +348,89 @@ describe("Gratuité : aucune commission, aucun frais, aucun revenu fictif", () =
     expect(r.body).toContain("indisponible");
     expect(r.body).not.toContain("+212600000000");
     expect(r.body).not.toContain(client.email);
+  });
+});
+
+describe("Rattachement à une commande Parts ou Trade", () => {
+  const commandePiece = async (proprio, statut = "confirmed") => {
+    const vendeur = await createUser({ role: "partenaire" });
+    const part = await SparePart.create({ owner: vendeur._id, category: "FREINAGE", title: "Disques avant", price: 60, stock: 4, compatibility: [{ marque: "Renault" }], status: "approved", country: "MA", ville: "Casablanca" });
+    return Booking.create({
+      type: "piece", client: proprio._id, part: part._id, status: statut,
+      clientInfo: { firstName: "A", lastName: "B", email: proprio.email, passportNumber: "P1234567" },
+      piece: { quantity: 2, delivery: { address: "Rue 1", ville: "Dakar", country: "SN" } },
+    });
+  };
+
+  it("liste les commandes du client avec un préremplissage, sans celles des autres", async () => {
+    const b = await commandePiece(client);
+    const t = await createIETransaction({ client: client._id, destCountry: "CI", destCity: "Abidjan" });
+    await commandePiece(autreClient);
+
+    const r = await appel(L.commandesRattachables, { user: client });
+    const ids = r.body.commandes.map((c) => c.id);
+    expect(ids).toEqual(expect.arrayContaining([String(b._id), String(t._id)]));
+    expect(ids).toHaveLength(2);
+
+    const piece = r.body.commandes.find((c) => c.type === "booking");
+    expect(piece.prefill).toMatchObject({ typeBesoin: "pieces", depart: { pays: "MA", ville: "Casablanca" }, arrivee: { pays: "SN", ville: "Dakar" } });
+    expect(piece.prefill.marchandise.description).toBe("2 × Disques avant");
+
+    const trade = r.body.commandes.find((c) => c.type === "transaction");
+    expect(trade.prefill.typeBesoin).toBe("vehicule");
+    expect(trade.prefill.marchandise.vehicule).toMatchObject({ marque: "Toyota", modele: "Land Cruiser", annee: 2022 });
+    // « Émirats Arabes Unis » n'est pas un code ISO : pays laissé vide, pas deviné.
+    expect(trade.prefill.depart.pays).toBe("");
+    expect(trade.prefill.arrivee).toEqual({ pays: "CI", ville: "Abidjan" });
+  });
+
+  it("rattache une commande du client et la montre au client, à l'admin et — sans détail — au prestataire", async () => {
+    const b = await commandePiece(client);
+    const cree = await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, typeBesoin: "pieces", marchandise: { description: "2 × Disques avant" }, lien: { type: "booking", id: String(b._id) } } });
+    expect(cree.statusCode).toBe(201);
+    const id = cree.body.demande._id;
+    expect(String((await DemandeLogistique.findById(id).lean()).liens.booking)).toBe(String(b._id));
+
+    const vueClient = await appel(L.lireDemandeClient, { user: client, params: { id } });
+    expect(vueClient.body.demande.commandeLiee).toMatchObject({ type: "booking", id: String(b._id) });
+
+    const vueAdmin = await appel(L.lireDemandeAdmin, { user: admin, params: { id } });
+    expect(vueAdmin.body.demande.commandeLiee.type).toBe("booking");
+
+    await appel(L.qualifierDemande, { user: admin, params: { id }, body: { decision: "valider" } });
+    await appel(L.solliciterPrestataires, { user: admin, params: { id }, body: { prestataires: [p1.prest._id] } });
+    const vuePrest = await appel(L.lireDemandePrestataire, { user: p1.user, params: { id } });
+    expect(vuePrest.body.demande.commandeLiee).toEqual({ libelle: "Commande de pièces détachées" });
+    expect(JSON.stringify(vuePrest.body.demande)).not.toContain(String(b._id));
+  });
+
+  it("refuse la commande d'un autre client, une commande annulée, et un second rattachement actif", async () => {
+    const autre = await commandePiece(autreClient);
+    const r1 = await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien: { type: "booking", id: String(autre._id) } } });
+    expect(r1.statusCode).toBe(404);
+
+    const annulee = await commandePiece(client, "cancelled");
+    expect((await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien: { type: "booking", id: String(annulee._id) } } })).statusCode).toBe(409);
+
+    const t = await createIETransaction({ client: client._id });
+    const premier = await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien: { type: "transaction", id: String(t._id) } } });
+    expect(premier.statusCode).toBe(201);
+    const second = await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien: { type: "transaction", id: String(t._id) } } });
+    expect(second.statusCode).toBe(409);
+    expect(second.body.code).toBe("DEMANDE_EXISTANTE");
+    expect(String(second.body.demandeId)).toBe(String(premier.body.demande._id));
+
+    // Une fois la première annulée, on peut en rouvrir une.
+    await appel(L.annulerDemande, { user: client, params: { id: premier.body.demande._id } });
+    expect((await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien: { type: "transaction", id: String(t._id) } } })).statusCode).toBe(201);
+  });
+
+  it("une demande reste possible sans commande, et le rattachement ne crée aucune commission", async () => {
+    expect((await appel(L.creerDemande, { user: client, body: DEMANDE_VEHICULE })).statusCode).toBe(201);
+    const b = await commandePiece(client);
+    await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, typeBesoin: "pieces", marchandise: { description: "x" }, lien: { type: "booking", id: String(b._id) } } });
+    expect(await CommissionLedger.countDocuments({})).toBe(0);
+    const apres = await Booking.findById(b._id).lean();
+    expect(apres.commissionAmount ?? 0).toBe(b.commissionAmount ?? 0);   // la commande n'est pas modifiée
   });
 });

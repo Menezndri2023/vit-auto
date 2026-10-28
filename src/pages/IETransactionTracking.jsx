@@ -912,6 +912,11 @@ export default function IETransactionTracking() {
               {tx.destCountry && <> → {tx.destCountry}{tx.destCity ? `, ${tx.destCity}` : ""}</>}
             </p>
             <p className={styles.headerRef}>Réf. TXN-{tx._id?.slice(-8).toUpperCase()} · {fmtDate(tx.createdAt)}</p>
+            {/* VIT-AUTO Logistique : transport demandé à des prestataires partenaires,
+                mise en relation gratuite — n'affecte ni le paiement ni la commission. */}
+            {role === "client" && tx.status !== "cancelled" && (
+              <p className={styles.headerRef}><Link to={`/logistique?commande=transaction:${tx._id}`}>📦 Organiser le transport</Link></p>
+            )}
           </div>
         </div>
         <div className={styles.headerRight}>

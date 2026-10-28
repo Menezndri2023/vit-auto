@@ -43,6 +43,26 @@ describe("VIT-AUTO Logistique — écrans", () => {
     verifier("Logistique client");
   });
 
+  it("client : ?commande= présélectionne la commande et préremplit le trajet", async () => {
+    const client = utilisateurTest("client");
+    connecter(client);
+    simulerApi({ user: client, routes: {
+      "/api/logistique/commandes-rattachables": { commandes: [{
+        type: "booking", id: "c1", reference: "VIT-PIECE-2026-000004", libelle: "Pièces — 2 × Disques avant", demandeExistante: null,
+        prefill: { typeBesoin: "pieces", depart: { pays: "MA", ville: "Casablanca" }, arrivee: { pays: "SN", ville: "Dakar" }, marchandise: { description: "2 × Disques avant", quantite: 2 } },
+      }] },
+      "/api/logistique/demandes": { demandes: [{ ...DEMANDE, _id: "autre" }] },
+    } });
+    renderPage(<Logistique />, { route: "/logistique?commande=booking:c1", path: "/logistique" });
+
+    const choix = await screen.findByLabelText(/Rattacher à une de vos commandes/);
+    await screen.findByDisplayValue("Dakar");
+    expect(choix.value).toBe("booking:c1");
+    expect(screen.getByDisplayValue("Casablanca")).toBeTruthy();
+    expect(screen.getByDisplayValue("2 × Disques avant")).toBeTruthy();
+    verifier("Logistique préremplie");
+  });
+
   it("client : le suivi compare les devis et rappelle que VIT AUTO ne perçoit rien", async () => {
     const client = utilisateurTest("client");
     connecter(client);

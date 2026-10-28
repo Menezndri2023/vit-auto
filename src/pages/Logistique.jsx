@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import {
@@ -27,7 +27,7 @@ function useApi() {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(options.headers || {}) },
     });
     const corps = await r.json().catch(() => ({}));
-    if (!r.ok) throw Object.assign(new Error(corps.message || "Erreur réseau."), { champs: corps.champs || [] });
+    if (!r.ok) throw Object.assign(new Error(corps.message || "Erreur réseau."), { champs: corps.champs || [], code: corps.code, demandeId: corps.demandeId });
     return corps;
   }, [token]);
 }
@@ -58,9 +58,47 @@ function Champ({ id, label, erreur, aide, children }) {
   );
 }
 
-function Formulaire({ onCree }) {
+// Préremplit le formulaire depuis une commande : seuls les champs connus de la
+// commande sont écrasés, le client peut ensuite tout corriger.
+function appliquerPrefill(base, prefill = {}) {
+  const f = structuredClone(base);
+  if (prefill.typeBesoin) f.typeBesoin = prefill.typeBesoin;
+  for (const cote of ["depart", "arrivee"]) {
+    if (prefill[cote]?.pays) f[cote].pays = prefill[cote].pays;
+    if (prefill[cote]?.ville) f[cote].ville = prefill[cote].ville;
+  }
+  const m = prefill.marchandise || {};
+  if (m.description) f.marchandise.description = m.description;
+  if (m.quantite) f.marchandise.quantite = m.quantite;
+  if (m.vehicule) {
+    for (const k of ["marque", "modele", "annee"]) if (m.vehicule[k]) f.marchandise.vehicule[k] = m.vehicule[k];
+  }
+  return f;
+}
+
+function Formulaire({ onCree, lienInitial }) {
   const api = useApi();
+  const navigate = useNavigate();
   const [f, setF] = useState(VIDE);
+  const [commandes, setCommandes] = useState([]);
+  const [lien, setLien] = useState("");
+
+  const choisirCommande = useCallback((valeur, liste) => {
+    setLien(valeur);
+    const c = liste.find((x) => `${x.type}:${x.id}` === valeur);
+    if (c) setF((p) => appliquerPrefill(p, c.prefill));
+  }, []);
+
+  useEffect(() => {
+    api("/api/logistique/commandes-rattachables")
+      .then((r) => {
+        const liste = r.commandes || [];
+        setCommandes(liste);
+        if (lienInitial && liste.some((c) => `${c.type}:${c.id}` === lienInitial)) choisirCommande(lienInitial, liste);
+      })
+      .catch(() => setCommandes([]));
+  }, [api, lienInitial, choisirCommande]);
+  const commandeChoisie = commandes.find((c) => `${c.type}:${c.id}` === lien);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState("");
   const [manquants, setManquants] = useState([]);
@@ -79,13 +117,16 @@ function Formulaire({ onCree }) {
     setEnvoi(true); setErreur(""); setManquants([]);
     try {
       const v = f.marchandise.vehicule;
+      const [lienType, lienId] = lien ? lien.split(":") : [];
       const corps = {
         ...f, brouillon,
+        ...(lien ? { lien: { type: lienType, id: lienId } } : {}),
         marchandise: { ...f.marchandise, vehicule: f.typeBesoin === "vehicule" ? { ...v, annee: v.annee || null } : undefined },
       };
       const r = await api("/api/logistique/demandes", { method: "POST", body: JSON.stringify(corps) });
       onCree(r.demande);
     } catch (e) {
+      if (e.code === "DEMANDE_EXISTANTE" && e.demandeId) { navigate(`/logistique/demandes/${e.demandeId}`); return; }
       setErreur(e.champs?.length ? `À compléter : ${e.champs.map((c) => LIBELLES_CHAMPS[c] || c).join(", ")}.` : e.message);
       setManquants(e.champs || []);
     } finally { setEnvoi(false); }
@@ -103,6 +144,22 @@ function Formulaire({ onCree }) {
   return (
     <form className={styles.bloc} onSubmit={(e) => { e.preventDefault(); envoyer(false); }} noValidate>
       <h2>Nouvelle demande</h2>
+      {commandes.length > 0 && (
+        <div className={styles.champ} style={{ marginBottom: 14 }}>
+          <label htmlFor="log-commande">Rattacher à une de vos commandes (facultatif)</label>
+          <select id="log-commande" value={lien} onChange={(e) => choisirCommande(e.target.value, commandes)}>
+            <option value="">Aucune — demande indépendante</option>
+            {commandes.map((c) => (
+              <option key={`${c.type}:${c.id}`} value={`${c.type}:${c.id}`} disabled={!!c.demandeExistante}>
+                {c.libelle}{c.reference ? ` (${c.reference})` : ""}{c.demandeExistante ? ` — transport déjà demandé : ${c.demandeExistante.reference}` : ""}
+              </option>
+            ))}
+          </select>
+          <span className={styles.aideChamp}>
+            {commandeChoisie ? "Trajet et marchandise préremplis depuis la commande : vérifiez-les et complétez si besoin." : "Une commande de pièces ou une transaction VIT-AUTO Trade. Aucun paiement ni frais n'est déclenché."}
+          </span>
+        </div>
+      )}
       <div className={styles.choixType} role="group" aria-label="Type de besoin">
         {TYPES_BESOIN.map((t) => (
           <button key={t.code} type="button" className={styles.choix} aria-pressed={f.typeBesoin === t.code} onClick={() => maj("typeBesoin", t.code)}>
@@ -202,14 +259,16 @@ function Formulaire({ onCree }) {
 function Liste() {
   const api = useApi();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const lienInitial = params.get("commande") || "";
   const [etat, setEtat] = useState({ chargement: true, demandes: [], erreur: "" });
   const [formulaire, setFormulaire] = useState(false);
 
   useEffect(() => {
     api("/api/logistique/demandes")
-      .then((d) => { setEtat({ chargement: false, demandes: d.demandes || [], erreur: "" }); if (!(d.demandes || []).length) setFormulaire(true); })
+      .then((d) => { setEtat({ chargement: false, demandes: d.demandes || [], erreur: "" }); if (!(d.demandes || []).length || lienInitial) setFormulaire(true); })
       .catch((e) => setEtat({ chargement: false, demandes: [], erreur: e.message }));
-  }, [api]);
+  }, [api, lienInitial]);
 
   return (
     <div className={styles.page}>
@@ -225,7 +284,7 @@ function Liste() {
       </p>
 
       {!formulaire && <button type="button" className={styles.bouton} onClick={() => setFormulaire(true)}>Nouvelle demande</button>}
-      {formulaire && <Formulaire onCree={(d) => navigate(`/logistique/demandes/${d._id}`)} />}
+      {formulaire && <Formulaire lienInitial={lienInitial} onCree={(d) => navigate(`/logistique/demandes/${d._id}`)} />}
 
       <div className={styles.bloc}>
         <h2>Mes demandes</h2>
@@ -385,6 +444,10 @@ function Detail({ id }) {
       <div className={styles.bloc}>
         <h2>Votre demande</h2>
         <dl className={styles.infos}>
+          {demande.commandeLiee && <><dt>Commande liée</dt><dd>{demande.commandeLiee.libelle}{demande.commandeLiee.reference ? ` — ${demande.commandeLiee.reference}` : ""}{" "}
+            {demande.commandeLiee.type === "booking"
+              ? <Link to="/dashboard">voir la commande</Link>
+              : <Link to={`/import-export/transaction/${demande.commandeLiee.id}`}>voir la transaction</Link>}</dd></>}
           {demande.typeBesoin === "vehicule"
             ? <><dt>Véhicule</dt><dd>{[m.vehicule?.marque, m.vehicule?.modele, m.vehicule?.annee].filter(Boolean).join(" ")}{m.vehicule?.roulant === false ? " — non roulant" : ""}</dd></>
             : <><dt>Marchandise</dt><dd>{m.description}{m.quantite > 1 ? ` — ${m.quantite} unités` : ""}{m.poidsKg ? ` — ${m.poidsKg} kg` : ""}</dd></>}
