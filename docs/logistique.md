@@ -44,6 +44,57 @@ Règles :
 - L'acceptation fige une **copie exacte** du devis (`devisAccepte.copie`) avec sa date.
 - Un devis expiré ne peut pas être accepté.
 
+## Commande commerciale, dossier logistique et Incoterms® 2020 (2026-10-28)
+
+**La commande Trade ou Parts reste la référence commerciale.** Le dossier logistique est un dossier
+opérationnel distinct ; il peut exister sans commande.
+
+### Conditions Incoterms® sur la commande — `/api/incoterms`
+
+- `IETransaction.conditionsIncoterm` et `Booking.conditionsIncoterm` (Parts) : règle parmi les **onze**
+  (EXW, FCA, FAS, FOB, CFR, CIF, CPT, CIP, DAP, DPU, DDP), version `2020`, **lieu nommé obligatoire**,
+  pays, mode, références de devis et de contrat, notes, historique. Libellé : « FOB Port de Jebel
+  Ali, Incoterms® 2020 ».
+- Accord = validation de l'acheteur **et** du vendeur (lus sur la commande). Toute modification remet
+  l'accord à zéro, exige un **motif** une fois l'accord obtenu, et s'inscrit dans l'historique et le
+  journal d'audit. L'admin lit, ne modifie pas.
+- Une règle maritime (FAS/FOB/CFR/CIF) choisie pour un transport non maritime déclenche un avertissement.
+- **Aide au choix** (`POST /api/incoterms/recommandation`) : FOB n'est recommandé qu'en maritime, marchandise
+  chargée à bord, transport principal organisé par l'acheteur ; **FCA** pour un conteneur remis au
+  terminal (FOB y est « à examiner ») ; CFR/CIF, CPT/CIP, DAP/DPU/DDP, EXW selon le scénario. Elle ne
+  choisit jamais à la place des parties et ne constitue pas un avis juridique.
+- Panneau « Conditions Incoterms® 2020 » : suivi Trade (acheteur, exportateur, admin) et commandes
+  Parts transfrontalières (client et vendeur). `Quote.incoterm` accepte désormais les onze règles.
+
+### Dossier logistique — parties, rôles, exportateur
+
+- **Plusieurs dossiers par commande** (expéditions partielles). Un envoi rejoué ne crée pas de doublon :
+  clé `cleIdempotence` unique par demandeur, le serveur renvoie le dossier déjà créé.
+- **Parties** (`parties.acheteur`, `parties.vendeur`) lues sur la commande, jamais reçues du navigateur.
+  Le dossier peut être créé par l'**acheteur** ou par le **vendeur** ; l'acheteur non demandeur suit le
+  dossier en lecture, seul le demandeur décide (devis, rôles, annulation).
+- **Donneur d'ordre** et **payeur** : déclarés (« à confirmer » par défaut), **jamais déduits de
+  l'Incoterm** — l'interface n'affiche qu'une indication (« sous FOB, le transport principal est
+  habituellement organisé par l'acheteur »). Figés à l'acceptation.
+- L'Incoterm de la commande est recopié **pour information** (`incotermCommande`).
+- **Espace exportateur** (`/logistique/vendeur`, `/api/logistique/vendeur/...`) : confirmation de la
+  disponibilité, du lieu d'enlèvement, du poids, du volume, du chargement, des contraintes de manutention
+  et des documents prévus. Il ne voit ni les prix du transport ni les coordonnées du client ; il n'est
+  pas pour autant donneur d'ordre ni payeur.
+- **Devis** : nature (`estimatif` / `ferme`), trajet, mode, postes facultatifs (préparation et
+  manutention, transport local et international, frais portuaires et de terminal, assurance, droits et
+  taxes, autres). Si les postes inclus sont chiffrés, leur somme **égale** le montant ; un poste non
+  inclus signale un frais possible en sus sans être ajouté. Aucun droit ni taxe n'est calculé.
+- **Acceptation** : devis exact, version, date, auteur, partie contractante et payeur déclarés. Ce n'est
+  pas une preuve de paiement.
+- **Documents** (`documents[]`) : chaque rôle dépose ce qui relève de lui (acheteur : facture, import,
+  assurance ; vendeur : facture, liste de colisage, justificatif d'export ; prestataire retenu : transport,
+  preuve de livraison, assurance). Lecture : demandeur, acheteur, vendeur, prestataire retenu, admin —
+  jamais un prestataire simplement sollicité. Aucun document n'est obligatoire ni « vérifié ».
+- Les événements de devis (qui portent les montants) sont exclus des vues du vendeur et des
+  prestataires : un prestataire ne voit jamais le prix d'un concurrent.
+- Clôturer le dossier logistique ne clôture pas la commande commerciale, et inversement.
+
 ## Rattachement à une commande Parts ou Trade
 
 - Le formulaire propose les commandes **du client** (`GET /commandes-rattachables`) : commandes de
@@ -51,9 +102,8 @@ Règles :
   Choisir une commande **préremplit** trajet et marchandise ; le client corrige librement. Un pays
   d'origine écrit en toutes lettres (« Émirats Arabes Unis ») n'est pas converti : le champ reste vide.
 - Seule la **référence** est stockée (`liens.booking` ou `liens.transaction`) ; les données de la
-  commande ne sont pas recopiées. Le serveur vérifie que la commande appartient au client et
-  n'est pas annulée, et refuse une seconde demande active sur la même commande (409
-  `DEMANDE_EXISTANTE`, avec l'identifiant de la demande ouverte).
+  commande ne sont pas recopiées. Le serveur vérifie que l'utilisateur est l'acheteur ou le vendeur de
+  la commande et qu'elle n'est pas annulée. Plusieurs dossiers par commande sont permis (voir plus haut).
 - Visible : client (lien vers la commande), admin (référence et statut de la commande),
   prestataire (seulement la nature : « Commande de pièces détachées » / « Transaction VIT-AUTO Trade »).
 - Accès direct : bouton « Organiser le transport » sur une commande de pièces (tableau de bord) et sur

@@ -29,6 +29,14 @@ router.post ("/prestataire/demandes/:id/devis",              authenticate, prest
 router.post ("/prestataire/demandes/:id/devis/:devisId/retirer", authenticate, prestataire, vid, l.retirerDevis);
 router.post ("/prestataire/demandes/:id/etape",              authenticate, prestataire, vid, l.avancerEtape);
 router.post ("/prestataire/demandes/:id/preuve",             authenticate, prestataire, vid, l.deposerPreuveLivraison);
+router.post ("/prestataire/demandes/:id/documents",          authenticate, prestataire, vid, l.deposerDocumentPrestataire);
+
+// Vendeur / exportateur de la commande liée (tout utilisateur connecté ; le
+// contrôleur ne montre que les dossiers où il est le vendeur)
+router.get  ("/vendeur/demandes",                   authenticate,      l.demandesVendeur);
+router.get  ("/vendeur/demandes/:id",               authenticate, vid, l.lireDemandeVendeur);
+router.post ("/vendeur/demandes/:id/enlevement",    authenticate, vid, l.confirmerEnlevement);
+router.post ("/vendeur/demandes/:id/documents",     authenticate, vid, l.deposerDocumentVendeur);
 
 // Client (connexion obligatoire, comme pour tout service)
 router.get  ("/commandes-rattachables",             authenticate,      l.commandesRattachables);
@@ -41,5 +49,7 @@ router.post ("/demandes/:id/devis/:devisId/refuser",  authenticate, vid, l.refus
 router.post ("/demandes/:id/annuler",               authenticate, vid, l.annulerDemande);
 router.post ("/demandes/:id/confirmer-livraison",   authenticate, vid, l.confirmerLivraison);
 router.post ("/demandes/:id/litige",                authenticate, vid, l.ouvrirLitige);
+router.post ("/demandes/:id/roles",                 authenticate, vid, l.definirRoles);
+router.post ("/demandes/:id/documents",             authenticate, vid, l.deposerDocumentClient);
 
 export default router;

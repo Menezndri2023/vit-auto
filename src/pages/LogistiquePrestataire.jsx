@@ -3,6 +3,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { TYPES_BESOIN, MODES_TRANSPORT, LIBELLES_STATUT, LIBELLES_DEVIS, ETAPE_SUIVANTE_PRESTATAIRE, nomPays } from "../constants/logistique";
 import styles from "./Logistique.module.css";
+import { BlocConditionsRoles, BlocEnlevement, BlocDocuments, EditeurPostes, PostesDevis } from "./LogistiqueBlocs";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // VIT-AUTO Logistique — espace prestataire (2026-10-27)
@@ -68,7 +69,7 @@ function Liste() {
   );
 }
 
-const DEVIS_VIDE = { montant: "", devise: "EUR", delaiJoursMin: "", delaiJoursMax: "", valideJusquau: enJours(15), inclus: "", exclus: "", fraisAdditionnels: "", modalitesPaiement: "", conditionsAnnulation: "" };
+const DEVIS_VIDE = { montant: "", devise: "EUR", delaiJoursMin: "", delaiJoursMax: "", valideJusquau: enJours(15), inclus: "", exclus: "", fraisAdditionnels: "", modalitesPaiement: "", conditionsAnnulation: "", nature: "estimatif", modeTransport: "", trajet: "", postes: [] };
 
 function Detail({ id }) {
   const api = useApi();
@@ -147,6 +148,16 @@ function Detail({ id }) {
         {!d.retenu && <p className={styles.maj}>Les coordonnées du client vous seront communiquées si votre devis est accepté.</p>}
       </div>
 
+      <BlocConditionsRoles demande={d} />
+      {d.commandeLiee && <BlocEnlevement enlevement={d.enlevement} />}
+      {d.retenu && (
+        <BlocDocuments documents={d.documents || []} role="prestataire"
+          onDeposer={d.statut !== "annulee" ? async (corps) => {
+            const r = await api(`${base}/documents`, { method: "POST", body: JSON.stringify(corps) });
+            setD(r.demande); setInfo("Document déposé.");
+          } : null} />
+      )}
+
       {peutChiffrer && d.sollicitation?.reponse !== "decline" && (
         <div className={styles.bloc}>
           <h2>{enCours ? `Actualiser votre devis (version ${enCours.version} en cours : ${fmtMontant(enCours.montant, enCours.devise)})` : "Votre devis"}</h2>
@@ -157,6 +168,17 @@ function Detail({ id }) {
               <div className={styles.champ}><label htmlFor="dv-min">Délai minimum (jours)</label><input id="dv-min" type="number" inputMode="numeric" min="0" value={devis.delaiJoursMin} onChange={(e) => majDevis("delaiJoursMin", e.target.value)} /></div>
               <div className={styles.champ}><label htmlFor="dv-max">Délai maximum (jours)</label><input id="dv-max" type="number" inputMode="numeric" min="0" value={devis.delaiJoursMax} onChange={(e) => majDevis("delaiJoursMax", e.target.value)} /></div>
               <div className={styles.champ}><label htmlFor="dv-validite">Valable jusqu'au</label><input id="dv-validite" type="date" required value={devis.valideJusquau} onChange={(e) => majDevis("valideJusquau", e.target.value)} /></div>
+              <div className={styles.champ}><label htmlFor="dv-nature">Nature du prix</label>
+                <select id="dv-nature" value={devis.nature} onChange={(e) => majDevis("nature", e.target.value)}>
+                  <option value="estimatif">Estimation (non garantie)</option><option value="ferme">Prix ferme</option>
+                </select></div>
+              <div className={styles.champ}><label htmlFor="dv-mode">Mode de transport</label>
+                <select id="dv-mode" value={devis.modeTransport} onChange={(e) => majDevis("modeTransport", e.target.value)}>
+                  <option value="">Non précisé</option>
+                  {MODES_TRANSPORT.filter((x) => x.code !== "indifferent").map((x) => <option key={x.code} value={x.code}>{x.libelle}</option>)}
+                </select></div>
+              <div className={`${styles.champ} ${styles.pleine}`}><label htmlFor="dv-trajet">Trajet proposé</label><input id="dv-trajet" placeholder="Ex. : enlèvement Jebel Ali → port de Casablanca → livraison Casablanca" value={devis.trajet} onChange={(e) => majDevis("trajet", e.target.value)} /></div>
+              <EditeurPostes valeur={devis.postes} onChange={(v) => majDevis("postes", v)} />
               {[["inclus", "Prestations incluses"], ["exclus", "Prestations exclues"], ["fraisAdditionnels", "Frais additionnels éventuels et conditions"], ["modalitesPaiement", "Modalités de paiement"], ["conditionsAnnulation", "Conditions d'annulation et exclusions"]].map(([k, l]) => (
                 <div key={k} className={`${styles.champ} ${styles.pleine}`}><label htmlFor={`dv-${k}`}>{l}</label><textarea id={`dv-${k}`} value={devis[k]} onChange={(e) => majDevis(k, e.target.value)} /></div>
               ))}
@@ -209,7 +231,7 @@ function Detail({ id }) {
         <div className={styles.bloc}>
           <h2>Historique de vos devis</h2>
           <ul className={styles.journal}>
-            {d.mesDevis.map((x) => <li key={x._id}>Version {x.version} — {fmtMontant(x.montant, x.devise)} — {LIBELLES_DEVIS[x.statut]} — {fmtDate(x.creeLe)}</li>)}
+            {d.mesDevis.map((x) => <li key={x._id}>Version {x.version} — {fmtMontant(x.montant, x.devise)} ({x.nature === "ferme" ? "ferme" : "estimation"}) — {LIBELLES_DEVIS[x.statut]} — {fmtDate(x.creeLe)}<PostesDevis devis={x} /></li>)}
           </ul>
         </div>
       )}

@@ -915,8 +915,11 @@ export default function IETransactionTracking() {
             <p className={styles.headerRef}>Réf. TXN-{tx._id?.slice(-8).toUpperCase()} · {fmtDate(tx.createdAt)}</p>
             {/* VIT-AUTO Logistique : transport demandé à des prestataires partenaires,
                 mise en relation gratuite — n'affecte ni le paiement ni la commission. */}
-            {role === "client" && tx.status !== "cancelled" && (
-              <p className={styles.headerRef}><Link to={`/logistique?commande=transaction:${tx._id}`}>📦 Organiser le transport</Link></p>
+            {(role === "client" || (role === "partner" && isPartner)) && tx.status !== "cancelled" && (
+              <p className={styles.headerRef}>
+                <Link to={`/logistique?commande=transaction:${tx._id}`}>📦 Organiser le transport</Link>
+                {role === "partner" && isPartner && <> · <Link to="/logistique/vendeur">Transports de mes ventes</Link></>}
+              </p>
             )}
           </div>
         </div>

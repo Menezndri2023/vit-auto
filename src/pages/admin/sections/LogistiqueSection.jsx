@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { fmtDate } from "../shared.jsx";
-import { LIBELLES_STATUT, TYPES_BESOIN, LIBELLES_DEVIS, nomPays } from "../../../constants/logistique";
+import { LIBELLES_STATUT, TYPES_BESOIN, LIBELLES_DEVIS, nomPays, DONNEURS_ORDRE, PAYEURS, libelleDe, TYPES_DOCUMENT } from "../../../constants/logistique";
 import css from "./DossiersImportSection.module.css";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -142,6 +142,24 @@ function Detail({ id, appel, onRetour }) {
         {d.commandeLiee && <p className={css.muted}>Commande liée : {d.commandeLiee.libelle}{d.commandeLiee.reference ? ` — ${d.commandeLiee.reference}` : ""}{d.liens?.booking?.status ? ` (statut : ${d.liens.booking.status})` : d.liens?.transaction?.status ? ` (statut : ${d.liens.transaction.status})` : ""}</p>}
         <p className={css.muted}>Client : {d.client ? `${d.client.firstName || ""} ${d.client.lastName || ""}`.trim() : "—"} · {d.contact?.telephone} {d.contact?.email}</p>
         {m.contraintes && <p className={css.muted}>Contraintes : {m.contraintes}</p>}
+        {(d.parties?.acheteur || d.parties?.vendeur) && (
+          <p className={css.muted}>
+            Acheteur : {d.parties?.acheteur ? `${d.parties.acheteur.firstName || ""} ${d.parties.acheteur.lastName || ""}`.trim() : "—"} ·
+            Vendeur : {d.parties?.vendeur ? `${d.parties.vendeur.firstName || ""} ${d.parties.vendeur.lastName || ""}`.trim() : "—"} ·
+            Demandeur : {d.roleDemandeur}
+          </p>
+        )}
+        <p className={css.muted}>
+          Incoterm de la commande : {d.incotermCommande?.regle ? `${d.incotermCommande.regle} ${d.incotermCommande.lieuNomme || ""}, Incoterms® ${d.incotermCommande.version || "2020"} (${d.incotermCommande.statut})` : "—"} ·
+          Commande le transport : {libelleDe(DONNEURS_ORDRE, d.donneurOrdre)} · Paie : {libelleDe(PAYEURS, d.payeur)}
+        </p>
+        {d.enlevement?.confirmeLe && <p className={css.muted}>Enlèvement confirmé le {fmtDate(d.enlevement.confirmeLe)} : {d.enlevement.lieu}{d.enlevement.poidsKg != null ? ` · ${d.enlevement.poidsKg} kg` : ""}{d.enlevement.volumeM3 != null ? ` · ${d.enlevement.volumeM3} m³` : ""}</p>}
+        {d.devisAccepte?.accepteLe && <p className={css.muted}>Devis accepté (version {d.devisAccepte.version}) le {fmtDate(d.devisAccepte.accepteLe)} — partie contractante déclarée : {libelleDe(DONNEURS_ORDRE, d.devisAccepte.partieContractante)} · payeur : {libelleDe(PAYEURS, d.devisAccepte.payeur)}. L'acceptation n'est pas un paiement.</p>}
+        {(d.documents || []).length > 0 && (
+          <ul className={css.historique}>
+            {d.documents.map((doc) => <li key={doc._id}><a href={doc.url} target="_blank" rel="noreferrer">{TYPES_DOCUMENT[doc.type] || doc.type}</a> — {doc.role}, {fmtDate(doc.deposeLe)} — non vérifié</li>)}
+          </ul>
+        )}
         {d.litige?.motif && <p className={css.erreur}>Litige : {d.litige.motif}</p>}
       </div>
 

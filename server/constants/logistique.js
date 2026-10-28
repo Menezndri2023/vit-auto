@@ -17,7 +17,7 @@ export const LIBELLES_BESOIN = {
   autre:    "Autre demande logistique",
 };
 
-export const MODES_TRANSPORT = ["routier", "maritime", "aerien", "indifferent"];
+export const MODES_TRANSPORT = ["routier", "maritime", "aerien", "ferroviaire", "multimodal", "indifferent"];
 
 // Prestataires (models/Prestataire.js) habilités à répondre à une demande
 // logistique : transport et transit. Les inspecteurs et commissionnaires en
@@ -97,4 +97,30 @@ export const JALONS = {
   cloturee:           "clotureeLe",
   annulee:            "annuleeLe",
   litige:             "litigeOuvertLe",
+};
+
+// ── Rôles et documents (2026-10-28, intégration Trade / Parts / Incoterms) ──
+// Donneur d'ordre (qui commande le transport) et payeur : déclarés par les
+// parties, JAMAIS déduits de l'Incoterm.
+export const DONNEURS_ORDRE = ["a_confirmer", "acheteur", "vendeur", "autre"];
+export const PAYEURS = ["a_confirmer", "acheteur", "vendeur", "partage", "autre"];
+
+// Postes de coût d'un devis — tous facultatifs ; un poste « inclus » fait
+// partie du montant, un poste non inclus est un frais possible en sus.
+export const POSTES_COUT = [
+  "preparation_manutention", "transport_local", "transport_international",
+  "frais_portuaires_terminal", "assurance", "droits_taxes", "autres",
+];
+export const NATURES_DEVIS = ["estimatif", "ferme"];
+
+export const TYPES_DOCUMENT = [
+  "facture_commerciale", "liste_colisage", "document_transport", "justificatif_export",
+  "document_import", "assurance", "preuve_livraison", "autre",
+];
+// Qui peut DÉPOSER quel document. Aucun n'est exigé : tous ne s'appliquent
+// pas à toutes les opérations. Aucun n'est « vérifié » par VIT AUTO.
+export const DOCUMENTS_PAR_ROLE = {
+  acheteur:    ["facture_commerciale", "document_import", "assurance", "autre"],
+  vendeur:     ["facture_commerciale", "liste_colisage", "justificatif_export", "autre"],
+  prestataire: ["document_transport", "preuve_livraison", "assurance", "autre"],
 };

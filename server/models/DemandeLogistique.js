@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import {
   STATUTS, TYPES_BESOIN, MODES_TRANSPORT, REPONSES_SOLLICITATION, STATUTS_DEVIS, MODELE_ECONOMIQUE,
+  DONNEURS_ORDRE, PAYEURS, POSTES_COUT, NATURES_DEVIS, TYPES_DOCUMENT,
 } from "../constants/logistique.js";
 
 // Demande logistique (VIT-AUTO Logistique, 2026-10-27) — mise en relation
@@ -29,6 +30,26 @@ const sollicitationSchema = new mongoose.Schema({
   repondueLe:   { type: Date, default: null },
 }, { _id: true });
 
+const posteSchema = new mongoose.Schema({
+  categorie: { type: String, enum: POSTES_COUT, required: true },
+  montant:   { type: Number, min: 0, default: null },
+  inclus:    { type: Boolean, default: true },   // compris dans le montant du devis
+  note:      { type: String, trim: true, maxlength: 300, default: "" },
+}, { _id: false });
+
+const documentSchema = new mongoose.Schema({
+  type:     { type: String, enum: TYPES_DOCUMENT, required: true },
+  nom:      { type: String, trim: true, maxlength: 160, default: "" },
+  url:      { type: String, required: true },   // ImageKit privé, signé à la lecture
+  note:     { type: String, trim: true, maxlength: 300, default: "" },
+  role:     { type: String, enum: ["acheteur", "vendeur", "prestataire", "admin"], required: true },
+  deposePar:{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  deposeLe: { type: Date, default: Date.now },
+  // Aucun contrôle de conformité n'existe : un document n'est JAMAIS présenté
+  // comme vérifié ou officiel.
+  verifie:  { type: Boolean, default: false, validate: { validator: (v) => v === false, message: "VIT AUTO ne vérifie pas les documents déposés." } },
+}, { _id: true });
+
 const devisSchema = new mongoose.Schema({
   prestataire:          { type: mongoose.Schema.Types.ObjectId, ref: "Prestataire", required: true },
   version:              { type: Number, default: 1 },
@@ -43,6 +64,12 @@ const devisSchema = new mongoose.Schema({
   fraisAdditionnels:    { type: String, trim: true, maxlength: 1000, default: "" },
   modalitesPaiement:    { type: String, trim: true, maxlength: 1000, default: "" },
   conditionsAnnulation: { type: String, trim: true, maxlength: 1000, default: "" },
+  // Détail facultatif. Si des postes inclus sont chiffrés, leur somme égale
+  // le montant (contrôle serveur) : un frais n'est jamais compté deux fois.
+  postes:               [posteSchema],
+  nature:               { type: String, enum: NATURES_DEVIS, default: "estimatif" },
+  trajet:               { type: String, trim: true, maxlength: 300, default: "" },
+  modeTransport:        { type: String, enum: [...MODES_TRANSPORT, null], default: null },
   statut:               { type: String, enum: STATUTS_DEVIS, default: "propose" },
   creeLe:               { type: Date, default: Date.now },
   modifieLe:            { type: Date, default: null },
@@ -50,7 +77,47 @@ const devisSchema = new mongoose.Schema({
 
 const demandeLogistiqueSchema = new mongoose.Schema({
   reference: { type: String, required: true, unique: true },   // VA-LOG-2026-000001
+  // Demandeur : celui qui crée le dossier (acheteur, vendeur, ou client sans
+  // commande). C'est lui qui accepte un devis pour le compte de la partie
+  // contractante déclarée.
   client:    { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+  roleDemandeur: { type: String, enum: ["acheteur", "vendeur", "independant"], default: "independant" },
+  // Parties de la commande liée — LUES sur la commande par le serveur, jamais
+  // reçues du navigateur. Vides pour une demande indépendante.
+  parties: {
+    acheteur: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
+    vendeur:  { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
+  },
+  // Anti-doublon : un même envoi du formulaire rejoué ne crée pas un second
+  // dossier (plusieurs dossiers par commande restent possibles).
+  cleIdempotence: { type: String, trim: true, maxlength: 80, default: null },
+  // Qui commande le transport et qui le paie : déclarés, jamais déduits de
+  // l'Incoterm.
+  donneurOrdre:   { type: String, enum: DONNEURS_ORDRE, default: "a_confirmer" },
+  payeur:         { type: String, enum: PAYEURS, default: "a_confirmer" },
+  precisionRoles: { type: String, trim: true, maxlength: 300, default: "" },
+  // Copie INFORMATIVE des conditions Incoterms® de la commande à la création
+  // du dossier ; la commande reste la référence.
+  incotermCommande: {
+    regle:     { type: String, default: null },
+    lieuNomme: { type: String, default: null },
+    version:   { type: String, default: null },
+    statut:    { type: String, default: null },
+  },
+  // Confirmation par le vendeur/exportateur des informations d'enlèvement.
+  enlevement: {
+    disponible:            { type: Boolean, default: null },
+    dateDisponibilite:     { type: Date, default: null },
+    lieu:                  { type: String, trim: true, maxlength: 300, default: "" },
+    poidsKg:               { type: Number, min: 0, default: null },
+    volumeM3:              { type: Number, min: 0, default: null },
+    chargement:            { type: String, trim: true, maxlength: 500, default: "" },
+    contraintesManutention:{ type: String, trim: true, maxlength: 500, default: "" },
+    documentsPrevus:       { type: String, trim: true, maxlength: 500, default: "" },
+    confirmeLe:            { type: Date, default: null },
+    par:                   { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  },
+  documents: [documentSchema],
 
   // Coordonnées : visibles de l'admin, et du seul prestataire dont le devis a
   // été accepté. Jamais des prestataires simplement sollicités.
@@ -102,7 +169,13 @@ const demandeLogistiqueSchema = new mongoose.Schema({
     devisId:     { type: mongoose.Schema.Types.ObjectId, default: null },
     prestataire: { type: mongoose.Schema.Types.ObjectId, ref: "Prestataire", default: null },
     copie:       { type: mongoose.Schema.Types.Mixed, default: null },
+    version:     { type: Number, default: null },
     accepteLe:   { type: Date, default: null },
+    acceptePar:  { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    // Déclarations figées au moment de l'acceptation. L'acceptation n'est PAS
+    // une preuve de paiement.
+    partieContractante: { type: String, default: null },
+    payeur:             { type: String, default: null },
   },
 
   preuveLivraison: {
@@ -151,6 +224,9 @@ const demandeLogistiqueSchema = new mongoose.Schema({
 
 demandeLogistiqueSchema.index({ "sollicitations.prestataire": 1, statut: 1 });
 demandeLogistiqueSchema.index({ createdAt: -1 });
+demandeLogistiqueSchema.index({ client: 1, cleIdempotence: 1 }, { unique: true, partialFilterExpression: { cleIdempotence: { $type: "string" } } });
+demandeLogistiqueSchema.index({ "liens.booking": 1 });
+demandeLogistiqueSchema.index({ "liens.transaction": 1 });
 demandeLogistiqueSchema.index({ "depart.pays": 1, "arrivee.pays": 1 });
 
 const DemandeLogistique = mongoose.models.DemandeLogistique || mongoose.model("DemandeLogistique", demandeLogistiqueSchema);

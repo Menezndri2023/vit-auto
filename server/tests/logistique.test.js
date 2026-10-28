@@ -168,6 +168,10 @@ describe("Devis : soumission, actualisation, acceptation", () => {
     const vueClient = await appel(L.lireDemandeClient, { user: client, params: { id } });
     const visibles = vueClient.body.demande.devis.map((d) => d.montant).sort();
     expect(visibles).toEqual([1100, 950]);                 // le client ne voit pas la version remplacée
+
+    // Un prestataire ne voit jamais le prix proposé par un concurrent.
+    const vueP2 = await appel(L.lireDemandePrestataire, { user: p2.user, params: { id } });
+    expect(JSON.stringify(vueP2.body.demande)).not.toMatch(/1100|1200/);
   });
 
   it("refuse un devis incomplet ou déjà expiré à sa création", async () => {
@@ -404,25 +408,30 @@ describe("Rattachement à une commande Parts ou Trade", () => {
     expect(JSON.stringify(vuePrest.body.demande)).not.toContain(String(b._id));
   });
 
-  it("refuse la commande d'un autre client, une commande annulée, et un second rattachement actif", async () => {
+  it("refuse la commande d'un tiers ou annulée ; plusieurs dossiers par commande sont permis, un envoi rejoué n'en crée pas deux", async () => {
     const autre = await commandePiece(autreClient);
-    const r1 = await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien: { type: "booking", id: String(autre._id) } } });
-    expect(r1.statusCode).toBe(404);
+    expect((await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien: { type: "booking", id: String(autre._id) } } })).statusCode).toBe(404);
 
     const annulee = await commandePiece(client, "cancelled");
     expect((await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien: { type: "booking", id: String(annulee._id) } } })).statusCode).toBe(409);
 
+    // Expéditions partielles : deux dossiers pour la même transaction.
     const t = await createIETransaction({ client: client._id });
-    const premier = await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien: { type: "transaction", id: String(t._id) } } });
-    expect(premier.statusCode).toBe(201);
-    const second = await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien: { type: "transaction", id: String(t._id) } } });
-    expect(second.statusCode).toBe(409);
-    expect(second.body.code).toBe("DEMANDE_EXISTANTE");
-    expect(String(second.body.demandeId)).toBe(String(premier.body.demande._id));
+    const lien = { type: "transaction", id: String(t._id) };
+    const e1 = await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien, cleIdempotence: "envoi-1" } });
+    const e2 = await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien, cleIdempotence: "envoi-2" } });
+    expect([e1.statusCode, e2.statusCode]).toEqual([201, 201]);
+    expect(e1.body.demande._id).not.toBe(e2.body.demande._id);
 
-    // Une fois la première annulée, on peut en rouvrir une.
-    await appel(L.annulerDemande, { user: client, params: { id: premier.body.demande._id } });
-    expect((await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien: { type: "transaction", id: String(t._id) } } })).statusCode).toBe(201);
+    // Le même envoi rejoué (double clic) renvoie le dossier déjà créé.
+    const rejoue = await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien, cleIdempotence: "envoi-1" } });
+    expect(rejoue.statusCode).toBe(200);
+    expect(rejoue.body.rejouee).toBe(true);
+    expect(String(rejoue.body.demande._id)).toBe(String(e1.body.demande._id));
+    expect(await DemandeLogistique.countDocuments({ "liens.transaction": t._id })).toBe(2);
+
+    const r = await appel(L.commandesRattachables, { user: client });
+    expect(r.body.commandes.find((c) => c.id === String(t._id)).dossiersLogistiques).toHaveLength(2);
   });
 
   it("une demande reste possible sans commande, et le rattachement ne crée aucune commission", async () => {
@@ -432,5 +441,167 @@ describe("Rattachement à une commande Parts ou Trade", () => {
     expect(await CommissionLedger.countDocuments({})).toBe(0);
     const apres = await Booking.findById(b._id).lean();
     expect(apres.commissionAmount ?? 0).toBe(b.commissionAmount ?? 0);   // la commande n'est pas modifiée
+  });
+});
+
+describe("Trade / Parts / Logistique : parties, rôles, exportateur, devis, documents", () => {
+  let vendeur; let tx;
+  beforeEach(async () => {
+    vendeur = await createUser({ role: "partenaire", isFounder: true });
+    tx = await createIETransaction({ client: client._id, partner: vendeur._id, destCountry: "MA", destCity: "Casablanca" });
+  });
+  const lien = () => ({ type: "transaction", id: String(tx._id) });
+
+  // Conditions FOB acceptées par les deux parties sur la commande.
+  const fobAccepte = async () => {
+    const I = await import("../controllers/incotermController.js");
+    const params = { type: "transaction", id: String(tx._id) };
+    await appel(I.proposerConditions, { user: client, params, body: { regle: "FOB", lieuNomme: "Port de Jebel Ali", modeTransport: "maritime" } });
+    await appel(I.validerConditionsCommande, { user: vendeur, params });
+  };
+
+  const jusquAuDevis = async (demandeur = client, extra = {}) => {
+    const cree = await appel(L.creerDemande, { user: demandeur, body: { ...DEMANDE_VEHICULE, lien: lien(), ...extra } });
+    const id = cree.body.demande._id;
+    await appel(L.qualifierDemande, { user: admin, params: { id }, body: { decision: "valider" } });
+    await appel(L.solliciterPrestataires, { user: admin, params: { id }, body: { prestataires: [p1.prest._id, p2.prest._id] } });
+    const d = await appel(L.soumettreDevis, { user: p1.user, params: { id }, body: DEVIS(1200) });
+    return { id, devisId: d.body.demande.mesDevis.at(-1)._id };
+  };
+
+  it("les parties sont lues sur la commande, jamais reçues du navigateur", async () => {
+    const intrus = await createUser({ role: "client" });
+    const cree = await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien: lien(), parties: { acheteur: intrus._id, vendeur: intrus._id } } });
+    const d = await DemandeLogistique.findById(cree.body.demande._id).lean();
+    expect(String(d.parties.acheteur)).toBe(String(client._id));
+    expect(String(d.parties.vendeur)).toBe(String(vendeur._id));
+    expect(d.roleDemandeur).toBe("acheteur");
+  });
+
+  it("l'Incoterm de la commande est recopié pour information ; donneur d'ordre et payeur ne sont JAMAIS déduits", async () => {
+    await fobAccepte();
+    const cree = await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien: lien() } });
+    expect(cree.body.demande.incotermCommande).toMatchObject({ regle: "FOB", lieuNomme: "Port de Jebel Ali", version: "2020", statut: "accepte", libelle: "FOB Port de Jebel Ali, Incoterms® 2020" });
+    // Sous FOB, l'acheteur organise habituellement le transport principal —
+    // le système ne l'inscrit pas pour autant.
+    expect(cree.body.demande.donneurOrdre).toBe("a_confirmer");
+    expect(cree.body.demande.payeur).toBe("a_confirmer");
+  });
+
+  it("le vendeur peut organiser le transport depuis sa commande ; l'acheteur suit le dossier sans pouvoir décider", async () => {
+    const { id, devisId } = await jusquAuDevis(vendeur);
+    expect((await DemandeLogistique.findById(id).lean()).roleDemandeur).toBe("vendeur");
+
+    const vueAcheteur = await appel(L.lireDemandeClient, { user: client, params: { id } });
+    expect(vueAcheteur.statusCode).toBe(200);
+    expect(vueAcheteur.body.demande.estDemandeur).toBe(false);
+    expect((await appel(L.mesDemandes, { user: client })).body.demandes.map((d) => String(d._id))).toContain(String(id));
+    expect((await appel(L.accepterDevis, { user: client, params: { id, devisId } })).statusCode).toBe(403);
+    expect((await appel(L.accepterDevis, { user: vendeur, params: { id, devisId } })).statusCode).toBe(200);
+  });
+
+  it("rôles déclarés, figés à l'acceptation : version, auteur, partie contractante et payeur enregistrés", async () => {
+    const { id, devisId } = await jusquAuDevis();
+    expect((await appel(L.definirRoles, { user: client, params: { id }, body: { donneurOrdre: "inconnu" } })).statusCode).toBe(400);
+    await appel(L.definirRoles, { user: client, params: { id }, body: { donneurOrdre: "acheteur", payeur: "partage", precisionRoles: "Fret à l'acheteur, manutention au vendeur" } });
+    await appel(L.accepterDevis, { user: client, params: { id, devisId } });
+    const d = await DemandeLogistique.findById(id).lean();
+    expect(d.devisAccepte).toMatchObject({ version: 1, partieContractante: "acheteur", payeur: "partage" });
+    expect(String(d.devisAccepte.acceptePar)).toBe(String(client._id));
+    expect((await appel(L.definirRoles, { user: client, params: { id }, body: { payeur: "vendeur" } })).statusCode).toBe(409);
+    // L'acceptation n'est pas un paiement.
+    expect(await CommissionLedger.countDocuments({})).toBe(0);
+  });
+
+  it("l'exportateur voit le dossier sans prix ni coordonnées, et confirme l'enlèvement", async () => {
+    const { id, devisId } = await jusquAuDevis();
+    await appel(L.accepterDevis, { user: client, params: { id, devisId } });
+
+    const liste = await appel(L.demandesVendeur, { user: vendeur });
+    expect(liste.body.demandes.map((d) => String(d._id))).toContain(String(id));
+    const vue = await appel(L.lireDemandeVendeur, { user: vendeur, params: { id } });
+    const texte = JSON.stringify(vue.body.demande);
+    expect(texte).not.toContain("+212600000000");
+    expect(texte).not.toContain("1200");
+    expect(vue.body.demande.prestataireRetenu.raisonSociale).toBe("Atlas Transport");
+
+    expect((await appel(L.confirmerEnlevement, { user: vendeur, params: { id }, body: { disponible: true } })).statusCode).toBe(400);
+    const ok = await appel(L.confirmerEnlevement, { user: vendeur, params: { id }, body: { disponible: true, lieu: "Entrepôt Jebel Ali, quai 4", poidsKg: 1650, volumeM3: 12.5, chargement: "Roulier", contraintesManutention: "Batterie débranchée" } });
+    expect(ok.body.demande.enlevement).toMatchObject({ disponible: true, lieu: "Entrepôt Jebel Ali, quai 4", poidsKg: 1650, volumeM3: 12.5 });
+    // Le prestataire retenu voit l'enlèvement pour son intervention.
+    expect((await appel(L.lireDemandePrestataire, { user: p1.user, params: { id } })).body.demande.enlevement.lieu).toBe("Entrepôt Jebel Ali, quai 4");
+
+    // Un autre vendeur ne voit rien.
+    const autreVendeur = await createUser({ role: "partenaire" });
+    expect((await appel(L.lireDemandeVendeur, { user: autreVendeur, params: { id } })).statusCode).toBe(404);
+    expect((await appel(L.confirmerEnlevement, { user: autreVendeur, params: { id }, body: { disponible: true, lieu: "x" } })).statusCode).toBe(404);
+  });
+
+  it("devis détaillé : la somme des postes inclus doit égaler le montant ; un poste non inclus n'est pas ajouté", async () => {
+    const cree = await appel(L.creerDemande, { user: client, body: { ...DEMANDE_VEHICULE, lien: lien() } });
+    const id = cree.body.demande._id;
+    await appel(L.qualifierDemande, { user: admin, params: { id }, body: { decision: "valider" } });
+    await appel(L.solliciterPrestataires, { user: admin, params: { id }, body: { prestataires: [p1.prest._id] } });
+
+    const faux = await appel(L.soumettreDevis, { user: p1.user, params: { id }, body: { ...DEVIS(1000), postes: [
+      { categorie: "transport_international", montant: 800, inclus: true },
+      { categorie: "frais_portuaires_terminal", montant: 300, inclus: true },
+    ] } });
+    expect(faux.statusCode).toBe(400);
+    expect(faux.body.champs).toContain("postes_total");
+
+    const juste = await appel(L.soumettreDevis, { user: p1.user, params: { id }, body: { ...DEVIS(1000), nature: "ferme", modeTransport: "maritime", trajet: "Jebel Ali → Casablanca", postes: [
+      { categorie: "transport_international", montant: 800, inclus: true },
+      { categorie: "frais_portuaires_terminal", montant: 200, inclus: true },
+      { categorie: "droits_taxes", montant: 2500, inclus: false, note: "Selon déclaration en douane" },
+    ] } });
+    expect(juste.statusCode).toBe(201);
+    const dv = juste.body.demande.mesDevis.at(-1);
+    expect(dv.montant).toBe(1000);                       // les droits non inclus ne gonflent pas le total
+    expect(dv.nature).toBe("ferme");
+    expect(dv.postes).toHaveLength(3);
+
+    const doublon = await appel(L.soumettreDevis, { user: p1.user, params: { id }, body: { ...DEVIS(500), postes: [{ categorie: "assurance", montant: 250 }, { categorie: "assurance", montant: 250 }] } });
+    expect(doublon.body.champs).toContain("postes_doublon");
+  });
+
+  it("documents : chacun dépose ce qui relève de son rôle ; un prestataire non retenu n'y a pas accès ; rien n'est « vérifié »", async () => {
+    const { id, devisId } = await jusquAuDevis();
+    const fichier = "data:application/pdf;base64,JVBERi0xLjQKJcfsj6IKMSAwIG9iago8PD4+CmVuZG9iagp0cmFpbGVyCjw8Pj4KJSVFT0YK";
+
+    // L'acheteur ne dépose pas une liste de colisage (rôle du vendeur).
+    const refus = await appel(L.deposerDocumentClient, { user: client, params: { id }, body: { type: "liste_colisage", fichier } });
+    expect(refus.statusCode).toBe(403);
+    expect(refus.body.autorises).toContain("document_import");
+
+    const v = await appel(L.deposerDocumentVendeur, { user: vendeur, params: { id }, body: { type: "liste_colisage", fichier, nom: "Colisage.pdf" } });
+    expect(v.statusCode).toBe(201);
+    expect(v.body.demande.documents[0]).toMatchObject({ type: "liste_colisage", role: "vendeur", verifie: false });
+
+    // Avant acceptation, aucun prestataire ne voit ni ne dépose de document.
+    expect((await appel(L.lireDemandePrestataire, { user: p1.user, params: { id } })).body.demande.documents).toBeUndefined();
+    expect((await appel(L.deposerDocumentPrestataire, { user: p1.user, params: { id }, body: { type: "document_transport", fichier } })).statusCode).toBe(403);
+
+    await appel(L.accepterDevis, { user: client, params: { id, devisId } });
+    expect((await appel(L.lireDemandePrestataire, { user: p1.user, params: { id } })).body.demande.documents).toHaveLength(1);
+    expect((await appel(L.lireDemandePrestataire, { user: p2.user, params: { id } })).body.demande.documents).toBeUndefined();
+    expect((await appel(L.deposerDocumentPrestataire, { user: p1.user, params: { id }, body: { type: "document_transport", fichier } })).statusCode).toBe(201);
+
+    // Le modèle refuse de marquer un document comme vérifié.
+    const d = await DemandeLogistique.findById(id);
+    d.documents[0].verifie = true;
+    await expect(d.save()).rejects.toThrow(/ne vérifie pas/);
+  });
+
+  it("clôturer le dossier logistique ne clôture pas la commande commerciale", async () => {
+    const { id, devisId } = await jusquAuDevis();
+    await appel(L.accepterDevis, { user: client, params: { id, devisId } });
+    for (const statut of ["commande_confirmee", "en_preparation", "en_transport", "livraison_declaree"]) {
+      await appel(L.avancerEtape, { user: p1.user, params: { id }, body: { statut } });
+    }
+    await appel(L.confirmerLivraison, { user: client, params: { id } });
+    expect((await DemandeLogistique.findById(id).lean()).statut).toBe("cloturee");
+    const IETransaction = (await import("../models/IETransaction.js")).default;
+    expect((await IETransaction.findById(tx._id).lean()).status).toBe(tx.status);
   });
 });

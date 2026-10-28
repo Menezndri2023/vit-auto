@@ -15,6 +15,8 @@ export const MODES_TRANSPORT = [
   { code: "routier",     libelle: "Routier" },
   { code: "maritime",    libelle: "Maritime" },
   { code: "aerien",      libelle: "Aérien" },
+  { code: "ferroviaire", libelle: "Ferroviaire" },
+  { code: "multimodal",  libelle: "Multimodal" },
 ];
 
 export const LIBELLES_STATUT = {
@@ -58,3 +60,44 @@ export const LIBELLES_DEVIS = {
 
 export const PAYS = WORLD_COUNTRIES;
 export const nomPays = (code) => WORLD_COUNTRIES.find((p) => p.code === code)?.name || code || "—";
+
+// Rôles déclarés (2026-10-28) — jamais déduits de l'Incoterm.
+export const DONNEURS_ORDRE = [
+  { code: "a_confirmer", libelle: "À confirmer" }, { code: "acheteur", libelle: "L'acheteur" },
+  { code: "vendeur", libelle: "Le vendeur / exportateur" }, { code: "autre", libelle: "Un tiers" },
+];
+export const PAYEURS = [
+  { code: "a_confirmer", libelle: "À confirmer" }, { code: "acheteur", libelle: "L'acheteur" },
+  { code: "vendeur", libelle: "Le vendeur / exportateur" }, { code: "partage", libelle: "Partagé entre les parties" }, { code: "autre", libelle: "Un tiers" },
+];
+export const libelleDe = (liste, code) => liste.find((x) => x.code === code)?.libelle || code || "—";
+
+// Ce que la règle implique HABITUELLEMENT pour le transport principal —
+// une indication, jamais une décision (voir constants/incoterms.js).
+export const indicationTransportPrincipal = (regle) => {
+  if (!regle) return null;
+  if (["EXW", "FCA", "FAS", "FOB"].includes(regle)) return `Sous ${regle}, le transport principal est habituellement organisé par l'acheteur.`;
+  return `Sous ${regle}, le transport principal est habituellement organisé par le vendeur.`;
+};
+
+export const POSTES_COUT = [
+  { code: "preparation_manutention",   libelle: "Préparation et manutention" },
+  { code: "transport_local",           libelle: "Transport local" },
+  { code: "transport_international",   libelle: "Transport international" },
+  { code: "frais_portuaires_terminal", libelle: "Frais portuaires et de terminal" },
+  { code: "assurance",                 libelle: "Assurance" },
+  { code: "droits_taxes",              libelle: "Droits et taxes éventuels" },
+  { code: "autres",                    libelle: "Autres frais déclarés" },
+];
+
+export const TYPES_DOCUMENT = {
+  facture_commerciale: "Facture commerciale", liste_colisage: "Liste de colisage",
+  document_transport: "Document de transport", justificatif_export: "Justificatif d'exportation",
+  document_import: "Document d'importation", assurance: "Document d'assurance",
+  preuve_livraison: "Preuve de livraison", autre: "Autre document",
+};
+export const DOCUMENTS_PAR_ROLE = {
+  acheteur:    ["facture_commerciale", "document_import", "assurance", "autre"],
+  vendeur:     ["facture_commerciale", "liste_colisage", "justificatif_export", "autre"],
+  prestataire: ["document_transport", "preuve_livraison", "assurance", "autre"],
+};

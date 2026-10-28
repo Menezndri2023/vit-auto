@@ -7,6 +7,7 @@ import {
   LIBELLES_DEVIS, PAYS, nomPays,
 } from "../constants/logistique";
 import styles from "./Logistique.module.css";
+import { BlocConditionsRoles, BlocEnlevement, BlocDocuments, PostesDevis } from "./LogistiqueBlocs";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // VIT-AUTO Logistique — espace client (2026-10-27)
@@ -78,10 +79,12 @@ function appliquerPrefill(base, prefill = {}) {
 
 function Formulaire({ onCree, lienInitial }) {
   const api = useApi();
-  const navigate = useNavigate();
   const [f, setF] = useState(VIDE);
   const [commandes, setCommandes] = useState([]);
   const [lien, setLien] = useState("");
+  // Une clé par formulaire : un double clic ou un envoi rejoué ne crée pas un
+  // second dossier (le serveur renvoie le premier).
+  const [cleIdempotence] = useState(() => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`));
 
   const choisirCommande = useCallback((valeur, liste) => {
     setLien(valeur);
@@ -119,14 +122,13 @@ function Formulaire({ onCree, lienInitial }) {
       const v = f.marchandise.vehicule;
       const [lienType, lienId] = lien ? lien.split(":") : [];
       const corps = {
-        ...f, brouillon,
+        ...f, brouillon, cleIdempotence,
         ...(lien ? { lien: { type: lienType, id: lienId } } : {}),
         marchandise: { ...f.marchandise, vehicule: f.typeBesoin === "vehicule" ? { ...v, annee: v.annee || null } : undefined },
       };
       const r = await api("/api/logistique/demandes", { method: "POST", body: JSON.stringify(corps) });
       onCree(r.demande);
     } catch (e) {
-      if (e.code === "DEMANDE_EXISTANTE" && e.demandeId) { navigate(`/logistique/demandes/${e.demandeId}`); return; }
       setErreur(e.champs?.length ? `À compléter : ${e.champs.map((c) => LIBELLES_CHAMPS[c] || c).join(", ")}.` : e.message);
       setManquants(e.champs || []);
     } finally { setEnvoi(false); }
@@ -150,14 +152,17 @@ function Formulaire({ onCree, lienInitial }) {
           <select id="log-commande" value={lien} onChange={(e) => choisirCommande(e.target.value, commandes)}>
             <option value="">Aucune — demande indépendante</option>
             {commandes.map((c) => (
-              <option key={`${c.type}:${c.id}`} value={`${c.type}:${c.id}`} disabled={!!c.demandeExistante}>
-                {c.libelle}{c.reference ? ` (${c.reference})` : ""}{c.demandeExistante ? ` — transport déjà demandé : ${c.demandeExistante.reference}` : ""}
+              <option key={`${c.type}:${c.id}`} value={`${c.type}:${c.id}`}>
+                {c.role === "vendeur" ? "Vente · " : "Achat · "}{c.libelle}{c.reference ? ` (${c.reference})` : ""}{c.dossiersLogistiques?.length ? ` — ${c.dossiersLogistiques.length} dossier(s) de transport déjà ouvert(s)` : ""}
               </option>
             ))}
           </select>
           <span className={styles.aideChamp}>
-            {commandeChoisie ? "Trajet et marchandise préremplis depuis la commande : vérifiez-les et complétez si besoin." : "Une commande de pièces ou une transaction VIT-AUTO Trade. Aucun paiement ni frais n'est déclenché."}
+            {commandeChoisie ? "Trajet et marchandise préremplis depuis la commande : vérifiez-les et complétez si besoin. Une même commande peut avoir plusieurs expéditions." : "Une commande de pièces ou une transaction VIT-AUTO Trade, que vous achetiez ou vendiez. Aucun paiement ni frais n'est déclenché."}
           </span>
+          {commandeChoisie?.incoterm?.libelle && (
+            <span className={styles.aideChamp}>Incoterm de la commande : <strong>{commandeChoisie.incoterm.libelle}</strong>{commandeChoisie.incoterm.statut === "accepte" ? "" : " (proposé, non encore accepté)"}. Il ne désigne pas d'office qui commande ni qui paie le transport.</span>
+          )}
         </div>
       )}
       <div className={styles.choixType} role="group" aria-label="Type de besoin">
@@ -361,6 +366,12 @@ function Detail({ id }) {
   const devisVisibles = demande.devis || [];
   const m = demande.marchandise || {};
   const base = `/api/logistique/demandes/${demande._id}`;
+  const decide = demande.estDemandeur !== false;
+  const roleDocuments = demande.roleDemandeur === "vendeur" && decide ? "vendeur" : "acheteur";
+  const deposer = async (corps) => {
+    const r = await api(`${base}/documents`, { method: "POST", body: JSON.stringify(corps) });
+    setDemande(r.demande); setInfo("Document déposé.");
+  };
 
   return (
     <div className={styles.page}>
@@ -374,8 +385,9 @@ function Detail({ id }) {
       </div>
       {info && <p className={styles.succes} role="status">{info}</p>}
       {erreur && <p className={styles.erreur} role="alert">{erreur}</p>}
+      {!decide && <p className={styles.encart}>Ce transport a été organisé par le vendeur de votre commande. Vous suivez le dossier ; les décisions (devis, annulation) lui reviennent.</p>}
 
-      {demande.statut === "infos_requises" && (
+      {decide && demande.statut === "infos_requises" && (
         <div className={styles.bloc}>
           <h2>VIT AUTO a besoin de précisions</h2>
           <p className={styles.encart}>{[...(demande.evenements || [])].reverse().find((e) => e.statut === "infos_requises")?.note}</p>
@@ -413,8 +425,10 @@ function Detail({ id }) {
                 {d.fraisAdditionnels && <p className={styles.petit}><strong>Frais éventuels :</strong> {d.fraisAdditionnels}</p>}
                 {d.modalitesPaiement && <p className={styles.petit}><strong>Paiement :</strong> {d.modalitesPaiement}</p>}
                 {d.conditionsAnnulation && <p className={styles.petit}><strong>Annulation :</strong> {d.conditionsAnnulation}</p>}
-                <p className={styles.petit}>Valable jusqu'au {fmtDate(d.valideJusquau)}</p>
-                {demande.statut === "devis_recus" && d.statut === "propose" && (
+                {d.trajet && <p className={styles.petit}><strong>Trajet :</strong> {d.trajet}{d.modeTransport ? ` (${d.modeTransport})` : ""}</p>}
+                <PostesDevis devis={d} />
+                <p className={styles.petit}>{d.nature === "ferme" ? "Prix ferme" : "Estimation, non garantie"} · version {d.version} · valable jusqu'au {fmtDate(d.valideJusquau)}</p>
+                {decide && demande.statut === "devis_recus" && d.statut === "propose" && (
                   <div className={styles.actions}>
                     <button type="button" className={styles.bouton} disabled={occupe}
                       onClick={() => window.confirm(`Accepter le devis de ${d.prestataire?.raisonSociale || "ce prestataire"} à ${fmtMontant(d.montant, d.devise)} ? Vos coordonnées lui seront transmises et les autres devis seront écartés.`)
@@ -427,9 +441,14 @@ function Detail({ id }) {
               </article>
             ))}
           </div>
-          <p className={styles.maj}>Le paiement du transport se fait directement auprès du prestataire retenu. VIT AUTO ne perçoit rien.</p>
+          <p className={styles.maj}>Le paiement du transport se fait directement auprès du prestataire retenu. VIT AUTO ne perçoit rien. Accepter un devis n'est pas un paiement.</p>
         </div>
       )}
+
+      <BlocConditionsRoles demande={demande} peutModifier={decide && ["brouillon", "recue", "infos_requises", "validee", "recherche_prestataires", "devis_recus"].includes(demande.statut)}
+        onEnregistrer={async (corps) => { try { const r = await api(`${base}/roles`, { method: "POST", body: JSON.stringify(corps) }); setDemande(r.demande); setInfo("Rôles enregistrés."); return true; } catch (e) { setErreur(e.message); return false; } }} />
+      {demande.commandeLiee && <BlocEnlevement enlevement={demande.enlevement} />}
+      <BlocDocuments documents={demande.documents} role={roleDocuments} onDeposer={demande.statut !== "annulee" ? deposer : null} />
 
       {demande.statut === "livraison_declaree" && (
         <div className={styles.bloc}>
@@ -458,7 +477,7 @@ function Detail({ id }) {
         </dl>
       </div>
 
-      {(ANNULABLE_PAR_CLIENT.includes(demande.statut) || LITIGE_OUVRABLE.includes(demande.statut)) && (
+      {((decide && ANNULABLE_PAR_CLIENT.includes(demande.statut)) || LITIGE_OUVRABLE.includes(demande.statut)) && (
         <div className={styles.bloc}>
           <h2>Un problème ?</h2>
           <div className={styles.champ}>
@@ -466,7 +485,7 @@ function Detail({ id }) {
             <textarea id="log-motif" value={motif} onChange={(e) => setMotif(e.target.value)} />
           </div>
           <div className={styles.actions}>
-            {ANNULABLE_PAR_CLIENT.includes(demande.statut) && (
+            {decide && ANNULABLE_PAR_CLIENT.includes(demande.statut) && (
               <button type="button" className={styles.boutonDanger} disabled={occupe}
                 onClick={() => window.confirm("Annuler cette demande ?") && agir(`${base}/annuler`, { motif }, "Demande annulée.")}>Annuler la demande</button>
             )}

@@ -640,6 +640,16 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
                     {order.piece?.tracking?.trackingNumber && <div className={styles.detailItem}><span className={styles.detailLabel}>Suivi</span><span className={styles.detailValue}>{order.piece.tracking.carrier || ""} {order.piece.tracking.trackingNumber}</span></div>}
                     {/* Vente transfrontalière : conditions Incoterms® convenues avec l'acheteur. */}
                     {order.piece?.international && <div style={{ gridColumn: "1 / -1" }}><ConditionsIncoterm type="booking" id={order.id || order._id} /></div>}
+                    {/* VIT-AUTO Logistique : le vendeur peut organiser le transport
+                        de sa vente, ou suivre celui que l'acheteur a demandé. */}
+                    {!["cancelled", "rejected"].includes(order.status) && (
+                      <div className={styles.detailItem} style={{ gridColumn: "1 / -1" }}>
+                        <span className={styles.detailLabel}>Transport</span>
+                        <span className={styles.detailValue}>
+                          <Link to={`/logistique?commande=booking:${order.id || order._id}`}>📦 Organiser le transport</Link> · <Link to="/logistique/vendeur">Transports de mes ventes</Link>
+                        </span>
+                      </div>
+                    )}
                   </>}
                   {subType==="leasing" && <>
                     <div className={styles.detailItem}><span className={styles.detailLabel}>Apport initial</span><span className={styles.detailValue}>{fmtXOF(order.leasing?.apportInitial||0)}</span></div>
