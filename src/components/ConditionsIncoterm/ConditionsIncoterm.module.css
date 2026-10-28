@@ -1,0 +1,30 @@
+/* Conditions Incoterms® 2020 d'une commande — même vocabulaire visuel que
+   les blocs de suivi (cartes blanches, cibles tactiles 44 px). */
+.bloc { margin-top: 18px; padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
+.titre { font-size: 1.05rem; margin: 0 0 8px; color: #0f172a; }
+.libelle { font-size: 1.1rem; font-weight: 800; color: #0f172a; margin: 4px 0; }
+.statut { display: inline-block; font-size: .78rem; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: #fef3c7; color: #92400e; }
+.statutOk { background: #ecfdf5; color: #065f46; }
+.muted { color: #64748b; font-size: .85rem; margin: 4px 0; overflow-wrap: anywhere; }
+.alerte { color: #92400e; background: #fffbeb; border-radius: 8px; padding: 8px 10px; font-size: .85rem; margin: 8px 0; }
+.erreur { color: #b91c1c; background: #fef2f2; border-radius: 8px; padding: 8px 10px; font-size: .85rem; }
+.grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 14px; margin-top: 10px; }
+.champ { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.champ label, .legende { font-size: .82rem; font-weight: 600; color: #334155; }
+.champ input, .champ select, .champ textarea { min-height: 44px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; font-size: 16px; box-sizing: border-box; width: 100%; background: #fff; }
+.pleine { grid-column: 1 / -1; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.bouton, .boutonSec {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px;
+  border-radius: 10px; font: inherit; font-weight: 600; font-size: .9rem; cursor: pointer; box-sizing: border-box;
+}
+.bouton { border: 0; background: #ff4d2d; color: #fff; }
+.boutonSec { border: 1.5px solid #cbd5e1; background: #fff; color: #0f172a; }
+.bouton:disabled, .boutonSec:disabled { opacity: .6; cursor: default; }
+.bouton:focus-visible, .boutonSec:focus-visible { outline: 3px solid #0ea5e9; outline-offset: 2px; }
+.etapes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; margin: 8px 0; font-size: .82rem; }
+.etape { background: #f8fafc; border-radius: 8px; padding: 6px 8px; }
+.proposition { border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 10px; margin-top: 8px; }
+.recommande { border-color: #10b981; background: #f0fdf4; }
+.historique { list-style: none; margin: 8px 0 0; padding: 0; font-size: .82rem; color: #475569; }
+.historique li { padding: 4px 0; border-bottom: 1px solid #f1f5f9; overflow-wrap: anywhere; }

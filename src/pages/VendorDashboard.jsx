@@ -25,6 +25,7 @@ import PartnerSectors from "../components/PartnerSectors/PartnerSectors";
 import styles from "./VendorDashboard.module.css";
 import VitrinePartage from "../components/VitrinePartage/VitrinePartage.jsx";
 import VerrouOutil from "../components/VerrouOutil/VerrouOutil.jsx";
+import ConditionsIncoterm from "../components/ConditionsIncoterm/ConditionsIncoterm";
 import { useOutils } from "../hooks/useOutils";
 
 /* ── Utilitaires ────────────────────────────────────────────────────────── */
@@ -637,6 +638,8 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
                     {order.piece?.importFeesUSD > 0 && <div className={styles.detailItem}><span className={styles.detailLabel}>Frais d'importation</span><span className={styles.detailValue}>{fmtXOF(order.piece.importFeesUSD)}</span></div>}
                     {order.piece?.depositUSD > 0 && <div className={styles.detailItem}><span className={styles.detailLabel}>Acompte</span><span className={styles.detailValue} style={{ color: order.piece.depositReceivedAt ? "#059669" : "#b45309" }}>{fmtXOF(order.piece.depositUSD)} — {order.piece.depositReceivedAt ? "reçu" : "à recevoir"}</span></div>}
                     {order.piece?.tracking?.trackingNumber && <div className={styles.detailItem}><span className={styles.detailLabel}>Suivi</span><span className={styles.detailValue}>{order.piece.tracking.carrier || ""} {order.piece.tracking.trackingNumber}</span></div>}
+                    {/* Vente transfrontalière : conditions Incoterms® convenues avec l'acheteur. */}
+                    {order.piece?.international && <div style={{ gridColumn: "1 / -1" }}><ConditionsIncoterm type="booking" id={order.id || order._id} /></div>}
                   </>}
                   {subType==="leasing" && <>
                     <div className={styles.detailItem}><span className={styles.detailLabel}>Apport initial</span><span className={styles.detailValue}>{fmtXOF(order.leasing?.apportInitial||0)}</span></div>

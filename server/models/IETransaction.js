@@ -1,3 +1,4 @@
+import { conditionsIncotermSchema } from "./schemas/conditionsIncoterm.js";
 import mongoose from "mongoose";
 
 // ── Sous-schémas ───────────────────────────────────────────────────────────
@@ -69,6 +70,12 @@ const ieTransactionSchema = new mongoose.Schema({
   // ImportExportListing.incoterm) — reste inchangé même si le partenaire
   // modifie l'annonce ensuite, pour préserver la clause contractuelle.
   incoterm: { type: String, default: null },
+
+  // Conditions Incoterms® 2020 CONVENUES (2026-10-28) : règle + lieu nommé +
+  // validation des deux parties + historique. `incoterm` ci-dessus reste la
+  // règle d'origine (annonce) ; il est aligné sur `regle` une fois l'accord
+  // obtenu, pour l'estimateur de coûts.
+  conditionsIncoterm: { type: conditionsIncotermSchema, default: null },
 
   // Achat direct au prix affiché (voir ieTransactionController.createDirectPurchase) —
   // saute la négociation (confirmed/in_discussion/inspection/offer_*) : le

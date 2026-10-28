@@ -16,6 +16,7 @@ import { libelleDureeChauffeur } from "../constants/chauffeur";
 import { statutEcheance, LIBELLE_ECHEANCE, COULEUR_ECHEANCE } from "../constants/echeancier";
 import { downloadAuthFile } from "../utils/downloadAuthFile";
 import styles from "./Dashboard.module.css";
+import ConditionsIncoterm from "../components/ConditionsIncoterm/ConditionsIncoterm";
 
 const TIER_LABEL = { bronze: "Bronze", argent: "Argent", or: "Or" };
 
@@ -1394,6 +1395,8 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
               {booking.piece.tracking.trackingNumber && <> — n° {booking.piece.tracking.trackingNumber}</>}
             </p>
           )}
+          {/* Commande Parts transfrontalière : conditions Incoterms® convenues avec le vendeur. */}
+          {booking.piece.international && <ConditionsIncoterm type="booking" id={booking.id} />}
           {booking.status === "waiting_client_validation" && (
             <p style={{ margin: "6px 0 0", fontSize: ".85rem", fontWeight: 700, color: "#1e3a8a" }}>
               Pièce livrée : confirmez la réception ci-dessous (ou signalez un problème).

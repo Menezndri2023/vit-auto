@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useChat } from "../context/ChatContext";
 import styles from "./IETransactionTracking.module.css";
+import ConditionsIncoterm from "../components/ConditionsIncoterm/ConditionsIncoterm";
 
 const fmtPrice = (p, c = "EUR") =>
   p != null ? `${Number(p).toLocaleString("fr-FR")} ${c}` : "—";
@@ -931,6 +932,10 @@ export default function IETransactionTracking() {
 
       {/* ── Barre de progression ── */}
       <div className={styles.card}><ProgressBar status={tx.status} /></div>
+
+      {/* Conditions Incoterms® 2020 convenues entre l'acheteur et l'exportateur
+          (lieu nommé, validation des deux parties, historique). */}
+      {(role === "client" || role === "partner" || role === "admin") && <ConditionsIncoterm type="transaction" id={tx._id} />}
 
       {/* Prise en charge logistique (restructuration 2026-09) — visible dès que
           les fonds sont sécurisés (voir ieTransactionController.onEscrowSecured) */}

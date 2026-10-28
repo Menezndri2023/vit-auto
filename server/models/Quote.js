@@ -1,3 +1,4 @@
+import { INCOTERM_CODES } from "../constants/incoterms.js";
 import mongoose from "mongoose";
 import crypto from "node:crypto";
 
@@ -80,7 +81,10 @@ const quoteSchema = new mongoose.Schema({
   currency:         { type: String, default: "USD" },
 
   // Incoterm & paiement
-  incoterm:      { type: String, enum: ["FOB", "CIF", "EXW", "DAP", "autre"], default: "CIF" },
+  // Les ONZE règles Incoterms® 2020 (2026-10-28) — l'enum n'en acceptait que
+  // quatre ; « autre » est conservé pour les devis existants.
+  incoterm:      { type: String, enum: [...INCOTERM_CODES, "autre"], default: "CIF" },
+  incotermLieu:  { type: String, trim: true, maxlength: 160, default: "" },
   paymentTerms:  { type: String, default: "30% acompte, 70% avant expédition" },
   paymentMethod: { type: String, default: "Virement SWIFT / L/C" },
 

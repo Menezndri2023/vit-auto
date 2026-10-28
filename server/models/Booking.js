@@ -1,3 +1,4 @@
+import { conditionsIncotermSchema } from "./schemas/conditionsIncoterm.js";
 import mongoose from "mongoose";
 // Enregistre le modèle SparePart dès que Booking est chargé : `populate("part")`
 // est appelé depuis des modules (chat, WhatsApp, rappels, workers) qui
@@ -447,6 +448,9 @@ const bookingSchema = new mongoose.Schema({
   // toutes implicitement en FCFA/XOF) ───────────────────────
   montantBase:    { type: Number, default: 0 },
   montantOptions: { type: Number, default: 0 },
+  // Conditions Incoterms® 2020 convenues — commandes Parts transfrontalières
+  // (2026-10-28) ; même schéma que IETransaction.conditionsIncoterm.
+  conditionsIncoterm: { type: conditionsIncotermSchema, default: null },
   // Part de montantOptions fournie par VIT AUTO (PricingConfig.
   // rentalOptionsFournisseur) — la seule soumise à commission.
   montantOptionsVitAuto: { type: Number, default: 0 },
