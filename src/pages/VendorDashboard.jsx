@@ -3383,7 +3383,7 @@ export default function VendorDashboard() {
       {/* Validation du partenaire (2026-10-09) : pièces exigées selon son
           métier et son entité, calculées par le serveur. */}
       {!user.isFounder && <BandeauValidation token={token} styles={styles} publicationOuverte={!!user.publishingGranted} />}
-      <BandeauActivation token={token} styles={styles} />
+      <BandeauActivation token={token} styles={styles} partenaire={user?.role === "partenaire"} />
 
       {/* ── Plan Banner ── */}
       {!subLoading && (

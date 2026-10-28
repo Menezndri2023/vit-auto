@@ -9,17 +9,19 @@ import { Link } from "react-router-dom";
 // ne jamais afficher deux fois la même demande.
 const LIENS = { profilComplet: "/profile", offresExploitables: "/vendor/publish", joignable: "/profile" };
 
-export default function BandeauActivation({ token, styles }) {
+// `partenaire` faux (admin ou membre d'équipe sur le tableau de bord) : aucun
+// appel — le serveur réserve cet état au partenaire et répondrait 403.
+export default function BandeauActivation({ token, styles, partenaire = true }) {
   const [a, setA] = useState(null);
   useEffect(() => {
-    if (!token) return undefined;
+    if (!token || !partenaire) return undefined;
     const ctrl = new AbortController();
     fetch("/api/users/me/activation", { headers: { Authorization: `Bearer ${token}` }, signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => setA(d?.activation || null))
       .catch(() => {});
     return () => ctrl.abort();
-  }, [token]);
+  }, [token, partenaire]);
 
   if (!a || a.statut === "suspendu" || a.statut === "inscrit") return null;   // inscrit : le bandeau de validation s'en charge
   if (a.statut === "active") {

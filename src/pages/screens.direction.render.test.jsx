@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderPage, connecter, simulerApi, utilisateurTest } from "../test/renderPage";
 import { DirectionSection } from "./admin/sections/DirectionSection.jsx";
@@ -42,5 +42,16 @@ describe("Direction et activation", () => {
     renderPage(<BandeauActivation token="t" styles={{}} />, { route: "/vendor/dashboard" });
     expect(await screen.findByText(/Presque activé/)).toBeTruthy();
     expect(screen.getByRole("link", { name: /au moins une offre approuvée/ }).getAttribute("href")).toBe("/vendor/publish");
+  });
+
+  it("un compte non partenaire (admin sur le tableau de bord) n'interroge pas l'activation", async () => {
+    const a = utilisateurTest("admin");
+    connecter(a);
+    simulerApi({ user: a });
+    const espion = vi.spyOn(globalThis, "fetch");
+    renderPage(<BandeauActivation token="t" styles={{}} partenaire={false} />, { route: "/vendor/dashboard" });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(espion.mock.calls.some(([u]) => String(u).includes("/me/activation"))).toBe(false);
+    espion.mockRestore();
   });
 });
