@@ -133,21 +133,17 @@ dans `getConfig`). Liste : `GET …/pricing/grilles` ; annulation : `PATCH …/g
 Le délai de 30 jours est une règle interne : sa validité juridique, au regard des contrats et
 du droit applicable, reste à confirmer.
 
-**Suspension de la hausse 5 % → 7 % (pièce à l'export, fondateurs).** Migration
-`suspension-hausse-piece-export-fondateurs-2026-10-30` : taux fondateur ramené à 5 % pour les
-**nouvelles** transactions, via une version (baisse immédiate), **sans notification
-automatique**. Les autres partenaires restent à 7 %. Les réservations déjà créées gardent
-leur taux. Aucun remboursement automatique.
+**Pièces détachées (confirmé par l'exploitant le 2026-10-30).** Ce sont des **ventes**, pas des
+réservations : vente locale **5 %**, vente à l'export **7 %**, pour **tous** les partenaires,
+fondateurs compris. Aucune suspension, aucune notification particulière.
 
 Constats de l'audit (code) :
 - grille fondateur avant le 27/10 : pièces 7 % / export 5 % ; après : 5 % / 7 % (une baisse,
   une hausse), appliquée immédiatement à la publication du 28/10, sans préavis ;
 - la LOI générée avant le 27/10 ne citait que location, vente et chauffeur : **aucun taux de
   pièces n'était contractuel** ; depuis, le texte cite la grille complète ;
-- seul le **hash** du document signé est conservé (`PartnerOnboarding.*.documentHash`), pas
-  son texte : le texte affiché aujourd'hui est regénéré avec la grille actuelle ;
-- les transactions de production concernées n'ont pas pu être comptées (réseau indisponible
-  pendant l'audit) — script en lecture seule prêt.
+- le texte signé est conservé (`PartnerOnboarding.loi.content` / `agreement.content`, figés
+  avant signature, avec leur empreinte SHA-256) et c'est lui que servent les PDF.
 
 ## Commission minimale : aucune (décision provisoire, 2026-10-28)
 

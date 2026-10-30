@@ -12,6 +12,7 @@ import { dispatch, enqueue } from "../queue/index.js";
 import { QUEUE_NAMES } from "../queue/definitions.js";
 import { stripeProvider } from "../services/payment/gateway.js";
 import { resolveCommissionRate } from "../services/pricingEngine.js";
+import CommissionLedger from "../models/CommissionLedger.js";
 import { computeImportCostForListing, ventilerDevis } from "../services/importCostEngine.js";
 import { creerDossierDepuisTransaction, MESSAGE_NON_CONFORME } from "../services/dossierImportService.js";
 import DossierImport from "../models/DossierImport.js";
@@ -879,6 +880,36 @@ export const payEscrow = async (req, res) => {
   }
 };
 
+// Commission d'une vente réglée en direct : même grille et même assiette
+// (part exportateur) que computeIeCommission ; sans paiement enregistré, la
+// part exportateur d'une offre négociée est son montant total.
+async function commissionReglementDirect(tx) {
+  const base = tx.ventilation?.exportateur
+    ?? (tx.directPurchase ? tx.finalOffer?.vehiclePrice : tx.finalOffer?.totalAmount) ?? 0;
+  const rate = await resolveCommissionRate("import_export", tx.partner);
+  return { rate, base, amount: Math.round(base * rate * 100) / 100 };
+}
+
+// Ligne « commission due » au registre, idempotente par transaction : facturée
+// à l'exportateur comme les autres commissions, jamais prélevée sur des fonds.
+async function enregistrerCommissionDue(tx, c) {
+  if (!(c.amount > 0)) return;
+  try {
+    await CommissionLedger.findOneAndUpdate(
+      { transactionId: tx._id.toString(), transactionType: "import_export" },
+      { $setOnInsert: {
+        transactionId: tx._id.toString(), transactionType: "import_export", partnerId: tx.partner,
+        grossAmount: c.base, commissionRate: Math.round(c.rate * 10000) / 100, commissionAmount: c.amount,
+        currency: tx.finalOffer?.currency || tx.payment?.currency || "USD", type: "platform_fee", status: "pending",
+        notes: `Vente export ${tx._id} — règlement direct, commission due par l'exportateur`,
+      } },
+      { upsert: true, setDefaultsOnInsert: true },
+    );
+  } catch (err) {
+    logger.error("enregistrerCommissionDue (non bloquant) :", err.message);
+  }
+}
+
 // ── Règlement direct (séquestre suspendu, 2026-10-30) ───────────────────────
 // POST /api/import-export/transactions/:id/reglement-direct
 // L'acheteur DÉCLARE avoir réglé l'exportateur ; l'exportateur CONFIRME l'avoir
@@ -1297,7 +1328,12 @@ export const confirmDelivery = async (req, res) => {
       // transaction (avis ouverts), sans aucun mouvement de fonds.
       tx.status = "completed";
       pushHistory(tx, "completed", req.user._id, "Livraison confirmée — règlement direct entre les parties, aucun fonds détenu par VIT AUTO.");
+      // La commission export (grille : 3 %) reste due par l'exportateur ;
+      // seule sa perception change — elle n'est plus retenue sur un versement.
+      const c = await commissionReglementDirect(tx);
+      tx.payment.commission = { rate: c.rate, amount: c.amount, payoutAmount: null, computedAt: new Date() };
       await tx.save();
+      await enregistrerCommissionDue(tx, c);
       await notify(tx.partner, "success", "Livraison confirmée", "Le client a confirmé la réception du véhicule. La transaction est clôturée.", `/importer-dashboard`);
       return res.json({ message: "Livraison confirmée. La transaction est clôturée.", transaction: tx });
     }

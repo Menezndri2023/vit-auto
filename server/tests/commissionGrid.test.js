@@ -17,9 +17,8 @@ const GRILLE = {
   piece: 0.05, piece_import: 0.07, chauffeur: 0.10, activite: 0.10,
 };
 
-// Fondateur actif : même grille, SAUF la pièce à l'export, maintenue à 5 %
-// (hausse 5 → 7 % suspendue le 2026-10-30 pendant la vérification des contrats).
-const GRILLE_FONDATEUR = { ...GRILLE, piece_import: 0.05 };
+// Fondateur : même grille, pièce export comprise (7 %, confirmé le 2026-10-30).
+const GRILLE_FONDATEUR = { ...GRILLE };
 
 const abonnePremium = async () => {
   const partenaire = await createUser({ role: "partenaire" });
@@ -85,7 +84,7 @@ describe("Grille de commissions", () => {
     }
   });
 
-  it("un Founding Partner paie la même grille, et jamais plus (pièce export maintenue à 5 %)", async () => {
+  it("un Founding Partner paie la même grille, et jamais plus (pièce export comprise)", async () => {
     const p = await createUser({ role: "partenaire" });
     await PartnerOnboarding.create({
       userId: p._id, isFoundingPartner: true, legalEntityType: "entreprise",

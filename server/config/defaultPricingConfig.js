@@ -35,10 +35,10 @@ export const DEFAULT_PRICING_CONFIG = {
   // configurable, limité dans le temps et traçable sans toucher au code.
   foundingPartner: {
     durationMonths: 12,
-    // Pièce à l'export : 5 % pour les fondateurs (hausse 5 → 7 % SUSPENDUE le
-    // 2026-10-30 pendant la vérification des contrats — scripts/preavisGrille.mjs).
-    entreprise:  { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.05 },
-    particulier: { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.05 },
+    // Pièces détachées (exploitant, confirmé le 2026-10-30) : vente locale 5 %,
+    // export 7 %, pour TOUS les partenaires, fondateurs compris.
+    entreprise:  { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.07 },
+    particulier: { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.07 },
   },
   // Frais de service SUSPENDUS (2026-10-30) — barèmes conservés, inactifs.
   // Ils se cumulaient avec la commission (achat direct export : 3 % de frais

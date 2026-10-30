@@ -28,11 +28,11 @@ export default {
 
   "part.metaTitle": { fr: "Devenir partenaire", en: "Become a partner", ar: "كن شريكاً", es: "Hazte socio", zh: "成为合作伙伴" },
   "part.metaDesc": {
-    fr: "Publiez vos véhicules sur VIT AUTO et vendez ou louez dans 28 pays. Commission transparente, paiement sécurisé, contrats automatiques.",
-    en: "List your vehicles on VIT AUTO and sell or rent across 28 countries. Transparent commission, secure payment, automatic contracts.",
-    ar: "انشر مركباتك على VIT AUTO وبِع أو أجّر في ٢٨ دولة. عمولة واضحة ودفع آمن وعقود تلقائية.",
-    es: "Publica tus vehículos en VIT AUTO y vende o alquila en 28 países. Comisión transparente, pago seguro, contratos automáticos.",
-    zh: "在 VIT AUTO 发布车辆，在 28 个国家销售或出租。佣金透明、支付安全、合同自动生成。",
+    fr: "Publiez vos véhicules sur VIT AUTO et vendez ou louez dans 28 pays. Commission transparente, contrats automatiques, sans frais cachés.",
+    en: "List your vehicles on VIT AUTO and sell or rent across 28 countries. Transparent commission, automatic contracts, no hidden fees.",
+    ar: "انشر مركباتك على VIT AUTO وبِع أو أجّر في ٢٨ دولة. عمولة واضحة وعقود تلقائية ودون رسوم خفية.",
+    es: "Publica tus vehículos en VIT AUTO y vende o alquila en 28 países. Comisión transparente, contratos automáticos, sin costes ocultos.",
+    zh: "在 VIT AUTO 发布车辆，在 28 个国家销售或出租。佣金透明、合同自动生成、无隐藏费用。",
   },
   "part.badge":  { fr: "🤝 PROGRAMME PARTENAIRES VIT AUTO", en: "🤝 VIT AUTO PARTNER PROGRAMME", ar: "🤝 برنامج شركاء VIT AUTO", es: "🤝 PROGRAMA DE SOCIOS VIT AUTO", zh: "🤝 VIT AUTO 合作伙伴计划" },
   "part.h1a":    { fr: "Rejoignez la plateforme automobile", en: "Join the car platform", ar: "انضم إلى المنصة الأولى للسيارات", es: "Únete a la plataforma automotriz", zh: "加入这个汽车平台" },

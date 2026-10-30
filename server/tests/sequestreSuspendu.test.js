@@ -94,7 +94,11 @@ describe("Séquestre Import/Export suspendu", () => {
     t = await IETransaction.findById(tx._id).lean();
     expect(t.status).toBe("completed");
     expect(t.payment.releasedAt ?? null).toBeNull();
-    expect(await CommissionLedger.countDocuments({ transactionId: id })).toBe(0);
+    // La commission export (3 %) reste DUE par l'exportateur : enregistrée
+    // une fois, à facturer — jamais prélevée sur des fonds.
+    const lignes = await CommissionLedger.find({ transactionId: id }).lean();
+    expect(lignes).toHaveLength(1);
+    expect(lignes[0]).toMatchObject({ type: "platform_fee", status: "pending", commissionRate: 3, commissionAmount: 750, grossAmount: 25000, currency: "EUR" });
   });
 
   it("un achat direct non validé par l'équipe ne peut pas être déclaré réglé", async () => {

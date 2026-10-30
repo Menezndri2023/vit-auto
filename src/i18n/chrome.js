@@ -23,11 +23,11 @@ export default {
   // ─── Héros de la page d'accueil ───────────────────────────────────────────
   "hero.fromAnywhere": { fr: "depuis n'importe où", en: "from anywhere", ar: "من أي مكان", es: "desde cualquier lugar", zh: "来自世界各地" },
   "hero.desc": {
-    fr: "Afrique, Europe, Chine, Dubaï — VIT AUTO connecte acheteurs et vendeurs à travers le monde. Livraison GPS, contrat digital, paiement sécurisé.",
-    en: "Africa, Europe, China, Dubai — VIT AUTO connects buyers and sellers worldwide. GPS delivery, digital contract, secure payment.",
-    ar: "إفريقيا وأوروبا والصين ودبي — تربط VIT AUTO بين المشترين والبائعين حول العالم. توصيل بـ GPS وعقد رقمي ودفع آمن.",
-    es: "África, Europa, China, Dubái — VIT AUTO conecta compradores y vendedores en todo el mundo. Entrega GPS, contrato digital, pago seguro.",
-    zh: "非洲、欧洲、中国、迪拜——VIT AUTO 连接全球买家与卖家。GPS 配送、电子合同、安全支付。",
+    fr: "Afrique, Europe, Chine, Dubaï — VIT AUTO connecte acheteurs et vendeurs à travers le monde. Livraison GPS, contrat digital, partenaires vérifiés.",
+    en: "Africa, Europe, China, Dubai — VIT AUTO connects buyers and sellers worldwide. GPS delivery, digital contract, verified partners.",
+    ar: "إفريقيا وأوروبا والصين ودبي — تربط VIT AUTO بين المشترين والبائعين حول العالم. توصيل بـ GPS وعقد رقمي وشركاء موثَّقون.",
+    es: "África, Europa, China, Dubái — VIT AUTO conecta compradores y vendedores en todo el mundo. Entrega GPS, contrato digital, socios verificados.",
+    zh: "非洲、欧洲、中国、迪拜——VIT AUTO 连接全球买家与卖家。GPS 配送、电子合同、合作伙伴均经核验。",
   },
   "hero.badgeIdentity": { fr: "✅ Identité vérifiée", en: "✅ Verified identity", ar: "✅ هوية موثّقة", es: "✅ Identidad verificada", zh: "✅ 身份已认证" },
   "hero.badgePayment":  { fr: "🛡️ Paiement sécurisé", en: "🛡️ Secure payment", ar: "🛡️ دفع آمن", es: "🛡️ Pago seguro", zh: "🛡️ 安全支付" },

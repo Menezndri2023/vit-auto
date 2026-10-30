@@ -201,6 +201,8 @@ export function generateContractPDF(contract, res) {
     essai:     "BON DE RENDEZ-VOUS",
     chauffeur: "REÇU DE RÉSERVATION — CHAUFFEUR",
     leasing:   "REÇU DE RÉSERVATION — LEASING",
+    // Pièces détachées : une vente, pas une réservation (2026-10-30).
+    piece:     "BON DE COMMANDE — PIÈCES DÉTACHÉES",
   };
   const ref = contract.reference || `VIT-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`;
 

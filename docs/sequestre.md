@@ -41,9 +41,10 @@ page d'accueil (caution, description), Import/Export, grille partenaires : plus 
 mention de fonds détenus, bloqués ou sécurisés par VIT AUTO. **CGV et Politiques : relecture
 juridique à prévoir.**
 
-## Point ouvert
+## Commission export en règlement direct
 
-Commission export (3 %) sur une vente réglée en direct : elle n'est plus enregistrée
-automatiquement (elle l'était à la libération des fonds). Mode de perception à décider.
+Toujours due (grille : 3 %, sur la part exportateur). À la livraison confirmée, une ligne
+`platform_fee` « en attente » est enregistrée une fois au registre des commissions, à facturer
+à l'exportateur comme les autres commissions — jamais prélevée sur des fonds.
 
 Tests : `server/tests/sequestreSuspendu.test.js`, `src/pages/screens.reglementDirect.render.test.jsx`.

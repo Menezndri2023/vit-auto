@@ -250,6 +250,11 @@ async function tauxAuReglement(booking, ownerId) {
   return resolveCommissionRate(cleCommission(booking), ownerId);
 }
 
+// Une commande de pièces détachées est une VENTE, pas une réservation
+// (exploitant, 2026-10-30) : les messages communs le disent.
+const motTransaction = (b) => (b?.type === "piece" ? "commande" : "réservation");
+const MotTransaction = (b) => (b?.type === "piece" ? "Commande" : "Réservation");
+
 export function cleCommission(booking) {
   if (booking?.type !== "piece") return booking?.type;
   return booking.piece?.international || booking.piece?.saleMode === "import" ? "piece_import" : "piece";
@@ -2241,9 +2246,9 @@ export const updateBookingStatus = async (req, res) => {
     // ── Notifications client ────────────────────────────────────────────────────
     const ref = booking.reference || "";
     const notifs = {
-      confirmed:                  { type: "booking_confirmed", titre: "✅ Réservation acceptée",      msg: `Votre réservation ${ref} a été acceptée par le partenaire.` },
-      preparing:                  { type: "system",            titre: "⚙️ Préparation en cours",      msg: "Le partenaire prépare votre véhicule." },
-      ready:                      { type: "system",            titre: "🚗 Véhicule prêt !",            msg: "Votre véhicule est prêt. Le partenaire va vous contacter." },
+      confirmed:                  { type: "booking_confirmed", titre: `✅ ${MotTransaction(booking)} acceptée`, msg: `Votre ${motTransaction(booking)} ${ref} a été acceptée par le partenaire.` },
+      preparing:                  { type: "system",            titre: "⚙️ Préparation en cours",      msg: booking.type === "piece" ? "Le vendeur prépare votre commande." : "Le partenaire prépare votre véhicule." },
+      ready:                      { type: "system",            titre: booking.type === "piece" ? "📦 Commande prête !" : "🚗 Véhicule prêt !", msg: booking.type === "piece" ? "Votre commande est prête. Le vendeur va vous contacter." : "Votre véhicule est prêt. Le partenaire va vous contacter." },
       in_progress:                { type: "system",            titre: "🚀 En route vers vous !",       msg: "Le partenaire est en route. Préparez votre pièce d'identité." },
       client_arrived:             { type: "system",            titre: "📍 Rendez-vous confirmé",      msg: "Le partenaire a confirmé votre présence au rendez-vous." },
       client_absent:              { type: "system",            titre: "⚠️ Absence signalée",          msg: "Le partenaire a signalé votre absence au rendez-vous." },
@@ -2251,7 +2256,7 @@ export const updateBookingStatus = async (req, res) => {
       transaction_not_concluded:  { type: "system",            titre: "❌ Transaction non conclue",   msg: "Le partenaire a signalé que la transaction n'a pas abouti." },
       waiting_client_validation:  { type: "system",            titre: "✋ Validation requise",        msg: `Confirmez la transaction pour ${ref}. Vérifiez les détails dans votre tableau de bord.`, lien: "/dashboard" },
       completed:                  { type: "booking_completed", titre: "🏁 Commande terminée",         msg: `Merci pour votre confiance ! (${ref}) Laissez un avis.` },
-      cancelled:                  { type: "booking_cancelled", titre: "❌ Réservation annulée",       msg: `Votre réservation ${ref} a été annulée. Motif : ${PARTNER_CANCEL_REASONS_MAP[cancelReasonCode] || cancelReasonCode}${cancelReason ? ` — ${cancelReason}` : ""}` },
+      cancelled:                  { type: "booking_cancelled", titre: `❌ ${MotTransaction(booking)} annulée`, msg: `Votre ${motTransaction(booking)} ${ref} a été annulée. Motif : ${PARTNER_CANCEL_REASONS_MAP[cancelReasonCode] || cancelReasonCode}${cancelReason ? ` — ${cancelReason}` : ""}` },
       disputed:                   { type: "system",            titre: "⚠️ Litige signalé",            msg: `Un litige a été ouvert sur la commande ${ref}.`, lien: "/dashboard" },
     };
     const n = notifs[status];
@@ -3709,8 +3714,8 @@ export const cancelBookingByClient = async (req, res) => {
       await notify(
         cancelOwnerId,
         "warning",
-        "Réservation annulée",
-        `Le client a annulé la réservation ${booking.reference || id}. Motif : ${reasonLabel}${reason ? ` — ${reason}` : ""}`,
+        `${MotTransaction(booking)} annulée`,
+        `Le client a annulé la ${motTransaction(booking)} ${booking.reference || id}. Motif : ${reasonLabel}${reason ? ` — ${reason}` : ""}`,
         "/vendor/dashboard"
       );
     }
@@ -3727,13 +3732,13 @@ export const cancelBookingByClient = async (req, res) => {
         global._io.to("admins").emit("refund_needed", {
           bookingId: booking._id.toString(), reference: booking.reference,
           reason: refundResult.ok && refundResult.automatic
-            ? "Réservation payée annulée par le client — remboursement traité automatiquement."
-            : "Réservation payée annulée par le client — remboursement à traiter manuellement.",
+            ? `${MotTransaction(booking)} payée annulée par le client — remboursement traité automatiquement.`
+            : `${MotTransaction(booking)} payée annulée par le client — remboursement à traiter manuellement.`,
         });
       }
     }
 
-    res.json({ success: true, message: "Réservation annulée.", status: "cancelled" });
+    res.json({ success: true, message: `${MotTransaction(booking)} annulée.`, status: "cancelled" });
   } catch (err) {
     logger.error("cancelBookingByClient:", err);
     res.status(500).json({ message: "Erreur serveur." });

@@ -81,7 +81,7 @@ export default function PartnerShowroomPublic() {
   useDocumentMeta(showroom ? {
     title: `${showroom.companyName || "Showroom"}${ville ? ` — ${ville}` : ""}`,
     description: showroom.description || showroom.tagline
-      || `${showroom.companyName || "Ce partenaire"} sur VIT AUTO${ville ? ` à ${ville}` : ""} : ${partnerVehicles.length > 0 ? `${partnerVehicles.length} véhicule${partnerVehicles.length > 1 ? "s" : ""} à réserver` : "showroom partenaire"}. Réservation et paiement sécurisés.`,
+      || `${showroom.companyName || "Ce partenaire"} sur VIT AUTO${ville ? ` à ${ville}` : ""} : ${partnerVehicles.length > 0 ? `${partnerVehicles.length} véhicule${partnerVehicles.length > 1 ? "s" : ""} à réserver` : "showroom partenaire"}. Partenaire vérifié par VIT AUTO.`,
     image: showroom.logo || showroom.banner || undefined,
     url: urlShowroom,
     structuredData: {

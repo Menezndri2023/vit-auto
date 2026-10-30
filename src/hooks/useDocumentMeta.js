@@ -10,7 +10,7 @@ const SITE = "https://vit-auto.com";
 // TOUTES les routes tant qu'aucun composant n'appelle ce hook).
 const DEFAULTS = {
   title:       "VIT AUTO — Location, vente et import de véhicules à l'international",
-  description: "Louez, achetez, importez ou exportez un véhicule dans 28 pays. Inspection, transport, dédouanement et livraison gérés de bout en bout, avec paiement sécurisé.",
+  description: "Louez, achetez, importez ou exportez un véhicule dans 28 pays. Inspection, transport, dédouanement et livraison suivis de bout en bout, avec des partenaires vérifiés.",
   image:       "https://vit-auto.com/icons/icon-512x512.png",
 };
 

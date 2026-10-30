@@ -3,7 +3,7 @@ import { programmerModification, appliquerModificationsEchues, annulerModificati
 import { resolveCommissionRate } from "../services/pricingEngine.js";
 import { createBooking, adminForceComplete } from "../controllers/bookingController.js";
 import { updatePricingSection } from "../controllers/businessConfigController.js";
-import { conserverTauxReservationsOuvertes, suspendreHaussePieceExportFondateurs } from "../scripts/preavisGrille.mjs";
+import { conserverTauxReservationsOuvertes } from "../scripts/preavisGrille.mjs";
 import GrilleTarifaire from "../models/GrilleTarifaire.js";
 import PricingConfig from "../models/PricingConfig.js";
 import Booking from "../models/Booking.js";
@@ -125,20 +125,5 @@ describe("Migrations du 2026-10-30", () => {
     expect((await Booking.findById(ouverte._id).lean()).commissionFigee).toBe(true);
     expect((await Booking.findById(ancienne._id).lean()).commissionFigee).toBe(false);
     expect((await Booking.findById(terminee._id).lean()).commissionFigee).toBe(false);
-  });
-
-  it("suspend la hausse 5 → 7 % de la pièce export pour les fondateurs, sans notification ; idempotente", async () => {
-    await PricingConfig.updateOne({ key: "global" }, { $set: { "foundingPartner.entreprise.piece_import": 0.07, "foundingPartner.particulier.piece_import": 0.07 } });
-    const partenaire = await createUser({ role: "partenaire" });
-    const r = await suspendreHaussePieceExportFondateurs();
-    expect(r.applique).toBe(true);
-    const cfg = await PricingConfig.findOne({ key: "global" }).lean();
-    expect(cfg.foundingPartner.entreprise.piece_import).toBe(0.05);
-    expect(cfg.foundingPartner.particulier.piece_import).toBe(0.05);
-    expect(cfg.commissions.standard.piece_import).toBe(0.07);           // les autres partenaires : inchangé
-    expect(await Notification.countDocuments({ user: partenaire._id })).toBe(0);
-    const ver = await GrilleTarifaire.findOne({ version: r.version }).lean();
-    expect(ver).toMatchObject({ statut: "appliquee", hausse: false, section: "foundingPartner" });
-    expect((await suspendreHaussePieceExportFondateurs()).applique).toBe(false);
   });
 });
