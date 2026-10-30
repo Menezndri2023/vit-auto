@@ -8,23 +8,21 @@
 // que la migration a tourné une fois.
 export const DEFAULT_PRICING_CONFIG = {
   key: "global",
-  // GRILLE UNIQUE (exploitant, 2026-10-27) — remplace la grille à deux
-  // colonnes du 2026-09-12 (standard 15/5/5/15/15, fondateur 10/3/3/10/10) :
-  //   location 10 % · vente (essai, demande d'essai) 2 % · vente de véhicule à
-  //   l'export 3 % · pièces détachées 5 % en vente locale, 7 % à l'export
-  //   (importée à la commande ou livrée hors du pays du vendeur) · chauffeur
-  //   10 % · activités et loisirs 10 %.
-  // Une seule clé par transaction, jamais additionnées : une pièce importée
-  // paie 7 % (`piece_import`), pas 7 % + 3 % ; une vente export paie 3 %
-  // (`import_export`), pas 2 % + 3 %. La logistique (`services.transport`,
-  // `services.transit`) reste sans commission tant que son modèle n'est pas
-  // décidé. `leasing` est hors du barème du 2026-10-27 : inchangé.
+  // GRILLE OFFICIELLE (exploitant, 2026-10-30) — remplace celle du 27/10 :
+  //   location 10 % · vente de véhicules 2 % (y compris importé ou exporté —
+  //   Vehicle Trade) · pièces détachées 5 % (locale ou export — Parts Trade) ·
+  //   chauffeur 10 % · loisirs 10 % · logistique 0 % au lancement.
+  // `import_export` (3 %, « transactions générales éligibles ») reste
+  // configuré mais ne s'applique à AUCUNE transaction actuelle : il ne
+  // s'ajoute jamais aux catégories — une vente de véhicule importé paie 2 %,
+  // pas 2 % + 3 % ni 3 %. `piece_import` est conservé comme clé, au taux des
+  // pièces (5 %). Une seule clé par transaction. `leasing` hors grille : 5 %.
   //
   // `premium` est VOLONTAIREMENT identique à `standard` : l'abonnement ne
   // change rien aux commissions (voir subscription.test.js).
   commissions: {
-    standard: { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.07 },
-    premium:  { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.07 },
+    standard: { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.05 },
+    premium:  { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.05 },
   },
   // Grille FONDATEUR — depuis le 2026-10-27, IDENTIQUE au standard : la
   // nouvelle grille est égale ou inférieure à l'ancienne grille fondateur sur
@@ -35,10 +33,10 @@ export const DEFAULT_PRICING_CONFIG = {
   // configurable, limité dans le temps et traçable sans toucher au code.
   foundingPartner: {
     durationMonths: 12,
-    // Pièces détachées (exploitant, confirmé le 2026-10-30) : vente locale 5 %,
-    // export 7 %, pour TOUS les partenaires, fondateurs compris.
-    entreprise:  { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.07 },
-    particulier: { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.07 },
+    // Grille officielle du 2026-10-30 : identique pour tous, fondateurs compris
+    // (pièces 5 %, export compris).
+    entreprise:  { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.05 },
+    particulier: { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.05 },
   },
   // Frais de service SUSPENDUS (2026-10-30) — barèmes conservés, inactifs.
   // Ils se cumulaient avec la commission (achat direct export : 3 % de frais

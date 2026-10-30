@@ -186,12 +186,12 @@ export default function FoundingPartnerLegal() {
                 </thead>
                 <tbody>
                   <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Vehicle Rental</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>10%</td></tr>
-                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Vehicle Sales</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>2%</td></tr>
-                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Vehicle Export Sale (replaces the sales rate, never added to it)</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>3%</td></tr>
-                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Spare Parts — local sale / export sale (parts price only, excluding delivery and import charges)</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>5% / 7%</td></tr>
+                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Vehicle Sales — imported or exported vehicles included (never 2% + 3%)</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>2%</td></tr>
+                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Spare Parts — local or export (parts price only, excluding delivery and import charges)</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>5%</td></tr>
+                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Import-Export — eligible general transactions only, never added to the rates above</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>3%</td></tr>
                   <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Professional Driver</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>10%</td></tr>
                   <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Activities & Leisure</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>10%</td></tr>
-                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Logistics (transport, transit)</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>None at this stage</td></tr>
+                  <tr><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>Logistics & transport (free matchmaking at launch)</td><td style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9", fontWeight: 700, color: "#059669" }}>0%</td></tr>
                   <tr><td style={{ padding: "8px 10px" }}>Advanced pro tools (subscription)</td><td style={{ padding: "8px 10px", fontWeight: 700, color: "#059669" }}>FREE for 12 months</td></tr>
                 </tbody>
               </table>

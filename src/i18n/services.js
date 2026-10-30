@@ -72,11 +72,11 @@ export default {
 
   "svc.sale.title": { fr: "Vente de véhicules", en: "Vehicle sales", ar: "بيع المركبات", es: "Venta de vehículos", zh: "车辆销售" },
   "svc.sale.desc": {
-    fr: "Achetez ou vendez votre véhicule en toute sécurité. Contrat digital, vérification d'identité, vendeurs vérifiés. Neuf ou occasion.",
-    en: "Buy or sell your vehicle safely. Digital contract, identity verification, verified sellers. New or used.",
-    ar: "اشترِ أو بِع مركبتك بأمان تام. عقد رقمي والتحقق من الهوية وبائعون موثَّقون. جديدة أو مستعملة.",
-    es: "Compra o vende tu vehículo con total seguridad. Contrato digital, verificación de identidad, vendedores verificados. Nuevo o usado.",
-    zh: "安全买卖车辆。电子合同、身份验证、卖家均经核验。新车二手车均可。",
+    fr: "Achetez ou vendez votre véhicule en toute sécurité. Contrat digital, vérification d'identité, paiement sécurisé. Neuf ou occasion.",
+    en: "Buy or sell your vehicle safely. Digital contract, identity verification, secure payment. New or used.",
+    ar: "اشترِ أو بِع مركبتك بأمان تام. عقد رقمي والتحقق من الهوية ودفع آمن. جديدة أو مستعملة.",
+    es: "Compra o vende tu vehículo con total seguridad. Contrato digital, verificación de identidad, pago seguro. Nuevo o usado.",
+    zh: "安全买卖车辆。电子合同、身份验证、安全支付。新车二手车均可。",
   },
   "svc.sale.cta": { fr: "Voir les véhicules à vendre", en: "See vehicles for sale", ar: "عرض المركبات المعروضة للبيع", es: "Ver vehículos en venta", zh: "查看在售车辆" },
 
@@ -225,7 +225,7 @@ export default {
   "svc.howTitle": { fr: "Comment ça fonctionne ?", en: "How does it work?", ar: "كيف تعمل المنصة؟", es: "¿Cómo funciona?", zh: "如何运作？" },
   "svc.howDesc":  { fr: "Réservez un véhicule ou publiez une annonce en quelques minutes.", en: "Book a vehicle or publish a listing in minutes.", ar: "احجز مركبة أو انشر إعلاناً في دقائق.", es: "Reserva un vehículo o publica un anuncio en minutos.", zh: "几分钟内完成预订或发布车源。" },
   "svc.step1.desc": { fr: "Filtrez par ville, type, état (neuf/occasion) et budget depuis la barre de recherche.", en: "Filter by city, type, condition (new/used) and budget from the search bar.", ar: "صفِّ حسب المدينة والنوع والحالة (جديدة/مستعملة) والميزانية من شريط البحث.", es: "Filtra por ciudad, tipo, estado (nuevo/usado) y presupuesto desde la barra de búsqueda.", zh: "在搜索栏按城市、类型、车况（全新/二手）和预算筛选。" },
-  "svc.step2.desc": { fr: "3 étapes : informations, vérification d'identité, confirmation.", en: "3 steps: details, identity verification, confirmation.", ar: "٣ خطوات: المعلومات، التحقق من الهوية، التأكيد.", es: "3 pasos: información, verificación de identidad, confirmación.", zh: "三步：填写信息、身份验证、确认。" },
+  "svc.step2.desc": { fr: "3 étapes : informations, vérification d'identité, paiement sécurisé.", en: "3 steps: details, identity verification, secure payment.", ar: "٣ خطوات: المعلومات، التحقق من الهوية، الدفع الآمن.", es: "3 pasos: información, verificación de identidad, pago seguro.", zh: "三步：填写信息、身份验证、安全支付。" },
   "svc.step3.desc": { fr: "Livraison GPS à domicile par le partenaire ou retrait en agence, à votre choix.", en: "GPS delivery to your door by the partner, or agency pickup — your choice.", ar: "توصيل بـ GPS إلى المنزل من الشريك أو استلام من الوكالة، حسب اختيارك.", es: "Entrega GPS a domicilio por el socio o recogida en agencia, a tu elección.", zh: "由商家 GPS 送车上门，或到店自取，由您选择。" },
   "svc.step4.desc": { fr: "Contrat digital signé, support 7j/7, véhicule assuré et vérifié.", en: "Signed digital contract, support 7 days a week, insured and verified vehicle.", ar: "عقد رقمي موقّع ودعم طوال الأسبوع ومركبة مؤمَّنة وموثّقة.", es: "Contrato digital firmado, soporte los 7 días, vehículo asegurado y verificado.", zh: "已签电子合同、全周客服、车辆已投保并通过验证。" },
 

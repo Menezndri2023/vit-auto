@@ -63,11 +63,11 @@ export default {
     zh: "国际车辆租赁、销售与进口",
   },
   "home.metaDesc": {
-    fr: "Louez, achetez, importez ou exportez un véhicule dans 28 pays. Inspection, transport, dédouanement et livraison suivis de bout en bout, avec des partenaires vérifiés.",
-    en: "Rent, buy, import or export a vehicle across 28 countries. Inspection, transport, customs clearance and delivery tracked end to end, with verified partners.",
-    ar: "استأجر أو اشترِ أو استورد أو صدّر مركبة في ٢٨ دولة. الفحص والنقل والتخليص الجمركي والتسليم متابَعة بالكامل، مع شركاء موثَّقين.",
-    es: "Alquila, compra, importa o exporta un vehículo en 28 países. Inspección, transporte, despacho aduanero y entrega con seguimiento de principio a fin, con socios verificados.",
-    zh: "在 28 个国家租赁、购买、进口或出口车辆。验车、运输、清关与交付全程跟踪，合作伙伴均经过核验。",
+    fr: "Louez, achetez, importez ou exportez un véhicule dans 28 pays. Inspection, transport, dédouanement et livraison gérés de bout en bout, avec paiement sécurisé.",
+    en: "Rent, buy, import or export a vehicle across 28 countries. Inspection, transport, customs clearance and delivery handled end to end, with secure payment.",
+    ar: "استأجر أو اشترِ أو استورد أو صدّر مركبة في ٢٨ دولة. الفحص والنقل والتخليص الجمركي والتسليم تُدار بالكامل، مع دفع آمن.",
+    es: "Alquila, compra, importa o exporta un vehículo en 28 países. Inspección, transporte, despacho aduanero y entrega gestionados de principio a fin, con pago seguro.",
+    zh: "在 28 个国家租赁、购买、进口或出口车辆。验车、运输、清关与交付全程包办，支付安全可靠。",
   },
 
   // ─── Accueil : bandes de mise en avant ────────────────────────────────────

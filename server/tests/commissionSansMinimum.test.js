@@ -45,11 +45,11 @@ describe("Commission sans minimum caché", () => {
     expect(res.body.booking.commissionAmount).toBe(0.3);
   });
 
-  it("Import/Export : 3 % de la part exportateur, même pour un petit montant", async () => {
+  it("Import/Export : 2 % (vente de véhicule) de la part exportateur, même pour un petit montant", async () => {
     await PricingConfig.create({ ...DEFAULT_PRICING_CONFIG, key: "global" });
     const p = await createUser({ role: "partenaire" });
     const r = await computeIeCommission({ partner: p._id, ventilation: { exportateur: 20 }, payment: {} });
-    expect(r).toMatchObject({ rate: 0.03, amount: 0.6, base: 20, payoutAmount: 19.4 });
+    expect(r).toMatchObject({ rate: 0.02, amount: 0.4, base: 20, payoutAmount: 19.6 });
   });
 
   it("une assiette nulle donne une commission nulle, jamais un montant forfaitaire", async () => {

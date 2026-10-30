@@ -117,12 +117,13 @@ export default function CGU() {
       <Art n="6" title="Commissions et frais">
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           <Li><strong>Location :</strong> 10 % du prix de la location et des options fournies par VIT AUTO (hors livraison et options fournies par le partenaire)</Li>
-          <Li><strong>Vente :</strong> 2 % du prix de vente</Li>
-          <Li><strong>Vente d'un véhicule à l'export :</strong> 3 % du prix (remplace le taux de vente, ne s'y ajoute pas)</Li>
-          <Li><strong>Pièces détachées :</strong> 5 % du prix des pièces en vente locale, 7 % à l'export, hors livraison et frais d'importation</Li>
+          <Li><strong>Vente de véhicules :</strong> 2 % du prix de vente, véhicules importés ou exportés compris</Li>
+          <Li><strong>Pièces détachées :</strong> 5 % du prix des pièces, en vente locale comme à l'export, hors livraison et frais d'importation</Li>
+          <Li><strong>Import-export (transactions générales éligibles) :</strong> 3 % ; ne s'ajoute jamais aux taux de la vente de véhicules, des pièces ou de la logistique</Li>
+          <Li><strong>Logistique et transport :</strong> 0 % au lancement (mise en relation gratuite)</Li>
           <Li><strong>Chauffeur :</strong> 10 % du montant de la course</Li>
           <Li><strong>Activités et loisirs :</strong> 10 % du montant de la réservation</Li>
-          <Li><strong>Frais de service :</strong> 0,5 % du montant (minimum 1,00 $US, maximum 25,00 $US), à la charge du client</Li>
+          <Li><strong>Frais de service :</strong> aucun à ce jour (suspendus)</Li>
           <Li><strong>Livraison GPS :</strong> 15 DH de base + 3 DH/km, calculée dynamiquement, à la charge du client</Li>
           <Li><strong>Assurance / Crédit / Leasing :</strong> commissions négociées avec les partenaires concernés</Li>
         </ul>

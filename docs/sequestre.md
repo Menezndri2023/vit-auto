@@ -43,7 +43,7 @@ juridique à prévoir.**
 
 ## Commission export en règlement direct
 
-Toujours due (grille : 3 %, sur la part exportateur). À la livraison confirmée, une ligne
+Toujours due : celle de la vente de véhicules (grille officielle : 2 %, sur la part exportateur ; jamais 2 % + 3 %). À la livraison confirmée, une ligne
 `platform_fee` « en attente » est enregistrée une fois au registre des commissions, à facturer
 à l'exportateur comme les autres commissions — jamais prélevée sur des fonds.
 

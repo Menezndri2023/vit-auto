@@ -184,7 +184,7 @@ describe("Pièces détachées — commande, de la transmission à la réception"
     m = commande(c, part2); await createBooking(m.req, m.res); expect(m.res.body.code).toBe("MIN_ORDER_QTY");
   });
 
-  it("importation : frais d'importation et acompte portés par la commande, taux export 7 %", async () => {
+  it("importation : frais d'importation et acompte portés par la commande, taux pièces 5 %, export compris", async () => {
     const owner = await createUser({ role: "partenaire", partnerActivity: "pieces", country: "MA", certificationBadge: "verifie" });
     const part = await publier(owner, { saleMode: "import", stock: null, importInfo: { originCountry: "DE", leadTimeDays: 21, feesUSD: 30, customsIncluded: true, depositPercent: 50 } });
     const c = await client();
@@ -196,13 +196,13 @@ describe("Pièces détachées — commande, de la transmission à la réception"
     expect(b.piece.importFeesUSD).toBe(30);
     expect(b.piece.depositUSD).toBe(55);
     expect(b.montantTotal).toBe(115);
-    expect(b.commissionRate).toBe(0.07);
-    expect(b.commissionAmount).toBe(5.6);
+    expect(b.commissionRate).toBe(0.05);
+    expect(b.commissionAmount).toBe(4);
     expect(b.piece.international).toBe(true);
     expect(b.piece.stockReserved).toBe(false); // stock non suivi
 
     // Clôture forcée par l'admin : la commission recalculée garde le taux
-    // « piece_import » (7 %) et l'assiette « prix des pièces » (80), jamais le
+    // « piece_import » (5 %, grille officielle du 2026-10-30) et l'assiette « prix des pièces » (80), jamais le
     // total livraison et frais d'importation compris (audit du 2026-10-05 : le
     // recalcul repassait à 10 % du total).
     const admin = await createUser({ role: "admin" });
@@ -210,12 +210,12 @@ describe("Pièces détachées — commande, de la transmission à la réception"
     await adminForceComplete(fc.req, fc.res);
     expect(fc.res.statusCode).toBe(200);
     const fin = await Booking.findById(b._id);
-    expect(fin.commissionRate).toBe(0.07);
-    expect(fin.commissionAmount).toBe(5.6);
+    expect(fin.commissionRate).toBe(0.05);
+    expect(fin.commissionAmount).toBe(4);
   });
 
-  it("pièce en stock livrée hors du pays du vendeur = vente à l'export (7 %), figée sur la commande", async () => {
-    // Exploitant, 2026-10-27 : 5 % en vente locale, 7 % à l'export. Une pièce
+  it("pièce en stock livrée hors du pays du vendeur = vente à l'export (5 %, comme en local), figée sur la commande", async () => {
+    // Grille officielle du 2026-10-30 : 5 % en local comme à l'export. Une pièce
     // EN STOCK expédiée à l'étranger est une exportation, pas une vente locale.
     const owner = await createUser({ role: "partenaire", partnerActivity: "pieces", country: "MA", certificationBadge: "verifie" });
     const part = await publier(owner, { shipping: { mode: "forfait", forfaitUSD: 5, freeAboveUSD: 200, deliveryDaysMin: 1, deliveryDaysMax: 3, countries: ["SN"] } });
@@ -226,8 +226,8 @@ describe("Pièces détachées — commande, de la transmission à la réception"
     const b = await Booking.findById(res.body.booking._id);
     expect(b.piece.saleMode).toBe("direct");
     expect(b.piece.international).toBe(true);
-    expect(b.commissionRate).toBe(0.07);
-    expect(b.commissionAmount).toBe(5.6);      // 7 % de 80, livraison exclue
+    expect(b.commissionRate).toBe(0.05);
+    expect(b.commissionAmount).toBe(4);        // 5 % de 80, livraison exclue
 
     // La même pièce livrée au Maroc reste une vente locale.
     const local = commande(c, part);

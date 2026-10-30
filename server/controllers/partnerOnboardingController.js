@@ -1626,7 +1626,7 @@ export async function generateLOI(doc, user, date) {
   const std          = config.commissions.standard;
   const lignesCommission = grilleFondateurIdentique(config, loiTier)
     ? `  ✓  Commission Grid ................... same grid as every VIT-AUTO partner, charged only on completed transactions:
-                                         rental, driver and leisure ${pctTexte(std.location)} · sales ${pctTexte(std.vente)} · export sales ${pctTexte(std.import_export)} · spare parts ${pctTexte(std.piece ?? 0.05)} (export ${pctTexte(std.piece_import ?? 0.07)})`
+                                         rental, driver and leisure ${pctTexte(std.location)} · vehicle sales, imported or exported included, ${pctTexte(std.vente)} · spare parts ${pctTexte(std.piece ?? 0.05)} · other eligible import-export transactions ${pctTexte(std.import_export)} (never added) · logistics 0%`
     : `  ✓  Rental Commission ................. ${pctTexte(fpRate.location)} for ${fpDuration} months, then standard rate (${stdLocation}%)
   ✓  Sales Commission .................. ${pctTexte(fpRate.vente)} for ${fpDuration} months, then standard rate (${stdVente}%)
   ✓  Driver Commission ................. ${doc.commissions?.chauffeur || 10}%`;
@@ -1751,10 +1751,9 @@ export async function generateAgreement(doc, user, date) {
      Transaction Type       Rate
      ─────────────────────────────────────────────────────────────────
      Vehicle Rental         ${pctTexte(std.location)}
-     Vehicle Sales          ${pctTexte(std.vente)}
-     Export Vehicle Sales   ${pctTexte(std.import_export)}   (replaces the sales rate, never added to it)
-     Spare Parts            ${pctTexte(std.piece ?? 0.05)}    local sale (parts price only, excluding delivery and import charges)
-     Spare Parts Export     ${pctTexte(std.piece_import ?? 0.07)}    imported to order or shipped outside the seller's country
+     Vehicle Sales          ${pctTexte(std.vente)}    imported or exported vehicles included (never ${pctTexte(std.vente)} + ${pctTexte(std.import_export)})
+     Spare Parts            ${pctTexte(std.piece ?? 0.05)}    local or export (parts price only, excluding delivery and import charges)
+     Import-Export          ${pctTexte(std.import_export)}    eligible general transactions only, never added to the rates above
      Professional Driver    ${pctTexte(std.chauffeur)}
      Activities & Leisure   ${pctTexte(std.activite ?? 0.10)}
      Logistics              no commission at this stage

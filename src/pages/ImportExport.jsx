@@ -365,9 +365,11 @@ const ImportExport = () => {
   // contenu identique laissait croire à un avantage inexistant — même
   // correction que celle déjà faite sur /plans.
   const pct = (r) => r == null ? "—" : `${Math.round(r * 1000) / 10} %`;
-  const stdRate = pricing.commissions?.standard?.import_export ?? FALLBACK_PRICING.commissions.standard.import_export;
+  // Une vente de véhicule à l'import-export paie le taux de la VENTE de
+  // véhicules (2 %, grille officielle du 2026-10-30) — jamais 2 % + 3 %.
+  const stdRate = pricing.commissions?.standard?.vente ?? FALLBACK_PRICING.commissions.standard.vente;
   const fondateur = pricing.foundingPartner || FALLBACK_PRICING.foundingPartner;
-  const fpRate = fondateur.entreprise?.import_export;
+  const fpRate = fondateur.entreprise?.vente;
   const { minUSD, percent, maxUSD } = pricing.serviceFee || FALLBACK_PRICING.serviceFee;
 
   // Outils export réellement livrés, par palier — lus dans la même table que

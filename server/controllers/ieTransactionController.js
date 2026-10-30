@@ -27,17 +27,18 @@ import { nonBloquant } from "../utils/nonBloquant.js";
 
 const MAX_EXPORT_DOC_BYTES = 8 * 1024 * 1024; // 8 Mo — cohérent avec les autres documents (CV, KYC)
 
-// Commission VIT AUTO sur une transaction Import/Export — barème "import_export"
-// (PricingConfig), avec taux Founding Partner préférentiel puisque le partenaire
-// d'une transaction IE est toujours un Founding Partner (isFounder requis pour
-// publier, voir importExportController.createListing). Calculée une seule
-// fois, à la libération des fonds — jamais recalculée ensuite.
+// Commission VIT AUTO sur une vente de véhicule Import/Export : taux de la
+// VENTE DE VÉHICULES (2 %, grille officielle du 2026-10-30 — Vehicle Trade).
+// Le 3 % « import_export » ne s'y ajoute pas et ne la remplace pas. Calculée
+// une seule fois (libération des fonds, ou clôture en règlement direct).
 // Base = la part EXPORTATEUR du paiement (voir IETransaction.ventilation).
 // Achat direct : prix du véhicule seul ; le reste (logistique, droits et
 // taxes, frais VIT AUTO) ne lui appartient pas. Réservation négociée : son
 // offre finale est son prix, la part exportateur est donc le montant payé.
+export const CLE_COMMISSION_VENTE_VEHICULE_IE = "vente";
+
 export async function computeIeCommission(tx) {
-  const rate = await resolveCommissionRate("import_export", tx.partner);
+  const rate = await resolveCommissionRate(CLE_COMMISSION_VENTE_VEHICULE_IE, tx.partner);
   // Achat direct antérieur à la ventilation : la part exportateur est le
   // prix du véhicule de l'offre (le reste du total n'a jamais été à lui).
   const base = tx.ventilation?.exportateur
@@ -886,7 +887,7 @@ export const payEscrow = async (req, res) => {
 async function commissionReglementDirect(tx) {
   const base = tx.ventilation?.exportateur
     ?? (tx.directPurchase ? tx.finalOffer?.vehiclePrice : tx.finalOffer?.totalAmount) ?? 0;
-  const rate = await resolveCommissionRate("import_export", tx.partner);
+  const rate = await resolveCommissionRate(CLE_COMMISSION_VENTE_VEHICULE_IE, tx.partner);
   return { rate, base, amount: Math.round(base * rate * 100) / 100 };
 }
 
@@ -1328,7 +1329,7 @@ export const confirmDelivery = async (req, res) => {
       // transaction (avis ouverts), sans aucun mouvement de fonds.
       tx.status = "completed";
       pushHistory(tx, "completed", req.user._id, "Livraison confirmée — règlement direct entre les parties, aucun fonds détenu par VIT AUTO.");
-      // La commission export (grille : 3 %) reste due par l'exportateur ;
+      // La commission de vente du véhicule (grille : 2 %) reste due par l'exportateur ;
       // seule sa perception change — elle n'est plus retenue sur un versement.
       const c = await commissionReglementDirect(tx);
       tx.payment.commission = { rate: c.rate, amount: c.amount, payoutAmount: null, computedAt: new Date() };

@@ -129,11 +129,12 @@ export default function ConditionsPartenaires() {
         <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
           <Li><strong>Location :</strong> 10 % du prix de la location et des options fournies par VIT AUTO (hors livraison et options fournies par le partenaire, comme son assurance)</Li>
           <Li><strong>Vente :</strong> 2 % du prix de vente final, dû uniquement lorsqu'une vente issue d'un prospect apporté par VIT AUTO est effectivement conclue (voir ci-dessous « Attribution des prospects »)</Li>
-          <Li><strong>Vente d'un véhicule à l'export (import/export) :</strong> 3 % du prix, prélevée à la libération des fonds — ce taux remplace celui de la vente, il ne s'y ajoute pas</Li>
-          <Li><strong>Pièces détachées :</strong> 5 % du prix des pièces seul (hors livraison et frais d'importation) en vente locale ; 7 % à l'export, c'est-à-dire pour une pièce importée à la commande ou livrée hors du pays du vendeur</Li>
+          <Li><strong>Vente d'un véhicule importé ou exporté (Vehicle Trade) :</strong> 2 % du prix du véhicule, comme toute vente de véhicule — jamais 2 % + 3 %</Li>
+          <Li><strong>Pièces détachées (Parts Trade) :</strong> 5 % du prix des pièces seul (hors livraison et frais d'importation), en vente locale comme à l'export</Li>
+          <Li><strong>Import-export (transactions générales éligibles) :</strong> 3 % ; ce taux ne s'ajoute jamais à ceux de la vente de véhicules, des pièces détachées ou de la logistique</Li>
           <Li><strong>Chauffeur :</strong> 10 % du prix de la course</Li>
           <Li><strong>Activités et loisirs :</strong> 10 % du prix de l'activité</Li>
-          <Li><strong>Logistique (transport, transit) :</strong> aucune commission à ce jour ; le prix du transport est celui du prestataire</Li>
+          <Li><strong>Logistique et transport :</strong> 0 % au lancement — mise en relation gratuite, aucune commission ni frais automatique ; le prix du transport est celui du prestataire</Li>
           <Li><strong>Assurance :</strong> commission négociée directement avec le partenaire assureur (généralement 5–15 %)</Li>
           <Li><strong>Crédit / Leasing :</strong> commission négociée avec la banque ou le courtier (généralement 1–3 % du montant financé)</Li>
           <Li><strong>Frais de service client :</strong> 0,5 % du montant, au minimum 1,00 $US et au plus 25,00 $US par transaction (à la charge du client)</Li>

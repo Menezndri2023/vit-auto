@@ -18,8 +18,10 @@
  * La ligne « pièces détachées » manquait à la grille : elle est ajoutée.
  *
  * GRILLE UNIQUE depuis le 2026-10-27 (exploitant) : une seule colonne pour
- * tous, fondateurs compris — location 10 %, vente 2 %, export 3 %, chauffeur
- * 10 %, loisirs 10 %, pièces 5 % en local et 7 % à l'export
+ * tous, fondateurs compris — grille officielle du 2026-10-30 : location 10 %,
+ * vente de véhicules 2 % (import-export compris), pièces 5 %, chauffeur 10 %,
+ * loisirs 10 %, logistique 0 % ; 3 % import-export pour les seules
+ * transactions générales éligibles, jamais ajouté
  * (server/config/defaultPricingConfig.js).
  * L'avantage fondateur « commission réduite » n'existe donc plus : il est
  * remplacé par l'accompagnement au lancement, réellement assuré.
@@ -28,11 +30,11 @@ export default {
 
   "part.metaTitle": { fr: "Devenir partenaire", en: "Become a partner", ar: "كن شريكاً", es: "Hazte socio", zh: "成为合作伙伴" },
   "part.metaDesc": {
-    fr: "Publiez vos véhicules sur VIT AUTO et vendez ou louez dans 28 pays. Commission transparente, contrats automatiques, sans frais cachés.",
-    en: "List your vehicles on VIT AUTO and sell or rent across 28 countries. Transparent commission, automatic contracts, no hidden fees.",
-    ar: "انشر مركباتك على VIT AUTO وبِع أو أجّر في ٢٨ دولة. عمولة واضحة وعقود تلقائية ودون رسوم خفية.",
-    es: "Publica tus vehículos en VIT AUTO y vende o alquila en 28 países. Comisión transparente, contratos automáticos, sin costes ocultos.",
-    zh: "在 VIT AUTO 发布车辆，在 28 个国家销售或出租。佣金透明、合同自动生成、无隐藏费用。",
+    fr: "Publiez vos véhicules sur VIT AUTO et vendez ou louez dans 28 pays. Commission transparente, paiement sécurisé, contrats automatiques.",
+    en: "List your vehicles on VIT AUTO and sell or rent across 28 countries. Transparent commission, secure payment, automatic contracts.",
+    ar: "انشر مركباتك على VIT AUTO وبِع أو أجّر في ٢٨ دولة. عمولة واضحة ودفع آمن وعقود تلقائية.",
+    es: "Publica tus vehículos en VIT AUTO y vende o alquila en 28 países. Comisión transparente, pago seguro, contratos automáticos.",
+    zh: "在 VIT AUTO 发布车辆，在 28 个国家销售或出租。佣金透明、支付安全、合同自动生成。",
   },
   "part.badge":  { fr: "🤝 PROGRAMME PARTENAIRES VIT AUTO", en: "🤝 VIT AUTO PARTNER PROGRAMME", ar: "🤝 برنامج شركاء VIT AUTO", es: "🤝 PROGRAMA DE SOCIOS VIT AUTO", zh: "🤝 VIT AUTO 合作伙伴计划" },
   "part.h1a":    { fr: "Rejoignez la plateforme automobile", en: "Join the car platform", ar: "انضم إلى المنصة الأولى للسيارات", es: "Únete a la plataforma automotriz", zh: "加入这个汽车平台" },
@@ -120,16 +122,18 @@ export default {
   "part.c.rental":    { fr: "Location", en: "Rental", ar: "التأجير", es: "Alquiler", zh: "租赁" },
   "part.c.rentalNote": { fr: "Ex. 50,00 $US loué → 5,00 $US de commission", en: "E.g. $50.00 rented → $5.00 commission", ar: "مثال: تأجير بـ ٥٠٫٠٠ دولاراً ← عمولة ٥٫٠٠ دولارات", es: "Ej. 50,00 US$ alquilado → 5,00 US$ de comisión", zh: "例：租金 50.00 美元 → 佣金 5.00 美元" },
   "part.c.sale":      { fr: "Vente", en: "Sale", ar: "البيع", es: "Venta", zh: "销售" },
-  "part.c.saleNote":  { fr: "Du prix de vente final, uniquement si la vente est conclue avec un prospect apporté par VIT AUTO (90 jours). Ex. 10 000,00 $US → 200,00 $US", en: "On the final sale price, only if the sale closes with a lead brought by VIT AUTO (90 days). E.g. $10,000.00 → $200.00", ar: "على سعر البيع النهائي، فقط إذا أُبرم البيع مع عميل محتمل جلبته VIT AUTO (٩٠ يوماً). مثال: ١٠٬٠٠٠٫٠٠ دولار ← ٢٠٠٫٠٠ دولار", es: "Sobre el precio de venta final, solo si la venta se cierra con un contacto aportado por VIT AUTO (90 días). Ej. 10 000,00 US$ → 200,00 US$", zh: "按最终成交价计算，仅当成交客户由 VIT AUTO 引荐（90 天内）时收取。例：10,000.00 美元 → 200.00 美元" },
-  "part.c.export":     { fr: "Vente à l'export", en: "Export sale", ar: "البيع للتصدير", es: "Venta a la exportación", zh: "出口销售" },
-  "part.c.exportNote": { fr: "Vente d'un véhicule à l'export, sur la part du vendeur. Jamais cumulée avec le taux de vente.", en: "Export sale of a vehicle, on the seller's share. Never added to the sale rate.", ar: "بيع مركبة للتصدير، على حصة البائع. لا تُضاف أبداً إلى نسبة البيع.", es: "Venta de un vehículo a la exportación, sobre la parte del vendedor. Nunca se suma a la tasa de venta.", zh: "出口车辆销售，按卖方所得部分计算。绝不与销售费率叠加。" },
+  "part.c.saleNote":  { fr: "Du prix de vente final, uniquement si la vente est conclue avec un prospect apporté par VIT AUTO (90 jours). Ex. 10 000,00 $US → 200,00 $US Un véhicule importé ou exporté paie aussi 2 %, jamais 2 % + 3 %.", en: "On the final sale price, only if the sale closes with a lead brought by VIT AUTO (90 days). E.g. $10,000.00 → $200.00 An imported or exported vehicle also pays 2%, never 2% + 3%.", ar: "على سعر البيع النهائي، فقط إذا أُبرم البيع مع عميل محتمل جلبته VIT AUTO (٩٠ يوماً). مثال: ١٠٬٠٠٠٫٠٠ دولار ← ٢٠٠٫٠٠ دولار المركبة المستوردة أو المصدّرة تدفع أيضاً ٢٪، وليس ٢٪ + ٣٪ أبداً.", es: "Sobre el precio de venta final, solo si la venta se cierra con un contacto aportado por VIT AUTO (90 días). Ej. 10 000,00 US$ → 200,00 US$ Un vehículo importado o exportado también paga 2 %, nunca 2 % + 3 %.", zh: "按最终成交价计算，仅当成交客户由 VIT AUTO 引荐（90 天内）时收取。例：10,000.00 美元 → 200.00 美元进口或出口车辆同样按 2%，绝不按 2% + 3%。" },
+  "part.c.export": { fr: "Import-export (transactions générales éligibles)", en: "Import-export (eligible general transactions)", ar: "الاستيراد والتصدير (المعاملات العامة المؤهلة)", es: "Importación-exportación (transacciones generales elegibles)", zh: "进出口（符合条件的一般交易）" },
+  "part.c.exportNote": { fr: "Ne s'ajoute jamais aux autres taux : une vente de véhicule importé ou exporté paie 2 %, une vente de pièces 5 %, la logistique 0 %.", en: "Never added to the other rates: an imported or exported vehicle sale pays 2%, a parts sale 5%, logistics 0%.", ar: "لا تُضاف أبداً إلى النسب الأخرى: بيع مركبة مستوردة أو مصدّرة ٢٪، وبيع القطع ٥٪، والخدمات اللوجستية ٠٪.", es: "Nunca se suma a las demás tasas: la venta de un vehículo importado o exportado paga 2 %, la de repuestos 5 %, la logística 0 %.", zh: "绝不与其他费率叠加：进口或出口车辆销售按 2%，零配件销售按 5%，物流 0%。" },
   "part.c.driver":     { fr: "Chauffeur", en: "Chauffeur", ar: "السائق", es: "Chófer", zh: "司机服务" },
   "part.c.driverNote": { fr: "Ex. 30,00 $US → 3,00 $US de commission", en: "E.g. $30.00 → $3.00 commission", ar: "مثال: ٣٠٫٠٠ دولاراً ← عمولة ٣٫٠٠ دولارات", es: "Ej. 30,00 US$ → 3,00 US$ de comisión", zh: "例：30.00 美元 → 佣金 3.00 美元" },
   "part.c.leisure":     { fr: "Activités et loisirs", en: "Activities & leisure", ar: "الأنشطة والترفيه", es: "Actividades y ocio", zh: "活动与休闲" },
   "part.c.leisureNote": { fr: "Quad, plongée, jetski… Ex. 40,00 $US → 4,00 $US", en: "Quad biking, diving, jet ski… E.g. $40.00 → $4.00", ar: "دراجات رباعية وغوص وجت سكي… مثال: ٤٠٫٠٠ دولاراً ← ٤٫٠٠ دولارات", es: "Quad, buceo, moto de agua… Ej. 40,00 US$ → 4,00 US$", zh: "四驱摩托、潜水、水上摩托…… 例：40.00 美元 → 4.00 美元" },
   // Ligne absente de la grille alors que le secteur existe depuis 2026-09-14.
   "part.c.parts":      { fr: "Pièces détachées", en: "Spare parts", ar: "قطع الغيار", es: "Repuestos", zh: "零配件" },
-  "part.c.partsNote": { fr: "Sur le prix de la pièce seul, jamais sur la livraison ni les frais d'importation. 7 % pour une vente à l'export (pièce importée à la commande ou livrée hors de votre pays).", en: "On the part's price alone, never on delivery or import charges. 7% for an export sale (part imported to order or shipped outside your country).", ar: "على ثمن القطعة وحده، لا على التوصيل ولا رسوم الاستيراد. ٧٪ للبيع للتصدير (قطعة مستوردة عند الطلب أو مُرسلة خارج بلدك).", es: "Solo sobre el precio de la pieza, nunca sobre la entrega ni los gastos de importación. 7 % en una venta a la exportación (pieza importada bajo pedido o enviada fuera de tu país).", zh: "仅按配件价格计算，不含配送与进口费用。出口销售（按需进口或寄往您所在国家以外）为 7%。" },
+  "part.c.partsNote": { fr: "Sur le prix des pièces seul, jamais sur la livraison ni les frais d'importation. Même taux en vente locale et à l'export.", en: "On the parts price alone, never on delivery or import charges. Same rate for local and export sales.", ar: "على سعر القطع فقط، وليس على التوصيل أو رسوم الاستيراد. النسبة نفسها للبيع المحلي والتصدير.", es: "Solo sobre el precio de los repuestos, nunca sobre el envío ni los gastos de importación. Misma tasa en venta local y exportación.", zh: "仅按零配件价格计算，不含配送和进口费用。本地销售与出口销售费率相同。" },
+  "part.c.logistics": { fr: "Logistique et transport", en: "Logistics & transport", ar: "الخدمات اللوجستية والنقل", es: "Logística y transporte", zh: "物流与运输" },
+  "part.c.logisticsNote": { fr: "Mise en relation gratuite au lancement : aucune commission ni frais automatique.", en: "Free matchmaking at launch: no commission or automatic fee.", ar: "وساطة مجانية عند الإطلاق: بلا عمولة ولا رسوم تلقائية.", es: "Puesta en contacto gratuita en el lanzamiento: sin comisión ni cargos automáticos.", zh: "上线期间免费对接：不收取佣金或自动费用。" },
   "part.c.insurance":     { fr: "Assurance", en: "Insurance", ar: "التأمين", es: "Seguro", zh: "保险" },
   "part.c.insuranceNote": { fr: "Selon accord partenaire", en: "According to the partner agreement", ar: "حسب اتفاقية الشريك", es: "Según el acuerdo con el socio", zh: "依合作协议而定" },
   "part.c.serviceFee":     { fr: "Frais de service client", en: "Customer service fee", ar: "رسوم خدمة العميل", es: "Gastos de servicio al cliente", zh: "客户服务费" },

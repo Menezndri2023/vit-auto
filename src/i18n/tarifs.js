@@ -116,7 +116,7 @@ export default {
   "plans.comm.rental":    { fr: "Location", en: "Rental", ar: "تأجير", es: "Alquiler", zh: "租赁" },
   "plans.comm.sale":      { fr: "Vente et essai", en: "Sale and test drive", ar: "البيع والتجربة", es: "Venta y prueba", zh: "销售与试驾" },
   "plans.comm.driver":    { fr: "Chauffeur", en: "Chauffeur", ar: "سائق", es: "Chófer", zh: "司机" },
-  "plans.comm.ie": { fr: "Vente de véhicule à l'export", en: "Vehicle export sale", ar: "بيع مركبة للتصدير", es: "Venta de vehículo a la exportación", zh: "车辆出口销售" },
+  "plans.comm.ie": { fr: "Import-export (transactions générales éligibles)", en: "Import-export (eligible general transactions)", ar: "الاستيراد والتصدير (المعاملات العامة المؤهلة)", es: "Importación-exportación (transacciones generales elegibles)", zh: "进出口（符合条件的一般交易）" },
   "plans.comm.leisure":   { fr: "Activités et loisirs", en: "Activities and leisure", ar: "أنشطة وترفيه", es: "Actividades y ocio", zh: "活动与休闲" },
   "plans.comm.parts": { fr: "Pièces détachées", en: "Spare parts", ar: "قطع الغيار", es: "Repuestos", zh: "零配件" },
   "plans.comm.single": { fr: "Commission (tous partenaires, tous plans)", en: "Commission (all partners, all plans)", ar: "العمولة (جميع الشركاء وجميع الخطط)", es: "Comisión (todos los socios, todos los planes)", zh: "佣金（所有合作伙伴、所有套餐）" },

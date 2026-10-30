@@ -92,8 +92,10 @@ describe("generateLOI / generateAgreement — grille de commissions", () => {
     const agreement = await generateAgreement(docFondateur("VA-FP-2026-GRILLE1"), user, date);
     expect(agreement).toMatch(/Vehicle Rental\s+10%/);
     expect(agreement).toMatch(/Vehicle Sales\s+2%/);
-    expect(agreement).toMatch(/Export Vehicle Sales\s+3%/);
-    expect(agreement).toMatch(/Spare Parts\s+5%/);
+    expect(agreement).toMatch(/Vehicle Sales\s+2%\s+imported or exported vehicles included \(never 2% \+ 3%\)/);
+    expect(agreement).toMatch(/Spare Parts\s+5%\s+local or export/);
+    expect(agreement).toMatch(/Import-Export\s+3%\s+eligible general transactions only, never added/);
+    expect(agreement).not.toMatch(/Spare Parts Export|Export Vehicle Sales/);
     expect(agreement).toMatch(/Professional Driver\s+10%/);
     expect(agreement).toMatch(/Activities & Leisure\s+10%/);
     expect(agreement).toMatch(/Logistics\s+no commission/);
@@ -108,7 +110,7 @@ describe("generateLOI / generateAgreement — grille de commissions", () => {
     const user = await createUser({ role: "partenaire" });
     const loi = await generateLOI(docFondateur("VA-FP-2026-GRILLE2"), user, date);
     expect(loi).toContain("same grid as every VIT-AUTO partner");
-    expect(loi).toMatch(/sales 2%.*export sales 3%.*spare parts 5%/);
+    expect(loi).toMatch(/vehicle sales, imported or exported included, 2%.*spare parts 5%.*import-export transactions 3% \(never added\).*logistics 0%/);
     expect(loi).not.toMatch(/then standard rate/);
   });
 });

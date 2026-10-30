@@ -137,7 +137,7 @@ export default function PartnerProfile() {
   useDocumentMeta(partner ? {
     title: `${displayName}${villeDuPartenaire ? ` — ${villeDuPartenaire}` : ""}`,
     description: partner?.business?.description
-      || `${displayName} sur VIT AUTO : ${totalListings > 0 ? `${totalListings} annonce${totalListings > 1 ? "s" : ""} à réserver` : "profil partenaire"}${villeDuPartenaire ? ` à ${villeDuPartenaire}` : ""}. Partenaire vérifié par VIT AUTO.`,
+      || `${displayName} sur VIT AUTO : ${totalListings > 0 ? `${totalListings} annonce${totalListings > 1 ? "s" : ""} à réserver` : "profil partenaire"}${villeDuPartenaire ? ` à ${villeDuPartenaire}` : ""}. Réservation et paiement sécurisés.`,
     image: logo || undefined,
     url: `https://vit-auto.com${slug ? `/p/${slug}` : `/partner/${id}`}`,
     structuredData: {

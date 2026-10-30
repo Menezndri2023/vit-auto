@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { resolveCommissionRate, getServiceConfig } from "../services/pricingEngine.js";
+import { computeIeCommission } from "../controllers/ieTransactionController.js";
 import PricingConfig from "../models/PricingConfig.js";
 import Subscription from "../models/Subscription.js";
 import { DEFAULT_PRICING_CONFIG } from "../config/defaultPricingConfig.js";
@@ -14,7 +15,7 @@ import { appliquerGrilleUnique } from "../scripts/setCommissionRates.mjs";
 
 const GRILLE = {
   location: 0.10, vente: 0.02, essai: 0.02, import_export: 0.03,
-  piece: 0.05, piece_import: 0.07, chauffeur: 0.10, activite: 0.10,
+  piece: 0.05, piece_import: 0.05, chauffeur: 0.10, activite: 0.10,
 };
 
 // Fondateur : même grille, pièce export comprise (7 %, confirmé le 2026-10-30).
@@ -52,15 +53,14 @@ describe("Grille de commissions", () => {
     }
   });
 
-  it("aucun cumul : une transaction ne porte qu'un seul taux", async () => {
-    // Une pièce exportée paie 7 %, pas 7 % + 3 % ; une vente à l'export paie
-    // 3 %, pas 2 % + 3 %. Le moteur renvoie UN taux par clé, et la clé est
-    // choisie une fois par transaction (cleCommission, ieTransactionController).
+  it("aucun cumul : une vente de véhicule importé paie 2 %, ni 2 % + 3 %, ni 3 % ; les pièces 5 %, export compris", async () => {
+    // Grille officielle du 2026-10-30 : le 3 % import-export ne s'ajoute
+    // jamais aux catégories (Vehicle Trade 2 %, Parts Trade 5 %, logistique 0 %).
     const p = await createUser({ role: "partenaire" });
-    expect(await resolveCommissionRate("piece_import", p._id)).toBe(0.07);
-    expect(await resolveCommissionRate("import_export", p._id)).toBe(0.03);
-    expect(await resolveCommissionRate("import_export", p._id))
-      .toBeLessThan(GRILLE.vente + GRILLE.import_export);
+    const vente = await computeIeCommission({ partner: p._id, ventilation: { exportateur: 10000 }, payment: {} });
+    expect(vente).toMatchObject({ rate: 0.02, amount: 200 });
+    expect(await resolveCommissionRate("piece_import", p._id)).toBe(0.05);
+    expect(await resolveCommissionRate("piece", p._id)).toBe(0.05);
   });
 
   it("la logistique n'a aucune commission automatique", async () => {

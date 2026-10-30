@@ -236,8 +236,8 @@ async function generateReference(type) {
 // ── Notifier un utilisateur ────────────────────────────────────────────────────
 // ── Commission recalculée au règlement : clé de taux et assiette ────────────
 // Une vente de pièce transfrontalière (importée à la commande ou livrée hors du
-// pays du vendeur) relève du taux « piece_import » (7 %), une vente locale de
-// « piece » (5 %) — exploitant, 2026-10-27 ; et
+// pays du vendeur) relève de la clé « piece_import », une vente locale de
+// « piece » — toutes deux à 5 % depuis la grille officielle du 2026-10-30 ; et
 // sa commission ne porte que sur le prix des pièces (montantBase), jamais sur
 // la livraison ni les frais d'importation — règle de l'exploitant du 2026-09-14, appliquée à la création mais perdue aux trois
 // recalculs du règlement (recordTransaction, partnerConfirm, adminForceComplete),

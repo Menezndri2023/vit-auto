@@ -1,6 +1,6 @@
 # Commissions VIT AUTO — référence unique
 
-> Décision de l'exploitant du **2026-10-27**. Ce document remplace toutes les grilles
+> **Grille officielle** de l'exploitant du **2026-10-30** (remplace celle du 27/10). Ce document remplace toutes les grilles
 > antérieures citées ailleurs dans `docs/` et `ARCHITECTURE.md` (15/10, 5/3, 10/7…),
 > conservées seulement comme historique.
 
@@ -13,9 +13,9 @@ comptes gratuits paient le même taux.
 |---|---|---|---|
 | Location de véhicules | `location` | **10 %** | réservation réglée / clôturée |
 | Vente de véhicules (demande d'essai, essai) | `vente` (`essai` → `vente`) | **2 %** | vente déclarée par le partenaire puis confirmée par l'admin, dans la fenêtre d'attribution de 90 jours |
-| Vente d'un véhicule à l'export (annonces import-export) | `import_export` | **3 %** | libération des fonds de la transaction IE |
-| Pièces détachées, vente locale (en stock, livrée dans le pays du vendeur) | `piece` | **5 %** | réception confirmée par le client |
-| Pièces détachées, vente à l'export (importée à la commande **ou** livrée hors du pays du vendeur) | `piece_import` | **7 %** | idem |
+| Vente d'un véhicule importé ou exporté (annonces import-export, Vehicle Trade) | `vente` | **2 %** | clôture de la transaction IE (règlement direct) |
+| Pièces détachées — **ventes**, locales ou à l'export (Parts Trade) | `piece`, `piece_import` | **5 %** | réception confirmée par le client |
+| Import-export, transactions générales éligibles | `import_export` | **3 %** — configuré, **aucune transaction actuelle** ; jamais ajouté aux autres taux | — |
 | Chauffeurs professionnels | `chauffeur` | **10 %** | course réglée / clôturée |
 | Activités et loisirs | `activite` | **10 %** | réservation réglée / clôturée |
 | Logistique (transport, transit, douane) | — | **aucune** — mise en relation gratuite verrouillée (`FREE_REFERRAL`, voir `docs/logistique.md`) | — |
@@ -27,8 +27,8 @@ comptes gratuits paient le même taux.
 |---|---|---|
 | VIT-AUTO Rental (location courte et longue durée) | `location`, `leasing` | 10 % (leasing 5 %, hors barème) |
 | VIT-AUTO Sales (concessionnaires, vendeurs, particuliers) | `vente` (demande d'essai, essai) | 2 % |
-| VIT-AUTO Trade (importateurs, exportateurs, B2B) | `import_export` (vente d'un véhicule à l'export) ; logistique gratuite | 3 % ; logistique 0 |
-| VIT-AUTO Parts (vendeurs, distributeurs, grossistes) | `piece` (local), `piece_import` (export) | 5 % / 7 % |
+| VIT-AUTO Trade (importateurs, exportateurs, B2B) | `vente` (vente d'un véhicule importé/exporté) ; `import_export` (transactions générales éligibles, aucune aujourd'hui) ; logistique gratuite | 2 % ; 3 % ; logistique 0 |
+| VIT-AUTO Parts (vendeurs, distributeurs, grossistes) | `piece` (local), `piece_import` (export) | 5 % |
 | VIT-AUTO Mobility (chauffeurs, transferts, services avec chauffeur) | `chauffeur` | 10 % |
 | VIT-AUTO Experiences (loisirs, excursions, quad, buggy, karting) | `activite` | 10 % |
 
@@ -37,10 +37,9 @@ Tous reliés par **VIT-AUTO Marketplace** (catalogue, compte, recherche communs)
 ## Règles
 
 - **Pas de cumul.** Chaque transaction prend **une** clé, choisie une seule fois
-  (`cleCommission` dans `bookingController.js`, `"import_export"` dans
-  `ieTransactionController.computeIeCommission`). Une vente export paie 3 %, pas 2 % + 3 % ;
-  une pièce exportée paie 7 %, pas 7 % + 3 %. Le caractère « export » d'une pièce est figé
-  sur la commande (`Booking.piece.international`) à sa création.
+  (`cleCommission` dans `bookingController.js`, `CLE_COMMISSION_VENTE_VEHICULE_IE` = `vente`
+  dans `ieTransactionController.computeIeCommission`). Une vente de véhicule importé paie
+  2 %, jamais 2 % + 3 % ni 3 % ; une pièce exportée paie 5 %, jamais 5 % + 3 %.
 - **Logistique.** Aucune commission automatique tant que son modèle (commission
   contractuelle, forfait de mise en relation ou de coordination) n'est pas décidé. Le prix
   du transport reste celui du prestataire.
@@ -112,7 +111,8 @@ la colonne « Fondateur » et la mention « retour au standard ».
 |---|---|
 | 2026-09-12 | standard 15 / 5 / 5 / 15 / 15 — fondateur 10 / 3 / 3 / 10 / 10 (location / vente / export / chauffeur / loisirs) |
 | 2026-09-14 | + pièces 10 % / 7 %, importation 7 % / 5 % |
-| **2026-10-27** | **grille unique** 10 / 2 / 3 / 10 / 10, pièces 5 % local / 7 % export |
+| 2026-10-27 | grille unique 10 / 2 / 3 / 10 / 10, pièces 5 % local / 7 % export |
+| **2026-10-30** | **grille officielle** : location 10, vente de véhicules 2 % (import-export compris), pièces 5 % (export compris), chauffeur 10, loisirs 10, logistique 0 ; 3 % import-export réservé aux transactions générales éligibles (aucune aujourd'hui) |
 
 ## Grille versionnée, taux conservé, préavis (décision de l'exploitant, 2026-10-30)
 
@@ -133,9 +133,10 @@ dans `getConfig`). Liste : `GET …/pricing/grilles` ; annulation : `PATCH …/g
 Le délai de 30 jours est une règle interne : sa validité juridique, au regard des contrats et
 du droit applicable, reste à confirmer.
 
-**Pièces détachées (confirmé par l'exploitant le 2026-10-30).** Ce sont des **ventes**, pas des
-réservations : vente locale **5 %**, vente à l'export **7 %**, pour **tous** les partenaires,
-fondateurs compris. Aucune suspension, aucune notification particulière.
+**Grille officielle (2026-10-30)** appliquée en production par la migration
+`grille-officielle-pieces-5-2026-10-30` (baisse 7 → 5 % de `piece_import`, immédiate, sans
+e-mail) ; la vente de véhicules Import/Export passe à 2 % par le code. Les commandes déjà
+créées gardent leur taux.
 
 Constats de l'audit (code) :
 - grille fondateur avant le 27/10 : pièces 7 % / export 5 % ; après : 5 % / 7 % (une baisse,

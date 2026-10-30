@@ -671,6 +671,12 @@ async function runStartupMigrations() {
         const { conserverTauxReservationsOuvertes } = await import("./scripts/preavisGrille.mjs");
         await conserverTauxReservationsOuvertes();
       });
+      // Grille officielle (exploitant, 2026-10-30) : pièces 5 % partout. Après
+      // la conservation des taux, pour ne jamais modifier une commande créée.
+      await runOnceMigration("grille-officielle-pieces-5-2026-10-30", async () => {
+        const { appliquerGrilleOfficielle } = await import("./scripts/preavisGrille.mjs");
+        await appliquerGrilleOfficielle();
+      });
 
       // Comptes administrateurs vérifiés d'office (exploitant, 2026-10-09) :
       // les nouveaux le sont à l'enregistrement (models/User.js).

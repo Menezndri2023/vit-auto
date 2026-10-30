@@ -18,13 +18,13 @@ const FALLBACK_PRICING = {
     // Ce repli s'affiche une fraction de seconde sur une page de TARIFS : des
     // valeurs périmées y annoncent brièvement des taux que le client ne paiera
     // pas. Il doit rester le miroir exact de server/config/defaultPricingConfig.js.
-    standard: { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.07 },
-    premium:  { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.07 },
+    standard: { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.05 },
+    premium:  { vente: 0.02, location: 0.10, chauffeur: 0.10, import_export: 0.03, leasing: 0.05, activite: 0.10, piece: 0.05, piece_import: 0.05 },
   },
   foundingPartner: {
     durationMonths: 12,
-    entreprise:  { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.07 },
-    particulier: { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.07 },
+    entreprise:  { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.05 },
+    particulier: { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.05 },
   },
   serviceFee: { minUSD: 1, percent: 0.005, maxUSD: 25 },
   subscriptions: {

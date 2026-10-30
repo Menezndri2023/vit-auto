@@ -1737,7 +1737,7 @@ function SubmittedScreen({ onboarding, onNavigate }) {
 const WHY_JOIN = [
   { icon: "🌍", title: "International Visibility",   text: "Your inventory shown to buyers, dealerships, rental companies and fleet operators across 20+ countries." },
   { icon: "🛡️", title: "Verified Founding Partner Badge", text: "A recognizable badge on every listing, backed by VIT-AUTO's Partner Verification Policy." },
-  { icon: "💰", title: "One Simple Commission Grid",  text: "10% on rentals, chauffeur and leisure, 2% on sales, 3% on export sales, 5% on spare parts (7% when exported) — charged only on completed transactions, never cumulated." },
+  { icon: "💰", title: "One Simple Commission Grid",  text: "10% on rentals, chauffeur and leisure, 2% on vehicle sales (imported or exported included), 5% on spare parts, 0% on logistics — charged only on completed transactions, never cumulated." },
   { icon: "🔌", title: "Inventory Integration",       text: "API, XML feeds, CSV imports or DMS synchronization — bring your existing catalog in, not one car at a time." },
   { icon: "🎁", title: "12 Months Free Premium",      text: "No registration fee, no mandatory subscription during the Founding Partner phase." },
   { icon: "🤝", title: "Dedicated Partner Success",   text: "Direct line to VIT-AUTO's team for onboarding, integration and early feature access." },

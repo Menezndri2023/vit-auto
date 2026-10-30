@@ -43,20 +43,18 @@ const PROFILS = [
   { icon: "👤", cle: "w3" }, { icon: "👨‍✈️", cle: "w4" },
 ];
 
-// Grille de commissions — UNE colonne depuis le 2026-10-27 (exploitant) : les
-// fondateurs paient la même grille que tous (server/config/defaultPricingConfig.js).
-// Les taux sont ceux réellement facturés ; les frais de service annonçaient
-// autrefois « 15 DH fixe » là où le moteur applique max(1 $US ; 0,5 %)
-// plafonné à 25 $US.
+// Grille officielle des commissions (exploitant, 2026-10-30) — une colonne pour
+// tous, fondateurs compris (server/config/defaultPricingConfig.js). Les frais
+// de service, suspendus, n'y figurent plus.
 const COMMISSIONS = [
   { cle: "rental",     taux: "10 %", icon: "🚗" },
   { cle: "sale",       taux: "2 %",  icon: "🏷️" },
-  { cle: "export",     taux: "3 %",  icon: "🌍" },
+  { cle: "parts",      taux: "5 %",  icon: "🔧" },
   { cle: "driver",     taux: "10 %", icon: "👨‍✈️" },
+  { cle: "export",     taux: "3 %",  icon: "🌍" },
   { cle: "leisure",    taux: "10 %", icon: "🎈" },
-  { cle: "parts",      taux: "5 % / 7 %", icon: "🔩" },
+  { cle: "logistics",  taux: "0 %",  icon: "🚚" },
   { cle: "insurance",  tauxCle: "part.negotiated", icon: "🛡️" },
-  { cle: "serviceFee", tauxCle: "part.c.serviceFeeValue", icon: "⚙️" },
 ];
 
 const FOURNIR = ["p1", "p2", "p3", "p4", "p5", "p6"];
