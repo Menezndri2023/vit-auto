@@ -44,7 +44,9 @@ const MONTH_NAMES = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Jui
 // commissionRates est chargé pour ne jamais afficher un taux périmé si
 // l'admin modifie les commissions depuis le panneau Configuration métier.
 const DEFAULT_COMM_RATE = { location: 0.10, essai: 0.02, vente: 0.02, chauffeur: 0.10, leasing: 0.05, activite: 0.10, piece: 0.05 };
-const SERVICE_FEE = 1; // repli d'affichage — le vrai frais est calculé côté serveur (pricingEngine.computeServiceFee, plancher 1 USD)
+// Frais de service suspendus (2026-10-30) : repli d'affichage à zéro — le frais
+// réel, s'il existe un jour, vient de la réservation (serviceFeeFCFA).
+const SERVICE_FEE = 0;
 
 const MOIS = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
 
@@ -673,7 +675,7 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
                   {order.piece?.delivery?.feeUSD > 0 && <div className={styles.finRow}><span>dont livraison (reversée intégralement)</span><strong>{fmtXOF(order.piece.delivery.feeUSD)}</strong></div>}
                   {order.piece?.importFeesUSD > 0 && <div className={styles.finRow}><span>dont frais d'importation (reversés intégralement)</span><strong>{fmtXOF(order.piece.importFeesUSD)}</strong></div>}
                   <div className={styles.finRow} style={{color:"#dc2626"}}><span>Commission VIT-AUTO ({Math.round(commRate*100)}%)</span><strong>− {fmtXOF(commAmt)}</strong></div>
-                  <div className={styles.finRow} style={{color:"#dc2626"}}><span>Frais de service</span><strong>− {fmtXOF(SERVICE_FEE)}</strong></div>
+                  {order.serviceFeeFCFA > 0 && <div className={styles.finRow} style={{color:"#dc2626"}}><span>Frais de service</span><strong>− {fmtXOF(order.serviceFeeFCFA)}</strong></div>}
                   <div className={styles.finRowNet}><span>Votre net partenaire</span><strong>{fmtXOF(netAmt)}</strong></div>
                   {order.cautionAmount > 0 && <div className={styles.finRow} style={{color:"#d97706"}}><span>Caution à percevoir sur place</span><strong>{fmtXOF(order.cautionAmount)}</strong></div>}
                 </div>
@@ -1463,7 +1465,7 @@ function TxForm({ form, setForm, onSubmit, onCancel, cancelLabel = "Annuler", su
         <div className={styles.txPreview}>
           <div className={styles.txPreviewRow}><span>Montant encaissé</span><strong>{amt.toLocaleString("fr-FR")} USD</strong></div>
           <div className={styles.txPreviewRow} style={{ color: "#dc2626" }}><span>Commission VIT-AUTO ({Math.round(commRate * 100)}%)</span><strong>− {comm.toLocaleString("fr-FR")} USD</strong></div>
-          <div className={styles.txPreviewRow} style={{ color: "#dc2626" }}><span>Frais de service</span><strong>− {SERVICE_FEE.toLocaleString("fr-FR")} USD</strong></div>
+          {SERVICE_FEE > 0 && <div className={styles.txPreviewRow} style={{ color: "#dc2626" }}><span>Frais de service</span><strong>− {SERVICE_FEE.toLocaleString("fr-FR")} USD</strong></div>}
           <div className={styles.txPreviewNet}><span>Votre net</span><strong>{netPay.toLocaleString("fr-FR")} USD</strong></div>
         </div>
       )}
@@ -4435,7 +4437,7 @@ export default function VendorDashboard() {
                       <div className={styles.txBreakdown}>
                         <div className={styles.txBRow}><span>Encaissé</span><strong>{fmtXOF(amt)}</strong></div>
                         <div className={styles.txBRow} style={{ color: "#dc2626" }}><span>Commission ({Math.round((tx.commissionRate || 0.15) * 100)}%)</span><strong>− {fmtXOF(comm)}</strong></div>
-                        <div className={styles.txBRow} style={{ color: "#dc2626" }}><span>Frais service</span><strong>− {fmtXOF(SERVICE_FEE)}</strong></div>
+                        {tx.serviceFeeFCFA > 0 && <div className={styles.txBRow} style={{ color: "#dc2626" }}><span>Frais service</span><strong>− {fmtXOF(tx.serviceFeeFCFA)}</strong></div>}
                         <div className={styles.txBNet}><span>Net partenaire</span><strong>{fmtXOF(net)}</strong></div>
                       </div>
                       <div className={styles.txMeta}>

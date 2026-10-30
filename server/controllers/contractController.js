@@ -67,7 +67,7 @@ export const createContract = async (req, res) => {
         returnLocation: booking.location?.returnLocation,
         dailyRateXOF:   veh?.pricePerDay,
         cautionXOF:     booking.cautionAmount || 0,
-        serviceFeeXOF:  booking.serviceFeeFCFA ?? 1,
+        serviceFeeXOF:  booking.serviceFeeFCFA ?? 0,
         optionsXOF:     booking.montantOptions ?? 0,
         baseXOF:        booking.montantBase,
         totalXOF:       booking.montantTotal,

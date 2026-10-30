@@ -38,8 +38,12 @@ export const DEFAULT_PRICING_CONFIG = {
     entreprise:  { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.07 },
     particulier: { location: 0.10, vente: 0.02, import_export: 0.03, chauffeur: 0.10, activite: 0.10, piece: 0.05, piece_import: 0.07 },
   },
-  serviceFee: { minUSD: 1, percent: 0.005, maxUSD: 25 },
-  importEstimateFee: { percent: 0.03, minUSD: 333, maxUSD: 1666 },
+  // Frais de service SUSPENDUS (2026-10-30) — barèmes conservés, inactifs.
+  // Ils se cumulaient avec la commission (achat direct export : 3 % de frais
+  // acheteur + 3 % de commission exportateur) et leur payeur n'était pas
+  // tranché (location : retirés au partenaire, affichés au client).
+  serviceFee: { actif: false, minUSD: 1, percent: 0.005, maxUSD: 25 },
+  importEstimateFee: { actif: false, percent: 0.03, minUSD: 333, maxUSD: 1666 },
   boosts: { "24h": 2, "7d": 5, "30d": 12, international: 20 },
   // Repli des anciens PRIX_OPTIONS FCFA (bookingController.js) convertis au
   // taux ~600 XOF/USD en vigueur à la migration : 10000→16.67, 7000→11.67,

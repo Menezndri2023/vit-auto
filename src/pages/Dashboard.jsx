@@ -1562,15 +1562,15 @@ const BookingCard = ({ booking, onCancel, onExtend, onReview, onValidate, onDisp
             {booking.piece?.importFeesUSD > 0 && <div className={styles.finRow}><span>Frais d'importation</span><span>{fmt(booking.piece.importFeesUSD)}</span></div>}
             <div className={styles.finRow}><span>Livraison</span><span>{booking.piece?.delivery?.feeUSD > 0 ? fmt(booking.piece.delivery.feeUSD) : "Offerte"}</span></div>
           </>
-        ) : (
+        ) : booking.serviceFeeFCFA > 0 ? (
         <div className={styles.finRow}>
           <span>Frais de service VIT AUTO</span>
-          <span>{fmt(booking.serviceFeeFCFA || 1)}</span>
+          <span>{fmt(booking.serviceFeeFCFA)}</span>
         </div>
-        )}
+        ) : null}
         <div className={`${styles.finRow} ${styles.finTotal}`}>
           <span>{isPiece ? (booking.status === "completed" ? "Total réglé au livreur" : "Total à régler au livreur") : "Total réglé"}</span>
-          <strong>{fmt(booking.total || booking.serviceFeeFCFA || 1)}</strong>
+          <strong>{fmt(booking.total || 0)}</strong>
         </div>
         {booking.type === "location" && booking.cautionAmount > 0 && !booking.cautionClaim?.claimedAt && (
           <div className={styles.finRow} style={{ color: "#d97706" }}>

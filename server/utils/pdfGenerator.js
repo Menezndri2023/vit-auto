@@ -287,7 +287,8 @@ export function generateContractPDF(contract, res) {
   section(doc, "Récapitulatif financier");
   row(doc, "Montant de base",    fmtAmount(contract.terms?.baseXOF, contract.currency));
   row(doc, "Options",            fmtAmount(contract.terms?.optionsXOF, contract.currency));
-  row(doc, "Frais de service",   fmtAmount(contract.terms?.serviceFeeXOF, contract.currency));
+  // Frais de service suspendus (2026-10-30) : la ligne n'apparaît que s'il y en a un.
+  if (Number(contract.terms?.serviceFeeXOF) > 0) row(doc, "Frais de service",   fmtAmount(contract.terms?.serviceFeeXOF, contract.currency));
   row(doc, "Commission VIT AUTO", fmtAmount(contract.terms?.commissionXOF, contract.currency));
   doc.moveDown(0.3);
   bandeau(doc, { hauteur: 30, taille: 12, gauche: "TOTAL À RÉGLER :", droite: fmtAmount(contract.terms?.totalXOF || contract.terms?.totalLeasing, contract.currency) });

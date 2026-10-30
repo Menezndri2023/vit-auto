@@ -24,7 +24,10 @@ import { QUEUE_NAMES } from "../queue/definitions.js";
 import { resolveDeliveryFee, detectCountryFromCoords } from "../services/deliveryFee.js";
 import { evaluateEligibility, ELIGIBILITY_MESSAGES } from "../services/eligibilityEngine.js";
 import { computeLocationTotal } from "../utils/seasonalPricing.js";
-import { resolveCommissionRate, computeServiceFee } from "../services/pricingEngine.js";
+// Frais de service suspendus (2026-10-30) : au règlement, le frais retenu est
+// réécrit sur la réservation par fraisServiceAuReglement (zéro pendant la
+// suspension), pour que reversement, contrat et affichage disent la même chose.
+import { resolveCommissionRate, computeServiceFee, fraisServiceAuReglement } from "../services/pricingEngine.js";
 import { priceRentalOptions } from "../services/rentalOptions.js";
 import { resolveOriginCode } from "../constants/importOrigins.js";
 import { isWeatherDependent } from "../constants/activityTypes.js";
@@ -1989,7 +1992,7 @@ export async function ensureBookingContract(booking, vendorUser = null) {
           returnLocation:   booking.location?.returnLocation,
           dailyRateXOF:     veh?.pricePerDay,
           cautionXOF:       booking.cautionAmount ?? 0,
-          serviceFeeXOF:    booking.serviceFeeFCFA ?? 1,
+          serviceFeeXOF:    booking.serviceFeeFCFA ?? 0,
           optionsXOF:       booking.montantOptions ?? 0,
           baseXOF:          booking.montantBase,
           totalXOF:         booking.montantTotal,
@@ -2332,7 +2335,7 @@ export const recordTransaction = async (req, res) => {
     // sinon été remplacé par 1, grignotant 1 USD sur le partnerPayout.
     const commissionRate   = await resolveCommissionRate(cleCommission(booking), _vOwnerId || _dOwnerId || _aOwnerId);
     const commissionAmount = Math.round(assietteCommission(booking, finalAmount) * commissionRate * 100) / 100;
-    const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA ?? 0), 0);
+    const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA = await fraisServiceAuReglement(booking)), 0);
 
     booking.transaction = {
       finalAmount,
@@ -3085,7 +3088,7 @@ export const partnerConfirm = async (req, res) => {
 
     const commissionRate   = await resolveCommissionRate(cleCommission(booking), _vOwnerId || _dOwnerId || _aOwnerId);
     const commissionAmount = Math.round(assietteCommission(booking, finalAmount) * commissionRate * 100) / 100;
-    const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA ?? 0), 0);
+    const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA = await fraisServiceAuReglement(booking)), 0);
 
     booking.status = "waiting_client_validation";
     booking.transaction = {
@@ -3461,7 +3464,7 @@ export const modifyBookingDates = async (req, res) => {
         booking.montantBase  = newMontantBase;
         booking.montantTotal = newMontantTotal;
         booking.commissionAmount = newCommissionAmount;
-        booking.partnerPayout    = Math.max(newMontantTotal - newCommissionAmount - (booking.serviceFeeFCFA || 0), 0);
+        booking.partnerPayout    = Math.max(newMontantTotal - newCommissionAmount - (booking.serviceFeeFCFA = await fraisServiceAuReglement(booking)), 0);
         await booking.save({ session });
       });
     } catch (txErr) {
@@ -3569,7 +3572,7 @@ export const extendBooking = async (req, res) => {
         booking.montantBase  = newMontantBase;
         booking.montantTotal = newMontantTotal;
         booking.commissionAmount = newCommissionAmount;
-        booking.partnerPayout    = Math.max(newMontantTotal - newCommissionAmount - (booking.serviceFeeFCFA || 0), 0);
+        booking.partnerPayout    = Math.max(newMontantTotal - newCommissionAmount - (booking.serviceFeeFCFA = await fraisServiceAuReglement(booking)), 0);
         // Un solde déjà réglé en ligne ne couvre pas les jours ajoutés — le
         // supplément reste dû (encaissé au retrait/à la restitution, comme le
         // reste de la plateforme le fait déjà pour les paiements en espèces).
@@ -4372,7 +4375,7 @@ export const adminForceComplete = async (req, res) => {
     booking.montantTotal     = amount;
     booking.commissionRate   = commRate;
     booking.commissionAmount = Math.round(assietteCommission(booking, amount) * commRate * 100) / 100;
-    booking.partnerPayout    = Math.max(amount - booking.commissionAmount - (booking.serviceFeeFCFA ?? 0), 0);
+    booking.partnerPayout    = Math.max(amount - booking.commissionAmount - (booking.serviceFeeFCFA = await fraisServiceAuReglement(booking)), 0);
 
     if (!booking.transaction?.finalAmount) {
       booking.transaction = { finalAmount: amount, paymentMethod: "cash", comment: `Force-complete admin: ${note || ""}`, recordedAt: new Date(), recordedBy: req.user._id };

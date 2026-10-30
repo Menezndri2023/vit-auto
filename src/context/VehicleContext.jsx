@@ -65,7 +65,7 @@ const normalizeBackendBooking = (b) => {
     total:         b.montantTotal,
     baseTotal:     b.montantBase,
     optionsTotal:  b.montantOptions,
-    serviceFeeFCFA: b.serviceFeeFCFA ?? 1000,
+    serviceFeeFCFA: b.serviceFeeFCFA ?? 0,
     commissionRate:    b.commissionRate,
     commissionAmount:  b.commissionAmount,
     partnerPayout:     b.partnerPayout,

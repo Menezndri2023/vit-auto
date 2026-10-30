@@ -477,7 +477,7 @@ const bookingSchema = new mongoose.Schema({
   // pas ces defaults (utilisés seulement si jamais recalculés).
   commissionRate:   { type: Number, default: 0 },      // ex: 0.15
   commissionAmount: { type: Number, default: 0 },      // montantBase * commissionRate
-  serviceFeeFCFA:   { type: Number, default: 1 },      // nom conservé (voir Vehicle/Booking dans le plan de refonte), désormais en USD — calculé par pricingEngine.computeServiceFee()
+  serviceFeeFCFA:   { type: Number, default: 0 },      // nom conservé (voir Vehicle/Booking dans le plan de refonte), désormais en USD — calculé par pricingEngine.computeServiceFee()
   cautionAmount:    { type: Number, default: 0 },      // caution / dépôt de garantie
   partnerPayout:    { type: Number, default: 0 },      // net versé au partenaire
 

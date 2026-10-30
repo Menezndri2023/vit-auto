@@ -65,7 +65,11 @@ const pricingConfigSchema = new mongoose.Schema({
   },
 
   // max(minUSD, montant × percent), plafonné à maxUSD.
+  // Frais de service SUSPENDUS (exploitant, 2026-10-30) tant que leur nature,
+  // leur payeur, leur montant et leurs conditions ne sont pas validés. Absent
+  // du document = suspendu : réactiver est une décision explicite (actif: true).
   serviceFee: {
+    actif:   { type: Boolean, default: false },
     minUSD:  { type: Number, default: 1, min: 0 },
     percent: { type: Number, default: 0.005, min: 0, max: 1 },
     maxUSD:  { type: Number, default: 25, min: 0 },
@@ -76,6 +80,7 @@ const pricingConfigSchema = new mongoose.Schema({
   // fonds — voir server/services/importCostEngine.js) : même formule
   // plancher/plafond, appliquée au prix du véhicule estimé.
   importEstimateFee: {
+    actif:   { type: Boolean, default: false },   // suspendu, comme serviceFee
     percent: { type: Number, default: 0.03, min: 0, max: 1 },
     minUSD:  { type: Number, default: 333, min: 0 },
     maxUSD:  { type: Number, default: 1666, min: 0 },

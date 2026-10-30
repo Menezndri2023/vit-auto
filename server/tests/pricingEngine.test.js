@@ -20,7 +20,7 @@ const seedPricingConfig = () => PricingConfig.create({
     entreprise:  { location: 0.10, vente: 0.015, import_export: 0.015, chauffeur: 0.08 },
     particulier: { location: 0.10, vente: 0.02, import_export: null, chauffeur: 0.08 },
   },
-  serviceFee: { minUSD: 1, percent: 0.005, maxUSD: 25 },
+  serviceFee: { actif: true, minUSD: 1, percent: 0.005, maxUSD: 25 },   // barème testé ACTIF (suspendu en production)
   boosts: { "24h": 2, "7d": 5, "30d": 12, international: 20 },
   subscriptions: {
     individuel_plus: { priceUSD: 9.99 },

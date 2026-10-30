@@ -178,6 +178,7 @@ function InspectionSection({ listingId }) {
 // Estimation instantanée (niveau 1 — voir demande produit) : le client choisit
 // un pays de destination (parmi ceux déclarés par le partenaire) et voit tout
 // de suite le détail transport/fret/assurance/douanes/livraison/commission.
+// La ligne « Frais de service VIT AUTO » est masquée à zéro (frais suspendus, 2026-10-30).
 // Rien n'est verrouillé ici — seule l'offre finale du fournisseur fait foi.
 const COST_LINE_LABELS = {
   vehiclePrice: "Prix du véhicule", inlandTransport: "Transport intérieur",
@@ -294,7 +295,7 @@ function ImportCostCalculator({ listingId, availableIn }) {
 
       {result && (
         <div style={{ background: "#f8fafc", borderRadius: 10, padding: "14px 16px", border: "1.5px solid #e2e8f0" }}>
-          {Object.entries(result.breakdown).map(([key, value]) => (
+          {Object.entries(result.breakdown).filter(([key, value]) => key !== "commission" || Number(value) > 0).map(([key, value]) => (
             <div key={key} style={{ display: "flex", justifyContent: "space-between", fontSize: ".85rem", padding: "5px 0", borderBottom: "1px solid #eef1f8" }}>
               <span style={{ color: "#475569" }}>{COST_LINE_LABELS[key] || key}</span>
               <strong>{fmtFromCurrency(value, result.currency)}</strong>
@@ -531,7 +532,7 @@ function DirectPurchaseModal({ listing, onClose, onSuccess }) {
             ) : (
               <>
                 <div style={{ background: "#f8fafc", borderRadius: 10, padding: "14px 16px", border: "1.5px solid #e2e8f0", margin: "10px 0" }}>
-                  {Object.entries(estimate.breakdown).map(([key, value]) => (
+                  {Object.entries(estimate.breakdown).filter(([key, value]) => key !== "commission" || Number(value) > 0).map(([key, value]) => (
                     <div key={key} style={{ display: "flex", justifyContent: "space-between", fontSize: ".82rem", padding: "4px 0", color: "#475569" }}>
                       <span>{COST_LINE_LABELS[key] || key}</span>
                       <span>{Number(value).toLocaleString("fr-FR")} {estimate.currency}</span>
@@ -946,7 +947,7 @@ export default function IEListingDetail() {
                 "Réservation gratuite (sans paiement)",
                 "Confirmation du fournisseur",
                 "Discussion & inspection (si souhaitée)",
-                "Offre finale + paiement sécurisé",
+                "Offre finale + règlement direct au vendeur",
                 "Suivi de l'expédition en temps réel",
                 "Libération des fonds à la livraison",
               ].map((step, i) => (

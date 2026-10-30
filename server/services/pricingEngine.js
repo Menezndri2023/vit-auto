@@ -101,8 +101,14 @@ export async function resolveCommissionRate(type, ownerId) {
   return config.commissions.standard[pricingType] ?? 0.05;
 }
 
+// Frais de service : suspendus tant que `serviceFee.actif` n'est pas
+// explicitement vrai (décision de l'exploitant, 2026-10-30) — un document
+// sans le champ, ou une valeur perdue, laisse les frais à ZÉRO.
+export const fraisServiceActifs = (config) => config?.serviceFee?.actif === true;
+
 export async function computeServiceFee(amountUSD) {
   const config = await getConfig();
+  if (!fraisServiceActifs(config)) return 0;
   const { minUSD, percent, maxUSD } = config.serviceFee;
   return Math.min(Math.max(minUSD, amountUSD * percent), maxUSD);
 }
@@ -113,8 +119,16 @@ export async function computeServiceFee(amountUSD) {
 // service différent de la commission import_export prélevée au partenaire.
 export async function computeImportEstimateFee(vehiclePriceUSD) {
   const config = await getConfig();
+  if (config?.importEstimateFee?.actif !== true) return 0;   // suspendu (2026-10-30)
   const { minUSD, percent, maxUSD } = config.importEstimateFee;
   return Math.min(Math.max(vehiclePriceUSD * percent, minUSD), maxUSD);
+}
+
+// Frais retenus au RÈGLEMENT d'une réservation : celui figé à sa création
+// tant que les frais sont actifs, zéro pendant la suspension — une réservation
+// créée avant le 2026-10-30 (1 $US figé) ne se le voit plus retirer.
+export async function fraisServiceAuReglement(booking) {
+  return fraisServiceActifs(await getConfig()) ? (booking?.serviceFeeFCFA ?? 0) : 0;
 }
 
 export async function getBoostPrice(tier) {

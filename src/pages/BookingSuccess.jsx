@@ -279,7 +279,7 @@ const BookingSuccess = () => {
                   <div className={styles.fRow}><span>Options</span><span>{fmt(booking.optionsTotal || 0)}</span></div>
                 </>
               )}
-              <div className={styles.fRow}><span>Frais de service plateforme</span><span>{fmt(booking.serviceFeeFCFA || 0)}</span></div>
+              {booking.serviceFeeFCFA > 0 && <div className={styles.fRow}><span>Frais de service plateforme</span><span>{fmt(booking.serviceFeeFCFA)}</span></div>}
               <div className={`${styles.fRow} ${styles.fRowTotal}`}>
                 <span>Total à payer</span>
                 {/* montantTotal = champ backend, total = champ frontend booking */}

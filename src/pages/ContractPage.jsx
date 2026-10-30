@@ -242,7 +242,7 @@ export default function ContractPage() {
               {t.returnLocation  && <div className={styles.finRow}><span>Lieu de retour</span><strong>{t.returnLocation}</strong></div>}
               {fmt(t.dailyRateXOF) && <div className={styles.finRow}><span>Tarif journalier</span><strong>{fmt(t.dailyRateXOF)}</strong></div>}
               {fmt(t.optionsXOF)   && <div className={styles.finRow}><span>Options</span><strong>{fmt(t.optionsXOF)}</strong></div>}
-              {fmt(t.serviceFeeXOF) && <div className={styles.finRow}><span>Frais de service VIT AUTO</span><strong>{fmt(t.serviceFeeXOF)}</strong></div>}
+              {Number(t.serviceFeeXOF) > 0 && <div className={styles.finRow}><span>Frais de service VIT AUTO</span><strong>{fmt(t.serviceFeeXOF)}</strong></div>}
               {fmt(t.totalXOF)     && <div className={`${styles.finRow} ${styles.finTotal}`}><span>TOTAL</span><strong>{fmt(t.totalXOF)}</strong></div>}
               {/* La caution est APRÈS le total, et le dit : elle n'en fait pas
                   partie (voir bookingController.createBooking — montantTotal =
@@ -264,7 +264,7 @@ export default function ContractPage() {
               {fmt(t.mensualite)     && <div className={styles.finRow}><span>Mensualité</span><strong>{fmt(t.mensualite)} / mois</strong></div>}
               {t.dureeLeasing        && <div className={styles.finRow}><span>Durée</span><strong>{t.dureeLeasing} mois</strong></div>}
               {t.tauxInteret         && <div className={styles.finRow}><span>Taux d'intérêt</span><strong>{t.tauxInteret} % / an</strong></div>}
-              {fmt(t.serviceFeeXOF)  && <div className={styles.finRow}><span>Frais de service VIT AUTO</span><strong>{fmt(t.serviceFeeXOF)}</strong></div>}
+              {Number(t.serviceFeeXOF) > 0 && <div className={styles.finRow}><span>Frais de service VIT AUTO</span><strong>{fmt(t.serviceFeeXOF)}</strong></div>}
               {fmt(t.totalLeasing)   && <div className={`${styles.finRow} ${styles.finTotal}`}><span>TOTAL LEASING</span><strong>{fmt(t.totalLeasing)}</strong></div>}
             </div>
           )}

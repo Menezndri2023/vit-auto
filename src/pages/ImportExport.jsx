@@ -604,7 +604,10 @@ const ImportExport = () => {
             </div>
             <ul style={{ margin: 0, padding: "0 0 0 18px", color: "#475569", fontSize: ".9rem", lineHeight: 1.7 }}>
               <li>{t("ie.impPay1")}</li>
-              <li>{t("ie.impPay2", { min: fmtUSD(minUSD), pct: percent * 100, max: fmtUSD(maxUSD) })}</li>
+              {/* Frais de service suspendus (2026-10-30) : annoncés seulement si le serveur les dit actifs. */}
+              <li>{pricing.serviceFee?.actif === true
+                ? t("ie.impPay2", { min: fmtUSD(minUSD), pct: percent * 100, max: fmtUSD(maxUSD) })
+                : t("ie.impPay2Suspendu")}</li>
               <li>{t("ie.impPay3")}</li>
             </ul>
             <p style={{ marginTop: 14, padding: "10px 12px", background: "rgba(16,185,129,.08)", borderRadius: 10, color: "#047857", fontSize: ".85rem", fontWeight: 700 }}>

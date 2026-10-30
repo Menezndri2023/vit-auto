@@ -19,7 +19,10 @@ import styles from "./Booking.module.css";
 /* ── Constantes financières (USD — voir PricingConfig.serviceFee/rentalOptions
    côté serveur ; ceci n'est qu'un aperçu client avant soumission, le serveur
    recalcule et fait toujours foi à la création — voir bookingController.js) ── */
-const SERVICE_FEE     = 1;      // plancher serviceFee.minUSD (PricingConfig)
+// Frais de service SUSPENDUS (exploitant, 2026-10-30) : aucun frais ajouté au
+// total du client tant que nature, payeur et montant ne sont pas validés.
+// Le serveur (pricingEngine.computeServiceFee) fait foi ; ici, affichage seul.
+const SERVICE_FEE     = 0;
 const DELIVERY_BASE   = 3;      // repli si /api/geo/delivery-fee échoue
 const DELIVERY_PER_KM = 0.5;    // repli si /api/geo/delivery-fee échoue
 
@@ -1305,7 +1308,7 @@ export default function Booking() {
                   )}
                 </div>
               )}
-              <div className={styles.confirmRow}><span>{t("booking.serviceFeeLabel")}</span><strong>{fmt(SERVICE_FEE)}</strong></div>
+              {SERVICE_FEE > 0 && <div className={styles.confirmRow}><span>{t("booking.serviceFeeLabel")}</span><strong>{fmt(SERVICE_FEE)}</strong></div>}
               <div className={styles.confirmRow}><span>{t("booking.paymentLabel")}</span><strong>{(() => { const pm = PAYMENT_METHODS.find((p) => p.value === payMethod); return pm ? (pm.translate ? t(pm.label) : pm.label) : payMethod; })()}</strong></div>
               <div className={`${styles.confirmRow} ${styles.confirmTotal}`}>
                 <span>{t("booking.totalToPayLabel")}</span>
@@ -1466,7 +1469,7 @@ export default function Booking() {
                 )}
               </>
             )}
-            <div className={styles.sidebarRow}><span>{t("booking.serviceFeeShortLabel")}</span><strong>{fmt(SERVICE_FEE)}</strong></div>
+            {SERVICE_FEE > 0 && <div className={styles.sidebarRow}><span>{t("booking.serviceFeeShortLabel")}</span><strong>{fmt(SERVICE_FEE)}</strong></div>}
             <div className={`${styles.sidebarRow} ${styles.sidebarTotal}`}>
               <span>{t("booking.totalLabel")}</span>
               <strong><PriceTag amountUSD={totalToPay} pinnedCurrency={deviseAnnonce} /></strong>

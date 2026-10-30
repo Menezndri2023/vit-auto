@@ -62,7 +62,7 @@ const contractSchema = new mongoose.Schema({
     returnLocation:   { type: String },
     dailyRateXOF:     { type: Number },
     cautionXOF:       { type: Number, default: 0 },  // en USD (voir champ `currency` ci-dessus)
-    serviceFeeXOF:    { type: Number, default: 1 },   // en USD, plancher pricingEngine.computeServiceFee()
+    serviceFeeXOF:    { type: Number, default: 0 },   // en USD, plancher pricingEngine.computeServiceFee()
     optionsXOF:       { type: Number, default: 0 },
     baseXOF:          { type: Number },
     totalXOF:         { type: Number },

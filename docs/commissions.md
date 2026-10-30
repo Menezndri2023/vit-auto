@@ -131,8 +131,34 @@ appelée là où `commissionAmount` est calculé. La décision doit préciser : 
 montant, devise, exceptions (fondateurs compris), date d'effet, et sort des opérations
 en cours. Rien de cela n'existe aujourd'hui.
 
+## Frais de service : SUSPENDUS (décision de l'exploitant, 2026-10-30)
+
+Les deux frais de service sont suspendus tant que leur nature, leur payeur, leur montant et
+leurs conditions ne sont pas validés :
+
+| Frais | Barème conservé (inactif) | Ce qui se passait |
+|---|---|---|
+| `serviceFee` (réservations) | 0,5 %, min 1 $US, max 25 $US | retiré du reversement partenaire, affiché au client (1 $US fixe) |
+| `importEstimateFee` (achat export) | 3 %, min 333 $US, max 1 666 $US | ajouté au total acheteur, **en plus** des 3 % de commission exportateur |
+
+- Interrupteur `actif` dans chaque section de `PricingConfig` ; **absent = suspendu** (c'est
+  l'état du document de production). `computeServiceFee` et `computeImportEstimateFee`
+  renvoient 0.
+- Au règlement d'une réservation (transaction, confirmation, dates, prolongation, clôture
+  forcée), `fraisServiceAuReglement` retient 0 pendant la suspension — y compris pour une
+  réservation créée avec 1 $US figé — et réécrit `serviceFeeFCFA` en conséquence.
+- Interfaces : plus aucune ligne « Frais de service » quand le montant est nul ; la page
+  Import/Export l'annonce seulement si le serveur dit le frais actif.
+- Les réservations et transactions **terminées** gardent leurs montants historiques.
+- Réactiver = décision explicite (`actif: true`) ; ne jamais cumuler automatiquement frais et
+  commission. Tests : `tests/fraisServiceSuspendus.test.js`.
+
+<details><summary>Constat d'origine (2026-10-28)</summary>
+
 ⚠️ **Écart à trancher : le frais de service.** La phrase ci-dessus (« payés par le client »)
 ne correspond pas au serveur : `bookingController` le **retire du reversement partenaire**
 (`partnerPayout = total − commission − serviceFee`) sans l'ajouter au total client, alors
 que la page de réservation l'ajoute au total client (1 $US fixe, même pour un essai). Ce
 frais a un plancher de 1 $US : c'est le seul montant plancher de la plateforme.
+
+</details>
