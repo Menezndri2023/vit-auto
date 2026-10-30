@@ -441,12 +441,12 @@ const TX_STATUS_CFG = {
   offer_accepted:       { label: "Offre acceptée",      color: "#9333ea", bg: "#fdf4ff" },
   payment_pending:      { label: "Paiement en attente", color: "#ea580c", bg: "#fff7ed" },
   payment_submitted:    { label: "Paiement à vérifier",  color: "#d97706", bg: "#fffbeb" },
-  in_escrow:            { label: "Fonds sécurisés",     color: "#059669", bg: "#ecfdf5" },
+  in_escrow:            { label: "Paiement confirmé",     color: "#059669", bg: "#ecfdf5" },
   preparing:            { label: "Préparation export",  color: "#6366f1", bg: "#f0f4ff" },
   shipped:              { label: "Expédié",             color: "#2563eb", bg: "#eff6ff" },
   in_transit:           { label: "En transit",          color: "#2563eb", bg: "#eff6ff" },
   delivered:            { label: "Livré",               color: "#059669", bg: "#ecfdf5" },
-  funds_released:       { label: "Fonds libérés",       color: "#059669", bg: "#ecfdf5" },
+  funds_released:       { label: "Exportateur réglé",       color: "#059669", bg: "#ecfdf5" },
   completed:            { label: "Terminé",             color: "#d97706", bg: "#fffbeb" },
   disputed:             { label: "Litige",              color: "#dc2626", bg: "#fef2f2" },
   cancelled:            { label: "Annulé",              color: "#94a3b8", bg: "#f1f5f9" },
@@ -670,7 +670,7 @@ export default function ImporterDashboard() {
                         <div key={c.currency} style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, padding: "8px 0", borderBottom: "1px solid #f1f5f9", fontSize: ".85rem" }}>
                           <strong>{c.currency} ({c.count} transaction{c.count > 1 ? "s" : ""})</strong>
                           <span>Total : <strong>{c.totalAmount.toLocaleString("fr-FR")} {c.currency}</strong></span>
-                          {c.inEscrow > 0 && <span style={{ color: "#d97706" }}>En séquestre : {c.inEscrow.toLocaleString("fr-FR")} {c.currency}</span>}
+                          {c.inEscrow > 0 && <span style={{ color: "#d97706" }}>Ancien séquestre (à régulariser) : {c.inEscrow.toLocaleString("fr-FR")} {c.currency}</span>}
                           {c.totalPayout > 0 && <span style={{ color: "#059669" }}>Versé net : {c.totalPayout.toLocaleString("fr-FR")} {c.currency}</span>}
                           {c.disputed > 0 && <span style={{ color: "#dc2626" }}>En litige : {c.disputed.toLocaleString("fr-FR")} {c.currency}</span>}
                         </div>

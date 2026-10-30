@@ -15,7 +15,7 @@ const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
 const STATUS_CFG = {
-  in_escrow:  { label: "Fonds sécurisés — à préparer", icon: "🔒", color: "#059669", bg: "#ecfdf5" },
+  in_escrow:  { label: "Paiement confirmé — à préparer", icon: "✅", color: "#059669", bg: "#ecfdf5" },
   preparing:  { label: "Préparation export",           icon: "📦", color: "#6366f1", bg: "#f0f4ff" },
   shipped:    { label: "Expédié",                      icon: "🚢", color: "#2563eb", bg: "#eff6ff" },
   in_transit: { label: "En transit",                   icon: "🌍", color: "#2563eb", bg: "#eff6ff" },
@@ -24,7 +24,7 @@ const STATUS_CFG = {
   // Un dossier assigné peut aussi basculer sur ces états (litige ouvert pendant
   // le transit, fonds libérés, annulation) : sans eux, le transitaire lisait
   // « 📋 disputed » ou « 📋 funds_released » en anglais brut.
-  funds_released: { label: "Fonds libérés",            icon: "💰", color: "#059669", bg: "#ecfdf5" },
+  funds_released: { label: "Exportateur réglé",            icon: "💰", color: "#059669", bg: "#ecfdf5" },
   disputed:       { label: "Litige en cours",          icon: "⚠️", color: "#dc2626", bg: "#fef2f2" },
   cancelled:      { label: "Annulé",                   icon: "🚫", color: "#94a3b8", bg: "#f1f5f9" },
 };

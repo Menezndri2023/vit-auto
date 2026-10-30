@@ -3075,7 +3075,7 @@ export default function AdminPanel() {
         { key: "commissions",     icon: "💰", label: "Commissions" },
         { key: "factures",        icon: "📄", label: "Factures",          badge: pendingInv },
         { key: "paiements",       icon: "💳", label: "Paiements",         badge: pendingSub || undefined },
-        { key: "escrow",          icon: "🔐", label: "Escrow / Séquestre" },
+        { key: "escrow",          icon: "🔐", label: "Séquestre (suspendu)" },
         { key: "business_config", icon: "⚙️", label: "Configuration métier" },
       ],
     },
@@ -6045,7 +6045,7 @@ export default function AdminPanel() {
           {/* ── Transactions IE réelles (pipeline escrow) — litiges & inspections ── */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2rem 0 1rem", flexWrap: "wrap", gap: 12 }}>
             <div>
-              <h3 style={{ fontSize: "1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🔒 Transactions en cours (escrow)</h3>
+              <h3 style={{ fontSize: "1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>Transactions Import/Export en cours</h3>
               <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Pipeline réel étapes 4-14 — argent bloqué en entiercement, litiges et inspections à traiter ici.</p>
             </div>
             <button className={styles.btnRefresh} onClick={loadIeTransactions}>↻ Actualiser</button>
@@ -7956,8 +7956,8 @@ export default function AdminPanel() {
         <div className={styles.tabContent}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
             <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🔐 Compte Séquestre (Escrow)</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Fonds Import/Export actuellement bloqués ou déjà libérés.</p>
+              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🔐 Ancien séquestre Import/Export — suspendu</h2>
+              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Depuis le 30/10/2026, VIT AUTO n'encaisse, ne bloque ni ne libère aucun fonds : acheteur et exportateur se règlent directement. Cette liste sert à régulariser les transactions ouvertes avant la suspension.</p>
             </div>
             <button className={styles.btnRefresh} onClick={loadIeTransactions}>↻ Actualiser</button>
           </div>

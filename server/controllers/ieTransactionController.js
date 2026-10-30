@@ -19,6 +19,7 @@ import { captureException } from "../config/sentry.js";
 import { generateGenericReceiptPDF } from "../utils/pdfGenerator.js";
 import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { recordIEPartnerPayout } from "../utils/commissionLedger.js";
+import { SEQUESTRE_IE_ACTIF, SEQUESTRE_SUSPENDU_MESSAGE } from "../config/featureFlags.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
 import { csvCell } from "../utils/csv.js";
 import { nonBloquant } from "../utils/nonBloquant.js";
@@ -52,6 +53,16 @@ const LC_REQUIRED_DOCS = ["commercialInvoice", "billOfLading", "originCertificat
 
 const pushHistory = (tx, status, userId, note = null) => {
   tx.statusHistory.push({ status, changedAt: new Date(), changedBy: userId, note });
+};
+
+// Séquestre suspendu : toute action d'encaissement, de vérification de fonds
+// ou de déblocage répond 503, sans rien écrire. `sequestreActif` est relu à
+// chaque appel (et non figé à l'import) pour que les tests puissent l'ouvrir.
+export const etatSequestre = { actif: SEQUESTRE_IE_ACTIF };
+const refuserSiSequestreSuspendu = (res) => {
+  if (etatSequestre.actif) return false;
+  res.status(503).json({ code: "SEQUESTRE_SUSPENDU", message: SEQUESTRE_SUSPENDU_MESSAGE });
+  return true;
 };
 
 // Bug réel corrigé (audit) : ces deux helpers ne créaient qu'un document
@@ -774,6 +785,7 @@ export const acceptOffer = async (req, res) => {
 // que l'entiercement ne soit considéré comme sécurisé.
 export const payEscrow = async (req, res) => {
   try {
+    if (refuserSiSequestreSuspendu(res)) return;
     const tx = await IETransaction.findOne({
       _id: req.params.id,
       client: req.user._id,
@@ -867,10 +879,52 @@ export const payEscrow = async (req, res) => {
   }
 };
 
+// ── Règlement direct (séquestre suspendu, 2026-10-30) ───────────────────────
+// POST /api/import-export/transactions/:id/reglement-direct
+// L'acheteur DÉCLARE avoir réglé l'exportateur ; l'exportateur CONFIRME l'avoir
+// reçu, ce qui ouvre la préparation de l'export. Deux déclarations, aucune
+// vérification de fonds par VIT AUTO — et le message le dit.
+export const declarerReglementDirect = async (req, res) => {
+  try {
+    if (etatSequestre.actif) return res.status(409).json({ message: "Le paiement passe par le séquestre pour cette transaction." });
+    const tx = await IETransaction.findOne({ _id: req.params.id, status: "payment_pending" });
+    if (!tx) return res.status(404).json({ message: "Transaction introuvable ou règlement non attendu." });
+    if (tx.directPurchase && tx.adminValidation?.status !== "approved") {
+      return res.status(409).json({ message: "Cet achat est en attente de validation par notre équipe." });
+    }
+    const estClient = String(tx.client) === String(req.user._id);
+    const estExportateur = String(tx.partner) === String(req.user._id);
+    if (!estClient && !estExportateur) return res.status(403).json({ message: "Accès refusé." });
+    const note = String(req.body?.note || "").trim().slice(0, 1000) || null;
+
+    if (estClient) {
+      tx.reglementDirect.declareParAcheteurLe = new Date();
+      tx.reglementDirect.referenceAcheteur = String(req.body?.reference || "").trim().slice(0, 200) || null;
+      tx.reglementDirect.noteAcheteur = note;
+      pushHistory(tx, tx.status, req.user._id, "Règlement direct déclaré par l'acheteur — à confirmer par l'exportateur. VIT AUTO n'a ni reçu ni vérifié ce paiement.");
+      await tx.save();
+      await notify(tx.partner, "info", "Règlement déclaré par l'acheteur", "L'acheteur indique vous avoir réglé directement. Confirmez la réception pour lancer la préparation de l'export.", "/importer-dashboard");
+      return res.json({ message: "Règlement déclaré. L'exportateur doit confirmer l'avoir reçu.", transaction: tx });
+    }
+
+    tx.reglementDirect.confirmeParExportateurLe = new Date();
+    tx.reglementDirect.noteExportateur = note;
+    tx.status = "preparing";
+    pushHistory(tx, "preparing", req.user._id, "Règlement reçu, confirmé par l'exportateur (déclaration — aucun fonds détenu ni vérifié par VIT AUTO).");
+    await tx.save();
+    await notify(tx.client, "info", "Règlement confirmé par l'exportateur", "L'exportateur confirme avoir reçu votre règlement et prépare l'export.", `/import-export/transaction/${tx._id}`);
+    res.json({ message: "Réception du règlement confirmée. Préparation de l'export ouverte.", transaction: tx });
+  } catch (err) {
+    logger.error("declarerReglementDirect:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
 // ── Déclaration du règlement du solde (méthodes avec acompte + solde) ──────
 // POST /api/import-export/transactions/:id/pay-balance
 export const payInstallmentBalance = async (req, res) => {
   try {
+    if (refuserSiSequestreSuspendu(res)) return;
     const tx = await IETransaction.findOne({
       _id: req.params.id,
       client: req.user._id,
@@ -911,6 +965,17 @@ export const payInstallmentBalance = async (req, res) => {
 // Appelée par le webhook Stripe (paymentController.js) une fois le paiement
 // carte réellement confirmé — jamais par une déclaration client.
 export async function completeIEEscrowPayment(tx, providerRef) {
+  // Un paiement Stripe arrivé alors que le séquestre est suspendu (session
+  // ouverte avant la suspension) n'est JAMAIS transformé en « fonds sécurisés » :
+  // il est tracé et signalé pour traitement manuel (remboursement à décider).
+  if (!etatSequestre.actif) {
+    logger.error(`[Séquestre suspendu] Paiement Stripe reçu pour la transaction IE ${tx._id} (${providerRef}) — non traité, à régulariser à la main.`);
+    captureException(new Error("Paiement Stripe IE reçu pendant la suspension du séquestre"), { txId: String(tx._id), providerRef });
+    await IETransaction.updateOne({ _id: tx._id }, { $push: { statusHistory: { status: tx.status, changedAt: new Date(), changedBy: null,
+      note: `Paiement carte signalé par Stripe (${providerRef}) alors que le séquestre est suspendu : non pris en compte, à régulariser par l'équipe.` } } });
+    await notifyAdmins("ie_payment", "⚠️ Paiement reçu pendant la suspension du séquestre", `Transaction ${tx._id} — paiement Stripe ${providerRef} à régulariser (remboursement ou décision).`, "/admin");
+    return;
+  }
   // Transition atomique (bug réel corrigé en audit, même classe que
   // paymentController.completePayment) : appelée par le webhook Stripe, deux
   // livraisons concurrentes du même événement pouvaient toutes deux passer le
@@ -941,6 +1006,7 @@ export async function completeIEEscrowPayment(tx, providerRef) {
 // PATCH /api/import-export/transactions/:id/verify-payment
 export const confirmEscrowPayment = async (req, res) => {
   try {
+    if (refuserSiSequestreSuspendu(res)) return;
     const tx = await IETransaction.findOne({ _id: req.params.id, status: "payment_submitted" });
     if (!tx) return res.status(404).json({ message: "Transaction introuvable ou aucun paiement à vérifier." });
 
@@ -1226,6 +1292,15 @@ export const confirmDelivery = async (req, res) => {
     }
     await tx.save();
 
+    if (!etatSequestre.actif) {
+      // Règlement direct : rien à libérer. La livraison confirmée clôt la
+      // transaction (avis ouverts), sans aucun mouvement de fonds.
+      tx.status = "completed";
+      pushHistory(tx, "completed", req.user._id, "Livraison confirmée — règlement direct entre les parties, aucun fonds détenu par VIT AUTO.");
+      await tx.save();
+      await notify(tx.partner, "success", "Livraison confirmée", "Le client a confirmé la réception du véhicule. La transaction est clôturée.", `/importer-dashboard`);
+      return res.json({ message: "Livraison confirmée. La transaction est clôturée.", transaction: tx });
+    }
     await notify(tx.partner, "success", "Livraison confirmée !", "Le client a confirmé la réception du véhicule. Libération des fonds en cours.", `/importer-dashboard`);
     await notifyAdmins("ie_delivery", "Livraison confirmée", `Transaction ${tx._id} — Libération des fonds à valider.`, `/admin`);
 
@@ -1247,6 +1322,7 @@ export const confirmDelivery = async (req, res) => {
 
 export const releaseFunds = async (req, res) => {
   try {
+    if (refuserSiSequestreSuspendu(res)) return;
     // Règle de l'exploitant (2026-10-07) : l'exportateur est payé à
     // l'EMBARQUEMENT — son travail s'arrête au chargement — par l'admin seul,
     // une fois le connaissement validé. Le client ne libère plus les fonds.
@@ -1435,6 +1511,9 @@ export const resolveDispute = async (req, res) => {
     if (!existing) return res.status(404).json({ message: "Transaction introuvable." });
 
     const { resolution, releaseToPartner } = req.body;
+    // Trancher reste possible ; « libérer les fonds » non, puisqu'aucun fonds
+    // n'est détenu tant que le séquestre est suspendu.
+    if (releaseToPartner && refuserSiSequestreSuspendu(res)) return;
 
     // Transition atomique "disputed" → statut final : le statut source fait
     // partie du filtre de l'update lui-même, jamais d'un simple findOne+save

@@ -31,14 +31,16 @@ const STEPS = [
   { status: "inspection_done",      label: "Inspection terminée",  icon: "🔍", step: 7  },
   { status: "offer_sent",           label: "Offre finale",         icon: "📄", step: 8  },
   { status: "offer_accepted",       label: "Offre acceptée",       icon: "🤝", step: 8  },
-  { status: "payment_pending",      label: "Paiement requis",      icon: "💳", step: 9  },
-  { status: "payment_submitted",    label: "Paiement en vérification", icon: "⏳", step: 9  },
-  { status: "in_escrow",            label: "Fonds sécurisés",      icon: "🔒", step: 9  },
+  // Libellés neutres (séquestre suspendu, 2026-10-30) : la plateforme ne dit
+  // jamais détenir ni sécuriser les fonds. Les statuts restent ceux du modèle.
+  { status: "payment_pending",      label: "Règlement à effectuer", icon: "💳", step: 9  },
+  { status: "payment_submitted",    label: "Paiement déclaré",     icon: "⏳", step: 9  },
+  { status: "in_escrow",            label: "Paiement confirmé",    icon: "✅", step: 9  },
   { status: "preparing",            label: "Préparation export",   icon: "📦", step: 10 },
   { status: "shipped",              label: "Expédié",              icon: "🚢", step: 11 },
   { status: "in_transit",           label: "En transit",           icon: "🌍", step: 11 },
   { status: "delivered",            label: "Livré",                icon: "📬", step: 12 },
-  { status: "funds_released",       label: "Fonds libérés",        icon: "💰", step: 13 },
+  { status: "funds_released",       label: "Exportateur réglé",    icon: "💰", step: 13 },
   { status: "completed",            label: "Terminé",              icon: "⭐", step: 14 },
 ];
 
@@ -108,7 +110,7 @@ function ProgressBar({ status }) {
 }
 
 // ── Panneau d'action selon statut et rôle ─────────────────────────────────
-function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfile }) {
+function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfile, sequestreActif = false }) {
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState(null);
   const [form, setForm]                 = useState({});
@@ -298,7 +300,49 @@ function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfil
     );
   }
 
-  // ── Étape 9 : paiement ─────────────────────────────────────────────────
+  // ── Étape 9 : règlement DIRECT (séquestre suspendu, 2026-10-30) ────────
+  // L'acheteur règle l'exportateur hors de VIT AUTO, selon leur contrat ; la
+  // plateforme enregistre les deux déclarations, sans rien garantir.
+  if (tx.status === "payment_pending" && !sequestreActif && (role === "client" || role === "partner")) {
+    const rd = tx.reglementDirect || {};
+    const declarer = (corps) => call(`${base}/reglement-direct`, "POST", corps);
+    return (
+      <div className={styles.actionCard}>
+        <h4>Règlement direct avec l'exportateur</h4>
+        <p>
+          Vous réglez la transaction <strong>directement entre acheteur et exportateur</strong>, selon votre contrat
+          (virement, lettre de crédit…). VIT AUTO ne reçoit pas, ne conserve pas et ne garantit pas ce paiement :
+          la plateforme enregistre seulement ce que chacun déclare, et les documents d'export.
+        </p>
+        <div className={styles.escrowInfo}>
+          <div>Montant convenu : <strong>{fmtPrice(tx.finalOffer?.totalAmount, tx.finalOffer?.currency)}</strong></div>
+          <p>Acheteur : {rd.declareParAcheteurLe ? `règlement déclaré le ${fmtDate(rd.declareParAcheteurLe)}${rd.referenceAcheteur ? ` (réf. ${rd.referenceAcheteur})` : ""}` : "pas encore déclaré"}</p>
+        </div>
+        {role === "client" ? (
+          <div className={styles.formRow2}>
+            <label><span>Référence de votre règlement (facultatif)</span>
+              <input placeholder="Ex : virement SWIFT, n° de LC" onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))} />
+            </label>
+            <div className={styles.actionBtns}>
+              <button className={styles.btnPrimary} disabled={loading} onClick={() => declarer({ reference: form.reference })}>
+                {rd.declareParAcheteurLe ? "Mettre à jour ma déclaration" : "J'ai réglé l'exportateur"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className={styles.actionBtns}>
+            <button className={styles.btnPrimary} disabled={loading} onClick={() => declarer({})}>
+              Je confirme avoir reçu le règlement
+            </button>
+          </div>
+        )}
+        <p className={styles.actionNote}>La préparation de l'export s'ouvre quand l'exportateur confirme avoir reçu le règlement.</p>
+        {error && <p className={styles.err}>{error}</p>}
+      </div>
+    );
+  }
+
+  // ── Étape 9 : paiement (ancien flux de séquestre, inactif) ────────────
   // "Carte" redirige vers un vrai Stripe Checkout (payé et confirmé par
   // webhook — jamais déclaré). Les autres méthodes ne peuvent pas être
   // vérifiées automatiquement (pas d'intégration bancaire réelle) : le client
@@ -537,7 +581,7 @@ function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfil
   // connaissement (B/L) validé ; le client ne libère plus les fonds lui-même.
   const partExportateur = tx.ventilation?.exportateur
     ?? (tx.directPurchase ? tx.finalOffer?.vehiclePrice : null) ?? tx.payment?.amount;
-  if (role === "admin" && !tx.payment?.releasedAt && ["shipped", "in_transit"].includes(tx.status)) {
+  if (sequestreActif && role === "admin" && !tx.payment?.releasedAt && ["shipped", "in_transit"].includes(tx.status)) {
     const blValide = tx.documents?.billOfLading?.status === "valide";
     return (
       <div className={styles.actionCard}>
@@ -559,6 +603,15 @@ function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfil
   }
 
   // ── Étape 13 : livré — l'admin verse si ce n'est pas déjà fait ; le client peut contester
+  // Ancien flux livré pendant la suspension : rien à verser par VIT AUTO.
+  if (tx.status === "delivered" && !sequestreActif && role === "admin") {
+    return (
+      <div className={styles.actionCard}>
+        <h4>Transaction livrée — séquestre suspendu</h4>
+        <p>VIT AUTO ne verse aucun fonds tant que le séquestre est suspendu. Régularisez cette transaction ouverte avant la suspension directement avec les parties.</p>
+      </div>
+    );
+  }
   if (tx.status === "delivered" && (role === "client" || role === "admin")) {
     return (
       <div className={styles.actionCard}>
@@ -830,6 +883,13 @@ export default function IETransactionTracking() {
 
   const [tx,      setTx]      = useState(null);
   const [paymentProfile, setPaymentProfile] = useState(null);
+  // Séquestre lu sur la configuration publique ; FERMÉ tant qu'elle n'a pas
+  // répondu — mieux vaut proposer le règlement direct à tort qu'un paiement.
+  const [sequestreActif, setSequestreActif] = useState(false);
+  useEffect(() => {
+    fetch("/api/pricing/config").then((r) => (r.ok ? r.json() : null))
+      .then((d) => setSequestreActif(d?.sequestreIeActif === true)).catch(() => {});
+  }, []);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
 
@@ -959,7 +1019,7 @@ export default function IETransactionTracking() {
       <div className={styles.layout}>
         <div className={styles.main}>
           {/* Panneau d'action */}
-          <ActionPanel tx={tx} role={role} canDoLogistics={canDoLogistics} token={token} onRefresh={load} paymentProfile={paymentProfile} />
+          <ActionPanel tx={tx} role={role} canDoLogistics={canDoLogistics} token={token} onRefresh={load} paymentProfile={paymentProfile} sequestreActif={sequestreActif} />
 
           {/* Documents export */}
           <DocsPanel docs={tx.documents} txId={tx._id} token={token} role={role} status={tx.status} onRefresh={load} />
@@ -1078,7 +1138,8 @@ export default function IETransactionTracking() {
                 <div className={styles.finLine}><span>Frais portuaires</span><strong>{fmtPrice(tx.costEstimate.breakdown.portFees, tx.costEstimate.currency)}</strong></div>
                 <div className={styles.finLine}><span>Douanes / transit</span><strong>{fmtPrice(tx.costEstimate.breakdown.customs, tx.costEstimate.currency)}</strong></div>
                 <div className={styles.finLine}><span>Livraison finale</span><strong>{fmtPrice(tx.costEstimate.breakdown.delivery, tx.costEstimate.currency)}</strong></div>
-                <div className={styles.finLine}><span>Commission VIT AUTO</span><strong>{fmtPrice(tx.costEstimate.breakdown.commission, tx.costEstimate.currency)}</strong></div>
+                {/* Frais de service acheteur (suspendu depuis le 2026-10-30) : affiché seulement s'il existe. */}
+                {tx.costEstimate.breakdown.commission > 0 && <div className={styles.finLine}><span>Frais de service VIT AUTO</span><strong>{fmtPrice(tx.costEstimate.breakdown.commission, tx.costEstimate.currency)}</strong></div>}
                 <div className={`${styles.finLine} ${styles.finTotal}`}><span>TOTAL ESTIMÉ</span><strong>{fmtPrice(tx.costEstimate.grandTotal, tx.costEstimate.currency)}</strong></div>
               </div>
               <p className={styles.actionNote}>Estimation automatique — l'offre finale du fournisseur fera foi.</p>
@@ -1097,7 +1158,7 @@ export default function IETransactionTracking() {
                 <div className={`${styles.finLine} ${styles.finTotal}`}><span>TOTAL</span><strong>{fmtPrice(tx.finalOffer.totalAmount, tx.finalOffer.currency)}</strong></div>
               </div>
               {tx.payment?.escrowRef && (
-                <p className={styles.escrowRef}>🔒 Escrow : {tx.payment.escrowRef}</p>
+                <p className={styles.escrowRef}>Réf. paiement (ancien flux) : {tx.payment.escrowRef}</p>
               )}
               {/* Reçu de paiement — jusqu'ici aucun reçu n'existait pour un paiement
                   Import/Export, contrairement aux bookings location/vente/essai. */}

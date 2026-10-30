@@ -63,11 +63,11 @@ export default {
     zh: "国际车辆租赁、销售与进口",
   },
   "home.metaDesc": {
-    fr: "Louez, achetez, importez ou exportez un véhicule dans 28 pays. Inspection, transport, dédouanement et livraison gérés de bout en bout, avec paiement sécurisé.",
-    en: "Rent, buy, import or export a vehicle across 28 countries. Inspection, transport, customs clearance and delivery handled end to end, with secure payment.",
-    ar: "استأجر أو اشترِ أو استورد أو صدّر مركبة في ٢٨ دولة. الفحص والنقل والتخليص الجمركي والتسليم تُدار بالكامل، مع دفع آمن.",
-    es: "Alquila, compra, importa o exporta un vehículo en 28 países. Inspección, transporte, despacho aduanero y entrega gestionados de principio a fin, con pago seguro.",
-    zh: "在 28 个国家租赁、购买、进口或出口车辆。验车、运输、清关与交付全程包办，支付安全可靠。",
+    fr: "Louez, achetez, importez ou exportez un véhicule dans 28 pays. Inspection, transport, dédouanement et livraison suivis de bout en bout, avec des partenaires vérifiés.",
+    en: "Rent, buy, import or export a vehicle across 28 countries. Inspection, transport, customs clearance and delivery tracked end to end, with verified partners.",
+    ar: "استأجر أو اشترِ أو استورد أو صدّر مركبة في ٢٨ دولة. الفحص والنقل والتخليص الجمركي والتسليم متابَعة بالكامل، مع شركاء موثَّقين.",
+    es: "Alquila, compra, importa o exporta un vehículo en 28 países. Inspección, transporte, despacho aduanero y entrega con seguimiento de principio a fin, con socios verificados.",
+    zh: "在 28 个国家租赁、购买、进口或出口车辆。验车、运输、清关与交付全程跟踪，合作伙伴均经过核验。",
   },
 
   // ─── Accueil : bandes de mise en avant ────────────────────────────────────
@@ -165,13 +165,13 @@ export default {
     es: "Cada cuenta se verifica con un documento de identidad (DNI o pasaporte). Clientes y socios se autentican antes de cualquier transacción.",
     zh: "每个账户均通过身份证件（身份证或护照）验证。客户与合作伙伴在交易前完成认证。",
   },
-  "trust.t2.title": { fr: "Caution sécurisée", en: "Secured deposit", ar: "وديعة مؤمَّنة", es: "Fianza asegurada", zh: "押金保障" },
+  "trust.t2.title": { fr: "Caution transparente", en: "Transparent deposit", ar: "وديعة واضحة", es: "Fianza transparente", zh: "押金透明" },
   "trust.t2.desc": {
-    fr: "La caution est gérée automatiquement via notre système de paiement sécurisé. Elle est restituée immédiatement après retour du véhicule.",
-    en: "The deposit is handled automatically through our secure payment system. It is returned immediately after the vehicle comes back.",
-    ar: "تُدار الوديعة تلقائياً عبر نظام الدفع الآمن لدينا، وتُعاد فور إرجاع المركبة.",
-    es: "La fianza se gestiona automáticamente mediante nuestro sistema de pago seguro. Se devuelve inmediatamente tras la devolución del vehículo.",
-    zh: "押金通过我们的安全支付系统自动管理，车辆归还后立即退还。",
+    fr: "Le montant de la caution est indiqué avant la réservation et versé au partenaire, selon ses conditions. Il est restitué au retour du véhicule.",
+    en: "The deposit amount is shown before you book and is paid to the partner, under their terms. It is returned when the vehicle comes back.",
+    ar: "يُعرض مبلغ الوديعة قبل الحجز ويُدفع للشريك وفق شروطه، ويُعاد عند إرجاع المركبة.",
+    es: "El importe de la fianza se indica antes de reservar y se paga al socio, según sus condiciones. Se devuelve al devolver el vehículo.",
+    zh: "押金金额在预订前显示，按合作伙伴的条款支付给合作伙伴，车辆归还时退还。",
   },
   "trust.t3.title": { fr: "Contrat digital", en: "Digital contract", ar: "عقد رقمي", es: "Contrato digital", zh: "电子合同" },
   "trust.t3.desc": {

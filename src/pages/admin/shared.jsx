@@ -236,8 +236,8 @@ export const IE_STATUS_LABELS = {
   inspection_requested: "Inspection demandée", inspection_done: "Inspection faite",
   offer_sent: "Offre envoyée", offer_accepted: "Offre acceptée",
   payment_pending: "Paiement en attente", payment_submitted: "Paiement à vérifier",
-  in_escrow: "En entiercement", preparing: "Préparation", shipped: "Expédiée",
-  in_transit: "En transit", delivered: "Livrée", funds_released: "Fonds libérés",
+  in_escrow: "Paiement confirmé (ancien séquestre)", preparing: "Préparation", shipped: "Expédiée",
+  in_transit: "En transit", delivered: "Livrée", funds_released: "Exportateur réglé (ancien séquestre)",
   completed: "Terminée", disputed: "Litige", cancelled: "Annulée",
 };
 

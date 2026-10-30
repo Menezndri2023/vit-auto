@@ -205,6 +205,16 @@ const ieTransactionSchema = new mongoose.Schema({
     currency:    { type: String, default: null },
   },
 
+  // Règlement DIRECT acheteur → exportateur (séquestre suspendu, 2026-10-30).
+  // Purement déclaratif : VIT AUTO ne reçoit ni ne vérifie les fonds.
+  reglementDirect: {
+    declareParAcheteurLe:     { type: Date,   default: null },
+    referenceAcheteur:        { type: String, default: null },
+    noteAcheteur:             { type: String, default: null },
+    confirmeParExportateurLe: { type: Date,   default: null },
+    noteExportateur:          { type: String, default: null },
+  },
+
   payment: {
     amount:          { type: Number, default: null },
     currency:        { type: String, default: "EUR" },

@@ -69,6 +69,8 @@ router.post  ("/transactions/:id/final-offer",      authenticate,       vid,    
 router.patch ("/transactions/:id/accept-offer",     authenticate,       vid,     tx.acceptOffer);
 router.post  ("/transactions/:id/pay",              authenticate,       vid,     tx.payEscrow);
 router.post  ("/transactions/:id/pay-balance",      authenticate,       vid,     tx.payInstallmentBalance);
+// Séquestre suspendu (2026-10-30) : règlement direct acheteur → exportateur, déclaratif.
+router.post  ("/transactions/:id/reglement-direct", authenticate,       vid,     tx.declarerReglementDirect);
 router.patch ("/transactions/:id/verify-payment",   authenticate, authorizeAdmin, ieScope, vid, tx.confirmEscrowPayment);
 router.patch ("/transactions/:id/reject-payment",   authenticate, authorizeAdmin, ieScope, vid, tx.rejectEscrowPayment);
 router.patch ("/transactions/:id/documents",        authenticate,       vid,     tx.updateDocuments);

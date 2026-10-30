@@ -117,8 +117,9 @@ export default function CGV() {
           <Li><strong>Virement bancaire, mobile money (autre opérateur), cryptomonnaie ou espèces</strong> — le client déclare son paiement, qui est ensuite <strong>vérifié manuellement</strong> par un administrateur avant validation ; ce délai de vérification manuelle peut retarder la confirmation de quelques heures à quelques jours ouvrés</Li>
         </ul>
         <p style={{ marginTop: 10 }}>
-          Pour les transactions Import/Export, les fonds sont conservés en <strong>séquestre (escrow)</strong> par VIT AUTO
-          jusqu'à confirmation de la livraison par le client, puis libérés au partenaire.
+          Pour les transactions Import/Export, l'acheteur règle <strong>directement</strong> l'exportateur, selon le contrat
+          qui les lie. VIT AUTO ne reçoit, ne conserve, ne bloque ni ne garantit ces fonds : la plateforme enregistre
+          uniquement les règlements déclarés par les parties et les documents de la transaction.
         </p>
       </Art>
 
@@ -166,7 +167,7 @@ export default function CGV() {
           Une réservation peut être annulée par le client tant qu'elle n'a pas été confirmée par le partenaire, ou
           selon les conditions spécifiques affichées à l'étape de réservation (le cas échéant, caution ou acompte non
           remboursable). Pour une transaction Import/Export, l'annulation est possible à certaines étapes du parcours
-          (voir le détail affiché dans le suivi de transaction) ; au-delà de la mise sous séquestre des fonds,
+          (voir le détail affiché dans le suivi de transaction) ; une fois le règlement confirmé par l'exportateur,
           l'annulation passe par la procédure de litige (article 9).
         </p>
       </Art>

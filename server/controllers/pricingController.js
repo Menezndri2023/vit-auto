@@ -1,5 +1,5 @@
 import logger from "../utils/logger.js";
-import { PAYMENTS_ENABLED } from "../config/featureFlags.js";
+import { PAYMENTS_ENABLED, SEQUESTRE_IE_ACTIF } from "../config/featureFlags.js";
 import { getActiveRates, getActiveCountries } from "../services/currencyEngine.js";
 import { getConfig } from "../services/pricingEngine.js";
 
@@ -53,6 +53,8 @@ export const getPublicConfig = async (_req, res) => {
       // finissent par diverger et un bouton payant redevient cliquable alors
       // que le serveur refuse toujours.
       paymentsEnabled: PAYMENTS_ENABLED,
+      // Séquestre Import/Export (désactivé) : l'interface affiche le règlement direct.
+      sequestreIeActif: SEQUESTRE_IE_ACTIF,
     });
   } catch (err) {
     logger.error("getPublicConfig:", err);

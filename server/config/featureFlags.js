@@ -13,6 +13,21 @@
 // redéploiement de code. C'est l'unique interrupteur — l'interface lit cette
 // même valeur via GET /api/pricing/config, elle ne la duplique jamais.
 export const PAYMENTS_ENABLED = process.env.PAYMENTS_ENABLED === "true";
+// Même interrupteur, relu à chaque appel (paiement en ligne des réservations).
+export const paiementsOuverts = () => process.env.PAYMENTS_ENABLED === "true";
+
+// SÉQUESTRE IMPORT/EXPORT — DÉSACTIVÉ (décision de l'exploitant, 2026-10-30).
+// Tant que les exigences juridiques, contractuelles et celles du prestataire
+// de paiement ne sont pas validées, VIT AUTO n'encaisse, ne bloque, ne
+// sécurise ni ne débloque aucun fonds pour une transaction Import/Export :
+// l'acheteur règle l'exportateur directement, selon leur contrat, et la
+// plateforme n'enregistre que des déclarations. Même défaut que PAYMENTS_ENABLED :
+// une variable absente laisse le séquestre FERMÉ. Il n'existe volontairement
+// aucun réglage admin pour le rouvrir.
+export const SEQUESTRE_IE_ACTIF = process.env.IE_ESCROW_ENABLED === "true";
+
+export const SEQUESTRE_SUSPENDU_MESSAGE =
+  "VIT AUTO ne reçoit ni ne conserve les fonds des transactions Import/Export. Réglez l'exportateur directement, selon votre contrat, puis déclarez le règlement sur la transaction.";
 
 // Message unique renvoyé au client comme affiché dans l'interface : il doit
 // dire QUOI faire, pas seulement que c'est indisponible.

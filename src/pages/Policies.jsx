@@ -96,7 +96,7 @@ export default function Policies() {
           <Li>Détection de document déjà utilisé sur un autre compte (empreinte du document et du numéro extrait)</Li>
           <Li>Verrouillage temporaire du compte après plusieurs tentatives de connexion échouées</Li>
           <Li>Paiement par carte traité par un prestataire certifié (Stripe) — jamais de numéro de carte stocké par VIT AUTO</Li>
-          <Li>Séquestre (escrow) des fonds pour les transactions Import/Export jusqu'à confirmation de livraison</Li>
+          <Li>Import/Export : règlement direct entre acheteur et exportateur — VIT AUTO ne détient pas les fonds et enregistre seulement les règlements déclarés</Li>
           <Li>Journal d'audit des actions administratives sensibles</Li>
         </ul>
         <p style={{ marginTop: 10 }}>

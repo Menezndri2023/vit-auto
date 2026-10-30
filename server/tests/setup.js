@@ -18,6 +18,10 @@ process.env.NODE_ENV ||= "test";
 // tests/paymentsDisabled.test.js qui couvre explicitement cet état, en posant
 // la variable à "false" puis en rechargeant le module.
 process.env.PAYMENTS_ENABLED ||= "true";
+// Même logique pour le séquestre Import/Export, FERMÉ en production depuis le
+// 2026-10-30 : les tests de l'ancien flux restent exécutables ; l'état fermé
+// est couvert par tests/sequestreSuspendu.test.js (etatSequestre.actif = false).
+process.env.IE_ESCROW_ENABLED ||= "true";
 
 // Un test qui importe server.js (voir tests/http.*.test.js) déclenche
 // dotenv.config(), qui charge server/.env — dotenv ne réécrit jamais une

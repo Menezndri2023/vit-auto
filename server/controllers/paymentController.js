@@ -1,3 +1,4 @@
+import { paiementsOuverts, PAYMENTS_DISABLED_MESSAGE } from "../config/featureFlags.js";
 import crypto from "crypto";
 import logger from "../utils/logger.js";
 import Payment from "../models/Payment.js";
@@ -202,6 +203,12 @@ async function failPayment(payment, reason) {
 // trois doit être fournie.
 export const initiatePayment = async (req, res) => {
   try {
+    // Interrupteur unique des paiements (config/featureFlags.js) : un compte
+    // marchand configuré ne suffit plus à encaisser tant que PAYMENTS_ENABLED
+    // n'est pas ouvert — il le permettait jusqu'au 2026-10-30.
+    if (!paiementsOuverts()) {
+      return res.status(503).json({ code: "PAYMENTS_DISABLED", message: PAYMENTS_DISABLED_MESSAGE });
+    }
     const { bookingId, serviceRequestId, insuranceRequestId, method } = req.body;
     if (!ONLINE_METHODS.includes(method)) {
       return res.status(400).json({ message: `Méthode non prise en charge par le paiement en ligne. Acceptées : ${ONLINE_METHODS.join(", ")}` });
