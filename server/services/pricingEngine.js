@@ -3,6 +3,7 @@ import PartnerOnboarding from "../models/PartnerOnboarding.js";
 import Subscription from "../models/Subscription.js";
 import DiscountCampaign from "../models/DiscountCampaign.js";
 import { DEFAULT_PRICING_CONFIG } from "../config/defaultPricingConfig.js";
+import { appliquerModificationsEchues } from "./grilleTarifaire.js";
 
 // Moteur central de tarification — remplace les constantes en dur dispersées
 // dans bookingController.js (COMMISSION_RATES), ieTransactionController.js et
@@ -16,6 +17,9 @@ import { DEFAULT_PRICING_CONFIG } from "../config/defaultPricingConfig.js";
 // de crash pour une fonctionnalité non encore configurée, voir
 // smsConfigured.js/emailVerificationRequired.js).
 export async function getConfig() {
+  // Une version de grille arrivée à sa date d'effet entre en vigueur ici
+  // (au plus une vérification par minute — services/grilleTarifaire.js).
+  await appliquerModificationsEchues().catch(() => 0);
   const config = await PricingConfig.findOne({ key: "global" }).lean();
   return config || DEFAULT_PRICING_CONFIG;
 }
@@ -105,6 +109,11 @@ export async function resolveCommissionRate(type, ownerId) {
 // explicitement vrai (décision de l'exploitant, 2026-10-30) — un document
 // sans le champ, ou une valeur perdue, laisse les frais à ZÉRO.
 export const fraisServiceActifs = (config) => config?.serviceFee?.actif === true;
+
+// Version de la grille en vigueur, recopiée sur chaque réservation.
+export async function versionGrilleCourante() {
+  return (await getConfig()).versionGrille ?? 1;
+}
 
 export async function computeServiceFee(amountUSD) {
   const config = await getConfig();

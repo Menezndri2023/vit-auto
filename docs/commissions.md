@@ -114,6 +114,41 @@ la colonne « Fondateur » et la mention « retour au standard ».
 | 2026-09-14 | + pièces 10 % / 7 %, importation 7 % / 5 % |
 | **2026-10-27** | **grille unique** 10 / 2 / 3 / 10 / 10, pièces 5 % local / 7 % export |
 
+## Grille versionnée, taux conservé, préavis (décision de l'exploitant, 2026-10-30)
+
+**Taux conservé.** Chaque réservation porte `commissionFigee: true` et `grilleVersion` dès sa
+création ; au règlement (transaction, confirmation partenaire, clôture forcée), le taux de
+création est réutilisé. Avant le 2026-10-30, il était **recalculé** au règlement avec la
+grille du moment (`bookingController.js`, `tauxAuReglement`). Les réservations antérieures
+sans l'indicateur gardent ce recalcul ; la migration
+`taux-conserves-reservations-ouvertes-2026-10-30` pose l'indicateur sur les réservations
+ouvertes créées depuis la grille du 27/10.
+
+**Versions.** Les sections `commissions` et `foundingPartner` ne s'éditent plus à chaud :
+`PATCH /api/admin/business-config/pricing/:section` crée une version (`GrilleTarifaire`),
+notifie les partenaires réels (espace + e-mail : version, date d'envoi, date d'effet, lignes
+modifiées) et répond 202. Une **hausse** prend effet au plus tôt **30 jours** après ; une baisse
+peut être immédiate (`immediat: true`). La version s'applique d'elle-même à sa date (vérifiée
+dans `getConfig`). Liste : `GET …/pricing/grilles` ; annulation : `PATCH …/grilles/:id/annuler`.
+Le délai de 30 jours est une règle interne : sa validité juridique, au regard des contrats et
+du droit applicable, reste à confirmer.
+
+**Suspension de la hausse 5 % → 7 % (pièce à l'export, fondateurs).** Migration
+`suspension-hausse-piece-export-fondateurs-2026-10-30` : taux fondateur ramené à 5 % pour les
+**nouvelles** transactions, via une version (baisse immédiate), **sans notification
+automatique**. Les autres partenaires restent à 7 %. Les réservations déjà créées gardent
+leur taux. Aucun remboursement automatique.
+
+Constats de l'audit (code) :
+- grille fondateur avant le 27/10 : pièces 7 % / export 5 % ; après : 5 % / 7 % (une baisse,
+  une hausse), appliquée immédiatement à la publication du 28/10, sans préavis ;
+- la LOI générée avant le 27/10 ne citait que location, vente et chauffeur : **aucun taux de
+  pièces n'était contractuel** ; depuis, le texte cite la grille complète ;
+- seul le **hash** du document signé est conservé (`PartnerOnboarding.*.documentHash`), pas
+  son texte : le texte affiché aujourd'hui est regénéré avec la grille actuelle ;
+- les transactions de production concernées n'ont pas pu être comptées (réseau indisponible
+  pendant l'audit) — script en lecture seule prêt.
+
 ## Commission minimale : aucune (décision provisoire, 2026-10-28)
 
 Commission = assiette × taux de la grille, arrondie au centime. Aucun plancher, nulle part :

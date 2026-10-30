@@ -4,6 +4,8 @@ import ExchangeRate from "../models/ExchangeRate.js";
 import CountryConfig from "../models/CountryConfig.js";
 import DiscountCampaign from "../models/DiscountCampaign.js";
 import { logAction } from "../middleware/auditLog.js";
+import GrilleTarifaire from "../models/GrilleTarifaire.js";
+import { SECTIONS_VERSIONNEES, programmerModification, annulerModification, GrilleError, PREAVIS_JOURS } from "../services/grilleTarifaire.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PricingConfig — patch par section (jamais le document entier d'un coup, pour
@@ -29,6 +31,31 @@ export const updatePricingSection = async (req, res) => {
     if (!SECTIONS.includes(section)) {
       return res.status(400).json({ message: `Section inconnue. Attendu : ${SECTIONS.join(", ")}.` });
     }
+    // Commissions et grille fondateur : jamais appliquées à chaud. La
+    // modification devient une version programmée, notifiée aux partenaires,
+    // avec un préavis de PREAVIS_JOURS pour toute hausse (2026-10-30).
+    // Corps accepté : la section seule (écran existant) ou
+    // { valeur, dateEffet, motif, immediat }.
+    if (SECTIONS_VERSIONNEES.includes(section)) {
+      const enveloppe = req.body && typeof req.body === "object" && req.body.valeur && typeof req.body.valeur === "object";
+      const { valeur, dateEffet, motif, immediat } = enveloppe ? req.body : { valeur: req.body };
+      try {
+        const version = await programmerModification({ section, valeur, dateEffet, motif, immediat: immediat === true, par: req.user._id });
+        await logAction(req, `business_config.pricing.${section}.programmee`, "GrilleTarifaire", version._id, { version: version.version, dateEffet: version.dateEffet, changements: version.changements });
+        const applique = version.statut === "appliquee";
+        return res.status(applique ? 200 : 202).json({
+          version,
+          config: applique ? await PricingConfig.findOne({ key: "global" }).lean() : undefined,
+          message: applique
+            ? `Version ${version.version} appliquée (baisse immédiate). Partenaires notifiés.`
+            : `Version ${version.version} programmée pour le ${new Date(version.dateEffet).toLocaleDateString("fr-FR")}. Partenaires notifiés ; la grille actuelle reste en vigueur jusque-là.`,
+        });
+      } catch (err) {
+        if (err instanceof GrilleError) return res.status(err.status).json({ message: err.message, preavisJours: PREAVIS_JOURS });
+        throw err;
+      }
+    }
+
     const before = await PricingConfig.findOne({ key: "global" }).select(section).lean();
     const config = await PricingConfig.findOneAndUpdate(
       { key: "global" },
@@ -41,6 +68,29 @@ export const updatePricingSection = async (req, res) => {
     res.json({ config });
   } catch (err) {
     logger.error("updatePricingSection:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+// ── Versions de la grille (préavis, 2026-10-30) ────────────────────────────
+export const listerVersionsGrille = async (_req, res) => {
+  try {
+    const versions = await GrilleTarifaire.find().sort({ version: -1 }).limit(100).populate("creePar", "firstName lastName").lean();
+    res.json({ versions, preavisJours: PREAVIS_JOURS });
+  } catch (err) {
+    logger.error("listerVersionsGrille:", err);
+    res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+export const annulerVersionGrille = async (req, res) => {
+  try {
+    const doc = await annulerModification(req.params.id, { par: req.user._id, motif: req.body?.motif });
+    await logAction(req, "business_config.pricing.grille.annulee", "GrilleTarifaire", doc._id, { version: doc.version });
+    res.json({ version: doc });
+  } catch (err) {
+    if (err instanceof GrilleError) return res.status(err.status).json({ message: err.message });
+    logger.error("annulerVersionGrille:", err);
     res.status(500).json({ message: "Erreur serveur." });
   }
 };

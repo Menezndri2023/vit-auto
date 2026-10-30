@@ -110,6 +110,8 @@ const notificationSchema = new mongoose.Schema({
       "dossier_admin",
       // VIT-AUTO Logistique (2026-10-27) : demandes, devis, étapes.
       "logistique",
+      // Modification programmée de la grille de commissions (préavis, 2026-10-30).
+      "conditions_tarifaires",
       // Système
       "system",
       "info",

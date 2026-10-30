@@ -476,6 +476,11 @@ const bookingSchema = new mongoose.Schema({
   // server/services/pricingEngine.js) — PricingConfig est la source de vérité,
   // pas ces defaults (utilisés seulement si jamais recalculés).
   commissionRate:   { type: Number, default: 0 },      // ex: 0.15
+  // Taux CONSERVÉ (2026-10-30) : fixé à la création, réutilisé au règlement —
+  // une nouvelle grille ne touche jamais une réservation déjà créée. Absent sur
+  // les réservations antérieures, qui gardent l'ancien recalcul.
+  commissionFigee:  { type: Boolean, default: false },
+  grilleVersion:    { type: Number, default: null },  // version de la grille à la création
   commissionAmount: { type: Number, default: 0 },      // montantBase * commissionRate
   serviceFeeFCFA:   { type: Number, default: 0 },      // nom conservé (voir Vehicle/Booking dans le plan de refonte), désormais en USD — calculé par pricingEngine.computeServiceFee()
   cautionAmount:    { type: Number, default: 0 },      // caution / dépôt de garantie

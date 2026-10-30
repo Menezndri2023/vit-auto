@@ -65,6 +65,10 @@ const pricingConfigSchema = new mongoose.Schema({
   },
 
   // max(minUSD, montant × percent), plafonné à maxUSD.
+  // Version de la grille en vigueur (models/GrilleTarifaire.js) — recopiée
+  // sur chaque réservation à sa création (Booking.grilleVersion).
+  versionGrille: { type: Number, default: 1 },
+
   // Frais de service SUSPENDUS (exploitant, 2026-10-30) tant que leur nature,
   // leur payeur, leur montant et leurs conditions ne sont pas validés. Absent
   // du document = suspendu : réactiver est une décision explicite (actif: true).

@@ -27,7 +27,7 @@ import { computeLocationTotal } from "../utils/seasonalPricing.js";
 // Frais de service suspendus (2026-10-30) : au règlement, le frais retenu est
 // réécrit sur la réservation par fraisServiceAuReglement (zéro pendant la
 // suspension), pour que reversement, contrat et affichage disent la même chose.
-import { resolveCommissionRate, computeServiceFee, fraisServiceAuReglement } from "../services/pricingEngine.js";
+import { resolveCommissionRate, computeServiceFee, fraisServiceAuReglement, versionGrilleCourante } from "../services/pricingEngine.js";
 import { priceRentalOptions } from "../services/rentalOptions.js";
 import { resolveOriginCode } from "../constants/importOrigins.js";
 import { isWeatherDependent } from "../constants/activityTypes.js";
@@ -242,6 +242,14 @@ async function generateReference(type) {
 // la livraison ni les frais d'importation — règle de l'exploitant du 2026-09-14, appliquée à la création mais perdue aux trois
 // recalculs du règlement (recordTransaction, partnerConfirm, adminForceComplete),
 // qui taxaient le montant total au taux « piece » (audit du 2026-10-05).
+// Taux appliqué au règlement : celui fixé à la création pour une réservation
+// à taux conservé (commissionFigee) ; recalcul selon la grille en vigueur pour
+// les réservations antérieures au 2026-10-30, comme avant.
+async function tauxAuReglement(booking, ownerId) {
+  if (booking.commissionFigee) return booking.commissionRate;
+  return resolveCommissionRate(cleCommission(booking), ownerId);
+}
+
 export function cleCommission(booking) {
   if (booking?.type !== "piece") return booking?.type;
   return booking.piece?.international || booking.piece?.saleMode === "import" ? "piece_import" : "piece";
@@ -1258,6 +1266,8 @@ export const createBooking = async (req, res) => {
       devise: "USD",
       commissionRate,
       commissionAmount,
+      commissionFigee: true,
+      grilleVersion: await versionGrilleCourante(),
       serviceFeeFCFA,
       partnerPayout,
       clientVerification: {
@@ -1686,7 +1696,7 @@ export const createBookingsBatch = async (req, res) => {
           montantBase, montantOptions: 0, montantOptionsVitAuto: 0, assietteRegle: ASSIETTE_REGLE, montantTotal,
           cautionAmount: vehicle.caution || 0,
           devise: "USD",
-          commissionRate, commissionAmount, serviceFeeFCFA, partnerPayout,
+          commissionRate, commissionAmount, commissionFigee: true, grilleVersion: await versionGrilleCourante(), serviceFeeFCFA, partnerPayout,
           clientVerification: {
             idType: clientKycSnapshot?.idType || null,
             idNumber: clientKycSnapshot?.idNumber || null,
@@ -2333,7 +2343,7 @@ export const recordTransaction = async (req, res) => {
     // Recalcul commission sur montant final réel — `?? 0` (jamais `|| 1`,
     // bug réel corrigé en audit) : un serviceFeeFCFA légitimement à 0 aurait
     // sinon été remplacé par 1, grignotant 1 USD sur le partnerPayout.
-    const commissionRate   = await resolveCommissionRate(cleCommission(booking), _vOwnerId || _dOwnerId || _aOwnerId);
+    const commissionRate   = await tauxAuReglement(booking, _vOwnerId || _dOwnerId || _aOwnerId);
     const commissionAmount = Math.round(assietteCommission(booking, finalAmount) * commissionRate * 100) / 100;
     const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA = await fraisServiceAuReglement(booking)), 0);
 
@@ -3086,7 +3096,7 @@ export const partnerConfirm = async (req, res) => {
       return res.status(400).json({ message: "Mensualité requise pour un financement leasing/crédit." });
     }
 
-    const commissionRate   = await resolveCommissionRate(cleCommission(booking), _vOwnerId || _dOwnerId || _aOwnerId);
+    const commissionRate   = await tauxAuReglement(booking, _vOwnerId || _dOwnerId || _aOwnerId);
     const commissionAmount = Math.round(assietteCommission(booking, finalAmount) * commissionRate * 100) / 100;
     const partnerPayout    = Math.max(finalAmount - commissionAmount - (booking.serviceFeeFCFA = await fraisServiceAuReglement(booking)), 0);
 
@@ -4367,7 +4377,7 @@ export const adminForceComplete = async (req, res) => {
       }
       amount = parsed;
     }
-    const commRate = await resolveCommissionRate(cleCommission(booking), booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner || booking.part?.owner);
+    const commRate = await tauxAuReglement(booking, booking.vehicle?.owner || booking.driver?.owner || booking.activity?.owner || booking.part?.owner);
 
     booking.status           = "completed";
     booking.isPaid           = true;

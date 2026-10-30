@@ -17,6 +17,10 @@ const GRILLE = {
   piece: 0.05, piece_import: 0.07, chauffeur: 0.10, activite: 0.10,
 };
 
+// Fondateur actif : même grille, SAUF la pièce à l'export, maintenue à 5 %
+// (hausse 5 → 7 % suspendue le 2026-10-30 pendant la vérification des contrats).
+const GRILLE_FONDATEUR = { ...GRILLE, piece_import: 0.05 };
+
 const abonnePremium = async () => {
   const partenaire = await createUser({ role: "partenaire" });
   await Subscription.create({
@@ -81,14 +85,15 @@ describe("Grille de commissions", () => {
     }
   });
 
-  it("un Founding Partner paie la même grille, et jamais plus", async () => {
+  it("un Founding Partner paie la même grille, et jamais plus (pièce export maintenue à 5 %)", async () => {
     const p = await createUser({ role: "partenaire" });
     await PartnerOnboarding.create({
       userId: p._id, isFoundingPartner: true, legalEntityType: "entreprise",
       commissions: { lockedAt: new Date() },
     });
-    for (const [type, taux] of Object.entries(GRILLE)) {
+    for (const [type, taux] of Object.entries(GRILLE_FONDATEUR)) {
       expect(await resolveCommissionRate(type, p._id), type).toBe(taux);
+      expect(taux).toBeLessThanOrEqual(GRILLE[type]);
     }
   });
 
@@ -135,7 +140,7 @@ describe("Migration vers la grille unique", () => {
 
     for (const [type, taux] of Object.entries(GRILLE)) {
       expect(await resolveCommissionRate(type, standardP._id), type).toBe(taux);
-      expect(await resolveCommissionRate(type, fondateur._id), `fondateur ${type}`).toBe(taux);
+      expect(await resolveCommissionRate(type, fondateur._id), `fondateur ${type}`).toBe(GRILLE_FONDATEUR[type]);
     }
     const cfg = await PricingConfig.findOne({ key: "global" }).lean();
     expect(cfg.commissions.standard.leasing).toBe(0.06);

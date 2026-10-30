@@ -1596,7 +1596,9 @@ const CLES_GRILLE = ["location", "vente", "import_export", "chauffeur", "activit
 function grilleFondateurIdentique(config, tier) {
   const fp = config.foundingPartner?.[tier] || {};
   const std = config.commissions?.standard || {};
-  return CLES_GRILLE.every((k) => fp[k] == null || fp[k] === std[k]);
+  // Pièces détachées : taux fondateur cités tels quels dans le texte (la hausse
+  // 5 → 7 % de l'export y est suspendue depuis le 2026-10-30).
+  return CLES_GRILLE.filter((k) => !k.startsWith("piece")).every((k) => fp[k] == null || fp[k] === std[k]);
 }
 
 export async function generateLOI(doc, user, date) {
@@ -1626,7 +1628,7 @@ export async function generateLOI(doc, user, date) {
   const std          = config.commissions.standard;
   const lignesCommission = grilleFondateurIdentique(config, loiTier)
     ? `  ✓  Commission Grid ................... same grid as every VIT-AUTO partner, charged only on completed transactions:
-                                         rental, driver and leisure ${pctTexte(std.location)} · sales ${pctTexte(std.vente)} · export sales ${pctTexte(std.import_export)} · spare parts ${pctTexte(std.piece ?? 0.05)} (export ${pctTexte(std.piece_import ?? 0.07)})`
+                                         rental, driver and leisure ${pctTexte(std.location)} · sales ${pctTexte(std.vente)} · export sales ${pctTexte(std.import_export)} · spare parts ${pctTexte(fpRate.piece ?? std.piece ?? 0.05)} (export ${pctTexte(fpRate.piece_import ?? std.piece_import ?? 0.07)})`
     : `  ✓  Rental Commission ................. ${pctTexte(fpRate.location)} for ${fpDuration} months, then standard rate (${stdLocation}%)
   ✓  Sales Commission .................. ${pctTexte(fpRate.vente)} for ${fpDuration} months, then standard rate (${stdVente}%)
   ✓  Driver Commission ................. ${doc.commissions?.chauffeur || 10}%`;

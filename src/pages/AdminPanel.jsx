@@ -1469,7 +1469,13 @@ export default function AdminPanel() {
         method: "PATCH", headers, body: JSON.stringify(payload),
       });
       const d = await r.json().catch(() => null);
-      if (r.ok) { showToast("Configuration enregistrée."); setBizConfig(d.config); }
+      // Commissions / grille fondateur (2026-10-30) : le serveur programme une
+      // version (202, préavis) au lieu d'appliquer — son message le dit, et la
+      // grille en vigueur est rechargée telle quelle.
+      if (r.ok) {
+        showToast(d?.message || "Configuration enregistrée.");
+        if (d?.config) setBizConfig(d.config); else loadBusinessConfig();
+      }
       else showToast(d?.message || "Erreur", "error");
     } catch { showToast("Erreur réseau", "error"); }
     finally { setBizSaving(null); }
@@ -6852,8 +6858,11 @@ export default function AdminPanel() {
                     </div>
                     <button className={styles.btnApprove} style={{ marginTop: 8 }} disabled={bizSaving === "commissions"}
                       onClick={() => savePricingSection("commissions", commissionsForm)}>
-                      {bizSaving === "commissions" ? "…" : "💾 Enregistrer les commissions"}
+                      {bizSaving === "commissions" ? "…" : "📅 Programmer la modification"}
                     </button>
+                    <p style={{ fontSize: ".76rem", color: "#64748b", margin: "6px 0 0" }}>
+                      Préavis : la nouvelle grille est notifiée aux partenaires et s'applique dans 30 jours, aux transactions créées à partir de cette date. Les transactions existantes gardent leur taux.
+                    </p>
                   </div>
 
                   <div className={styles.chartCard}>
@@ -6886,13 +6895,13 @@ export default function AdminPanel() {
                     </div>
                     <button className={styles.btnApprove} style={{ marginTop: 8 }} disabled={bizSaving === "foundingPartner"}
                       onClick={() => savePricingSection("foundingPartner", foundingForm)}>
-                      {bizSaving === "foundingPartner" ? "…" : "💾 Enregistrer l'offre fondateur"}
+                      {bizSaving === "foundingPartner" ? "…" : "📅 Programmer la modification (préavis 30 j)"}
                     </button>
                   </div>
 
                   <div className={styles.chartCard}>
-                    <h3 className={styles.chartTitle}>🧾 Frais de service client</h3>
-                    <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#64748b" }}>max(minimum, montant × %), plafonné au maximum.</p>
+                    <h3 className={styles.chartTitle}>🧾 Frais de service client — suspendus</h3>
+                    <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#64748b" }}>Suspendus depuis le 30/10/2026 (nature, payeur et montant à valider) : aucun frais n'est appliqué, quel que soit le barème ci-dessous, conservé pour mémoire.</p>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, maxWidth: 460 }}>
                       <div>
                         <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Minimum ($)</label>
@@ -6919,8 +6928,8 @@ export default function AdminPanel() {
 
                   {importFeeForm && (
                     <div className={styles.chartCard}>
-                      <h3 className={styles.chartTitle}>🌍 Frais de l'estimateur d'import</h3>
-                      <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#64748b" }}>Distinct de la commission Import/Export ci-dessus — facturé à l'acheteur pour l'estimation de coût d'import (server/services/importCostEngine.js).</p>
+                      <h3 className={styles.chartTitle}>🌍 Frais de l'estimateur d'import — suspendus</h3>
+                      <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#64748b" }}>Suspendus depuis le 30/10/2026 : ils s'ajoutaient au total de l'acheteur en plus de la commission exportateur. Aucun frais n'est appliqué ; barème conservé pour mémoire.</p>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, maxWidth: 460 }}>
                         <div>
                           <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Minimum ($)</label>

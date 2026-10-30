@@ -9,6 +9,8 @@ const financeOnly = [authenticate, authorizeAdmin, requireAdminScope("finance")]
 
 // ── PricingConfig (commissions, abonnements, boosts, frais de service, services, pubs) ──
 router.get   ("/pricing",           ...financeOnly, bc.getPricingConfig);
+router.get   ("/pricing/grilles",              ...financeOnly, bc.listerVersionsGrille);
+router.patch ("/pricing/grilles/:id/annuler", vid, ...financeOnly, bc.annulerVersionGrille);
 router.patch ("/pricing/:section",  ...financeOnly, bc.updatePricingSection);
 
 // ── ExchangeRate ──────────────────────────────────────────────────────────

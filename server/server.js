@@ -658,11 +658,25 @@ async function runStartupMigrations() {
       // encore l'ancienne grille et l'emporte sur les valeurs par défaut — sans
       // cette migration, le code annoncerait 10 % et la base facturerait 15 %.
       // Seules les clés du barème sont écrites (leasing et le reste du document
-      // sont conservés). Les réservations déjà créées gardent le taux figé à
-      // leur création (Booking.commissionRate) : rien n'est recalculé.
+      // sont conservés). NB : le taux était en fait recalculé au règlement —
+      // corrigé le 2026-10-30 (Booking.commissionFigee, ci-dessous).
       await runOnceMigration("grille-commissions-unique-2026-10-27", async () => {
         const { appliquerGrilleUnique } = await import("./scripts/setCommissionRates.mjs");
         await appliquerGrilleUnique();
+      });
+
+      // Préavis et grille versionnée (exploitant, 2026-10-30) — DANS CET ORDRE :
+      // 1. les réservations ouvertes créées sous la grille du 27/10 gardent leur
+      //    taux (jusqu'ici, il était recalculé au règlement) ;
+      // 2. la hausse 5 % → 7 % de la pièce à l'export est suspendue pour les
+      //    fondateurs, pour les nouvelles transactions seulement.
+      await runOnceMigration("taux-conserves-reservations-ouvertes-2026-10-30", async () => {
+        const { conserverTauxReservationsOuvertes } = await import("./scripts/preavisGrille.mjs");
+        await conserverTauxReservationsOuvertes();
+      });
+      await runOnceMigration("suspension-hausse-piece-export-fondateurs-2026-10-30", async () => {
+        const { suspendreHaussePieceExportFondateurs } = await import("./scripts/preavisGrille.mjs");
+        await suspendreHaussePieceExportFondateurs();
       });
 
       // Comptes administrateurs vérifiés d'office (exploitant, 2026-10-09) :
