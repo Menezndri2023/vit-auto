@@ -286,8 +286,8 @@ async function importExport(browser) {
   if (dossierTx.etape !== "livre") throw new Error(`dossier d'import à l'étape ${dossierTx.etape}, attendu livre`);
   ok("dossier d'import lié à la réservation, mené jusqu'à « Livré » par la transaction");
   const recu = await client(`/api/import-export/transactions/${tx._id}/receipt`);
-  // Règlement direct : VIT AUTO n'a rien encaissé, elle ne délivre donc aucun reçu de paiement.
-  if (recu.status !== 409) journal.push(`[client] reçu de paiement délivré alors que VIT AUTO n'a rien encaissé : ${recu.status}`);
+  // Règlement direct confirmé par l'exportateur : attestation de règlement (pas un reçu VIT AUTO).
+  if (recu.status !== 200 || !/pdf/.test(recu.raw.headers.get("content-type") || "")) journal.push(`[client] attestation de règlement indisponible : ${recu.status}`);
   ok(`documents joints → expédiée (CMA CGM) → aucune libération de fonds (503) → livrée, clôturée (statut ${detail.status})`);
   // 7. Tableau de bord client IE rendu.
   await page.goto(`${BASE}/import-export/dashboard`, { waitUntil: "networkidle", timeout: 60000 });

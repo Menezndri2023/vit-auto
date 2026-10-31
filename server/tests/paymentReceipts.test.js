@@ -84,4 +84,35 @@ describe("Reçus de paiement génériques", () => {
     await getTransactionReceipt(req, res);
     expect(res.statusCode).toBe(403);
   });
+
+  // Séquestre fermé (2026-10-30) : un règlement direct RÉEL, confirmé par
+  // l'exportateur, ouvre une attestation de règlement ; une simple déclaration non.
+  it("import/export en règlement direct : rien tant que l'exportateur n'a pas confirmé", async () => {
+    const client = await createUser();
+    const tx = await createIETransaction({
+      client: client._id, status: "payment_pending",
+      reglementDirect: { declareParAcheteurLe: new Date(), referenceAcheteur: "SWIFT-42" },
+    });
+
+    const { req, res } = mockReqRes({ user: client, params: { id: tx._id.toString() } });
+    await getTransactionReceipt(req, res);
+    expect(res.statusCode).toBe(409);
+    expect(res.body.message).toMatch(/pas encore confirmé par l'exportateur/);
+  });
+
+  it("import/export en règlement direct confirmé : attestation PDF pour l'acheteur et l'exportateur", async () => {
+    const client = await createUser();
+    const partner = await createUser({ role: "partenaire" });
+    const tx = await createIETransaction({
+      client: client._id, partner: partner._id, status: "preparing",
+      finalOffer: { totalAmount: 25000, currency: "EUR", vehiclePrice: 25000 },
+      reglementDirect: { declareParAcheteurLe: new Date(), referenceAcheteur: "SWIFT-42", confirmeParExportateurLe: new Date() },
+    });
+
+    for (const user of [client, partner]) {
+      const { req, res } = mockReqRes({ user, params: { id: tx._id.toString() } });
+      await getTransactionReceipt(req, res);
+      expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "application/pdf");
+    }
+  });
 });

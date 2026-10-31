@@ -1710,27 +1710,57 @@ export const getTransactionById = async (req, res) => {
   }
 };
 
-// GET /api/import-export/transactions/:id/receipt — reçu PDF du paiement escrow
-// Aucun reçu n'existait pour un paiement Import/Export (acompte ou solde) —
-// même manque que l'assurance/service. Trouvé en audit.
+// GET /api/import-export/transactions/:id/receipt — justificatif PDF d'un paiement RÉEL :
+// - payé via VIT AUTO (séquestre, ou paiement en ligne une fois activé) → reçu de paiement ;
+// - réglé en direct et confirmé par l'exportateur (séquestre fermé, 2026-10-30) →
+//   attestation de règlement : bénéficiaire = l'exportateur, VIT AUTO n'a rien encaissé.
+// Aucun document tant que le paiement n'est pas confirmé (une simple déclaration de
+// l'acheteur ne suffit pas).
 export const getTransactionReceipt = async (req, res) => {
   try {
     const tx = await IETransaction.findById(req.params.id)
       .populate("listing", "title make model year")
-      .populate("client", "firstName lastName email");
+      .populate("client", "firstName lastName email")
+      .populate("partner", "firstName lastName business.companyName");
     if (!tx) return res.status(404).json({ message: "Transaction introuvable." });
 
-    const isClient = tx.client._id.toString() === req.user._id.toString();
-    if (!isClient && req.user.role !== "admin") {
+    const moi = req.user._id.toString();
+    const isClient = tx.client._id.toString() === moi;
+    const isPartner = tx.partner?._id?.toString() === moi;
+    if (!isClient && !isPartner && req.user.role !== "admin") {
       return res.status(403).json({ message: "Accès refusé." });
     }
-    if (!tx.payment?.paidAt) return res.status(409).json({ message: "Aucun paiement confirmé pour cette transaction." });
+    const reglementDirect = !tx.payment?.paidAt && tx.reglementDirect?.confirmeParExportateurLe;
+    if (!tx.payment?.paidAt && !reglementDirect) {
+      return res.status(409).json({ message: tx.reglementDirect?.declareParAcheteurLe
+        ? "Règlement déclaré mais pas encore confirmé par l'exportateur : le justificatif sera disponible après sa confirmation."
+        : "Aucun paiement confirmé pour cette transaction." });
+    }
 
-    generateGenericReceiptPDF({
+    const commun = {
       reference:   `VIT-IE-${tx._id.toString().slice(-8).toUpperCase()}`,
       title:       `Import/Export — ${tx.listing?.title || `${tx.listing?.make || ""} ${tx.listing?.model || ""}`.trim()}`,
       clientName:  `${tx.client.firstName} ${tx.client.lastName}`,
       clientEmail: tx.client.email,
+    };
+    if (reglementDirect) {
+      const exportateur = tx.partner?.business?.companyName || `${tx.partner?.firstName || ""} ${tx.partner?.lastName || ""}`.trim() || "l'exportateur";
+      return generateGenericReceiptPDF({
+        ...commun,
+        titreDocument:   "ATTESTATION DE RÈGLEMENT",
+        amount:          tx.payment?.amount ?? tx.finalOffer?.totalAmount,
+        currency:        tx.payment?.amount != null ? tx.payment.currency : (tx.finalOffer?.currency || tx.payment?.currency),
+        paidAt:          tx.reglementDirect.confirmeParExportateurLe,
+        method:          "Règlement direct à l'exportateur",
+        referencePayeur: tx.reglementDirect.referenceAcheteur,
+        beneficiaire:    exportateur,
+        description:     "Règlement déclaré par l'acheteur et confirmé par l'exportateur",
+        mention:         `VIT AUTO n'a ni reçu ni détenu ces fonds : le règlement a été effectué directement auprès de ${exportateur}, qui en a confirmé la réception le ${new Date(tx.reglementDirect.confirmeParExportateurLe).toLocaleDateString("fr-FR")}. Ce document reprend cette confirmation ; il ne vaut ni facture ni reçu d'encaissement de VIT AUTO.`,
+      }, res);
+    }
+
+    generateGenericReceiptPDF({
+      ...commun,
       amount:      tx.payment.amount,
       currency:    tx.payment.currency,
       paidAt:      tx.payment.paidAt,

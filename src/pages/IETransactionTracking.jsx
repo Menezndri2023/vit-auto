@@ -1160,9 +1160,9 @@ export default function IETransactionTracking() {
               {tx.payment?.escrowRef && (
                 <p className={styles.escrowRef}>Réf. paiement (ancien flux) : {tx.payment.escrowRef}</p>
               )}
-              {/* Reçu de paiement — jusqu'ici aucun reçu n'existait pour un paiement
-                  Import/Export, contrairement aux bookings location/vente/essai. */}
-              {role === "client" && tx.payment?.paidAt && (
+              {/* Justificatif d'un paiement réel : reçu si payé via VIT AUTO, attestation
+                  de règlement si réglé en direct et confirmé par l'exportateur. */}
+              {(role === "client" || role === "partner") && (tx.payment?.paidAt || tx.reglementDirect?.confirmeParExportateurLe) && (
                 <button
                   type="button"
                   style={{ marginTop: 8, background: "none", border: "none", color: "#6366f1", cursor: "pointer", textDecoration: "underline", fontSize: ".85rem", padding: 0 }}
@@ -1177,7 +1177,7 @@ export default function IETransactionTracking() {
                     URL.revokeObjectURL(url);
                   }}
                 >
-                  📥 Télécharger le reçu
+                  📥 {tx.payment?.paidAt ? "Télécharger le reçu" : "Télécharger l'attestation de règlement"}
                 </button>
               )}
             </div>

@@ -619,12 +619,14 @@ export function generateServiceInvoicePDFBuffer(invoice) {
 // ══════════════════════════════════════════════════════════════════════════════
 function drawGenericReceipt(doc, data) {
   const ref = data.reference || `VIT-REC-${Date.now()}`;
-  header(doc, "REÇU DE PAIEMENT", ref);
+  header(doc, data.titreDocument || "REÇU DE PAIEMENT", ref);
 
   section(doc, "Transaction");
   row(doc, "Référence",       ref);
   row(doc, "Date",            fmtDate(data.paidAt || new Date()));
   row(doc, "Mode de paiement", data.method || "—");
+  if (data.referencePayeur) row(doc, "Réf. du payeur", data.referencePayeur);
+  if (data.beneficiaire)    row(doc, "Bénéficiaire", data.beneficiaire);
   doc.moveDown();
 
   section(doc, "Client");
@@ -638,6 +640,8 @@ function drawGenericReceipt(doc, data) {
   doc.moveDown();
 
   bandeau(doc, { hauteur: 40, taille: 14, gauche: "MONTANT PAYÉ :", droite: fmtAmount(data.amount, data.currency) });
+
+  if (data.mention) { doc.moveDown(); doc.fontSize(9).fillColor("#555").text(data.mention); doc.fillColor("#000"); }
 
   footer(doc);
 }

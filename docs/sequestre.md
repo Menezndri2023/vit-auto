@@ -27,6 +27,10 @@ contrat, hors de la plateforme.
 - Un achat direct non validé par l'équipe ne peut pas être déclaré réglé.
 - Livraison confirmée par l'acheteur → `completed` (aucun `funds_released`, aucun versement).
 - Historique : « aucun fonds détenu ni vérifié par VIT AUTO ».
+- Justificatif (`GET …/receipt`, acheteur, exportateur ou admin) : dès la confirmation de
+  l'exportateur, **attestation de règlement** (bénéficiaire = l'exportateur, mention « VIT AUTO
+  n'a ni reçu ni détenu ces fonds ») ; avant, 409. Un paiement passé par VIT AUTO (`paidAt`,
+  séquestre ou paiement en ligne une fois activé) garde son **reçu de paiement**.
 
 ## Données existantes
 
