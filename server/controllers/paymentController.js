@@ -1,4 +1,4 @@
-import { paiementsOuverts, PAYMENTS_DISABLED_MESSAGE } from "../config/featureFlags.js";
+import { paiementsOuverts, PAYMENTS_DISABLED_MESSAGE, encaissementPourTiersOuvert, ENCAISSEMENT_TIERS_MESSAGE } from "../config/featureFlags.js";
 import crypto from "crypto";
 import logger from "../utils/logger.js";
 import Payment from "../models/Payment.js";
@@ -208,6 +208,12 @@ export const initiatePayment = async (req, res) => {
     // n'est pas ouvert — il le permettait jusqu'au 2026-10-30.
     if (!paiementsOuverts()) {
       return res.status(503).json({ code: "PAYMENTS_DISABLED", message: PAYMENTS_DISABLED_MESSAGE });
+    }
+    // Toutes les cibles de cette route (réservation, devis de service, prime
+    // d'assurance) sont dues à un tiers : refusé tant que l'encaissement pour
+    // compte de tiers n'est pas validé (config/featureFlags.js). Aucun Payment créé.
+    if (!encaissementPourTiersOuvert()) {
+      return res.status(503).json({ code: "ENCAISSEMENT_TIERS_SUSPENDU", message: ENCAISSEMENT_TIERS_MESSAGE });
     }
     const { bookingId, serviceRequestId, insuranceRequestId, method } = req.body;
     if (!ONLINE_METHODS.includes(method)) {

@@ -86,7 +86,9 @@ export const ETAPES = [
   { code: "recherche_vehicule", libelle: "Recherche du véhicule" },
   { code: "vehicule_reserve",   libelle: "Véhicule réservé" },
   { code: "inspection",         libelle: "Inspection avant départ" },
-  { code: "paiement_sequestre", libelle: "Paiement sous séquestre" },
+  // Code historique conservé (dossiers existants) ; libellé neutre depuis la
+  // fermeture du séquestre (2026-10-30) : VIT AUTO ne détient aucun fonds.
+  { code: "paiement_sequestre", libelle: "Règlement du véhicule" },
   { code: "preparation_export", libelle: "Préparation à l'export",          transit: true },
   { code: "embarque",           libelle: "Embarqué (connaissement émis)",   transit: true },
   { code: "en_mer",             libelle: "En mer",                          transit: true },

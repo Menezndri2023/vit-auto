@@ -18,11 +18,11 @@ export default {
 
   "pourquoi.metaTitle": { fr: "Pourquoi VIT AUTO", en: "Why VIT AUTO", ar: "لماذا VIT AUTO", es: "Por qué VIT AUTO", zh: "为什么选择 VIT AUTO" },
   "pourquoi.metaDesc": {
-    fr: "Contrats digitaux, identités vérifiées, paiement séquestré, livraison GPS : ce qui distingue VIT AUTO d'une petite annonce automobile.",
-    en: "Digital contracts, verified identities, escrow payment, GPS delivery: what sets VIT AUTO apart from a classified ad.",
-    ar: "عقود رقمية وهويات موثّقة ودفع بضمان وتوصيل بـ GPS: ما يميّز VIT AUTO عن إعلان مبوّب عادي.",
-    es: "Contratos digitales, identidades verificadas, pago en depósito, entrega GPS: lo que distingue a VIT AUTO de un anuncio clasificado.",
-    zh: "电子合同、身份认证、资金托管、GPS 配送：VIT AUTO 与普通分类广告的区别所在。",
+    fr: "Contrats digitaux, identités vérifiées, paiement sécurisé, livraison GPS : ce qui distingue VIT AUTO d'une petite annonce automobile.",
+    en: "Digital contracts, verified identities, secure payment, GPS delivery: what sets VIT AUTO apart from a classified ad.",
+    ar: "عقود رقمية وهويات موثّقة ودفع آمن وتوصيل بـ GPS: ما يميّز VIT AUTO عن إعلان مبوّب عادي.",
+    es: "Contratos digitales, identidades verificadas, pago seguro, entrega GPS: lo que distingue a VIT AUTO de un anuncio clasificado.",
+    zh: "电子合同、身份认证、安全支付、GPS 配送：VIT AUTO 与普通分类广告的区别所在。",
   },
   "pourquoi.badge": { fr: "🌍 PLATEFORME AUTOMOBILE MONDIALE", en: "🌍 GLOBAL AUTOMOTIVE PLATFORM", ar: "🌍 منصة سيارات عالمية", es: "🌍 PLATAFORMA AUTOMOTRIZ MUNDIAL", zh: "🌍 全球汽车平台" },
   "pourquoi.h1": { fr: "Pourquoi choisir VIT AUTO ?", en: "Why choose VIT AUTO?", ar: "لماذا تختار VIT AUTO؟", es: "¿Por qué elegir VIT AUTO?", zh: "为什么选择 VIT AUTO？" },

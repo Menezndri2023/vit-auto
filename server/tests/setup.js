@@ -22,6 +22,10 @@ process.env.PAYMENTS_ENABLED ||= "true";
 // 2026-10-30 : les tests de l'ancien flux restent exécutables ; l'état fermé
 // est couvert par tests/sequestreSuspendu.test.js (etatSequestre.actif = false).
 process.env.IE_ESCROW_ENABLED ||= "true";
+// Encaissement pour compte de tiers, FERMÉ en production depuis le 2026-10-31 :
+// les tests du parcours de paiement en ligne restent exécutables ; l'état
+// fermé est couvert par tests/encaissementTiers.test.js.
+process.env.ENCAISSEMENT_TIERS_AUTORISE ||= "true";
 
 // Un test qui importe server.js (voir tests/http.*.test.js) déclenche
 // dotenv.config(), qui charge server/.env — dotenv ne réécrit jamais une

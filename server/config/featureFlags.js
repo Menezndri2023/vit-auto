@@ -29,6 +29,21 @@ export const SEQUESTRE_IE_ACTIF = process.env.IE_ESCROW_ENABLED === "true";
 export const SEQUESTRE_SUSPENDU_MESSAGE =
   "VIT AUTO ne reçoit ni ne conserve les fonds des transactions Import/Export. Réglez l'exportateur directement, selon votre contrat, puis déclarez le règlement sur la transaction.";
 
+// ENCAISSEMENT POUR COMPTE DE TIERS — FERMÉ (décision de l'exploitant, 2026-10-31).
+// Les prestataires branchés (Stripe, Wave, Orange Money, PayDunya) créditent le
+// compte marchand de VIT AUTO : encaisser une réservation, un devis de service ou
+// une prime d'assurance revient à détenir l'argent d'un partenaire, d'un
+// prestataire ou d'un assureur avant de le lui reverser. Interdit tant qu'un
+// prestataire habilité (séquestre ou versement direct au vendeur) et son montage
+// juridique ne sont pas validés — voir docs/import-export-paiement-securise.md.
+// PAYMENTS_ENABLED seul ne suffit donc plus pour POST /api/payments/initiate ; il
+// couvre toujours les revenus propres de VIT AUTO (abonnements, boosts). Relu à
+// chaque appel ; une variable absente laisse l'encaissement FERMÉ.
+export const encaissementPourTiersOuvert = () => process.env.ENCAISSEMENT_TIERS_AUTORISE === "true";
+
+export const ENCAISSEMENT_TIERS_MESSAGE =
+  "Le paiement en ligne n'est pas encore disponible pour cette transaction : VIT AUTO prépare une solution de paiement sécurisé avec un prestataire adapté. Les modalités de paiement applicables sont précisées avant la confirmation.";
+
 // Message unique renvoyé au client comme affiché dans l'interface : il doit
 // dire QUOI faire, pas seulement que c'est indisponible.
 export const PAYMENTS_DISABLED_MESSAGE =

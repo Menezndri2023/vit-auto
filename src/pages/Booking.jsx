@@ -55,6 +55,8 @@ const PAYMENT_METHODS = [
   { value: "card",         label: "booking.paymentCard",     icon: "💳", mobile: false, translate: true },
   { value: "cash",         label: "booking.paymentCash",     icon: "💵", mobile: false, translate: true },
 ];
+// Moyens encaissés en ligne par un prestataire (voir server/services/payment/gateway.js).
+const METHODES_EN_LIGNE = ["card", "orange_money", "wave"];
 
 // Conditions particulières du partenaire. Composant défini au niveau du module,
 // pas dans le rendu : un composant recréé à chaque rendu est démonté puis
@@ -356,6 +358,25 @@ export default function Booking() {
   useEffect(() => {
     if (!isTrial && !isLeasing) setPayMethod("cash");
   }, [isTrial, isLeasing]);
+
+  // Paiement en ligne (carte, Orange Money, Wave) proposé seulement si le serveur
+  // l'accepte : paiements ouverts ET encaissement pour compte de tiers autorisé
+  // (server/config/featureFlags.js, lus via GET /api/pricing/config). Fermé tant
+  // que la config n'a pas répondu — le serveur refuserait de toute façon.
+  const [paiementEnLigne, setPaiementEnLigne] = useState(false);
+  useEffect(() => {
+    let actif = true;
+    fetch("/api/pricing/config").then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (actif && d) setPaiementEnLigne(!!(d.paymentsEnabled && d.encaissementTiers)); })
+      .catch(() => {});
+    return () => { actif = false; };
+  }, []);
+  useEffect(() => {
+    if (paiementEnLigne || !METHODES_EN_LIGNE.includes(payMethod)) return;
+    const pays = getPaymentMethodsForCountry(vehicle?.country || catalogCountry || countryCode);
+    const repli = PAYMENT_METHODS.find((pm) => !METHODES_EN_LIGNE.includes(pm.value) && (!pays || pays.includes(pm.value)));
+    setPayMethod(repli?.value || "cash");
+  }, [paiementEnLigne, payMethod, vehicle?.country, catalogCountry, countryCode, getPaymentMethodsForCountry]);
 
   /* ── Infos partenaire ──────────────────────────────────────────── */
   const agencyName    = vehicle?.contactNom  || vehicle?.ownerName  || "Partenaire VIT AUTO";
@@ -811,11 +832,12 @@ export default function Booking() {
   // Le périmètre vit dans src/constants/paiement.js, miroir du serveur : il
   // couvrait la seule location, et les activités de loisir y échappaient.
   const isRentalOnly = especesUniquement(isTrial ? "essai" : isLeasing ? "leasing" : "location");
-  const visiblePaymentMethods = isRentalOnly
+  const visiblePaymentMethods = (isRentalOnly
     ? PAYMENT_METHODS.filter((pm) => pm.value === "cash")
     : allowedPaymentMethods
       ? PAYMENT_METHODS.filter((pm) => allowedPaymentMethods.includes(pm.value))
-      : PAYMENT_METHODS;
+      : PAYMENT_METHODS
+  ).filter((pm) => paiementEnLigne || !METHODES_EN_LIGNE.includes(pm.value));
 
   return (
     <div className={styles.page}>

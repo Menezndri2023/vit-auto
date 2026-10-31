@@ -568,7 +568,7 @@ export const adminValidateDirectPurchase = async (req, res) => {
     // l'admin (contrôle conservé avec le séquestre, décision de l'exploitant).
     dispatch.nouvelleDemandePartenaire(tx.partner, {
       demande:   "un achat direct",
-      detail:    `« ${tx.listing?.title || "votre annonce"} » au prix affiché — paiement sous séquestre en attente`,
+      detail:    `« ${tx.listing?.title || "votre annonce"} » au prix affiché — règlement en attente`,
       reference: tx._id.toString().slice(-8).toUpperCase(),
     }).catch(nonBloquant("ieTransactionController"));
     await notify(tx.client, "ie_direct_purchase_approved", "Achat direct validé !",

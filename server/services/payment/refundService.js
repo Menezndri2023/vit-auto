@@ -8,6 +8,7 @@ import Notification from "../../models/Notification.js";
 import logger from "../../utils/logger.js";
 import * as stripeProvider from "./providers/stripeProvider.js";
 import * as waveProvider from "./providers/waveProvider.js";
+import { encaissementPourTiersOuvert } from "../../config/featureFlags.js";
 
 // Import dynamique pour éviter un cycle (paymentController.js pourrait un
 // jour appeler ce service directement) — même pattern que
@@ -37,6 +38,14 @@ const AUTOMATIC_PROVIDERS = {
  */
 export async function refundPayment({ paymentId, amount, reason, actorId = null, actorType = "SYSTEM" }) {
   if (!paymentId) return { ok: false, message: "Aucun paiement associé." };
+  // Aucune décision AUTOMATIQUE de remboursement tant que l'encaissement pour
+  // compte de tiers est fermé (exploitant, 2026-10-31) : une annulation par le
+  // client ou le partenaire ne rembourse plus d'elle-même ; elle signale le cas
+  // (refund_needed) et l'équipe décide (refundPaymentAdmin, acteur ADMIN). Le
+  // paiement n'est pas touché.
+  if (actorType !== "ADMIN" && !encaissementPourTiersOuvert()) {
+    return { ok: false, decisionRequise: true, message: "Remboursement à décider par l'équipe VIT AUTO." };
+  }
 
   const payment = await Payment.findById(paymentId);
   if (!payment) return { ok: false, message: "Paiement introuvable." };

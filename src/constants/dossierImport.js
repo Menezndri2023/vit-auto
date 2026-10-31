@@ -18,7 +18,7 @@ export const ETAPES = [
   { code: "recherche_vehicule", libelle: "Recherche du véhicule",         icone: "🔎" },
   { code: "vehicule_reserve",   libelle: "Véhicule réservé",              icone: "🚗" },
   { code: "inspection",         libelle: "Inspection avant départ",       icone: "🛠️" },
-  { code: "paiement_sequestre", libelle: "Paiement sous séquestre",       icone: "🔐" },
+  { code: "paiement_sequestre", libelle: "Règlement du véhicule",         icone: "💳" },
   { code: "preparation_export", libelle: "Préparation à l'export",        icone: "📋" },
   { code: "embarque",           libelle: "Embarqué",                      icone: "🚢" },
   { code: "en_mer",             libelle: "En mer",                        icone: "🌊" },

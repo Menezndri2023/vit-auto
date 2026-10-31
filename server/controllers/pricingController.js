@@ -1,5 +1,5 @@
 import logger from "../utils/logger.js";
-import { PAYMENTS_ENABLED, SEQUESTRE_IE_ACTIF } from "../config/featureFlags.js";
+import { PAYMENTS_ENABLED, SEQUESTRE_IE_ACTIF, encaissementPourTiersOuvert } from "../config/featureFlags.js";
 import { getActiveRates, getActiveCountries } from "../services/currencyEngine.js";
 import { getConfig } from "../services/pricingEngine.js";
 
@@ -55,6 +55,9 @@ export const getPublicConfig = async (_req, res) => {
       paymentsEnabled: PAYMENTS_ENABLED,
       // Séquestre Import/Export (désactivé) : l'interface affiche le règlement direct.
       sequestreIeActif: SEQUESTRE_IE_ACTIF,
+      // Encaissement pour compte de tiers (fermé) : sans lui, aucun paiement en
+      // ligne d'une réservation, d'un service ou d'une assurance n'aboutit.
+      encaissementTiers: encaissementPourTiersOuvert(),
     });
   } catch (err) {
     logger.error("getPublicConfig:", err);

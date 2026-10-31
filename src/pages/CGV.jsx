@@ -117,6 +117,12 @@ export default function CGV() {
           <Li><strong>Virement bancaire, mobile money (autre opérateur), cryptomonnaie ou espèces</strong> — le client déclare son paiement, qui est ensuite <strong>vérifié manuellement</strong> par un administrateur avant validation ; ce délai de vérification manuelle peut retarder la confirmation de quelques heures à quelques jours ouvrés</Li>
         </ul>
         <p style={{ marginTop: 10 }}>
+          Le paiement en ligne (carte bancaire, Orange Money, Wave) n'est <strong>pas encore ouvert</strong> : VIT AUTO
+          prépare une solution de paiement sécurisé avec un prestataire adapté. D'ici là, les modalités de paiement
+          applicables à chaque transaction sont précisées avant sa confirmation — notamment le règlement en espèces,
+          directement auprès du partenaire, pour la location, les loisirs, les chauffeurs et les pièces détachées.
+        </p>
+        <p style={{ marginTop: 10 }}>
           Pour les transactions Import/Export, l'acheteur règle <strong>directement</strong> l'exportateur, selon le contrat
           qui les lie. VIT AUTO ne reçoit, ne conserve, ne bloque ni ne garantit ces fonds : la plateforme enregistre
           uniquement les règlements déclarés par les parties et les documents de la transaction.
