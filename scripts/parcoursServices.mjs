@@ -262,34 +262,32 @@ async function importExport(browser) {
   attendu(await partner(`/api/import-export/transactions/${tx._id}/final-offer`, { method: "POST", body: { vehiclePrice: 25000, exportFees: 1200, shippingCost: 1800, insurance: 300, currency: "USD", estimatedDelay: "45 jours", notes: "CIF Abidjan" } }), 200, "offre finale");
   attendu(await client(`/api/import-export/transactions/${tx._id}/accept-offer`, { method: "PATCH" }), 200, "acceptation offre");
   ok("réservation confirmée → offre finale envoyée → acceptée par le client");
-  // 5. Paiement sous séquestre (virement déclaré), vérifié par l'admin.
-  attendu(await client(`/api/import-export/transactions/${tx._id}/pay`, { method: "POST", body: { method: "virement", transactionRef: "VIR-VERIF-2026-001" } }), 200, "déclaration de paiement");
-  attendu(await admin(`/api/import-export/transactions/${tx._id}/verify-payment`, { method: "PATCH" }), 200, "vérification paiement");
+  // 5. Séquestre fermé (décision du 2026-10-30) : le paiement via VIT AUTO est
+  //    refusé, l'acheteur règle l'exportateur directement et le déclare, l'exportateur confirme.
+  const viaSequestre = await client(`/api/import-export/transactions/${tx._id}/pay`, { method: "POST", body: { method: "virement", transactionRef: "VIR-VERIF-2026-001" } });
+  if (viaSequestre.status !== 503) throw new Error(`paiement sous séquestre accepté alors qu'il est fermé : ${viaSequestre.status}`);
+  attendu(await client(`/api/import-export/transactions/${tx._id}/reglement-direct`, { method: "POST", body: { reference: "VIR-VERIF-2026-001" } }), 200, "règlement direct déclaré");
+  attendu(await partner(`/api/import-export/transactions/${tx._id}/reglement-direct`, { method: "POST", body: { note: "Virement reçu." } }), 200, "règlement direct confirmé");
   let detail = attendu(await client(`/api/import-export/transactions/${tx._id}`), 200, "détail").transaction;
-  if (detail.status !== "in_escrow") throw new Error(`statut après vérification ${detail.status}, attendu in_escrow`);
-  ok("paiement déclaré (virement) → vérifié par l'admin → fonds sous séquestre");
-  // 6. Documents d'export (rapport d'inspection joint) → expédition → suivi → livraison → fonds libérés.
+  if (detail.status !== "preparing") throw new Error(`statut après confirmation ${detail.status}, attendu preparing`);
+  ok("séquestre refusé (503) → règlement direct déclaré par l'acheteur → confirmé par l'exportateur");
+  // 6. Documents d'export (rapport d'inspection joint) → expédition → suivi → livraison → clôture.
   const pdf = "data:application/pdf;base64," + Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF").toString("base64");
   attendu(await partner(`/api/import-export/transactions/${tx._id}/documents`, { method: "PATCH", body: { documents: { inspectionDocs: { status: "fourni", url: pdf }, commercialInvoice: { status: "fourni", url: pdf } } } }), 200, "documents");
   attendu(await partner(`/api/import-export/transactions/${tx._id}/ship`, { method: "PATCH", body: { carrier: "CMA CGM", trackingNumber: "CMAU-VERIF-1", shippingType: "maritime", departureDate: dateISO(3), estimatedArrival: dateISO(45) } }), 200, "expédition");
   attendu(await partner(`/api/import-export/transactions/${tx._id}/tracking`, { method: "PATCH", body: { currentStatus: "En mer — Méditerranée", location: "Gibraltar" } }), 200, "suivi");
-  // Règle du 2026-10-07 : l'exportateur est payé à l'EMBARQUEMENT, par l'admin
-  // seul, une fois le connaissement validé ; le client ne libère plus les fonds.
-  attendu(await partner(`/api/import-export/transactions/${tx._id}/documents`, { method: "PATCH", body: { documents: { billOfLading: { status: "fourni", url: pdf } } } }), 200, "connaissement");
-  attendu(await admin(`/api/import-export/transactions/${tx._id}/documents`, { method: "PATCH", body: { documents: { billOfLading: { status: "valide" } } } }), 200, "connaissement validé");
-  const parClient = await client(`/api/import-export/transactions/${tx._id}/release-funds`, { method: "PATCH" });
-  if (parClient.status !== 403) throw new Error(`le client a pu libérer les fonds : ${parClient.status}`);
-  attendu(await admin(`/api/import-export/transactions/${tx._id}/release-funds`, { method: "PATCH" }), 200, "versement exportateur à l'embarquement");
+  const liberation = await admin(`/api/import-export/transactions/${tx._id}/release-funds`, { method: "PATCH" });
+  if (liberation.status !== 503) throw new Error(`libération de fonds acceptée alors que VIT AUTO n'en détient aucun : ${liberation.status}`);
   attendu(await client(`/api/import-export/transactions/${tx._id}/deliver`, { method: "PATCH", body: { deliveryNotes: "Véhicule reçu conforme au port d'Abidjan." } }), 200, "livraison confirmée");
   detail = attendu(await client(`/api/import-export/transactions/${tx._id}`), 200, "détail final").transaction;
-  if (detail.status !== "funds_released") throw new Error(`statut final ${detail.status}, attendu funds_released`);
+  if (detail.status !== "completed") throw new Error(`statut final ${detail.status}, attendu completed`);
   const dossierTx = (attendu(await client("/api/dossiers-import/mes"), 200, "dossiers après livraison").dossiers || []).find((x) => x.source?.transaction === tx._id);
   if (!dossierTx) throw new Error("aucun dossier d'import lié à la réservation");
   if (dossierTx.etape !== "livre") throw new Error(`dossier d'import à l'étape ${dossierTx.etape}, attendu livre`);
   ok("dossier d'import lié à la réservation, mené jusqu'à « Livré » par la transaction");
   const recu = await client(`/api/import-export/transactions/${tx._id}/receipt`);
   if (recu.status !== 200) journal.push(`[client] reçu de transaction : ${recu.status}`);
-  ok(`documents joints → expédiée (CMA CGM) → connaissement validé → exportateur payé par l'admin (refusé au client) → livrée (statut ${detail.status})`);
+  ok(`documents joints → expédiée (CMA CGM) → aucune libération de fonds (503) → livrée, clôturée (statut ${detail.status})`);
   // 7. Tableau de bord client IE rendu.
   await page.goto(`${BASE}/import-export/dashboard`, { waitUntil: "networkidle", timeout: 60000 });
   if (!/Land Cruiser|CMAU-VERIF-1|transaction/i.test(await texte(page))) journal.push("[client] tableau de bord import/export sans la transaction");
