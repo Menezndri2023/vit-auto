@@ -55,8 +55,9 @@ describe("VIT-AUTO Logistique — écrans", () => {
     } });
     renderPage(<Logistique />, { route: "/logistique?commande=booking:c1", path: "/logistique" });
 
-    const choix = await screen.findByLabelText(/Rattacher à une de vos commandes/);
-    await screen.findByDisplayValue("Dakar");
+    // Écran paresseux : sous la suite complète, il dépasse le délai d'1 s par défaut.
+    const choix = await screen.findByLabelText(/Rattacher à une de vos commandes/, {}, { timeout: 5000 });
+    await screen.findByDisplayValue("Dakar", {}, { timeout: 5000 });
     expect(choix.value).toBe("booking:c1");
     expect(screen.getByDisplayValue("Casablanca")).toBeTruthy();
     expect(screen.getByDisplayValue("2 × Disques avant")).toBeTruthy();
