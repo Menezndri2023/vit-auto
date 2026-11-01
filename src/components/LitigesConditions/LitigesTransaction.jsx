@@ -3,8 +3,10 @@ import { useAuth } from "../../context/AuthContext";
 import styles from "./LitigesConditions.module.css";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Réclamations (litiges) d'une transaction Import/Export (2026-10-31)
+// Réclamations (litiges) d'une transaction (2026-10-31, étendu le 2026-11-01)
 // ═══════════════════════════════════════════════════════════════════════════
+// `type` : "ie" (Import/Export, ouverture ici), "reservation" ou "logistique"
+// (ouverture par l'écran existant : contestation, litige logistique).
 // Une réclamation ne change ni le statut de la transaction, ni le règlement,
 // ni la logistique, et ne bloque aucun fonds : l'écran ne le laisse jamais
 // entendre. L'équipe VIT AUTO l'instruit ; l'issue est une décision écrite.
@@ -46,7 +48,7 @@ function Litige({ litige, role, appeler }) {
     if (!f) return;
     if (!(f.type.startsWith("image/") || f.type === "application/pdf")) return appeler(null, null, "Formats acceptés : image ou PDF.");
     if (f.size > MAX_MO * 1024 * 1024) return appeler(null, null, `Fichier trop lourd (${MAX_MO} Mo au plus).`);
-    appeler(`/api/import-export/litiges/${litige._id}/pieces`, { nom: f.name, fichier: await lireFichier(f) });
+    appeler(`/api/litiges/${litige._id}/pieces`, { nom: f.name, fichier: await lireFichier(f) });
   };
   const exigeDecision = decision.vers === "resolved" || decision.vers === "rejected";
 
@@ -92,7 +94,7 @@ function Litige({ litige, role, appeler }) {
           </div>
           <div className={styles.actions}>
             <button type="button" className={styles.boutonSec} disabled={!texte.trim()}
-              onClick={() => { appeler(`/api/import-export/litiges/${litige._id}/messages`, { texte }); setTexte(""); }}>Envoyer</button>
+              onClick={() => { appeler(`/api/litiges/${litige._id}/messages`, { texte }); setTexte(""); }}>Envoyer</button>
             <label className={styles.boutonSec} style={{ position: "relative", overflow: "hidden" }}>
               Joindre une pièce (image ou PDF)
               <input type="file" accept="image/*,application/pdf" onChange={deposer} style={{ position: "absolute", width: 1, height: 1, opacity: 0 }} />
@@ -130,7 +132,7 @@ function Litige({ litige, role, appeler }) {
               <div className={`${styles.actions} ${styles.pleine}`}>
                 <button type="button" className={styles.bouton}
                   disabled={exigeDecision && (!decision.decision.trim() || !decision.justification.trim())}
-                  onClick={() => { appeler(`/api/import-export/litiges/${litige._id}/etat`, decision, null, "PATCH"); setDecision({ vers: null, decision: "", justification: "", note: "" }); }}>
+                  onClick={() => { appeler(`/api/litiges/${litige._id}/etat`, decision, null, "PATCH"); setDecision({ vers: null, decision: "", justification: "", note: "" }); }}>
                   Confirmer : {LIBELLE_ACTION[decision.vers]}
                 </button>
                 <button type="button" className={styles.boutonSec} onClick={() => setDecision({ vers: null, decision: "", justification: "", note: "" })}>Annuler</button>
@@ -143,7 +145,7 @@ function Litige({ litige, role, appeler }) {
   );
 }
 
-export default function LitigesTransaction({ txId, role, ouvrable }) {
+export default function LitigesTransaction({ txId, role, ouvrable, type = "ie" }) {
   const { token } = useAuth();
   const [litiges, setLitiges] = useState(null);
   const [form, setForm] = useState(null);
@@ -151,9 +153,10 @@ export default function LitigesTransaction({ txId, role, ouvrable }) {
   const [envoi, setEnvoi] = useState(false);
 
   const charger = useCallback(async () => {
-    const r = await fetch(`/api/import-export/transactions/${txId}/litiges`, { headers: { Authorization: `Bearer ${token}` } });
+    const url = type === "ie" ? `/api/import-export/transactions/${txId}/litiges` : `/api/litiges/cible/${type}/${txId}`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (r.ok) setLitiges((await r.json()).litiges || []);
-  }, [txId, token]);
+  }, [txId, token, type]);
   useEffect(() => { charger(); }, [charger]);
 
   // url null + message : erreur locale (fichier refusé avant envoi).
@@ -171,7 +174,7 @@ export default function LitigesTransaction({ txId, role, ouvrable }) {
 
   if (litiges === null) return null;
   const enCours = litiges.find((l) => l.etat !== "closed");
-  if (!litiges.length && !ouvrable) return null;
+  if (!litiges.length && !(ouvrable && type === "ie")) return null;
 
   return (
     <section className={styles.bloc} aria-labelledby="titre-litiges" aria-busy={envoi}>
@@ -180,9 +183,15 @@ export default function LitigesTransaction({ txId, role, ouvrable }) {
         Une réclamation est instruite par l'équipe VIT AUTO avec les deux parties. Elle ne modifie pas le suivi de la
         transaction et ne bloque aucun fonds.
       </p>
+      {type === "reservation" && role === "admin" && (
+        <p className={styles.note}>La suite de la réservation (validation, annulation, remboursement) se décide avec « Résoudre la contestation » ; cette décision clôt la réclamation.</p>
+      )}
+      {type === "logistique" && role === "admin" && (
+        <p className={styles.note}>La suite de la demande se décide par l'intervention logistique (clôture, reprise du transport, annulation) ; cette décision clôt la réclamation.</p>
+      )}
       {litiges.map((l) => <Litige key={l._id} litige={l} role={role} appeler={appeler} />)}
 
-      {ouvrable && !enCours && !form && (
+      {ouvrable && type === "ie" && !enCours && !form && (
         <div className={styles.actions}>
           <button type="button" className={styles.boutonSec} onClick={() => setForm({ motif: "non_conforme", description: "" })}>Ouvrir une réclamation</button>
         </div>

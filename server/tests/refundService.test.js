@@ -88,15 +88,24 @@ describe("refundService.refundPayment", () => {
     expect(second.message).toMatch(/remboursement impossible/);
   });
 
-  it("Wave : un remboursement partiel retombe en mode manuel (API Wave ne rembourse que l'intégralité)", async () => {
+  // Depuis le 2026-11-01, un remboursement manuel n'est enregistré qu'avec la
+  // référence de l'opération réellement effectuée : jamais « remboursé » sur la
+  // seule foi d'un clic.
+  it("Wave : un remboursement partiel retombe en mode manuel (API Wave ne rembourse que l'intégralité), avec preuve", async () => {
     const { payment } = await makePaidBooking({ method: "wave" });
-    const result = await refundPayment({ paymentId: payment._id, amount: 50 });
+    const sansPreuve = await refundPayment({ paymentId: payment._id, amount: 50 });
+    expect(sansPreuve).toMatchObject({ ok: false, preuveRequise: true });
+    expect((await Payment.findById(payment._id)).status).toBe("completed");
+
+    const result = await refundPayment({ paymentId: payment._id, amount: 50, preuve: { reference: "WAVE-REMB-77", effectueLe: "2026-10-30" } });
     expect(result.ok).toBe(true);
     expect(result.automatic).toBe(false);
     expect(waveProvider.refund).not.toHaveBeenCalled();
 
     const updated = await Payment.findById(payment._id);
     expect(updated.status).toBe("partially_refunded");
+    expect(updated.remboursements[0]).toMatchObject({ montant: 50, mode: "manuel", reference: "WAVE-REMB-77" });
+    expect(updated.remboursements[0].effectueLe.toISOString().slice(0, 10)).toBe("2026-10-30");
   });
 
   it("Wave : un remboursement intégral appelle bien le fournisseur", async () => {
@@ -106,25 +115,40 @@ describe("refundService.refundPayment", () => {
     expect(waveProvider.refund).toHaveBeenCalled();
   });
 
-  it("Orange Money / espèces restent toujours manuels mais le remboursement est bien enregistré", async () => {
+  it("Orange Money / espèces restent manuels : enregistrés seulement avec la référence de l'opération", async () => {
     const { payment } = await makePaidBooking({ method: "orange_money" });
-    const result = await refundPayment({ paymentId: payment._id });
+    expect(await refundPayment({ paymentId: payment._id, preuve: { reference: "   " } })).toMatchObject({ ok: false, preuveRequise: true });
+    expect(await refundPayment({ paymentId: payment._id, preuve: { reference: "OM-1", effectueLe: "2999-01-01" } })).toMatchObject({ ok: false });
+    expect((await Payment.findById(payment._id)).refundedAmount).toBe(0);
+
+    const result = await refundPayment({ paymentId: payment._id, preuve: { reference: "OM-REMB-2026-001" } });
     expect(result.ok).toBe(true);
     expect(result.automatic).toBe(false);
 
     const updated = await Payment.findById(payment._id);
     expect(updated.status).toBe("refunded");
     expect(updated.refundedAmount).toBe(200);
+    expect(updated.remboursements).toHaveLength(1);
+    expect(updated.remboursements[0]).toMatchObject({ mode: "manuel", reference: "OM-REMB-2026-001" });
   });
 
-  it("un échec de l'appel fournisseur retombe proprement en mode manuel (jamais de remboursement perdu)", async () => {
+  it("un échec de l'appel fournisseur n'enregistre RIEN ; l'admin enregistre ensuite son remboursement avec preuve", async () => {
     stripeProvider.refund.mockImplementationOnce(async () => { throw new Error("Réseau indisponible"); });
     const { payment } = await makePaidBooking();
     const result = await refundPayment({ paymentId: payment._id });
-    expect(result.ok).toBe(true);
-    expect(result.automatic).toBe(false);
+    expect(result).toMatchObject({ ok: false, preuveRequise: true });
+    expect((await Payment.findById(payment._id)).status).toBe("completed");
 
-    const updated = await Payment.findById(payment._id);
-    expect(updated.status).toBe("refunded");
+    stripeProvider.refund.mockImplementationOnce(async () => { throw new Error("Réseau indisponible"); });
+    const manuel = await refundPayment({ paymentId: payment._id, preuve: { reference: "VIR-SEPA-42" } });
+    expect(manuel).toMatchObject({ ok: true, automatic: false });
+    expect((await Payment.findById(payment._id)).remboursements[0]).toMatchObject({ mode: "manuel", reference: "VIR-SEPA-42" });
+  });
+
+  it("un remboursement automatique garde l'identifiant rendu par le prestataire", async () => {
+    const { payment } = await makePaidBooking();
+    const result = await refundPayment({ paymentId: payment._id });
+    expect(result).toMatchObject({ ok: true, automatic: true });
+    expect((await Payment.findById(payment._id)).remboursements[0]).toMatchObject({ mode: "automatique", reference: "re_test_123", montant: 200 });
   });
 });

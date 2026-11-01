@@ -9,6 +9,8 @@ import logger from "../../utils/logger.js";
 import * as stripeProvider from "./providers/stripeProvider.js";
 import * as waveProvider from "./providers/waveProvider.js";
 import { encaissementPourTiersOuvert } from "../../config/featureFlags.js";
+import { validateDocumentDataUri } from "../../utils/imageValidation.js";
+import { uploadDocument, FOLDERS } from "../../config/imagekit.js";
 
 // Import dynamique pour éviter un cycle (paymentController.js pourrait un
 // jour appeler ce service directement) — même pattern que
@@ -36,7 +38,32 @@ const AUTOMATIC_PROVIDERS = {
  * @param {"SYSTEM"|"ADMIN"|"PARTNER"|"CLIENT"} [actorType]
  * @returns {{ ok: boolean, automatic?: boolean, payment?: object, message?: string }}
  */
-export async function refundPayment({ paymentId, amount, reason, actorId = null, actorType = "SYSTEM" }) {
+const MAX_PREUVE_OCTETS = 8 * 1024 * 1024;
+
+// preuve = { reference, effectueLe?, nom?, fichier? (data URI image/PDF) } —
+// null si absente, { erreur } si invalide.
+async function preparerPreuve(preuve, paymentId) {
+  if (!preuve) return null;
+  const reference = String(preuve.reference || "").trim();
+  if (!reference) return null;
+  if (reference.length > 120) return { erreur: "Référence trop longue (120 caractères au plus)." };
+  let effectueLe = new Date();
+  if (preuve.effectueLe) {
+    effectueLe = new Date(preuve.effectueLe);
+    if (Number.isNaN(effectueLe.getTime()) || effectueLe > new Date()) return { erreur: "Date du remboursement invalide (elle ne peut pas être dans le futur)." };
+  }
+  let fichier = null;
+  if (preuve.fichier) {
+    const check = validateDocumentDataUri(preuve.fichier, MAX_PREUVE_OCTETS);
+    if (!check.ok) return { erreur: check.message };
+    const envoi = await uploadDocument(preuve.fichier, `${FOLDERS.docs}/remboursements`, `remboursement_${String(paymentId).slice(-8)}_${Date.now()}`);
+    if (!envoi?.url) return { erreur: "Dépôt du justificatif indisponible pour le moment : réessayez, ou enregistrez la référence seule." };
+    fichier = { nom: String(preuve.nom || "Justificatif de remboursement").trim().slice(0, 200), url: envoi.url, type: check.detectedType || null };
+  }
+  return { reference, effectueLe, fichier };
+}
+
+export async function refundPayment({ paymentId, amount, reason, actorId = null, actorType = "SYSTEM", preuve = null }) {
   if (!paymentId) return { ok: false, message: "Aucun paiement associé." };
   // Aucune décision AUTOMATIQUE de remboursement tant que l'encaissement pour
   // compte de tiers est fermé (exploitant, 2026-10-31) : une annulation par le
@@ -71,22 +98,37 @@ export async function refundPayment({ paymentId, amount, reason, actorId = null,
     && gatewayConfig.provider.isConfigured()
     && (gatewayConfig.supportsPartial || refundAmount >= remaining);
 
+  // Preuve d'un remboursement manuel (2026-11-01) : sans la référence de
+  // l'opération réellement effectuée hors plateforme, rien n'est enregistré —
+  // le paiement n'est jamais marqué remboursé sur la seule foi d'un clic.
+  const preuveManuelle = await preparerPreuve(preuve, paymentId);
+  if (preuveManuelle?.erreur) return { ok: false, message: preuveManuelle.erreur };
+
   let automatic = false;
+  let referenceAuto = null;
   if (canAutomate) {
     try {
-      await gatewayConfig.provider.refund({ payment, amount: refundAmount });
+      const r = await gatewayConfig.provider.refund({ payment, amount: refundAmount });
+      referenceAuto = r?.providerRefundId || null;
       automatic = true;
     } catch (err) {
-      logger.error("[refundService] Échec remboursement fournisseur — repli manuel", { paymentId, method: payment.method, error: err.message });
-      // Échec réseau/API : on continue quand même en mode manuel (l'admin
-      // devra le traiter lui-même) plutôt que de bloquer toute la fonction —
-      // jamais de remboursement perdu silencieusement, l'événement
-      // refund_needed (voir bookingController.js) reste émis pour ce cas.
+      logger.error("[refundService] Échec remboursement fournisseur", { paymentId, method: payment.method, error: err.message });
+      // Échec réseau/API : rien n'a été remboursé. On ne bascule en manuel que
+      // si l'admin fournit la preuve d'un remboursement fait par lui-même.
+      if (!preuveManuelle) {
+        return { ok: false, preuveRequise: true, message: "Le remboursement automatique a échoué : rien n'a été remboursé ni enregistré. Remboursez hors plateforme puis enregistrez la référence de l'opération." };
+      }
     }
+  }
+  if (!automatic && !preuveManuelle) {
+    return { ok: false, preuveRequise: true, message: "Remboursement manuel : indiquez la référence de l'opération effectuée (virement, reçu mobile money…). Rien n'a été enregistré." };
   }
 
   const newRefundedAmount = Math.round((alreadyRefunded + refundAmount) * 100) / 100;
   const newStatus = newRefundedAmount >= payment.amount ? "refunded" : "partially_refunded";
+  const trace = automatic
+    ? { montant: refundAmount, mode: "automatique", reference: referenceAuto || `${payment.method}-${Date.now()}`, effectueLe: new Date(), enregistrePar: actorId, motif: reason || null }
+    : { montant: refundAmount, mode: "manuel", reference: preuveManuelle.reference, preuve: preuveManuelle.fichier || undefined, effectueLe: preuveManuelle.effectueLe, enregistrePar: actorId, motif: reason || null };
 
   // Concurrence optimiste : le filtre inclut le montant déjà remboursé lu en
   // tête de fonction — si un autre remboursement s'est glissé entre-temps
@@ -94,8 +136,11 @@ export async function refundPayment({ paymentId, amount, reason, actorId = null,
   // lieu d'écraser silencieusement le montant réel remboursé.
   const updated = await Payment.findOneAndUpdate(
     { _id: paymentId, refundedAmount: alreadyRefunded },
-    { $set: { status: newStatus, refundedAmount: newRefundedAmount, refundedAt: new Date(), refundReason: reason || payment.refundReason || null } },
-    { new: true },
+    {
+      $set: { status: newStatus, refundedAmount: newRefundedAmount, refundedAt: trace.effectueLe, refundReason: reason || payment.refundReason || null },
+      $push: { remboursements: trace },
+    },
+    { new: true, runValidators: true },
   );
   if (!updated) {
     return { ok: false, message: "Ce paiement vient d'être modifié par une autre action — réessayez." };
@@ -109,10 +154,10 @@ export async function refundPayment({ paymentId, amount, reason, actorId = null,
   const { doc } = await resolvePaymentTarget(updated);
   const clientId = doc?.client;
   if (clientId) {
-    const titre = automatic ? "💸 Remboursement effectué" : "💸 Remboursement en cours de traitement";
+    const titre = "💸 Remboursement effectué";
     const message = automatic
       ? `Votre remboursement de ${refundAmount} USD a été traité.`
-      : `Votre remboursement de ${refundAmount} USD est en cours de traitement par notre équipe.`;
+      : `Votre remboursement de ${refundAmount} USD a été effectué par notre équipe (référence ${trace.reference}).`;
     const notifDoc = await Notification.create({ user: clientId, type: "refund_processed", titre, message, lien: "/dashboard" }).catch(() => null);
     if (notifDoc && global._io) {
       global._io.to(`user_${clientId}`).emit("notification_new", {

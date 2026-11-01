@@ -3,9 +3,12 @@ import IETransaction from "../models/IETransaction.js";
 import Litige, { ETATS_LITIGE } from "../models/Litige.js";
 import logger from "../utils/logger.js";
 import { captureException } from "../config/sentry.js";
+import Booking from "../models/Booking.js";
+import DemandeLogistique from "../models/DemandeLogistique.js";
 import {
-  LitigeError, ouvrirLitige, ajouterMessage, ajouterPiece, changerEtat, litigesDeTransaction,
+  LitigeError, ouvrirLitige, ajouterMessage, ajouterPiece, changerEtat, litigesDeTransaction, litigesDeCible,
 } from "../services/litigeService.js";
+import { TYPES_CIBLE, cible, adminPeutInstruire } from "../services/litigeCibles.js";
 import {
   ConditionsError, partieDe, proposerConditions, accepterConditions, etatConditions,
 } from "../services/conditionsLiberationService.js";
@@ -70,10 +73,42 @@ export const transition = async (req, res) => {
   } catch (err) { repondreErreur(res, err, "transition"); }
 };
 
-// GET /api/import-export/litiges  (admin)  ?etat=opened
+// GET /api/litiges/cible/:type/:id — réclamations d'une réservation, d'une
+// demande logistique ou d'une transaction Import/Export (parties, admin du secteur).
+export const listerLitigesCible = async (req, res) => {
+  try {
+    if (!TYPES_CIBLE.includes(req.params.type)) throw new LitigeError(400, "Type de transaction inconnu.");
+    if (!mongoose.isValidObjectId(req.params.id)) throw new LitigeError(400, "Identifiant invalide.");
+    res.json(await litigesDeCible(req.params.type, req.params.id, req.user));
+  } catch (err) { repondreErreur(res, err, "listerLitigesCible"); }
+};
+
+// Référence lisible de chaque cible, pour la liste admin (une requête par type).
+async function referencesCibles(litiges) {
+  const ids = (type) => litiges.filter((l) => l.transaction?.type === type).map((l) => l.transaction.id);
+  const [bookings, demandes] = await Promise.all([
+    Booking.find({ _id: { $in: ids("reservation") } }).select("reference status").lean(),
+    DemandeLogistique.find({ _id: { $in: ids("logistique") } }).select("reference statut").lean(),
+  ]);
+  const refs = new Map();
+  for (const b of bookings) refs.set(String(b._id), { reference: b.reference, statut: b.status });
+  for (const d of demandes) refs.set(String(d._id), { reference: d.reference, statut: d.statut });
+  return litiges.map((l) => ({
+    ...l,
+    cible: {
+      libelle: cible(l.transaction.type)?.libelle || l.transaction.type,
+      ...(l.transaction.type === "ie" ? { reference: String(l.transaction.id).slice(-8).toUpperCase() } : refs.get(String(l.transaction.id)) || {}),
+    },
+  }));
+}
+
+// GET /api/litiges  et  GET /api/import-export/litiges  (admin)  ?etat=opened&type=reservation
+// Un admin à accès assigné ne voit que les types de ses secteurs.
 export const listerLitiges = async (req, res) => {
   try {
-    const filtre = {};
+    const types = TYPES_CIBLE.filter((t) => adminPeutInstruire(req.user, t));
+    if (req.query.type && !types.includes(req.query.type)) return res.status(400).json({ message: "Type inconnu ou hors de vos secteurs." });
+    const filtre = { "transaction.type": req.query.type ? req.query.type : { $in: types } };
     if (req.query.etat) {
       if (!ETATS_LITIGE.includes(req.query.etat)) return res.status(400).json({ message: "État inconnu." });
       filtre.etat = req.query.etat;
@@ -82,7 +117,7 @@ export const listerLitiges = async (req, res) => {
     }
     const litiges = await Litige.find(filtre).sort({ ouvertLe: -1 }).limit(200)
       .populate("ouvertPar", "firstName lastName").lean();
-    res.json({ litiges });
+    res.json({ litiges: await referencesCibles(litiges) });
   } catch (err) { repondreErreur(res, err, "listerLitiges"); }
 };
 

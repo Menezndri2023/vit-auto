@@ -6,6 +6,7 @@ import { TYPES_BESOIN, MODES_TRANSPORT, FRISE, ANNULABLE_PAR_CLIENT, LITIGE_OUVR
 import styles from "./Logistique.module.css";
 import { BlocConditionsRoles, BlocEnlevement, BlocDocuments, PostesDevis } from "./LogistiqueBlocs";
 import { useLog } from "./logistiqueI18n";
+import LitigesTransaction from "../components/LitigesConditions/LitigesTransaction";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // VIT-AUTO Logistique — espace client (2026-10-27, traduit le 2026-10-28)
@@ -448,6 +449,7 @@ function Detail({ id }) {
         onEnregistrer={async (corps) => { try { const r = await api(`${base}/roles`, { method: "POST", body: JSON.stringify(corps) }); setDemande(r.demande); setInfo(t("log.rolesEnregistres")); return true; } catch (e) { setErreur(e.message); return false; } }} />
       {demande.commandeLiee && <BlocEnlevement enlevement={demande.enlevement} />}
       <BlocDocuments documents={demande.documents} role={roleDocuments} onDeposer={demande.statut !== "annulee" ? deposer : null} />
+      {(demande.statut === "litige" || demande.litige?.motif) && <LitigesTransaction key={demande.statut} txId={demande._id} type="logistique" role="client" ouvrable={false} />}
 
       <div className={styles.bloc}>
         <h2>{t("log.votreDemande")}</h2>

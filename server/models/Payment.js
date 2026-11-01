@@ -86,6 +86,23 @@ const paymentSchema = new mongoose.Schema({
   refundedAmount: { type: Number, default: 0 },
   refundedAt:      { type: Date, default: null },
   refundReason:    { type: String, default: null },
+  // Trace de CHAQUE remboursement (2026-11-01) : un remboursement manuel n'est
+  // enregistré qu'avec la référence de l'opération réelle (virement, reçu
+  // mobile money…) ; un automatique, avec l'identifiant rendu par le prestataire.
+  // Jamais « remboursé » sur la seule parole d'un bouton.
+  remboursements: {
+    type: [{
+      montant:        { type: Number, required: true },
+      mode:           { type: String, enum: ["automatique", "manuel"], required: true },
+      reference:      { type: String, required: true, trim: true, maxlength: 120 },
+      preuve:         { nom: { type: String, default: null }, url: { type: String, default: null }, type: { type: String, default: null } },
+      effectueLe:     { type: Date, required: true },
+      enregistrePar:  { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      enregistreLe:   { type: Date, default: Date.now },
+      motif:          { type: String, default: null, maxlength: 500 },
+    }],
+    default: [],
+  },
 
   createdAt: { type: Date, default: Date.now },
 });

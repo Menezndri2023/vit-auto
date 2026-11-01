@@ -17,6 +17,7 @@ import { statutEcheance, LIBELLE_ECHEANCE, COULEUR_ECHEANCE } from "../constants
 import { downloadAuthFile } from "../utils/downloadAuthFile";
 import styles from "./Dashboard.module.css";
 import ConditionsIncoterm from "../components/ConditionsIncoterm/ConditionsIncoterm";
+import LitigesTransaction from "../components/LitigesConditions/LitigesTransaction";
 
 const TIER_LABEL = { bronze: "Bronze", argent: "Argent", or: "Or" };
 
@@ -398,10 +399,13 @@ function DeliveryTimeline({ booking, onValidate, onDispute, validating }) {
         </div>
       )}
       {booking.status === "disputed" && (
-        <div className={styles.disputedAlert}>
-          <span>⚠️</span>
-          <span>Litige signalé. Notre équipe vous contactera sous 48h.</span>
-        </div>
+        <>
+          <div className={styles.disputedAlert}>
+            <span>⚠️</span>
+            <span>Problème signalé. L'équipe VIT AUTO l'instruit avec le partenaire : suivez votre réclamation et ajoutez vos pièces ci-dessous.</span>
+          </div>
+          <LitigesTransaction txId={booking._id} type="reservation" role="client" ouvrable={false} />
+        </>
       )}
     </div>
   );
@@ -742,7 +746,7 @@ const Dashboard = () => {
         if (action === "validate") {
           toastSuccess("✅ Transaction validée. Merci !");
         } else {
-          toastSuccess("⚠️ Litige enregistré. Notre équipe vous contactera sous 48h.");
+          toastSuccess("⚠️ Réclamation enregistrée. L’équipe VIT AUTO l’instruit avec le partenaire.");
           setDisputeTarget(null);
           setDisputeReason("");
         }
@@ -1142,7 +1146,7 @@ const Dashboard = () => {
               <button className={styles.closeBtn} onClick={() => setDisputeTarget(null)}>✕</button>
             </div>
             <p style={{ fontSize: "0.9rem", color: "#64748b", marginBottom: "1rem" }}>
-              Décrivez le problème rencontré. Notre équipe vous contactera sous 48h.
+              Décrivez le problème rencontré. L’équipe VIT AUTO instruira votre réclamation avec le partenaire.
             </p>
             <textarea
               className={styles.reviewTextarea}

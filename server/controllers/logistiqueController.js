@@ -18,6 +18,7 @@ import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { deposerPiece } from "../utils/deposerPiece.js";
 import { FOLDERS, isImageKitConfigured } from "../config/imagekit.js";
 import { isValidCountryCode } from "../utils/countries.js";
+import { ouvrirLitigeCible, cloturerParDecision } from "../services/litigeService.js";
 import { csvRow } from "../utils/csv.js";
 import { logAction } from "../middleware/auditLog.js";
 import {
@@ -581,6 +582,9 @@ export const ouvrirLitige = async (req, res) => {
     demande.litige = { motif, resolution: "", resoluLe: null };
     changerStatut(demande, "litige", { par: req.user._id, role: "client", note: motif });
     await demande.save();
+    // Dossier de réclamation commun (2026-11-01) : échanges, pièces, décision.
+    await ouvrirLitigeCible("logistique", demande, req.user, { description: motif })
+      .catch((e) => logger.error("ouvrirLitigeCible (logistique):", e.message));
     notifyAdmins("logistique", "Litige logistique", `${demande.reference} : ${motif.slice(0, 120)}`, "/admin?tab=logistique").catch(() => {});
     res.json({ demande: vueClient(demande, req.user._id) });
   } catch (err) { echec(res, "ouvrirLitige")(err); }
@@ -1054,8 +1058,13 @@ export const interventionAdmin = async (req, res) => {
       demande.litige.resoluLe = new Date();
     }
     if (statut === "annulee") demande.motifAnnulation = note1;
+    const etaitEnLitige = demande.statut === "litige";
     changerStatut(demande, statut, { par: req.user._id, role: "admin", note: note1 });
     await demande.save();
+    if (etaitEnLitige) {
+      await cloturerParDecision("logistique", demande._id, req.user, { decision: `Demande passée à « ${LIBELLES_STATUT[statut] || statut} »`, justification: note1 })
+        .catch((e) => logger.error("cloturerParDecision (logistique):", e.message));
+    }
     await logAction(req, `logistique.intervention.${statut}`, "DemandeLogistique", demande._id, { note: note1 });
     notifier(demande.client, `Votre demande logistique : ${LIBELLES_STATUT[statut]}`, `${demande.reference}`, `/logistique/demandes/${demande._id}`);
     res.json({ demande });

@@ -5,6 +5,7 @@ import { MODES_TRANSPORT, ETAPE_SUIVANTE_PRESTATAIRE } from "../constants/logist
 import styles from "./Logistique.module.css";
 import { BlocConditionsRoles, BlocEnlevement, BlocDocuments, EditeurPostes, PostesDevis } from "./LogistiqueBlocs";
 import { useLog } from "./logistiqueI18n";
+import LitigesTransaction from "../components/LitigesConditions/LitigesTransaction";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // VIT-AUTO Logistique — espace prestataire (2026-10-27, traduit le 2026-10-28)
@@ -161,6 +162,7 @@ function Detail({ id }) {
             setD(r.demande); setInfo(t("log.documentDepose"));
           } : null} />
       )}
+      {d.retenu && <LitigesTransaction txId={d._id} type="logistique" role="partner" ouvrable={false} />}
 
       {peutChiffrer && d.sollicitation?.reponse !== "decline" && (
         <div className={styles.bloc}>

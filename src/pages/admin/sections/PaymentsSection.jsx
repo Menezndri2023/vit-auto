@@ -85,6 +85,12 @@ export function PaymentsSection({ headers }) {
                     <td style={{ whiteSpace: "nowrap", fontWeight: 700 }}>
                       {Number(p.amount || 0).toLocaleString("fr-FR")} {p.devise}
                       {p.refundedAmount > 0 && <div style={{ color: "#64748b", fontWeight: 500 }}>remboursé : {p.refundedAmount.toLocaleString("fr-FR")}</div>}
+                      {(p.remboursements || []).map((r, i) => (
+                        <div key={i} style={{ color: "#64748b", fontSize: ".75rem" }}>
+                          {r.mode === "manuel" ? "manuel" : "automatique"} · réf. {r.reference}
+                          {r.preuve?.url && <> · <a href={r.preuve.url} target="_blank" rel="noopener noreferrer">justificatif</a></>}
+                        </div>
+                      ))}
                     </td>
                     <td>{METHODES[p.method] || p.method}{p.simulated ? " (simulé)" : ""}</td>
                     <td style={{ color: s.color, fontWeight: 700 }}>{s.label}</td>

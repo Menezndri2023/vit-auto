@@ -92,9 +92,9 @@ reste à vérifier par l'exploitant : le code ne peut pas le dire.
    est fermé.
 3 bis. **Remboursement « manuel » marqué remboursé avant tout versement** : quand le prestataire ne
    rembourse pas par API, `refundService` passe déjà le paiement à `refunded` et annonce au client
-   « remboursement en cours ». C'est une déclaration et non une confirmation. **À reprendre** avec le
-   futur modèle (`refund_pending`, puis `refunded` à la confirmation du prestataire). Ce cas est
-   inerte aujourd'hui : aucun paiement en ligne n'est encaissé.
+   « remboursement en cours ». C'est une déclaration et non une confirmation. **Corrigé le
+   2026-11-01** (§5.4) : sans la référence de l'opération réellement effectuée, rien n'est
+   enregistré ; un échec du prestataire n'est plus enregistré comme un remboursement.
 4. **Un seul champ `status` IE** mêle commercial, paiement et logistique ; un litige **écrase** le
    statut commercial (`openDispute` → `disputed`). Il faut le refondre (§7 et §8) avant le
    séquestre réel.
@@ -156,6 +156,20 @@ est fermé. Il renvoie `decisionRequise`, ne touche pas au paiement, et l'équip
 habituelle `refund_needed` (« remboursement à traiter manuellement »). Un remboursement **décidé par
 un admin** (`POST /api/payments/:id/refund`, résolution de litige avec remboursement coché) reste
 possible et tracé.
+
+**Preuve obligatoire (2026-11-01).** Un paiement n'est plus jamais marqué remboursé sur la seule foi
+d'un clic :
+
+- remboursement **automatique** (Stripe, Wave intégral) : enregistré seulement si le prestataire a
+  répondu, avec l'identifiant qu'il rend ;
+- **échec** du prestataire : rien n'est enregistré (`preuveRequise`), l'équipe rembourse hors
+  plateforme puis enregistre sa preuve ;
+- remboursement **manuel** (Orange Money, espèces, virement, Wave partiel, PayDunya) : exige la
+  **référence** de l'opération (`preuve.reference`), accepte sa date (jamais dans le futur) et un
+  justificatif image ou PDF, déposé en dossier privé.
+
+Chaque remboursement est conservé dans `Payment.remboursements` (montant, mode, référence,
+justificatif, date, auteur), affiché dans l'onglet Paiements de l'administration.
 
 ### 5.5 Qui encaisse les devis de services et les primes d'assurance ?
 
@@ -427,6 +441,16 @@ sequenceDiagram
 7. **Aucune décision financière automatique.** Dans le futur circuit, une demande de remboursement
    ou de libération au prestataire reste un geste distinct de l'admin.
 
+**Réservations et logistique (2026-11-01).** Le même modèle `Litige` (`transaction.type` :
+`ie`, `reservation`, `logistique`, voir `server/services/litigeCibles.js`) sert de dossier aux
+contestations de réservation et aux litiges logistiques : échanges, pièces privées, décision écrite,
+visibles des deux parties (client ; partenaire ou prestataire retenu) et de l'admin du secteur
+(`/api/litiges`, onglet Litiges). Leurs étapes existantes (« contestée », « litige ») restent
+posées par leurs propres écrans pour l'instant ; la résolution de l'admin (contestation de
+réservation, intervention logistique) clôt le dossier en y recopiant sa décision. Les
+contestations déjà ouvertes avant cette date ont reçu leur dossier au démarrage, daté de leur
+ouverture réelle, sans modifier la réservation ni la demande.
+
 ## 11. Conditions de libération versionnées
 
 - **Figées par transaction et par version** : chaque document est créé une fois et n'est jamais
@@ -498,7 +522,8 @@ Exécutions :
 | 2 | Montage : séquestre ou paiement fractionné vers le vendeur, pays, devises, change (Office des Changes), fonds de tiers, fiscalité de la commission | Juriste |
 | 3 | Délais de réclamation et de validation : **à fixer par contrat**, jamais par défaut. Points de départ proposés pour en discuter : véhicule, 7 jours après la livraison confirmée ; pièces détachées, 14 jours après réception ; autres marchandises, selon le contrat | Exploitant et juriste |
 | 4 | Sort du règlement direct IE une fois le prestataire en place | Exploitant |
-| 5 | Circuit des remboursements « manuels » (§4, risque 3 bis) dans le futur modèle | Exploitant |
+| 5 | ~~Circuit des remboursements « manuels »~~ **Fait le 2026-11-01** : référence de l'opération obligatoire, rien d'enregistré sans elle (§5.4) | ✅ |
+| 7 | Réservations et logistique : faut-il aussi cesser de changer leur statut à l'ouverture d'une réclamation (« contestée », « litige »), comme pour l'Import/Export ? | Exploitant |
 | 6 | ~~Conditions en règlement direct facultatives ?~~ **Tranché le 2026-10-31 : obligatoires** pour les deux parties avant la déclaration de l'acheteur ; réacceptation à chaque nouvelle version ; trace horodatée par version | Exploitant ✅ |
 
 ## 14. Prérequis prestataire

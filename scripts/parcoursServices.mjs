@@ -206,6 +206,29 @@ async function loisirs(browser) {
   if (!(fini.commissionAmount > 0)) throw new Error("commission non calculée");
   if (Math.abs(fini.commissionRate - 0.10) > 0.001 && Math.abs(fini.commissionRate - 0.15) > 0.001) throw new Error(`taux loisirs inattendu ${fini.commissionRate}`);
   ok(`séance conclue → completed, commission ${fini.commissionAmount} USD (${Math.round(fini.commissionRate * 100)} %)`);
+
+  // Réclamation sur une réservation (2026-11-01) : la contestation du client
+  // ouvre un dossier commun, visible du partenaire et de l'admin ; la
+  // résolution de l'admin le clôt avec sa décision.
+  const admin = await apiAs(ADMIN_ID, ADMIN_PWD);
+  const resa = attendu(await client("/api/bookings", { method: "POST", body: {
+    type: "activite", activityId: act._id,
+    clientInfo: { firstName: "Ama", lastName: "Koné", email: "ama.kone@example.test", passportNumber: "CI-PASS-2026" },
+    activite: { date: dateISO(DECALAGE + 3), participants: 1, weatherAcknowledged: true },
+  } }), 201, "seconde réservation d'activité").booking;
+  attendu(await partner(`/api/bookings/${resa._id}/status`, { method: "PATCH", body: { status: "confirmed" } }), 200, "partenaire confirme (2)");
+  for (const status of ["in_progress", "client_arrived", "transaction_concluded", "waiting_client_validation"]) {
+    attendu(await partner(`/api/bookings/${resa._id}/status`, { method: "PATCH", body: { status } }), 200, `partenaire → ${status} (2)`);
+  }
+  attendu(await client(`/api/bookings/${resa._id}/validate`, { method: "PATCH", body: { action: "dispute", disputeReason: "Séance écourtée de moitié sans explication." } }), 200, "contestation client");
+  const vuePartenaire = attendu(await partner(`/api/litiges/cible/reservation/${resa._id}`), 200, "dossier vu par le partenaire");
+  const dossier = vuePartenaire.litiges?.[0];
+  if (vuePartenaire.partie !== "vendeur" || dossier?.etat !== "opened" || !/écourtée/.test(dossier.description)) throw new Error(`dossier de réclamation inattendu : ${JSON.stringify(vuePartenaire).slice(0, 200)}`);
+  if (!(attendu(await admin("/api/litiges"), 200, "liste admin").litiges || []).some((l) => l._id === dossier._id)) throw new Error("réclamation absente de la liste admin");
+  attendu(await admin(`/api/bookings/${resa._id}/resolve-dispute`, { method: "PATCH", body: { resolution: "cancelled", note: "Séance non rendue : annulation." } }), 200, "résolution admin");
+  const clos = attendu(await client(`/api/litiges/cible/reservation/${resa._id}`), 200, "dossier vu par le client").litiges?.[0];
+  if (clos?.etat !== "closed" || clos.issue?.justification !== "Séance non rendue : annulation.") throw new Error(`dossier non clos par la résolution : ${JSON.stringify(clos).slice(0, 200)}`);
+  ok("réservation contestée → dossier de réclamation ouvert (partenaire, admin) → clos par la résolution admin");
   await ctx.close();
   for (const j of journal) ko(`loisirs — ${j}`);
 }

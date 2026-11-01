@@ -15,6 +15,7 @@ import { captureException } from "../config/sentry.js";
 import { isMalformedObjectId } from "../utils/objectId.js";
 import { nonBloquant } from "../utils/nonBloquant.js";
 import { notifyAdmins } from "../utils/notifyAdmins.js";
+import { signedDocumentUrl } from "../config/imagekit.js";
 
 // Trace un changement d'état financier (webhook fournisseur ou simulation
 // sandbox) — ces événements n'ont pas de req.user (appels serveur-à-serveur),
@@ -633,14 +634,16 @@ export const createPayment = async (req, res) => {
 // plateforme — enregistre l'action réelle au lieu du toast "refund_needed"
 // sans suite qui existait jusqu'ici. Voir server/services/payment/refundService.js
 // pour la logique (identique à celle utilisée automatiquement ailleurs).
+// Depuis le 2026-11-01, un remboursement manuel exige `preuve.reference` (et
+// accepte une date et un justificatif) : sans elle, rien n'est enregistré.
 export const refundPaymentAdmin = async (req, res) => {
   try {
-    const { amount, reason } = req.body;
+    const { amount, reason, preuve } = req.body || {};
     const { refundPayment } = await import("../services/payment/refundService.js");
     const result = await refundPayment({
-      paymentId: req.params.id, amount, reason, actorId: req.user._id, actorType: "ADMIN",
+      paymentId: req.params.id, amount, reason, actorId: req.user._id, actorType: "ADMIN", preuve,
     });
-    if (!result.ok) return res.status(409).json({ message: result.message });
+    if (!result.ok) return res.status(409).json({ message: result.message, ...(result.preuveRequise ? { code: "PREUVE_REQUISE" } : {}) });
     res.json({ payment: result.payment, automatic: result.automatic });
   } catch (err) {
     logger.error("refundPaymentAdmin:", err);
@@ -690,6 +693,10 @@ export const adminListPayments = async (req, res) => {
       Payment.countDocuments(filtre),
       Payment.aggregate([{ $group: { _id: { status: "$status", devise: "$devise" }, n: { $sum: 1 }, montant: { $sum: "$amount" } } }]),
     ]);
+    // Justificatifs de remboursement : dossier privé, lus par URL signée.
+    for (const p of payments) {
+      for (const r of p.remboursements || []) if (r.preuve?.url) r.preuve.url = signedDocumentUrl(r.preuve.url);
+    }
     res.json({ payments, total, page: pageNum, pages: Math.max(1, Math.ceil(total / parPage)), parStatut });
   } catch (err) {
     logger.error("adminListPayments:", err);

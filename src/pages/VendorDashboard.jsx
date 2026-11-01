@@ -27,6 +27,7 @@ import styles from "./VendorDashboard.module.css";
 import VitrinePartage from "../components/VitrinePartage/VitrinePartage.jsx";
 import VerrouOutil from "../components/VerrouOutil/VerrouOutil.jsx";
 import ConditionsIncoterm from "../components/ConditionsIncoterm/ConditionsIncoterm";
+import LitigesTransaction from "../components/LitigesConditions/LitigesTransaction";
 import { useOutils } from "../hooks/useOutils";
 
 /* ── Utilitaires ────────────────────────────────────────────────────────── */
@@ -1377,6 +1378,7 @@ function GererModal({ order, orderDetail, detailLoading, detailError, onClose, o
                   </button>
                 </div>
               )}
+              <LitigesTransaction key={order.partnerDisputeResponse?.respondedAt || "dossier"} txId={order.id} type="reservation" role="partner" ouvrable={false} />
             </div>
           )}
 
@@ -4750,7 +4752,7 @@ export default function VendorDashboard() {
 
                     {b.status === "disputed" && (
                       <div style={{ background:"#fef2f2", border:"1px solid #fca5a5", borderRadius:8, padding:"10px 14px", fontSize:"0.85rem", color:"#991b1b" }}>
-                        ⚠️ Litige signalé — Notre équipe vous contactera sous 48h.
+                        ⚠️ Problème signalé par le client — l'équipe VIT AUTO l'instruit avec vous.
                       </div>
                     )}
 
@@ -4772,7 +4774,7 @@ export default function VendorDashboard() {
               <div style={{ background:"#fff", borderRadius:16, padding:"2rem", maxWidth:440, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }}
                 onClick={(e) => e.stopPropagation()}>
                 <h3 style={{ margin:"0 0 12px", color:"#0f1b3f" }}>⚠️ Signaler un problème</h3>
-                <p style={{ fontSize:"0.9rem", color:"#64748b", marginBottom:12 }}>Décrivez le problème rencontré. Notre équipe vous contactera sous 48h.</p>
+                <p style={{ fontSize:"0.9rem", color:"#64748b", marginBottom:12 }}>Décrivez le problème rencontré. L’équipe VIT AUTO instruira votre réclamation avec le partenaire.</p>
                 <textarea rows={4}
                   placeholder="Ex : Montant incorrect, service non effectué…"
                   value={personalDisputeText}

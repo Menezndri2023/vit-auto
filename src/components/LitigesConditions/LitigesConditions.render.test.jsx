@@ -41,6 +41,19 @@ describe("Réclamations et conditions", () => {
     expect(screen.queryByRole("button", { name: "Clore" })).toBeNull();
   });
 
+  it("réservation : le dossier se lit par la route commune, sans bouton d'ouverture (la contestation s'ouvre depuis la réservation)", async () => {
+    const client = utilisateurTest("client");
+    connecter(client);
+    const dossier = { ...LITIGE, contexte: { fondsLiberes: false }, motif: "autre", description: "Jante abîmée." };
+    simulerApi({ user: client, routes: { "/api/litiges/cible/reservation/b1": { partie: "acheteur", litiges: [{ ...dossier, etat: "closed", issue: { decision: "Prestation validée", justification: "État des lieux probant." } }] } } });
+    renderPage(<LitigesTransaction txId="b1" type="reservation" role="client" ouvrable />);
+    expect(await screen.findByText(/Prestation validée/)).toBeTruthy();
+    expect(screen.getByText("Close")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ouvrir une réclamation" })).toBeNull();
+    expect(screen.queryByLabelText("Votre message")).toBeNull();   // close : plus d'échange
+    expect(document.body.textContent).not.toMatch(PROMESSE);
+  });
+
   it("conditions : version, empreinte, acceptations, et bouton d'acceptation pour la partie qui n'a pas accepté", async () => {
     const vendeur = utilisateurTest("partenaire");
     connecter(vendeur);

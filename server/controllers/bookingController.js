@@ -50,6 +50,7 @@ import { encryptField, decryptField } from "../utils/fieldEncryption.js";
 import { signedDocumentUrl } from "../config/imagekit.js";
 import { logAction } from "../middleware/auditLog.js";
 import { nonBloquant, signalerNonBloquant } from "../utils/nonBloquant.js";
+import { ouvrirLitigeCible, litigeOuvertPour, ajouterMessage, cloturerParDecision } from "../services/litigeService.js";
 
 const CLIENT_CANCEL_REASONS_MAP  = Object.fromEntries(CLIENT_CANCEL_REASONS);
 const PARTNER_CANCEL_REASONS_MAP = Object.fromEntries(PARTNER_CANCEL_REASONS);
@@ -2503,6 +2504,14 @@ export const validateTransaction = async (req, res) => {
 
     await booking.save();
 
+    // Dossier de réclamation (2026-11-01) : échanges, pièces et décision de
+    // l'équipe dans le modèle commun ; l'étape « contestée » reste celle de la
+    // réservation. Un échec ici n'annule pas la contestation enregistrée.
+    if (action === "dispute") {
+      await ouvrirLitigeCible("reservation", booking, req.user, { description: booking.clientValidation.disputeReason, ouvertLe: booking.clientValidation.disputedAt })
+        .catch((e) => logger.error("ouvrirLitigeCible (validateTransaction):", e.message));
+    }
+
     // ── Socket.io : notifier le partenaire en temps réel ──────────────────
     emitBookingUpdate(booking);
 
@@ -4246,6 +4255,10 @@ export const resolveDispute = async (req, res) => {
     await booking.save();
     emitBookingUpdate(booking); // ← temps réel client + partenaire
     if (booking.status === "completed") await markVehicleSoldIfApplicable(booking);
+    const LIBELLES_RESOLUTION = { completed: "Prestation validée", cancelled: "Réservation annulée", compensated: "Validée avec compensation" };
+    await cloturerParDecision("reservation", booking._id, req.user, {
+      decision: LIBELLES_RESOLUTION[resolution] + (refundClient ? " — remboursement décidé" : ""), justification: note || LIBELLES_RESOLUTION[resolution],
+    }).catch((e) => logger.error("cloturerParDecision (resolveDispute):", e.message));
 
     // Bug réel corrigé (audit) : une résolution "Compensation" promettait un
     // remboursement partiel au client sans que rien ne le déclenche jamais.
@@ -4256,7 +4269,7 @@ export const resolveDispute = async (req, res) => {
       const { refundPayment } = await import("../services/payment/refundService.js");
       const refundResult = await refundPayment({
         paymentId: booking.payment, amount: refundAmount,
-        reason: `Litige résolu en "${resolution}".`, actorId: req.user._id, actorType: "ADMIN",
+        reason: `Litige résolu en "${resolution}".`, actorId: req.user._id, actorType: "ADMIN", preuve: req.body.preuve,
       }).catch((e) => { logger.error("refundPayment (resolveDispute):", e.message); return { ok: false }; });
       if (global._io) {
         global._io.to("admins").emit("refund_needed", {
@@ -4331,6 +4344,10 @@ export const respondToDispute = async (req, res) => {
 
     booking.partnerDisputeResponse = { message: message.trim().slice(0, 2000), respondedAt: new Date() };
     await booking.save();
+    // Recopiée dans le dossier de réclamation, sans nouvelle notification
+    // (l'administration est prévenue juste en dessous).
+    const dossier = await litigeOuvertPour(booking._id, "reservation");
+    if (dossier) await ajouterMessage(dossier._id, req.user, message, { notifier: false }).catch((e) => logger.error("ajouterMessage (respondToDispute):", e.message));
 
     await notifyAdmins(
       "system",

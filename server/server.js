@@ -46,6 +46,7 @@ import importExportRoutes  from "./routes/importExport.js";
 import dossiersImportRoutes from "./routes/dossiersImport.js";
 import transitRoutes from "./routes/transit.js";
 import logistiqueRoutes from "./routes/logistique.js";
+import litigesRoutes from "./routes/litiges.js";
 import incotermRoutes from "./routes/incoterms.js";
 import prospectsRoutes from "./routes/prospects.js";
 import importCostRoutes    from "./routes/importCost.js";
@@ -480,6 +481,7 @@ app.use("/api/import-export",  apiLimiter,       importExportRoutes);
 app.use("/api/dossiers-import", apiLimiter,       dossiersImportRoutes);  // Suivi des importations (client + admin)
 app.use("/api/transit",         apiLimiter,       transitRoutes);         // Zone Transit : prestataires sur invitation
 app.use("/api/logistique",      apiLimiter,       logistiqueRoutes);      // VIT-AUTO Logistique : mise en relation gratuite
+app.use("/api/litiges",         apiLimiter,       litigesRoutes);         // Réclamations : Import/Export, réservations, logistique
 app.use("/api/incoterms",       apiLimiter,       incotermRoutes);        // Incoterms® 2020 : référentiel, aide au choix, conditions de commande
 app.use("/api/prospects",       apiLimiter,       prospectsRoutes);       // Prospects : CRM partenaire + demandes d'essai VIT AUTO, vue unifiée
 app.use("/api/invoices",       apiLimiter,       invoiceRoutes);
@@ -691,6 +693,15 @@ async function runStartupMigrations() {
           if (await creerConditionsInitiales(tx)) creees += 1;
         }
         logger.info(`[Migration] règlement direct : ${confirmees.modifiedCount} confirmé(s), ${declarees.modifiedCount} déclaré(s), ${creees} version(s) 1 de conditions créée(s).`);
+      });
+
+      // Réclamations communes (2026-11-01) : les contestations de réservation
+      // et litiges logistiques déjà ouverts reçoivent leur dossier, sans que
+      // la réservation ni la demande ne soient modifiées.
+      await runOnceMigration("litiges-reservations-logistique-2026-11-01", async () => {
+        const { reprendreLitigesExistants } = await import("./services/litigeService.js");
+        const n = await reprendreLitigesExistants();
+        logger.info(`[Migration] réclamations reprises : ${n.reservations} réservation(s), ${n.logistique} demande(s) logistique(s).`);
       });
 
       // Comptes administrateurs vérifiés d'office (exploitant, 2026-10-09) :

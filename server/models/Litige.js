@@ -61,7 +61,8 @@ const litigeSchema = new mongoose.Schema({
   reference: { type: String, unique: true, sparse: true },
 
   transaction: {
-    type: { type: String, enum: ["ie"], required: true },
+    // "reservation" et "logistique" ajoutés le 2026-11-01 (voir services/litigeCibles.js).
+    type: { type: String, enum: ["ie", "reservation", "logistique"], required: true },
     id:   { type: mongoose.Schema.Types.ObjectId, required: true },
   },
 

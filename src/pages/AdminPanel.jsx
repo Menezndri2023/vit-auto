@@ -667,7 +667,11 @@ export default function AdminPanel() {
   // remboursement resté manuel (voir pendingManualRefunds ci-dessus). Résout
   // le Payment via la réservation (GET /payments/booking/:id, déjà existant)
   // avant d'appeler le nouvel endpoint admin.
-  const handleMarkRefunded = useCallback(async (bookingId) => {
+  // Depuis le 2026-11-01 : la référence de l'opération réellement effectuée
+  // (virement, reçu mobile money…) est obligatoire — sans elle, le serveur
+  // n'enregistre rien.
+  const handleMarkRefunded = useCallback(async (bookingId, preuve) => {
+    if (!preuve?.reference?.trim()) { showToast("Indiquez la référence de l'opération de remboursement.", "error"); return; }
     try {
       const payRes = await fetch(`/api/payments/booking/${bookingId}`, { headers });
       const payData = await payRes.json();
@@ -675,7 +679,7 @@ export default function AdminPanel() {
         showToast(payData.message || "Paiement introuvable pour cette réservation.", "error");
         return;
       }
-      const res = await fetch(`/api/payments/${payData.payment._id}/refund`, { method: "POST", headers, body: JSON.stringify({}) });
+      const res = await fetch(`/api/payments/${payData.payment._id}/refund`, { method: "POST", headers, body: JSON.stringify({ preuve: { reference: preuve.reference.trim(), effectueLe: preuve.effectueLe || undefined } }) });
       const data = await res.json();
       if (!res.ok) { showToast(data.message || "Erreur.", "error"); return; }
       showToast("💸 Remboursement enregistré.", "success");
@@ -2501,6 +2505,7 @@ export default function AdminPanel() {
   // (Stripe) — le message distingue les deux cas, seul le second nécessite
   // une action admin (voir bouton "Marquer remboursé").
   const [pendingManualRefunds, setPendingManualRefunds] = useState([]);
+  const [preuvesRemboursement, setPreuvesRemboursement] = useState({});
   useEffect(() => {
     return onSocket("refund_needed", ({ bookingId, reference, reason }) => {
       const automatic = /automatiquement/.test(reason || "");
@@ -3137,9 +3142,21 @@ export default function AdminPanel() {
             <div key={r.bookingId} style={{ background: "#fff", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "10px 14px", boxShadow: "0 4px 16px rgba(0,0,0,.12)" }}>
               <div style={{ fontSize: ".78rem", fontWeight: 700, color: "#991b1b", marginBottom: 4 }}>💸 {r.reference}</div>
               <div style={{ fontSize: ".74rem", color: "#64748b", marginBottom: 8 }}>{r.reason}</div>
+              <label htmlFor={`ref-remb-${r.bookingId}`} style={{ display: "block", fontSize: ".72rem", fontWeight: 600, color: "#334155" }}>Référence de l'opération (obligatoire)</label>
+              <input id={`ref-remb-${r.bookingId}`} placeholder="N° de virement, reçu mobile money…"
+                value={preuvesRemboursement[r.bookingId]?.reference || ""}
+                onChange={(e) => setPreuvesRemboursement((p) => ({ ...p, [r.bookingId]: { ...p[r.bookingId], reference: e.target.value } }))}
+                style={{ width: "100%", boxSizing: "border-box", minHeight: 36, margin: "2px 0 6px", padding: "4px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: ".78rem" }} />
+              <label htmlFor={`date-remb-${r.bookingId}`} style={{ display: "block", fontSize: ".72rem", fontWeight: 600, color: "#334155" }}>Date du remboursement</label>
+              <input id={`date-remb-${r.bookingId}`} type="date" max={new Date().toISOString().slice(0, 10)}
+                value={preuvesRemboursement[r.bookingId]?.effectueLe || ""}
+                onChange={(e) => setPreuvesRemboursement((p) => ({ ...p, [r.bookingId]: { ...p[r.bookingId], effectueLe: e.target.value } }))}
+                style={{ width: "100%", boxSizing: "border-box", minHeight: 36, margin: "2px 0 8px", padding: "4px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: ".78rem" }} />
               <div style={{ display: "flex", gap: 6 }}>
-                <button className={styles.btnApprove} style={{ fontSize: ".72rem", padding: "4px 10px" }} onClick={() => handleMarkRefunded(r.bookingId)}>
-                  ✅ Marquer remboursé
+                <button className={styles.btnApprove} style={{ fontSize: ".72rem", padding: "4px 10px" }}
+                  disabled={!preuvesRemboursement[r.bookingId]?.reference?.trim()}
+                  onClick={() => handleMarkRefunded(r.bookingId, preuvesRemboursement[r.bookingId])}>
+                  ✅ Enregistrer le remboursement effectué
                 </button>
                 <button className={styles.btnSmall} style={{ fontSize: ".72rem" }} onClick={() => setPendingManualRefunds((prev) => prev.filter((x) => x.bookingId !== r.bookingId))}>
                   Ignorer

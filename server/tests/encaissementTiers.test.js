@@ -59,10 +59,15 @@ describe("Encaissement pour compte de tiers fermé", () => {
     expect(apres.status).toBe("completed");
     expect(apres.refundedAmount ?? 0).toBe(0);
 
-    // La décision d'un admin reste possible (remboursement tracé).
+    // La décision d'un admin reste possible, tracée par la référence de
+    // l'opération réellement effectuée (2026-11-01) : sans elle, rien n'est enregistré.
     const admin = await createUser({ role: "admin" });
-    const r = await refundPayment({ paymentId: paiement._id, reason: "décision équipe", actorId: admin._id, actorType: "ADMIN" });
+    const sansPreuve = await refundPayment({ paymentId: paiement._id, reason: "décision équipe", actorId: admin._id, actorType: "ADMIN" });
+    expect(sansPreuve).toMatchObject({ ok: false, preuveRequise: true });
+    expect((await Payment.findById(paiement._id).lean()).status).toBe("completed");
+    const r = await refundPayment({ paymentId: paiement._id, reason: "décision équipe", actorId: admin._id, actorType: "ADMIN", preuve: { reference: "VIR-2026-1101" } });
     expect(r.ok).toBe(true);
+    expect(r.payment.remboursements[0]).toMatchObject({ mode: "manuel", reference: "VIR-2026-1101" });
   });
 
   it("la configuration publique l'annonce à l'interface", async () => {
