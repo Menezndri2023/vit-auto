@@ -251,7 +251,9 @@ describe("Exécution et clôture", () => {
     }
     expect((await appel(L.annulerDemande, { user: client, params: { id } })).statusCode).toBe(409);
     const l = await appel(L.ouvrirLitige, { user: client, params: { id }, body: { motif: "Véhicule rayé à la livraison" } });
-    expect(l.body.demande.statut).toBe("litige");
+    // Statut inchangé depuis le 2026-11-01 : la réclamation se pose à côté du suivi.
+    expect(l.body.demande.statut).toBe("en_transport");
+    expect(l.body.demande.litige.motif).toBe("Véhicule rayé à la livraison");
     // L'admin résout, avec une note obligatoire, sans fabriquer d'étape de transport.
     expect((await appel(L.interventionAdmin, { user: admin, params: { id }, body: { statut: "cloturee" } })).statusCode).toBe(400);
     const res = await appel(L.interventionAdmin, { user: admin, params: { id }, body: { statut: "cloturee", note: "Accord amiable entre les parties" } });

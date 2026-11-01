@@ -42,6 +42,7 @@ import { BadgeActivation, ProchaineAction, BlocActivation, BlocDoublons, Journal
 const CRM_PAR_PAGE = 50;
 import { lienPublic } from "../utils/origineApi.js";
 import VitrinePartage from "../components/VitrinePartage/VitrinePartage.jsx";
+import { avecStatutAffiche } from "../utils/contestation";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPOSANT PRINCIPAL
@@ -772,7 +773,7 @@ export default function AdminPanel() {
       if (vPaged.error) failures.push({ label: "Annonces", message: vPaged.error });
       else { setVehicles(vPaged.items); setVehiclesTotal(vPaged.total); }
       if (bPaged.error) failures.push({ label: "Réservations", message: bPaged.error });
-      else { setBookings(bPaged.items); setBookingsTotal(bPaged.total); }
+      else { setBookings(bPaged.items.map(avecStatutAffiche)); setBookingsTotal(bPaged.total); }
       await read("Chauffeurs en attente", dRes, (d) => setDrivers(d?.drivers || []));
       await read("Chauffeurs actifs", adRes, (d) => setActiveDrivers(Array.isArray(d) ? d : d?.drivers || []));
       await read("Activités en attente", paRes, (d) => setPendingActivitiesList(d?.activities || []));
@@ -808,7 +809,7 @@ export default function AdminPanel() {
       ]);
       setVehicles(vPaged.items); setVehiclesTotal(vPaged.total);
       if (dRes.ok) setDrivers((await dRes.json()).drivers || []);
-      setBookings(bPaged.items); setBookingsTotal(bPaged.total);
+      setBookings(bPaged.items.map(avecStatutAffiche)); setBookingsTotal(bPaged.total);
       setLiveNewListings(0);
       setLiveDisputes(0);
     } catch { /* ignore — le badge live reste affiché, l'admin peut réessayer via Actualiser */ }

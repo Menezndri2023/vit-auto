@@ -58,7 +58,16 @@ describe("Réservations", () => {
     let litige = await Litige.findOne({ "transaction.type": "reservation", "transaction.id": booking._id }).lean();
     expect(litige).toMatchObject({ partieOuvrante: "acheteur", etat: "opened", ouvert: true, motif: "autre" });
     expect(litige.description).toMatch(/jante abîmée/);
-    expect(litige.contexte.statutCommercial).toBe("disputed");
+    // Statut inchangé (2026-11-01) : la réservation reste en attente de validation, contestée.
+    expect(litige.contexte.statutCommercial).toBe("waiting_client_validation");
+    const contestee = await Booking.findById(id).lean();
+    expect(contestee.status).toBe("waiting_client_validation");
+    expect(contestee.clientValidation.disputedAt).toBeTruthy();
+    // Ni le client ne valide, ni le partenaire ne clôt pendant la contestation.
+    expect((await appel(validateTransaction, { user: client, params: { id }, body: { action: "validate" } })).body.code).toBe("CONTESTATION_EN_COURS");
+    const { updateBookingStatus } = await import("../controllers/bookingController.js");
+    expect((await appel(updateBookingStatus, { user: partner, params: { id }, body: { status: "completed" } })).body.code).toBe("CONTESTATION_EN_COURS");
+    expect((await Booking.findById(id).lean()).status).toBe("waiting_client_validation");
 
     // Le partenaire voit le dossier et répond : la réponse y est recopiée.
     const vue = await appel(listerLitigesCible, { user: partner, params: { type: "reservation", id } });
@@ -107,7 +116,7 @@ describe("Réservations", () => {
     const adminResa = await createUser({ role: "admin", adminScope: ["bookings"] });
     const liste = await appel(listerLitiges, { user: adminResa, query: {} });
     expect(liste.body.litiges).toHaveLength(1);
-    expect(liste.body.litiges[0].cible).toMatchObject({ libelle: "Réservation", statut: "disputed" });
+    expect(liste.body.litiges[0].cible).toMatchObject({ libelle: "Réservation", statut: "waiting_client_validation" });
   });
 });
 
@@ -131,7 +140,12 @@ describe("Logistique", () => {
     await appel(L.accepterDevis, { user: client, params: { id, devisId: devis.body.demande.mesDevis.at(-1)._id } });
     for (const statut of ["commande_confirmee", "en_preparation", "en_transport"]) await appel(L.avancerEtape, { user: userP, params: { id }, body: { statut } });
 
-    await appel(L.ouvrirLitige, { user: client, params: { id }, body: { motif: "Véhicule rayé à la livraison" } });
+    await appel(L.avancerEtape, { user: userP, params: { id }, body: { statut: "livraison_declaree" } });
+    const ouverture = await appel(L.ouvrirLitige, { user: client, params: { id }, body: { motif: "Véhicule rayé à la livraison" } });
+    // Statut logistique inchangé ; la réception ne se confirme pas tant que la réclamation est ouverte.
+    expect(ouverture.body.demande.statut).toBe("livraison_declaree");
+    expect((await appel(L.ouvrirLitige, { user: client, params: { id }, body: { motif: "Encore" } })).body.code).toBe("LITIGE_DEJA_OUVERT");
+    expect((await appel(L.confirmerLivraison, { user: client, params: { id } })).body.code).toBe("LITIGE_EN_COURS");
     let litige = await Litige.findOne({ "transaction.type": "logistique", "transaction.id": id }).lean();
     expect(litige).toMatchObject({ partieOuvrante: "acheteur", description: "Véhicule rayé à la livraison", ouvert: true });
     // Le prestataire retenu est la partie « vendeur ».
@@ -140,6 +154,8 @@ describe("Logistique", () => {
     await appel(L.interventionAdmin, { user: admin, params: { id }, body: { statut: "cloturee", note: "Accord amiable entre les parties" } });
     litige = await Litige.findById(litige._id).lean();
     expect(litige).toMatchObject({ etat: "closed", issue: { justification: "Accord amiable entre les parties" } });
+    const { default: DemandeLogistique } = await import("../models/DemandeLogistique.js");
+    expect(await DemandeLogistique.findById(id).lean()).toMatchObject({ statut: "cloturee", litige: { resolution: "Accord amiable entre les parties" } });
   });
 });
 

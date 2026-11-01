@@ -82,7 +82,7 @@ describe("validateTransaction — notification admin à l'ouverture d'un litige"
     const Notification = (await import("../models/Notification.js")).default;
     const adminNotifs = await Notification.find({ user: { $in: [admin1._id, admin2._id] } });
     expect(adminNotifs).toHaveLength(2);
-    expect(adminNotifs[0].titre).toMatch(/litige/i);
+    expect(adminNotifs[0].titre).toMatch(/réclamation/i);
   });
 });
 

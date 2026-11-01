@@ -15,6 +15,7 @@ import MyTestDriveLeads from "../components/MyTestDriveLeads/MyTestDriveLeads";
 import { libelleDureeChauffeur } from "../constants/chauffeur";
 import { statutEcheance, LIBELLE_ECHEANCE, COULEUR_ECHEANCE } from "../constants/echeancier";
 import { downloadAuthFile } from "../utils/downloadAuthFile";
+import { avecStatutAffiche } from "../utils/contestation";
 import styles from "./Dashboard.module.css";
 import ConditionsIncoterm from "../components/ConditionsIncoterm/ConditionsIncoterm";
 import LitigesTransaction from "../components/LitigesConditions/LitigesTransaction";
@@ -646,7 +647,7 @@ const Dashboard = () => {
       if (!res.ok) return;
       const { bookings: raw } = await res.json();
       if (Array.isArray(raw)) {
-        setMyOrders(raw.map(normalizeBooking));
+        setMyOrders(raw.map((b) => normalizeBooking(avecStatutAffiche(b))));
       }
     } catch { /* backend indisponible — conserver l'affichage existant */ }
     finally { setLoadingOrders(false); }
@@ -791,7 +792,8 @@ const Dashboard = () => {
     // Mise à jour instantanée sur événement Socket.io
     const handleBookingUpdate = (payload) => {
       fetchMyOrders(); // re-fetch complet pour avoir les données à jour
-      const label = payload.status === "confirmed"   ? "✅ Votre réservation a été acceptée !"
+      const label = payload.contestee                ? "⚠️ Votre réclamation est enregistrée."
+                  : payload.status === "confirmed"   ? "✅ Votre réservation a été acceptée !"
                   : payload.status === "cancelled"   ? "❌ Votre réservation a été annulée."
                   : payload.status === "preparing"   ? "⚙️ Votre véhicule est en préparation…"
                   : payload.status === "ready"       ? "🚗 Votre véhicule est prêt !"

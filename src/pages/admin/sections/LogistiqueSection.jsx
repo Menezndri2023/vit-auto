@@ -172,7 +172,7 @@ function Detail({ id, appel, onRetour }) {
             {d.documents.map((doc) => <li key={doc._id}><a href={doc.url} target="_blank" rel="noreferrer">{TYPES_DOCUMENT[doc.type] || doc.type}</a> — {doc.role}, {fmtDate(doc.deposeLe)} — non vérifié</li>)}
           </ul>
         )}
-        {d.litige?.motif && <p className={css.erreur}>Litige : {d.litige.motif}</p>}
+        {d.litige?.motif && <p className={css.erreur}>Réclamation{d.litige.resoluLe ? " (close)" : " en cours"} : {d.litige.motif}</p>}
       </div>
 
       {["recue", "infos_requises"].includes(d.statut) && (
@@ -230,8 +230,9 @@ function Detail({ id, appel, onRetour }) {
           <h4>Intervention (note obligatoire, tracée)</h4>
           <textarea aria-label="Note d'intervention" value={note} onChange={(e) => setNote(e.target.value)} style={{ width: "100%", minHeight: 60 }} />
           <div className={css.actions}>
-            {d.statut === "litige" && <button type="button" className={css.btn} disabled={occupe || !note.trim()} onClick={() => agir("intervention", { statut: "cloturee", note }, "Litige résolu, opération clôturée.")}>Résoudre et clôturer</button>}
-            {d.statut === "livraison_declaree" && <button type="button" className={css.btnSec} disabled={occupe || !note.trim()} onClick={() => agir("intervention", { statut: "cloturee", note }, "Clôturée sur justificatif.")}>Clôturer sur justificatif</button>}
+            {/* Réclamation ouverte : le statut ne change plus (2026-11-01). */}
+            {(d.statut === "litige" || (d.litige?.motif && !d.litige?.resoluLe)) && <button type="button" className={css.btn} disabled={occupe || !note.trim()} onClick={() => agir("intervention", { statut: "cloturee", note }, "Litige résolu, opération clôturée.")}>Résoudre et clôturer</button>}
+            {d.statut === "livraison_declaree" && !(d.litige?.motif && !d.litige?.resoluLe) && <button type="button" className={css.btnSec} disabled={occupe || !note.trim()} onClick={() => agir("intervention", { statut: "cloturee", note }, "Clôturée sur justificatif.")}>Clôturer sur justificatif</button>}
             <button type="button" className={css.btnDanger} disabled={occupe || !note.trim()} onClick={() => window.confirm("Annuler cette demande ?") && agir("intervention", { statut: "annulee", note }, "Demande annulée.")}>Annuler</button>
           </div>
         </div>

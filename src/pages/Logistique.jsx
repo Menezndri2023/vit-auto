@@ -355,6 +355,9 @@ function Detail({ id }) {
 
   const devisVisibles = demande.devis || [];
   const m = demande.marchandise || {};
+  // Réclamation ouverte (statut inchangé depuis le 2026-11-01) : la réception
+  // se confirme une fois qu'elle est close.
+  const reclamationOuverte = !!(demande.litige?.motif && !demande.litige?.resoluLe);
   const base = `/api/logistique/demandes/${demande._id}`;
   const decide = demande.estDemandeur !== false;
   const roleDocuments = demande.roleDemandeur === "vendeur" && decide ? "vendeur" : "acheteur";
@@ -440,7 +443,9 @@ function Detail({ id }) {
           <h2>{t("log.livraisonDeclareeTitre")}</h2>
           <p className={styles.intro}>{t("log.livraisonDeclareeTexte")}</p>
           <div className={styles.actions}>
-            <button type="button" className={styles.bouton} disabled={occupe} onClick={() => agir(`${base}/confirmer-livraison`, {}, t("log.receptionConfirmee"))}>{t("log.confirmerReception")}</button>
+            {reclamationOuverte
+              ? <p className={styles.maj}>Réclamation en cours : la réception se confirme une fois qu'elle est close par l'équipe VIT AUTO.</p>
+              : <button type="button" className={styles.bouton} disabled={occupe} onClick={() => agir(`${base}/confirmer-livraison`, {}, t("log.receptionConfirmee"))}>{t("log.confirmerReception")}</button>}
           </div>
         </div>
       )}
@@ -449,7 +454,7 @@ function Detail({ id }) {
         onEnregistrer={async (corps) => { try { const r = await api(`${base}/roles`, { method: "POST", body: JSON.stringify(corps) }); setDemande(r.demande); setInfo(t("log.rolesEnregistres")); return true; } catch (e) { setErreur(e.message); return false; } }} />
       {demande.commandeLiee && <BlocEnlevement enlevement={demande.enlevement} />}
       <BlocDocuments documents={demande.documents} role={roleDocuments} onDeposer={demande.statut !== "annulee" ? deposer : null} />
-      {(demande.statut === "litige" || demande.litige?.motif) && <LitigesTransaction key={demande.statut} txId={demande._id} type="logistique" role="client" ouvrable={false} />}
+      {(demande.statut === "litige" || demande.litige?.motif) && <LitigesTransaction key={`${demande.statut}-${demande.litige?.resoluLe || ""}`} txId={demande._id} type="logistique" role="client" ouvrable={false} />}
 
       <div className={styles.bloc}>
         <h2>{t("log.votreDemande")}</h2>
@@ -480,7 +485,7 @@ function Detail({ id }) {
               <button type="button" className={styles.boutonDanger} disabled={occupe}
                 onClick={() => window.confirm(t("log.confirmAnnuler")) && agir(`${base}/annuler`, { motif }, t("log.demandeAnnulee"))}>{t("log.annulerDemande")}</button>
             )}
-            {LITIGE_OUVRABLE.includes(demande.statut) && (
+            {LITIGE_OUVRABLE.includes(demande.statut) && !reclamationOuverte && (
               <button type="button" className={styles.boutonSec} disabled={occupe || !motif.trim()} onClick={() => agir(`${base}/litige`, { motif }, t("log.problemeSignale"))}>{t("log.signalerProbleme")}</button>
             )}
           </div>

@@ -52,6 +52,17 @@ import { logAction } from "../middleware/auditLog.js";
 import { nonBloquant, signalerNonBloquant } from "../utils/nonBloquant.js";
 import { ouvrirLitigeCible, litigeOuvertPour, ajouterMessage, cloturerParDecision } from "../services/litigeService.js";
 
+// Contestation d'une réservation (2026-11-01) : elle ne change plus le statut.
+// La réservation reste « en attente de validation », contestée par le client
+// (clientValidation.disputedAt), jusqu'à la décision de l'équipe. Le statut
+// « disputed » n'est plus posé ; il reste lu pour les réservations anciennes.
+export const estContestee = (b) => b?.status === "disputed" || (b?.status === "waiting_client_validation" && !!b?.clientValidation?.disputedAt);
+// Statistiques : une réservation contestée compte parmi les litiges.
+const STATUT_AVEC_CONTESTATION = { $cond: [
+  { $and: [{ $eq: ["$status", "waiting_client_validation"] }, { $ne: [{ $ifNull: ["$clientValidation.disputedAt", null] }, null] }] },
+  "disputed", "$status",
+] };
+
 const CLIENT_CANCEL_REASONS_MAP  = Object.fromEntries(CLIENT_CANCEL_REASONS);
 const PARTNER_CANCEL_REASONS_MAP = Object.fromEntries(PARTNER_CANCEL_REASONS);
 
@@ -125,6 +136,7 @@ export function emitBookingUpdate(booking, eventName = "booking_updated", extra 
     bookingId:  booking._id?.toString() || booking.id,
     reference:  booking.reference,
     status:     booking.status,
+    contestee:  estContestee(booking),
     updatedAt:  new Date().toISOString(),
     ...extra,
   };
@@ -2100,7 +2112,9 @@ export const updateBookingStatus = async (req, res) => {
       client_absent:              ["in_progress", "cancelled"],
       transaction_concluded:      ["waiting_client_validation", "cancelled"],
       transaction_not_concluded:  ["in_progress", "cancelled"],
-      waiting_client_validation:  ["completed", "disputed"],
+      // « disputed » n'est plus une étape (2026-11-01) : une contestation laisse
+      // la réservation ici et se tranche par resolveDispute.
+      waiting_client_validation:  ["completed"],
       disputed:                   ["completed", "cancelled"],
       completed:                  [],  // terminal
       cancelled:                  [],  // terminal
@@ -2149,6 +2163,9 @@ export const updateBookingStatus = async (req, res) => {
       // pièce détachée (livrée) ; les autres services y arrivent par
       // concludeTransaction.
       !(booking.status === "in_progress" && next === "waiting_client_validation" && booking.type !== "piece"));
+    if (estContestee(booking) && booking.status === "waiting_client_validation" && !isAdminEmergencyCancel) {
+      return res.status(409).json({ code: "CONTESTATION_EN_COURS", message: "Le client a contesté cette réservation : l'équipe VIT AUTO la tranche (résolution de la contestation)." });
+    }
     if (!allowed.includes(status) && !isAdminEmergencyCancel) {
       return res.status(409).json({
         message: `Transition invalide : ${booking.status} → ${status}.`,
@@ -2446,6 +2463,9 @@ export const validateTransaction = async (req, res) => {
     if (booking.status !== "waiting_client_validation") {
       return res.status(409).json({ message: "Cette transaction n'est pas en attente de validation." });
     }
+    if (estContestee(booking)) {
+      return res.status(409).json({ code: "CONTESTATION_EN_COURS", message: "Votre contestation est en cours d'instruction : l'équipe VIT AUTO la tranchera avec le partenaire." });
+    }
 
     // activity.owner inclus : sans lui, une réservation d'activité ne notifiait
     // jamais son partenaire (vehicle/driver sont null dans ce cas).
@@ -2479,7 +2499,7 @@ export const validateTransaction = async (req, res) => {
       await recordPartnerPayout(booking);
       await awardLoyaltyPoints(booking);
     } else {
-      booking.status = "disputed";
+      // Statut inchangé : seule la contestation est enregistrée.
       booking.clientValidation = {
         validatedAt:   null,
         disputedAt:    new Date(),
@@ -2490,14 +2510,14 @@ export const validateTransaction = async (req, res) => {
       await notify(
         ownerId,
         "system",
-        "⚠️ Litige ouvert",
+        "⚠️ Réservation contestée",
         `Le client a signalé un problème sur la commande ${booking.reference} : ${disputeReason || "Aucun détail fourni."}`,
         "/vendor/dashboard"
       );
       await notifyAdmins(
         "system",
-        "⚠️ Nouveau litige à traiter",
-        `Litige ouvert sur la commande ${booking.reference} : ${disputeReason || "Aucun détail fourni."}`,
+        "⚠️ Nouvelle réclamation à traiter",
+        `Réservation ${booking.reference} contestée par le client : ${disputeReason || "Aucun détail fourni."}`,
         "/admin"
       ).catch(nonBloquant("bookingController"));
     }
@@ -2521,7 +2541,7 @@ export const validateTransaction = async (req, res) => {
       syncVehicleAvailability(booking.vehicle?._id || booking.vehicle);
     }
 
-    res.json({ booking, message: action === "validate" ? "Transaction validée avec succès." : "Litige enregistré. Notre équipe vous contactera." });
+    res.json({ booking, message: action === "validate" ? "Transaction validée avec succès." : "Réclamation enregistrée. L'équipe VIT AUTO l'instruit avec le partenaire." });
   } catch (err) {
     logger.error("validateTransaction:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -2761,7 +2781,7 @@ export const getPartnerStats = async (req, res) => {
       },
       {
         $group: {
-          _id: "$status",
+          _id: STATUT_AVEC_CONTESTATION,
           count:      { $sum: 1 },
           revenue:    { $sum: { $ifNull: ["$transaction.finalAmount", { $ifNull: ["$montantTotal", 0] }] } },
           commission: { $sum: { $ifNull: ["$commissionAmount", 0] } },
@@ -4151,7 +4171,7 @@ export const claimCaution = async (req, res) => {
     // annulation client classique (cancelBookingByClient) ne passe jamais par
     // "disputed" — pas de véhicule remis, donc jamais de caution à traiter.
     const cancelledFromDispute = booking.status === "cancelled" && !!booking.disputeResolution;
-    if (!["completed", "disputed"].includes(booking.status) && !cancelledFromDispute) {
+    if (booking.status !== "completed" && !estContestee(booking) && !cancelledFromDispute) {
       return res.status(409).json({ message: "La caution ne peut être traitée qu'une fois la location terminée." });
     }
     if (booking.cautionClaim?.claimedAt) {
@@ -4240,7 +4260,7 @@ export const resolveDispute = async (req, res) => {
       .populate("part", "title owner");
 
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
-    if (booking.status !== "disputed") {
+    if (!estContestee(booking)) {
       return res.status(409).json({ message: "Cette commande n'est pas en litige." });
     }
 
@@ -4327,7 +4347,7 @@ export const respondToDispute = async (req, res) => {
       .populate("activity", "owner")
       .populate("part", "owner");
     if (!booking) return res.status(404).json({ message: "Commande introuvable." });
-    if (booking.status !== "disputed") {
+    if (!estContestee(booking)) {
       return res.status(409).json({ message: "Cette commande n'est pas en litige." });
     }
 
@@ -4582,7 +4602,7 @@ export const getAdminBookingStats = async (req, res) => {
       Booking.countDocuments({ createdAt: { $gte: start, $lt: end } }),
       Booking.aggregate([
         { $match: { createdAt: { $gte: start, $lt: end } } },
-        { $group: { _id: "$status", count: { $sum: 1 } } },
+        { $group: { _id: STATUT_AVEC_CONTESTATION, count: { $sum: 1 } } },
       ]),
       Booking.aggregate([
         { $match: { createdAt: { $gte: start, $lt: end } } },

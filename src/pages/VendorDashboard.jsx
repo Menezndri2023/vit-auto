@@ -29,6 +29,7 @@ import VerrouOutil from "../components/VerrouOutil/VerrouOutil.jsx";
 import ConditionsIncoterm from "../components/ConditionsIncoterm/ConditionsIncoterm";
 import LitigesTransaction from "../components/LitigesConditions/LitigesTransaction";
 import { useOutils } from "../hooks/useOutils";
+import { avecStatutAffiche } from "../utils/contestation";
 
 /* ── Utilitaires ────────────────────────────────────────────────────────── */
 // fmtXOF n'existe plus en tant que constante module — chaque composant qui en
@@ -2070,7 +2071,7 @@ export default function VendorDashboard() {
       if (!res.ok) return;
       const { bookings: raw } = await res.json();
       if (Array.isArray(raw)) {
-        setMyPersonalBookings(raw.map((b) => {
+        setMyPersonalBookings(raw.map(avecStatutAffiche).map((b) => {
           const veh = b.vehicle;
           const drv = b.driver;
           return {
@@ -3295,7 +3296,7 @@ export default function VendorDashboard() {
       const label = payload.status === "cancelled"           ? `❌ Le client a annulé la commande ${payload.reference || ""}`
                   : payload.status === "waiting_client_validation" ? `⏳ Transaction en attente de validation (${payload.reference || ""})`
                   : payload.status === "completed"           ? `✅ Commande ${payload.reference || ""} validée par le client !`
-                  : payload.status === "disputed"            ? `⚠️ Litige ouvert sur la commande ${payload.reference || ""}`
+                  : payload.status === "disputed" || payload.contestee ? `⚠️ Litige ouvert sur la commande ${payload.reference || ""}`
                   : null;
       if (label) toastSuccess(label);
     };

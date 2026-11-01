@@ -221,6 +221,9 @@ async function loisirs(browser) {
     attendu(await partner(`/api/bookings/${resa._id}/status`, { method: "PATCH", body: { status } }), 200, `partenaire → ${status} (2)`);
   }
   attendu(await client(`/api/bookings/${resa._id}/validate`, { method: "PATCH", body: { action: "dispute", disputeReason: "Séance écourtée de moitié sans explication." } }), 200, "contestation client");
+  const statutApres = attendu(await client(`/api/bookings/${resa._id}/detail`), 200, "détail après contestation").booking?.status;
+  if (statutApres !== "waiting_client_validation") throw new Error(`la contestation a changé le statut (${statutApres})`);
+  if (attendu(await partner(`/api/bookings/${resa._id}/status`, { method: "PATCH", body: { status: "completed" } }), 409, "clôture partenaire pendant la contestation").code !== "CONTESTATION_EN_COURS") throw new Error("clôture partenaire non refusée pendant la contestation");
   const vuePartenaire = attendu(await partner(`/api/litiges/cible/reservation/${resa._id}`), 200, "dossier vu par le partenaire");
   const dossier = vuePartenaire.litiges?.[0];
   if (vuePartenaire.partie !== "vendeur" || dossier?.etat !== "opened" || !/écourtée/.test(dossier.description)) throw new Error(`dossier de réclamation inattendu : ${JSON.stringify(vuePartenaire).slice(0, 200)}`);
@@ -228,7 +231,7 @@ async function loisirs(browser) {
   attendu(await admin(`/api/bookings/${resa._id}/resolve-dispute`, { method: "PATCH", body: { resolution: "cancelled", note: "Séance non rendue : annulation." } }), 200, "résolution admin");
   const clos = attendu(await client(`/api/litiges/cible/reservation/${resa._id}`), 200, "dossier vu par le client").litiges?.[0];
   if (clos?.etat !== "closed" || clos.issue?.justification !== "Séance non rendue : annulation.") throw new Error(`dossier non clos par la résolution : ${JSON.stringify(clos).slice(0, 200)}`);
-  ok("réservation contestée → dossier de réclamation ouvert (partenaire, admin) → clos par la résolution admin");
+  ok("réservation contestée → statut inchangé, clôture partenaire refusée → dossier ouvert (partenaire, admin) → clos par la résolution admin");
   await ctx.close();
   for (const j of journal) ko(`loisirs — ${j}`);
 }

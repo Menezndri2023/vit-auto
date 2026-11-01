@@ -18,7 +18,7 @@ import { validateDocumentDataUri } from "../utils/imageValidation.js";
 import { deposerPiece } from "../utils/deposerPiece.js";
 import { FOLDERS, isImageKitConfigured } from "../config/imagekit.js";
 import { isValidCountryCode } from "../utils/countries.js";
-import { ouvrirLitigeCible, cloturerParDecision } from "../services/litigeService.js";
+import { ouvrirLitigeCible, cloturerParDecision, litigeOuvertPour } from "../services/litigeService.js";
 import { csvRow } from "../utils/csv.js";
 import { logAction } from "../middleware/auditLog.js";
 import {
@@ -564,6 +564,9 @@ export const confirmerLivraison = async (req, res) => {
     if (demande.statut !== "livraison_declaree") {
       return res.status(409).json({ message: "La livraison n'a pas encore été déclarée par le prestataire.", code: "STATUT" });
     }
+    if (await litigeOuvertPour(demande._id, "logistique")) {
+      return res.status(409).json({ message: "Une réclamation est en cours : la réception se confirme une fois qu'elle est close.", code: "LITIGE_EN_COURS" });
+    }
     changerStatut(demande, "cloturee", { par: req.user._id, role: "client", note: txt(req.body?.note, 500) || "Réception confirmée par le client." });
     await demande.save();
     const prest = await Prestataire.findById(demande.devisAccepte.prestataire).select("user").lean();
@@ -579,8 +582,12 @@ export const ouvrirLitige = async (req, res) => {
     if (!LITIGE_OUVRABLE.includes(demande.statut)) return res.status(409).json({ message: "Aucune prestation engagée sur cette demande.", code: "STATUT" });
     const motif = txt(req.body?.motif, 1000);
     if (!motif) return res.status(400).json({ message: "Décrivez le problème rencontré." });
+    if (await litigeOuvertPour(demande._id, "logistique")) return res.status(409).json({ message: "Une réclamation est déjà en cours sur cette demande.", code: "LITIGE_DEJA_OUVERT" });
+    // Statut inchangé (2026-11-01) : la réclamation se pose à côté du suivi
+    // logistique, que le prestataire continue de tenir.
     demande.litige = { motif, resolution: "", resoluLe: null };
-    changerStatut(demande, "litige", { par: req.user._id, role: "client", note: motif });
+    if (!demande.jalons.litigeOuvertLe) demande.jalons.litigeOuvertLe = new Date();
+    demande.evenements.push({ type: "reclamation", note: motif, par: req.user._id, role: "client" });
     await demande.save();
     // Dossier de réclamation commun (2026-11-01) : échanges, pièces, décision.
     await ouvrirLitigeCible("logistique", demande, req.user, { description: motif })
@@ -1051,14 +1058,18 @@ export const interventionAdmin = async (req, res) => {
     const { statut, note } = req.body || {};
     const note1 = txt(note, 1000);
     if (!note1) return res.status(400).json({ message: "Une note justifiant l'intervention est obligatoire." });
-    const permis = statut === "annulee" ? !STATUTS_TERMINAUX.includes(demande.statut) : (INTERVENTIONS_ADMIN[demande.statut] || []).includes(statut);
+    // Réclamation ouverte (statut inchangé depuis le 2026-11-01) : l'admin peut
+    // clore ou annuler la demande, comme depuis l'ancien statut « litige ».
+    const reclamation = await litigeOuvertPour(demande._id, "logistique");
+    const permis = statut === "annulee" ? !STATUTS_TERMINAUX.includes(demande.statut)
+      : (INTERVENTIONS_ADMIN[demande.statut] || []).includes(statut) || (!!reclamation && statut === "cloturee" && demande.statut !== "cloturee");
     if (!permis) return res.status(409).json({ message: "Transition non autorisée pour l'administration.", code: "TRANSITION" });
-    if (demande.statut === "litige") {
+    if (demande.statut === "litige" || reclamation) {
       demande.litige.resolution = note1;
       demande.litige.resoluLe = new Date();
     }
     if (statut === "annulee") demande.motifAnnulation = note1;
-    const etaitEnLitige = demande.statut === "litige";
+    const etaitEnLitige = demande.statut === "litige" || !!reclamation;
     changerStatut(demande, statut, { par: req.user._id, role: "admin", note: note1 });
     await demande.save();
     if (etaitEnLitige) {

@@ -214,6 +214,10 @@ export async function changerEtat(litigeId, admin, vers, { note, decision, justi
     { $set, $push: { actions: { qui: admin._id, quoi: "transition", de, vers, note: note ? String(note).slice(0, 2000) : null } } }, { new: true, runValidators: true });
   if (!maj) throw new LitigeError(409, "La réclamation vient d'être modifiée : rechargez.");
   if (vers === "closed" && type === "ie") await IETransaction.updateOne({ _id: litige.transaction.id, litigeEnCours: litige._id }, { $set: { litigeEnCours: null } });
+  if (vers === "closed" && type === "logistique") {
+    const { default: DemandeLogistique } = await import("../models/DemandeLogistique.js");
+    await DemandeLogistique.updateOne({ _id: litige.transaction.id, "litige.resoluLe": null }, { $set: { "litige.resoluLe": new Date(), "litige.resolution": maj.issue?.decision || "Réclamation close par l'équipe VIT AUTO." } });
+  }
 
   const objet = await cible(type).charger(litige.transaction.id);
   if (objet) await notifierParties(type, objet, { titre: "Réclamation : mise à jour", message: `Réclamation ${litige.reference} : ${LIBELLES_ETAT[vers] || vers}.` });
@@ -274,7 +278,7 @@ export async function reprendreLitigesExistants() {
   const { default: Booking } = await import("../models/Booking.js");
   const { default: DemandeLogistique } = await import("../models/DemandeLogistique.js");
   let reservations = 0; let logistique = 0;
-  for (const b of await Booking.find({ status: "disputed" }).populate("vehicle", "owner").populate("driver", "owner").populate("activity", "owner").populate("part", "owner")) {
+  for (const b of await Booking.find({ $or: [{ status: "disputed" }, { status: "waiting_client_validation", "clientValidation.disputedAt": { $ne: null } }] }).populate("vehicle", "owner").populate("driver", "owner").populate("activity", "owner").populate("part", "owner")) {
     if (!b.client) continue;
     const l = await ouvrirLitigeCible("reservation", b, { _id: b.client, role: "client" }, {
       description: b.clientValidation?.disputeReason, ouvertLe: b.clientValidation?.disputedAt || b.updatedAt || new Date(),

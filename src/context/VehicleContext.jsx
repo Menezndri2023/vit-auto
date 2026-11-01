@@ -1,10 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { useAuth } from "./AuthContext";
 import { useCurrency } from "./CurrencyContext";
+import { avecStatutAffiche } from "../utils/contestation";
 import { vehicles as initialVehicles } from "../data/vehicles";
 
 // Convertit une commande MongoDB (backend) en format plat utilisé par les dashboards
-const normalizeBackendBooking = (b) => {
+const normalizeBackendBooking = (brut) => {
+  const b = avecStatutAffiche(brut);
   const pos = b.location?.pickupPosition;
   const hasGps = pos && pos.lat != null && pos.lng != null;
   const veh = b.vehicle;

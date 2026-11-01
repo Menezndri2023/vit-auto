@@ -445,9 +445,17 @@ sequenceDiagram
 `ie`, `reservation`, `logistique`, voir `server/services/litigeCibles.js`) sert de dossier aux
 contestations de réservation et aux litiges logistiques : échanges, pièces privées, décision écrite,
 visibles des deux parties (client ; partenaire ou prestataire retenu) et de l'admin du secteur
-(`/api/litiges`, onglet Litiges). Leurs étapes existantes (« contestée », « litige ») restent
-posées par leurs propres écrans pour l'instant ; la résolution de l'admin (contestation de
-réservation, intervention logistique) clôt le dossier en y recopiant sa décision. Les
+(`/api/litiges`, onglet Litiges). **Comme pour l'Import/Export, ouvrir une réclamation ne change
+plus leur statut** (décision de l'exploitant, 2026-11-01) :
+
+- réservation : elle reste « en attente de validation », marquée contestée
+  (`clientValidation.disputedAt`) ; ni le client ne la valide ni le partenaire ne la clôt pendant
+  la contestation (409 `CONTESTATION_EN_COURS`) ; seule la résolution de l'admin décide de la suite
+  (validée, annulée, compensée) et clôt le dossier. Les écrans l'affichent « Litige ouvert ». Le
+  statut `disputed` n'est plus posé ; les réservations anciennes qui l'ont gardent leur parcours ;
+- logistique : la demande garde son étape, que le prestataire continue de tenir ; la réception ne
+  se confirme pas tant que la réclamation est ouverte (409 `LITIGE_EN_COURS`) ; l'admin peut clore
+  ou annuler la demande (intervention avec note), ce qui clôt le dossier. Les
 contestations déjà ouvertes avant cette date ont reçu leur dossier au démarrage, daté de leur
 ouverture réelle, sans modifier la réservation ni la demande.
 
@@ -523,7 +531,7 @@ Exécutions :
 | 3 | Délais de réclamation et de validation : **à fixer par contrat**, jamais par défaut. Points de départ proposés pour en discuter : véhicule, 7 jours après la livraison confirmée ; pièces détachées, 14 jours après réception ; autres marchandises, selon le contrat | Exploitant et juriste |
 | 4 | Sort du règlement direct IE une fois le prestataire en place | Exploitant |
 | 5 | ~~Circuit des remboursements « manuels »~~ **Fait le 2026-11-01** : référence de l'opération obligatoire, rien d'enregistré sans elle (§5.4) | ✅ |
-| 7 | Réservations et logistique : faut-il aussi cesser de changer leur statut à l'ouverture d'une réclamation (« contestée », « litige »), comme pour l'Import/Export ? | Exploitant |
+| 7 | ~~Réservations et logistique : cesser de changer leur statut à l'ouverture d'une réclamation ?~~ **Tranché le 2026-11-01 : oui**, statut inchangé partout (§10) | Exploitant ✅ |
 | 6 | ~~Conditions en règlement direct facultatives ?~~ **Tranché le 2026-10-31 : obligatoires** pour les deux parties avant la déclaration de l'acheteur ; réacceptation à chaque nouvelle version ; trace horodatée par version | Exploitant ✅ |
 
 ## 14. Prérequis prestataire

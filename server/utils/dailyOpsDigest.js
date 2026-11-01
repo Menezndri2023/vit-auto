@@ -47,7 +47,7 @@ export async function calculerDigest(maintenant = new Date()) {
       .limit(0).select("reference type").lean(),
     // Pièces livrées dont le client n'a pas confirmé la réception depuis 3 jours.
     Booking.countDocuments({ type: "piece", status: "waiting_client_validation", updatedAt: { $lte: new Date(maintenant - h(72)) } }),
-    Booking.countDocuments({ status: "disputed" }),
+    Booking.countDocuments({ $or: [{ status: "disputed" }, { status: "waiting_client_validation", "clientValidation.disputedAt": { $ne: null } }] }),
     // Alertes fraude des dernières 24 h (le score est informatif : l'admin décide a posteriori).
     Booking.find({ "fraudCheck.riskLevel": "high", "fraudCheck.checkedAt": { $gte: new Date(maintenant - h(24)) } }).limit(0).select("reference").lean(),
     DriverEmployment.countDocuments({ status: "pending", "adminReview.status": "forwarded", createdAt: { $lte: new Date(maintenant - h(48)) } }),
