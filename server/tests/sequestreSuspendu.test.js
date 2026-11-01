@@ -8,6 +8,7 @@ import IETransaction from "../models/IETransaction.js";
 import CommissionLedger from "../models/CommissionLedger.js";
 import { createUser, createListing, createIETransaction } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
+import { proposerConditions, accepterConditions } from "../services/conditionsLiberationService.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SÉQUESTRE IMPORT/EXPORT SUSPENDU (décision de l'exploitant, 2026-10-30)
@@ -69,12 +70,23 @@ describe("Séquestre Import/Export suspendu", () => {
     expect(apres.statusHistory.at(-1).note).toMatch(/séquestre est suspendu.*régulariser/);
   });
 
-  it("règlement direct : l'acheteur déclare, l'exportateur confirme, puis expédition et clôture sans aucun fonds", async () => {
+  it("règlement direct : conditions acceptées par les deux, l'acheteur déclare, le vendeur confirme, puis expédition et clôture sans aucun fonds", async () => {
     const id = String(tx._id);
+    // Règle du 2026-10-31 : rien ne se déclare avant l'acceptation des DEUX parties.
+    expect((await appel(declarerReglementDirect, { user: client, params: { id }, body: {} })).body.code).toBe("CONDITIONS_NON_ACCEPTEES");
+    expect((await appel(declarerReglementDirect, { user: partner, params: { id }, body: {} })).body.code).toBe("REGLEMENT_NON_DECLARE");
+    const v1 = await proposerConditions(tx, partner, { delaiReclamationJours: 7 });
+    await accepterConditions(tx, client, { version: 1, hash: v1.hash });
+    expect((await appel(declarerReglementDirect, { user: client, params: { id }, body: {} })).body.code).toBe("CONDITIONS_NON_ACCEPTEES");
+    await accepterConditions(tx, partner, { version: 1, hash: v1.hash });
+    expect((await IETransaction.findById(tx._id).lean()).reglementDirect.etat).toBe("terms_accepted");
+
     const d = await appel(declarerReglementDirect, { user: client, params: { id }, body: { reference: "SWIFT-42" } });
     expect(d.statusCode).toBe(200);
-    expect(d.body.message).toMatch(/exportateur doit confirmer/);
-    expect((await IETransaction.findById(tx._id).lean()).status).toBe("payment_pending");
+    expect(d.body.message).toMatch(/vendeur doit maintenant confirmer/);
+    const declaree = await IETransaction.findById(tx._id).lean();
+    expect(declaree.status).toBe("payment_pending");                  // une déclaration n'est pas une réception
+    expect(declaree.reglementDirect).toMatchObject({ etat: "payment_declared", conditionsDeclaration: { version: 1, hash: v1.hash } });
 
     const etranger = await createUser({ role: "client" });
     expect((await appel(declarerReglementDirect, { user: etranger, params: { id } })).statusCode).toBe(403);
@@ -83,7 +95,7 @@ describe("Séquestre Import/Export suspendu", () => {
     expect(c.statusCode).toBe(200);
     let t = await IETransaction.findById(tx._id).lean();
     expect(t.status).toBe("preparing");
-    expect(t.reglementDirect).toMatchObject({ referenceAcheteur: "SWIFT-42", noteExportateur: "reçu" });
+    expect(t.reglementDirect).toMatchObject({ etat: "payment_confirmed", referenceAcheteur: "SWIFT-42", noteExportateur: "reçu" });
     expect(t.statusHistory.at(-1).note).toMatch(/aucun fonds détenu ni vérifié par VIT AUTO/);
     expect(t.payment.paidAt).toBeNull();
 

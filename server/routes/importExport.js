@@ -1,6 +1,7 @@
 import express from "express";
 import * as ie from "../controllers/importExportController.js";
 import * as tx from "../controllers/ieTransactionController.js";
+import * as litiges from "../controllers/litigeController.js";
 import { authenticate, authorizeAdmin, optionalAuth, requireAdminScope, requireAnyAdminScope } from "../middleware/auth.js";
 import { validateObjectId } from "../middleware/validateObjectId.js";
 
@@ -81,6 +82,19 @@ router.patch ("/transactions/:id/release-funds",    authenticate,       vid,    
 router.post  ("/transactions/:id/review",           authenticate,       vid,     tx.addReview);
 router.post  ("/transactions/:id/dispute",          authenticate,       vid,     tx.openDispute);
 router.patch ("/transactions/:id/dispute/resolve",  authenticate, authorizeAdmin, ieScope, vid, tx.resolveDispute);
+
+// ── Litiges et conditions de libération (2026-10-31) ─────────────────────────
+// Un litige ne modifie jamais le statut de la transaction ; les conditions sont
+// des versions immuables, acceptées par l'acheteur ET le vendeur.
+router.get   ("/transactions/:id/litiges",          authenticate,       vid,     litiges.listerLitigesTransaction);
+router.post  ("/transactions/:id/litiges",          authenticate,       vid,     litiges.ouvrir);
+router.get   ("/transactions/:id/conditions",       authenticate,       vid,     litiges.lireConditions);
+router.post  ("/transactions/:id/conditions",       authenticate,       vid,     litiges.proposer);
+router.post  ("/transactions/:id/conditions/accepter", authenticate,    vid,     litiges.accepter);
+router.get   ("/litiges",                           authenticate, authorizeAdmin, ieScope, litiges.listerLitiges);
+router.post  ("/litiges/:litigeId/messages",        authenticate, litiges.idLitigeValide, litiges.message);
+router.post  ("/litiges/:litigeId/pieces",          authenticate, litiges.idLitigeValide, litiges.piece);
+router.patch ("/litiges/:litigeId/etat",            authenticate, authorizeAdmin, ieScope, litiges.idLitigeValide, litiges.transition);
 router.patch ("/transactions/:id/cancel",           authenticate,       vid,     tx.cancelTransaction);
 
 export default router;

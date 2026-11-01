@@ -266,11 +266,22 @@ async function importExport(browser) {
   //    refusé, l'acheteur règle l'exportateur directement et le déclare, l'exportateur confirme.
   const viaSequestre = await client(`/api/import-export/transactions/${tx._id}/pay`, { method: "POST", body: { method: "virement", transactionRef: "VIR-VERIF-2026-001" } });
   if (viaSequestre.status !== 503) throw new Error(`paiement sous séquestre accepté alors qu'il est fermé : ${viaSequestre.status}`);
+  // Règle du 2026-10-31 : conditions acceptées par les DEUX parties → déclaration
+  // de l'acheteur → confirmation du vendeur ; tout autre ordre est refusé (409).
+  const avantAccord = await client(`/api/import-export/transactions/${tx._id}/reglement-direct`, { method: "POST", body: { reference: "VIR-VERIF-2026-001" } });
+  if (avantAccord.status !== 409 || avantAccord.data.code !== "CONDITIONS_NON_ACCEPTEES") throw new Error(`déclaration acceptée sans accord des deux parties : ${avantAccord.status}`);
+  const avantDeclaration = await partner(`/api/import-export/transactions/${tx._id}/reglement-direct`, { method: "POST", body: { note: "Virement reçu." } });
+  if (avantDeclaration.status !== 409) throw new Error(`réception confirmée avant la déclaration de l'acheteur : ${avantDeclaration.status}`);
+  const cond = attendu(await client(`/api/import-export/transactions/${tx._id}/conditions`), 200, "conditions (version 1)");
+  if (cond.courante?.version !== 1) throw new Error("aucune version 1 des conditions créée à l'acceptation de l'offre");
+  attendu(await client(`/api/import-export/transactions/${tx._id}/conditions/accepter`, { method: "POST", body: { version: 1, hash: cond.courante.hash } }), 201, "conditions acceptées (acheteur)");
+  attendu(await partner(`/api/import-export/transactions/${tx._id}/conditions/accepter`, { method: "POST", body: { version: 1, hash: cond.courante.hash } }), 201, "conditions acceptées (vendeur)");
   attendu(await client(`/api/import-export/transactions/${tx._id}/reglement-direct`, { method: "POST", body: { reference: "VIR-VERIF-2026-001" } }), 200, "règlement direct déclaré");
-  attendu(await partner(`/api/import-export/transactions/${tx._id}/reglement-direct`, { method: "POST", body: { note: "Virement reçu." } }), 200, "règlement direct confirmé");
+  attendu(await partner(`/api/import-export/transactions/${tx._id}/reglement-direct`, { method: "POST", body: { note: "Virement reçu." } }), 200, "réception confirmée par le vendeur");
   let detail = attendu(await client(`/api/import-export/transactions/${tx._id}`), 200, "détail").transaction;
   if (detail.status !== "preparing") throw new Error(`statut après confirmation ${detail.status}, attendu preparing`);
-  ok("séquestre refusé (503) → règlement direct déclaré par l'acheteur → confirmé par l'exportateur");
+  if (detail.reglementDirect?.etat !== "payment_confirmed") throw new Error(`état du règlement ${detail.reglementDirect?.etat}, attendu payment_confirmed`);
+  ok("séquestre refusé (503) → déclaration refusée sans accord → conditions v1 acceptées par les deux → règlement déclaré → réception confirmée par le vendeur");
   // 6. Documents d'export (rapport d'inspection joint) → expédition → suivi → livraison → clôture.
   const pdf = "data:application/pdf;base64," + Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF").toString("base64");
   attendu(await partner(`/api/import-export/transactions/${tx._id}/documents`, { method: "PATCH", body: { documents: { inspectionDocs: { status: "fourni", url: pdf }, commercialInvoice: { status: "fourni", url: pdf } } } }), 200, "documents");
@@ -286,9 +297,17 @@ async function importExport(browser) {
   if (dossierTx.etape !== "livre") throw new Error(`dossier d'import à l'étape ${dossierTx.etape}, attendu livre`);
   ok("dossier d'import lié à la réservation, mené jusqu'à « Livré » par la transaction");
   const recu = await client(`/api/import-export/transactions/${tx._id}/receipt`);
-  // Règlement direct confirmé par l'exportateur : attestation de règlement (pas un reçu VIT AUTO).
+  // Réception déclarée par l'exportateur : attestation de règlement (pas un reçu VIT AUTO).
   if (recu.status !== 200 || !/pdf/.test(recu.raw.headers.get("content-type") || "")) journal.push(`[client] attestation de règlement indisponible : ${recu.status}`);
   ok(`documents joints → expédiée (CMA CGM) → aucune libération de fonds (503) → livrée, clôturée (statut ${detail.status})`);
+  // 6 bis. Réclamation (2026-10-31) : ouverte après clôture, elle ne change PAS le statut.
+  const reclamation = attendu(await client(`/api/import-export/transactions/${tx._id}/litiges`, { method: "POST", body: { motif: "endommage", description: "Rayure profonde constatée sur la portière arrière." } }), 201, "réclamation ouverte");
+  if (!/^VA-LIT-\d{4}-\d{6}$/.test(reclamation.litige?.reference || "")) throw new Error(`référence de réclamation inattendue : ${reclamation.litige?.reference}`);
+  const apresReclamation = attendu(await client(`/api/import-export/transactions/${tx._id}`), 200, "détail après réclamation").transaction;
+  if (apresReclamation.status !== detail.status) throw new Error(`la réclamation a changé le statut : ${detail.status} → ${apresReclamation.status}`);
+  const listeReclamations = attendu(await partner(`/api/import-export/transactions/${tx._id}/litiges`), 200, "réclamations (vendeur)").litiges || [];
+  if (!listeReclamations.some((l) => l.reference === reclamation.litige.reference)) throw new Error("réclamation invisible pour le vendeur");
+  ok(`réclamation ${reclamation.litige.reference} ouverte par le client, visible du vendeur, statut inchangé (${apresReclamation.status})`);
   // 7. Tableau de bord client IE rendu.
   await page.goto(`${BASE}/import-export/dashboard`, { waitUntil: "networkidle", timeout: 60000 });
   if (!/Land Cruiser|CMAU-VERIF-1|transaction/i.test(await texte(page))) journal.push("[client] tableau de bord import/export sans la transaction");

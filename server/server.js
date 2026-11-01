@@ -677,6 +677,21 @@ async function runStartupMigrations() {
         const { appliquerGrilleOfficielle } = await import("./scripts/preavisGrille.mjs");
         await appliquerGrilleOfficielle();
       });
+      // Règlement direct en trois étapes (exploitant, 2026-10-31). Les
+      // déclarations faites depuis le 30/10 gardent leur état (aucune n'est
+      // annulée) ; chaque transaction en attente de règlement reçoit une
+      // version 1 des conditions, à accepter par les deux parties.
+      await runOnceMigration("reglement-direct-trois-etapes-2026-10-31", async () => {
+        const { default: IETransaction } = await import("./models/IETransaction.js");
+        const { creerConditionsInitiales } = await import("./services/conditionsLiberationService.js");
+        const confirmees = await IETransaction.updateMany({ "reglementDirect.confirmeParExportateurLe": { $ne: null } }, { $set: { "reglementDirect.etat": "payment_confirmed" } });
+        const declarees = await IETransaction.updateMany({ "reglementDirect.declareParAcheteurLe": { $ne: null }, "reglementDirect.confirmeParExportateurLe": null }, { $set: { "reglementDirect.etat": "payment_declared" } });
+        let creees = 0;
+        for (const tx of await IETransaction.find({ status: "payment_pending", "finalOffer.totalAmount": { $gt: 0 } })) {
+          if (await creerConditionsInitiales(tx)) creees += 1;
+        }
+        logger.info(`[Migration] règlement direct : ${confirmees.modifiedCount} confirmé(s), ${declarees.modifiedCount} déclaré(s), ${creees} version(s) 1 de conditions créée(s).`);
+      });
 
       // Comptes administrateurs vérifiés d'office (exploitant, 2026-10-09) :
       // les nouveaux le sont à l'enregistrement (models/User.js).

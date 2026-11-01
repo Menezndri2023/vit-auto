@@ -24,6 +24,9 @@ import { SEQUESTRE_IE_ACTIF, SEQUESTRE_SUSPENDU_MESSAGE } from "../config/featur
 import { isMalformedObjectId } from "../utils/objectId.js";
 import { csvCell } from "../utils/csv.js";
 import { nonBloquant } from "../utils/nonBloquant.js";
+import { ouvrirLitige, LitigeError } from "../services/litigeService.js";
+import { creerConditionsInitiales, etatConditions } from "../services/conditionsLiberationService.js";
+import { uploadDocument, signedDocumentUrl, FOLDERS } from "../config/imagekit.js";
 
 const MAX_EXPORT_DOC_BYTES = 8 * 1024 * 1024; // 8 Mo — cohérent avec les autres documents (CV, KYC)
 
@@ -472,6 +475,7 @@ export const createDirectPurchase = async (req, res) => {
     });
 
     await ImportExportListing.findByIdAndUpdate(listingId, { $inc: { inquiries: 1 } });
+    await creerConditionsInitiales(tx).catch((err) => logger.error("creerConditionsInitiales (achat direct):", err.message));
 
     // Gate admin obligatoire (audit 2026-08) : le partenaire n'est plus notifié
     // ici — voir adminValidateDirectPurchase pour la notification envoyée à
@@ -760,6 +764,8 @@ export const acceptOffer = async (req, res) => {
     tx.status = "payment_pending";
     pushHistory(tx, "payment_pending", req.user._id, "Client a accepté l'offre finale. Paiement en attente.");
     await tx.save();
+    // Conditions v1 à accepter par les deux parties avant toute déclaration de règlement.
+    await creerConditionsInitiales(tx).catch((err) => logger.error("creerConditionsInitiales (acceptOffer):", err.message));
 
     await notify(tx.partner, "success", "Offre acceptée !", "Le client a accepté votre offre finale. En attente du paiement.", `/importer-dashboard`);
 
@@ -913,9 +919,17 @@ async function enregistrerCommissionDue(tx, c) {
 
 // ── Règlement direct (séquestre suspendu, 2026-10-30) ───────────────────────
 // POST /api/import-export/transactions/:id/reglement-direct
-// L'acheteur DÉCLARE avoir réglé l'exportateur ; l'exportateur CONFIRME l'avoir
-// reçu, ce qui ouvre la préparation de l'export. Deux déclarations, aucune
-// vérification de fonds par VIT AUTO — et le message le dit.
+// Règle de l'exploitant (2026-10-31), trois étapes dans cet ordre :
+//   1. terms_accepted    — la version EN VIGUEUR des conditions est acceptée par
+//                          l'acheteur ET le vendeur (sinon : 409) ;
+//   2. payment_declared  — l'acheteur déclare son règlement (preuve facultative),
+//                          sous cette version, enregistrée avec la déclaration ;
+//   3. payment_confirmed — le vendeur confirme la réception (sa déclaration), ce
+//                          qui ouvre la préparation de l'export.
+// Une déclaration de l'acheteur n'est jamais une preuve de réception par le
+// vendeur, et VIT AUTO ne reçoit ni ne vérifie aucun fonds — les messages le disent.
+const MAX_PREUVE_OCTETS = 8 * 1024 * 1024;
+
 export const declarerReglementDirect = async (req, res) => {
   try {
     if (etatSequestre.actif) return res.status(409).json({ message: "Le paiement passe par le séquestre pour cette transaction." });
@@ -930,21 +944,52 @@ export const declarerReglementDirect = async (req, res) => {
     const note = String(req.body?.note || "").trim().slice(0, 1000) || null;
 
     if (estClient) {
+      // Les acceptations font foi (pas l'état mémorisé) : la version en vigueur
+      // doit être acceptée par les deux parties au moment de la déclaration.
+      const cond = await etatConditions(tx._id);
+      if (!cond.courante || !cond.accepteeParLesDeux) {
+        return res.status(409).json({
+          code: "CONDITIONS_NON_ACCEPTEES",
+          message: "Les conditions de la transaction doivent d'abord être acceptées par l'acheteur et par le vendeur (bloc « Conditions »). Vous pourrez ensuite déclarer votre règlement.",
+        });
+      }
+      if (tx.reglementDirect.etat === "payment_confirmed") {
+        return res.status(409).json({ message: "Le vendeur a déjà confirmé la réception du règlement." });
+      }
+      const preuve = req.body?.preuve;
+      if (preuve?.fichier) {
+        const check = validateDocumentDataUri(preuve.fichier, MAX_PREUVE_OCTETS);
+        if (!check.ok) return res.status(400).json({ message: `Preuve : ${check.message}` });
+        const envoi = await uploadDocument(preuve.fichier, `${FOLDERS.docs}/reglements`, `reglement_${String(tx._id).slice(-8)}_${Date.now()}`);
+        if (!envoi?.url) return res.status(503).json({ code: "DEPOT_INDISPONIBLE", message: "Dépôt de la preuve indisponible pour le moment : réessayez, ou déclarez sans preuve." });
+        tx.reglementDirect.preuveAcheteur = { nom: String(preuve.nom || "Preuve de règlement").trim().slice(0, 200), url: envoi.url, type: check.detectedType || null, le: new Date() };
+      }
       tx.reglementDirect.declareParAcheteurLe = new Date();
       tx.reglementDirect.referenceAcheteur = String(req.body?.reference || "").trim().slice(0, 200) || null;
       tx.reglementDirect.noteAcheteur = note;
-      pushHistory(tx, tx.status, req.user._id, "Règlement direct déclaré par l'acheteur — à confirmer par l'exportateur. VIT AUTO n'a ni reçu ni vérifié ce paiement.");
+      tx.reglementDirect.conditionsDeclaration = { id: cond.courante._id, version: cond.courante.version, hash: cond.courante.hash };
+      tx.reglementDirect.etat = "payment_declared";
+      pushHistory(tx, tx.status, req.user._id, `Règlement direct déclaré par l'acheteur (conditions version ${cond.courante.version} acceptées par les deux parties) — réception à confirmer par le vendeur. VIT AUTO n'a ni reçu ni vérifié ce paiement.`);
       await tx.save();
-      await notify(tx.partner, "info", "Règlement déclaré par l'acheteur", "L'acheteur indique vous avoir réglé directement. Confirmez la réception pour lancer la préparation de l'export.", "/importer-dashboard");
-      return res.json({ message: "Règlement déclaré. L'exportateur doit confirmer l'avoir reçu.", transaction: tx });
+      await notify(tx.partner, "info", "Règlement déclaré par l'acheteur", "L'acheteur déclare vous avoir réglé directement. Vérifiez la réception sur votre compte, puis confirmez-la pour lancer la préparation de l'export.", "/importer-dashboard");
+      return res.json({ message: "Règlement déclaré. Le vendeur doit maintenant confirmer l'avoir reçu.", transaction: tx });
     }
 
+    // Vendeur : la confirmation suit OBLIGATOIREMENT la déclaration de l'acheteur.
+    if (tx.reglementDirect.etat !== "payment_declared") {
+      return res.status(409).json({
+        code: "REGLEMENT_NON_DECLARE",
+        message: "L'acheteur n'a pas encore déclaré son règlement : la réception ne peut être confirmée qu'après sa déclaration.",
+      });
+    }
     tx.reglementDirect.confirmeParExportateurLe = new Date();
     tx.reglementDirect.noteExportateur = note;
+    // Déclaration DU VENDEUR, pas la confirmation d'un tiers ni d'un prestataire.
+    tx.reglementDirect.etat = "payment_confirmed";
     tx.status = "preparing";
-    pushHistory(tx, "preparing", req.user._id, "Règlement reçu, confirmé par l'exportateur (déclaration — aucun fonds détenu ni vérifié par VIT AUTO).");
+    pushHistory(tx, "preparing", req.user._id, "Réception du règlement confirmée par le vendeur (déclaration du vendeur — aucun fonds détenu ni vérifié par VIT AUTO).");
     await tx.save();
-    await notify(tx.client, "info", "Règlement confirmé par l'exportateur", "L'exportateur confirme avoir reçu votre règlement et prépare l'export.", `/import-export/transaction/${tx._id}`);
+    await notify(tx.client, "info", "Réception confirmée par le vendeur", "Le vendeur déclare avoir reçu votre règlement et prépare l'export.", `/import-export/transaction/${tx._id}`);
     res.json({ message: "Réception du règlement confirmée. Préparation de l'export ouverte.", transaction: tx });
   } catch (err) {
     logger.error("declarerReglementDirect:", err);
@@ -1508,33 +1553,22 @@ async function settleListingStock(txId, listingId) {
 // POST /api/import-export/transactions/:id/dispute
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Ancienne route conservée pour les écrans qui l'appellent encore : elle ouvre
+// désormais un Litige (models/Litige.js) SANS toucher au statut — elle passait
+// la transaction en « disputed », effaçant son état commercial (2026-10-31).
 export const openDispute = async (req, res) => {
   try {
-    const tx = await IETransaction.findOne({
-      _id: req.params.id,
-      // "payment_submitted" inclus : un acompte déclaré puis contesté (fonds
-      // réellement envoyés mais non reconnus) n'avait aucune voie de recours.
-      status: { $in: ["payment_submitted", "in_escrow", "preparing", "shipped", "in_transit", "delivered"] },
-    });
-    if (!tx) return res.status(404).json({ message: "Transaction introuvable ou litige non autorisé à ce stade." });
-
+    const tx = await IETransaction.findById(req.params.id);
+    if (!tx) return res.status(404).json({ message: "Transaction introuvable." });
     const isParticipant = [tx.client.toString(), tx.partner.toString()].includes(req.user._id.toString());
     if (!isParticipant) return res.status(403).json({ message: "Accès refusé." });
 
-    if (tx.dispute.opened) return res.status(409).json({ message: "Un litige est déjà ouvert." });
-
-    const { reason } = req.body;
-    tx.dispute = { opened: true, openedAt: new Date(), openedBy: req.user._id, reason: reason || null };
-    tx.status = "disputed";
-    pushHistory(tx, "disputed", req.user._id, `Litige ouvert : ${reason || "sans motif précisé"}`);
-    await tx.save();
-
-    const otherParty = isParticipant && tx.client.toString() === req.user._id.toString() ? tx.partner : tx.client;
-    await notify(otherParty, "error", "Litige ouvert", `Un litige a été ouvert sur la transaction. VIT AUTO va intervenir.`, `/import-export/transaction/${tx._id}`);
-    await notifyAdmins("ie_dispute", "⚠️ Litige ouvert", `Transaction ${tx._id} — ${req.user.firstName} a ouvert un litige : ${reason || ""}`, `/admin`);
-
-    res.json({ message: "Litige ouvert. VIT AUTO va examiner la situation.", transaction: tx });
+    const { motif, description, reason } = req.body || {};
+    const litige = await ouvrirLitige(tx, req.user, { motif: motif || "autre", description: description || reason });
+    const transaction = await IETransaction.findById(tx._id);
+    res.json({ message: `Réclamation ${litige.reference} ouverte. L'équipe VIT AUTO l'instruit avec les deux parties.`, litige, transaction });
   } catch (err) {
+    if (err instanceof LitigeError) return res.status(err.status).json({ message: err.message, ...(err.code ? { code: err.code } : {}) });
     logger.error("openDispute:", err);
     captureException(err, { controller: "ieTransactionController.openDispute", txId: req.params.id });
     res.status(500).json({ message: "Erreur serveur." });
@@ -1703,7 +1737,12 @@ export const getTransactionById = async (req, res) => {
 
     const paymentProfile = await getPartnerPaymentProfile(tx.partner._id);
 
-    res.json({ transaction: tx, paymentProfile });
+    // Preuve de règlement : dossier PRIVÉ, lue par URL signée (jamais stockée).
+    const transaction = tx.toObject();
+    if (transaction.reglementDirect?.preuveAcheteur?.url) {
+      transaction.reglementDirect.preuveAcheteur.url = signedDocumentUrl(transaction.reglementDirect.preuveAcheteur.url);
+    }
+    res.json({ transaction, paymentProfile });
   } catch (err) {
     logger.error("getTransactionById:", err);
     res.status(500).json({ message: "Erreur serveur." });
@@ -1712,7 +1751,7 @@ export const getTransactionById = async (req, res) => {
 
 // GET /api/import-export/transactions/:id/receipt — justificatif PDF d'un paiement RÉEL :
 // - payé via VIT AUTO (séquestre, ou paiement en ligne une fois activé) → reçu de paiement ;
-// - réglé en direct et confirmé par l'exportateur (séquestre fermé, 2026-10-30) →
+// - réglé en direct, réception DÉCLARÉE par l'exportateur (séquestre fermé, 2026-10-30) →
 //   attestation de règlement : bénéficiaire = l'exportateur, VIT AUTO n'a rien encaissé.
 // Aucun document tant que le paiement n'est pas confirmé (une simple déclaration de
 // l'acheteur ne suffit pas).
@@ -1733,7 +1772,7 @@ export const getTransactionReceipt = async (req, res) => {
     const reglementDirect = !tx.payment?.paidAt && tx.reglementDirect?.confirmeParExportateurLe;
     if (!tx.payment?.paidAt && !reglementDirect) {
       return res.status(409).json({ message: tx.reglementDirect?.declareParAcheteurLe
-        ? "Règlement déclaré mais pas encore confirmé par l'exportateur : le justificatif sera disponible après sa confirmation."
+        ? "Règlement déclaré par l'acheteur, réception pas encore déclarée par l'exportateur : l'attestation sera disponible après sa déclaration."
         : "Aucun paiement confirmé pour cette transaction." });
     }
 
@@ -1754,8 +1793,8 @@ export const getTransactionReceipt = async (req, res) => {
         method:          "Règlement direct à l'exportateur",
         referencePayeur: tx.reglementDirect.referenceAcheteur,
         beneficiaire:    exportateur,
-        description:     "Règlement déclaré par l'acheteur et confirmé par l'exportateur",
-        mention:         `VIT AUTO n'a ni reçu ni détenu ces fonds : le règlement a été effectué directement auprès de ${exportateur}, qui en a confirmé la réception le ${new Date(tx.reglementDirect.confirmeParExportateurLe).toLocaleDateString("fr-FR")}. Ce document reprend cette confirmation ; il ne vaut ni facture ni reçu d'encaissement de VIT AUTO.`,
+        description:     "Règlement déclaré par l'acheteur ; réception déclarée par l'exportateur",
+        mention:         `VIT AUTO n'a ni reçu ni détenu ces fonds : le règlement a été effectué directement auprès de ${exportateur}, qui en a déclaré la réception le ${new Date(tx.reglementDirect.confirmeParExportateurLe).toLocaleDateString("fr-FR")}. Ce document reprend ces déclarations des parties, que VIT AUTO n'a pas vérifiées ; il ne vaut ni facture ni reçu d'encaissement de VIT AUTO.`,
       }, res);
     }
 

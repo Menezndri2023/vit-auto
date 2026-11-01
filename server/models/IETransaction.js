@@ -208,9 +208,36 @@ const ieTransactionSchema = new mongoose.Schema({
   // Règlement DIRECT acheteur → exportateur (séquestre suspendu, 2026-10-30).
   // Purement déclaratif : VIT AUTO ne reçoit ni ne vérifie les fonds.
   reglementDirect: {
+    // Règle de l'exploitant (2026-10-31) — trois étapes, dans cet ordre :
+    //   terms_accepted     les DEUX parties ont accepté la version en vigueur
+    //                      des conditions (models/ConditionsLiberation.js) ;
+    //   payment_declared   l'acheteur déclare avoir réglé (preuve facultative) —
+    //                      jamais une preuve de réception par le vendeur ;
+    //   payment_confirmed  le vendeur confirme la réception — SA déclaration,
+    //                      pas celle d'un tiers ni d'un prestataire.
+    // Aucun de ces états n'est un paiement sécurisé (models/PaiementSecurise.js) :
+    // VIT AUTO ne reçoit, ne conserve ni ne vérifie les fonds.
+    etat: {
+      type: String,
+      enum: ["none", "terms_accepted", "payment_declared", "payment_confirmed"],
+      default: "none",
+    },
     declareParAcheteurLe:     { type: Date,   default: null },
     referenceAcheteur:        { type: String, default: null },
     noteAcheteur:             { type: String, default: null },
+    // Version exacte des conditions sous laquelle l'acheteur a déclaré.
+    conditionsDeclaration: {
+      id:      { type: mongoose.Schema.Types.ObjectId, ref: "ConditionsLiberation", default: null },
+      version: { type: Number, default: null },
+      hash:    { type: String, default: null },
+    },
+    // Preuve jointe par l'acheteur (dossier PRIVÉ, lue par URL signée).
+    preuveAcheteur: {
+      nom:  { type: String, default: null },
+      url:  { type: String, default: null },
+      type: { type: String, default: null },
+      le:   { type: Date,   default: null },
+    },
     confirmeParExportateurLe: { type: Date,   default: null },
     noteExportateur:          { type: String, default: null },
   },
@@ -323,6 +350,12 @@ const ieTransactionSchema = new mongoose.Schema({
   // évaluation) — voir settleListingStock/ieTransactionController.js.
   stockSettled: { type: Boolean, default: false },
 
+  // Litige en cours (models/Litige.js, 2026-10-31). Il ne modifie JAMAIS
+  // `status`, `reglementDirect` ni le paiement ; il se pose à côté.
+  litigeEnCours: { type: mongoose.Schema.Types.ObjectId, ref: "Litige", default: null },
+
+  // Ancien litige (avant le 2026-10-31) : il remplaçait `status` par
+  // « disputed ». Conservé en lecture pour l'historique ; plus aucune écriture.
   dispute: {
     opened:     { type: Boolean, default: false },
     openedAt:   { type: Date, default: null },

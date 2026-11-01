@@ -32,6 +32,7 @@ import { SectorRequestsSection } from "./admin/sections/SectorRequestsSection.js
 import { DossiersImportSection } from "./admin/sections/DossiersImportSection.jsx";
 import { ZoneTransitSection } from "./admin/sections/ZoneTransitSection.jsx";
 import { LogistiqueSection } from "./admin/sections/LogistiqueSection.jsx";
+import { ReclamationsIESection } from "./admin/sections/ReclamationsIESection.jsx";
 import { DirectionSection } from "./admin/sections/DirectionSection.jsx";
 import { CatalogueSection } from "./admin/sections/CatalogueSection.jsx";
 import { MarketingSection } from "./admin/sections/MarketingSection.jsx";
@@ -6198,6 +6199,9 @@ export default function AdminPanel() {
             </div>
             <button className={styles.btnRefresh} style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px" }} onClick={loadAll}>↻ Actualiser</button>
           </div>
+
+          {/* Réclamations Import/Export (2026-10-31) — modèle Litige, statut des transactions inchangé. */}
+          <ReclamationsIESection headers={headers} />
 
           {/* KPIs litiges */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 12, marginBottom: "1.5rem" }}>

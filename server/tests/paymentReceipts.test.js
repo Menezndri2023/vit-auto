@@ -97,7 +97,7 @@ describe("Reçus de paiement génériques", () => {
     const { req, res } = mockReqRes({ user: client, params: { id: tx._id.toString() } });
     await getTransactionReceipt(req, res);
     expect(res.statusCode).toBe(409);
-    expect(res.body.message).toMatch(/pas encore confirmé par l'exportateur/);
+    expect(res.body.message).toMatch(/pas encore déclarée par l'exportateur/);
   });
 
   it("import/export en règlement direct confirmé : attestation PDF pour l'acheteur et l'exportateur", async () => {

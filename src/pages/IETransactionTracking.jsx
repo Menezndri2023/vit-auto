@@ -4,6 +4,8 @@ import { useAuth } from "../context/AuthContext";
 import { useChat } from "../context/ChatContext";
 import styles from "./IETransactionTracking.module.css";
 import ConditionsIncoterm from "../components/ConditionsIncoterm/ConditionsIncoterm";
+import ConditionsLiberation from "../components/LitigesConditions/ConditionsLiberation";
+import LitigesTransaction from "../components/LitigesConditions/LitigesTransaction";
 
 const fmtPrice = (p, c = "EUR") =>
   p != null ? `${Number(p).toLocaleString("fr-FR")} ${c}` : "—";
@@ -71,6 +73,10 @@ const DOC_STATUS_CFG = {
 };
 
 // ── Barre de progression ───────────────────────────────────────────────────
+// Statuts où une réclamation peut être ouverte — miroir de
+// server/services/litigeService.js (le serveur fait foi).
+const STATUTS_RECLAMATION = ["offer_accepted", "payment_pending", "payment_submitted", "in_escrow", "preparing", "shipped", "in_transit", "delivered", "funds_released", "completed"];
+
 function ProgressBar({ status }) {
   const currentIdx = STATUS_ORDER.indexOf(status);
   const terminalStatuses = ["cancelled", "disputed"];
@@ -115,7 +121,6 @@ function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfil
   const [error, setError]               = useState(null);
   const [form, setForm]                 = useState({});
   const [cancelReason, setCancelReason] = useState(null);  // null = form masqué
-  const [disputeReason, setDisputeReason] = useState(null);
 
   // ── "Devis partenaire" (niveau 2 de l'Import Cost Engine) ────────────────
   // Pré-remplit l'offre finale à partir du devis auto-calculé à la réservation
@@ -301,42 +306,79 @@ function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfil
   }
 
   // ── Étape 9 : règlement DIRECT (séquestre suspendu, 2026-10-30) ────────
-  // L'acheteur règle l'exportateur hors de VIT AUTO, selon leur contrat ; la
-  // plateforme enregistre les deux déclarations, sans rien garantir.
+  // Règle de l'exploitant (2026-10-31), dans cet ordre : conditions acceptées
+  // par les DEUX parties → l'acheteur déclare son règlement (preuve
+  // facultative) → le vendeur confirme la réception. Le serveur fait foi ;
+  // VIT AUTO ne reçoit ni ne vérifie aucun fonds.
   if (tx.status === "payment_pending" && !sequestreActif && (role === "client" || role === "partner")) {
     const rd = tx.reglementDirect || {};
+    const etape = rd.etat || "none";
     const declarer = (corps) => call(`${base}/reglement-direct`, "POST", corps);
+    const joindrePreuve = (fichier) => {
+      if (!fichier) { setForm((f) => ({ ...f, preuve: null })); return; }
+      if (!(fichier.type.startsWith("image/") || fichier.type === "application/pdf")) { setError("Preuve : image ou PDF uniquement."); return; }
+      if (fichier.size > 8 * 1024 * 1024) { setError("Preuve trop lourde (8 Mo au plus)."); return; }
+      const lecteur = new FileReader();
+      lecteur.onload = () => setForm((f) => ({ ...f, preuve: { nom: fichier.name, fichier: lecteur.result } }));
+      lecteur.readAsDataURL(fichier);
+    };
+    const ETAPES_RD = [
+      ["terms_accepted", "Conditions acceptées par les deux parties"],
+      ["payment_declared", "Règlement déclaré par l'acheteur"],
+      ["payment_confirmed", "Réception confirmée par le vendeur"],
+    ];
+    const rang = { none: 0, terms_accepted: 1, payment_declared: 2, payment_confirmed: 3 }[etape] ?? 0;
     return (
       <div className={styles.actionCard}>
         <h4>Règlement direct avec l'exportateur</h4>
         <p>
-          Vous réglez la transaction <strong>directement entre acheteur et exportateur</strong>, selon votre contrat
-          (virement, lettre de crédit…). VIT AUTO ne reçoit pas, ne conserve pas et ne garantit pas ce paiement :
-          la plateforme enregistre seulement ce que chacun déclare, et les documents d'export.
+          Vous réglez la transaction <strong>directement entre acheteur et exportateur</strong>, selon les conditions
+          acceptées par les deux parties. VIT AUTO ne reçoit pas, ne conserve pas et ne garantit pas ce paiement :
+          la plateforme enregistre l'accord des parties, leurs déclarations et les documents d'export.
         </p>
+        <ol className={styles.actionNote} aria-label="Étapes du règlement direct">
+          {ETAPES_RD.map(([cle, libelle], i) => <li key={cle}>{rang > i ? "✅" : "⏳"} {libelle}</li>)}
+        </ol>
         <div className={styles.escrowInfo}>
           <div>Montant convenu : <strong>{fmtPrice(tx.finalOffer?.totalAmount, tx.finalOffer?.currency)}</strong></div>
-          <p>Acheteur : {rd.declareParAcheteurLe ? `règlement déclaré le ${fmtDate(rd.declareParAcheteurLe)}${rd.referenceAcheteur ? ` (réf. ${rd.referenceAcheteur})` : ""}` : "pas encore déclaré"}</p>
+          <p>Acheteur : {rd.declareParAcheteurLe ? `règlement déclaré le ${fmtDate(rd.declareParAcheteurLe)}${rd.referenceAcheteur ? ` (réf. ${rd.referenceAcheteur})` : ""}${rd.conditionsDeclaration?.version ? `, sous les conditions version ${rd.conditionsDeclaration.version}` : ""}` : "pas encore déclaré"}</p>
+          {rd.preuveAcheteur?.url && <p>Preuve jointe : <a href={rd.preuveAcheteur.url} target="_blank" rel="noopener noreferrer">{rd.preuveAcheteur.nom || "document"}</a> (déclaration de l'acheteur, non vérifiée par VIT AUTO)</p>}
         </div>
-        {role === "client" ? (
+        {etape === "none" && (
+          <p className={styles.actionNote} role="status">
+            Étape 1 : les conditions de la transaction (bloc « Conditions de livraison et de réclamation ») doivent être
+            acceptées par l'acheteur ET par le vendeur. {role === "client" ? "Vous pourrez ensuite déclarer votre règlement." : "L'acheteur pourra ensuite déclarer son règlement."}
+          </p>
+        )}
+        {role === "client" && etape !== "none" && (
           <div className={styles.formRow2}>
             <label><span>Référence de votre règlement (facultatif)</span>
               <input placeholder="Ex : virement SWIFT, n° de LC" onChange={(e) => setForm((f) => ({ ...f, reference: e.target.value }))} />
             </label>
+            <label><span>Preuve de règlement (facultatif, image ou PDF)</span>
+              <input type="file" accept="image/*,application/pdf" onChange={(e) => joindrePreuve(e.target.files?.[0])} />
+            </label>
             <div className={styles.actionBtns}>
-              <button className={styles.btnPrimary} disabled={loading} onClick={() => declarer({ reference: form.reference })}>
-                {rd.declareParAcheteurLe ? "Mettre à jour ma déclaration" : "J'ai réglé l'exportateur"}
+              <button className={styles.btnPrimary} disabled={loading} onClick={() => declarer({ reference: form.reference, ...(form.preuve ? { preuve: form.preuve } : {}) })}>
+                {etape === "payment_declared" ? "Mettre à jour ma déclaration" : "Je déclare avoir réglé l'exportateur"}
               </button>
             </div>
           </div>
-        ) : (
-          <div className={styles.actionBtns}>
-            <button className={styles.btnPrimary} disabled={loading} onClick={() => declarer({})}>
-              Je confirme avoir reçu le règlement
-            </button>
-          </div>
         )}
-        <p className={styles.actionNote}>La préparation de l'export s'ouvre quand l'exportateur confirme avoir reçu le règlement.</p>
+        {role === "partner" && etape === "terms_accepted" && (
+          <p className={styles.actionNote} role="status">En attente de la déclaration de règlement de l'acheteur.</p>
+        )}
+        {role === "partner" && etape === "payment_declared" && (
+          <>
+            <p className={styles.actionNote}>La déclaration de l'acheteur n'est pas une preuve de réception : vérifiez votre compte avant de confirmer.</p>
+            <div className={styles.actionBtns}>
+              <button className={styles.btnPrimary} disabled={loading} onClick={() => declarer({})}>
+                Je confirme avoir reçu le règlement
+              </button>
+            </div>
+          </>
+        )}
+        <p className={styles.actionNote}>La préparation de l'export s'ouvre quand le vendeur confirme la réception. Ce sont des déclarations des parties : VIT AUTO ne les vérifie pas.</p>
         {error && <p className={styles.err}>{error}</p>}
       </div>
     );
@@ -543,34 +585,12 @@ function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfil
         <h4>Confirmer la réception</h4>
         <p>Avez-vous bien reçu le véhicule dans l'état convenu ?</p>
         <label><span>Notes de livraison (optionnel)</span><textarea rows={2} placeholder="Tout est conforme / Observations…" onChange={(e) => setForm((f) => ({ ...f, deliveryNotes: e.target.value }))} /></label>
-        {disputeReason !== null ? (
-          <div className={styles.inlineForm}>
-            <p className={styles.disputeWarning}>⚠️ Décrivez le problème constaté :</p>
-            <textarea
-              value={disputeReason}
-              onChange={(e) => setDisputeReason(e.target.value)}
-              placeholder="Décrivez le problème (véhicule non conforme, retard excessif…)"
-              rows={3}
-              className={styles.inlineTextarea}
-            />
-            <div className={styles.actionBtns}>
-              <button className={styles.btnDanger} disabled={loading || !disputeReason.trim()}
-                onClick={() => { call(`${base}/dispute`, "POST", { reason: disputeReason }); setDisputeReason(null); }}>
-                Confirmer le litige
-              </button>
-              <button className={styles.btnSecondary} onClick={() => setDisputeReason(null)}>Annuler</button>
-            </div>
-          </div>
-        ) : (
-          <div className={styles.actionBtns}>
-            <button className={styles.btnPrimary} disabled={loading} onClick={() => call(`${base}/deliver`, "PATCH", form)}>
-              📬 Confirmer la réception
-            </button>
-            <button className={styles.btnDanger} disabled={loading} onClick={() => setDisputeReason("")}>
-              ⚠️ Ouvrir un litige
-            </button>
-          </div>
-        )}
+        <div className={styles.actionBtns}>
+          <button className={styles.btnPrimary} disabled={loading} onClick={() => call(`${base}/deliver`, "PATCH", form)}>
+            📬 Confirmer la réception
+          </button>
+        </div>
+        <p className={styles.actionNote}>Un problème ? Ouvrez une réclamation dans le bloc « Réclamations » ci-dessous.</p>
         {error && <p className={styles.err}>{error}</p>}
       </div>
     );
@@ -618,38 +638,15 @@ function ActionPanel({ tx, role, canDoLogistics, token, onRefresh, paymentProfil
         <h4>{role === "admin" ? "Payer l'exportateur" : "Véhicule livré"}</h4>
         <p>{role === "admin"
           ? "Le client a confirmé la réception : la part de l'exportateur peut lui être versée."
-          : "VIT AUTO verse la part du fournisseur. Un problème avec le véhicule ? Ouvrez un litige."}</p>
+          : "VIT AUTO verse la part du fournisseur. Un problème avec le véhicule ? Ouvrez une réclamation ci-dessous."}</p>
         <div className={styles.escrowInfo}>
           <div>💰 <strong>{fmtPrice(partExportateur, tx.payment?.currency)}</strong> → Fournisseur</div>
           <p>Réf. entiercement : <code>{tx.payment?.escrowRef}</code></p>
         </div>
-        {disputeReason !== null ? (
-          <div className={styles.inlineForm}>
-            <p className={styles.disputeWarning}>⚠️ Décrivez le problème constaté :</p>
-            <textarea
-              value={disputeReason}
-              onChange={(e) => setDisputeReason(e.target.value)}
-              placeholder="Décrivez le problème (véhicule non conforme, dommages à la livraison…)"
-              rows={3}
-              className={styles.inlineTextarea}
-            />
-            <div className={styles.actionBtns}>
-              <button className={styles.btnDanger} disabled={loading || !disputeReason.trim()}
-                onClick={() => { call(`${base}/dispute`, "POST", { reason: disputeReason }); setDisputeReason(null); }}>
-                Confirmer le litige
-              </button>
-              <button className={styles.btnSecondary} onClick={() => setDisputeReason(null)}>Annuler</button>
-            </div>
-          </div>
-        ) : (
+        {role === "admin" && (
           <div className={styles.actionBtns}>
-            {role === "admin" && (
-              <button className={styles.btnPrimary} disabled={loading} onClick={() => call(`${base}/release-funds`)}>
-                💰 Verser la part exportateur
-              </button>
-            )}
-            <button className={styles.btnDanger} disabled={loading} onClick={() => setDisputeReason("")}>
-              ⚠️ Ouvrir un litige
+            <button className={styles.btnPrimary} disabled={loading} onClick={() => call(`${base}/release-funds`)}>
+              💰 Verser la part exportateur
             </button>
           </div>
         )}
@@ -999,6 +996,10 @@ export default function IETransactionTracking() {
       {/* Conditions Incoterms® 2020 convenues entre l'acheteur et l'exportateur
           (lieu nommé, validation des deux parties, historique). */}
       {(role === "client" || role === "partner" || role === "admin") && <ConditionsIncoterm type="transaction" id={tx._id} />}
+      {/* Conditions de libération versionnées (2026-10-31) : dès l'offre finale. */}
+      {(role === "client" || (role === "partner" && isPartner) || role === "admin") && tx.finalOffer?.totalAmount > 0 && tx.status !== "cancelled" && (
+        <ConditionsLiberation txId={tx._id} role={isPartner ? "partner" : role} onChange={load} />
+      )}
 
       {/* Prise en charge logistique (restructuration 2026-09) — visible dès que
           les fonds sont sécurisés (voir ieTransactionController.onEscrowSecured) */}
@@ -1072,10 +1073,15 @@ export default function IETransactionTracking() {
             </div>
           )}
 
-          {/* Litige */}
+          {/* Réclamations (2026-10-31) : ne modifient jamais le statut de la transaction. */}
+          {(role === "client" || (role === "partner" && isPartner) || role === "admin") && (
+            <LitigesTransaction txId={tx._id} role={isPartner ? "partner" : role} ouvrable={STATUTS_RECLAMATION.includes(tx.status)} />
+          )}
+
+          {/* Ancien litige (avant le 2026-10-31), conservé pour l'historique */}
           {tx.dispute?.opened && (
             <div className={`${styles.section} ${styles.disputeSection}`}>
-              <div className={styles.sectionHeader}><span>⚠️</span><h3>Litige en cours</h3></div>
+              <div className={styles.sectionHeader}><span>⚠️</span><h3>Litige (ancien suivi)</h3></div>
               <p><strong>Motif :</strong> {tx.dispute.reason}</p>
               <p className={styles.disputeDate}>Ouvert le {fmtDate(tx.dispute.openedAt)}</p>
               {tx.dispute.resolution && (

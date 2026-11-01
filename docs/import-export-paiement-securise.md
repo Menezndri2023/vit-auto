@@ -218,8 +218,12 @@ respectées : Mongoose, noms français, statuts historiques conservés en lectur
 
 ```text
 IETransaction.reglementDirect          (existant, complété — circuit DIRECT uniquement)
-  etat: aucun | declare_par_acheteur | reception_declaree_par_vendeur
-        (déclarations des parties : jamais une confirmation de réception par un tiers)
+  etat: none | terms_accepted | payment_declared | payment_confirmed      (règle du 2026-10-31)
+        terms_accepted    : version EN VIGUEUR des conditions acceptée par l'acheteur ET le vendeur
+        payment_declared  : l'acheteur déclare (preuve facultative) — jamais une preuve de réception
+        payment_confirmed : le vendeur confirme la réception — SA déclaration, pas celle d'un tiers
+  conditionsDeclaration: { id, version, hash }   (version exacte sous laquelle l'acheteur a déclaré)
+  preuveAcheteur: { nom, url (privée), type, le }
   declareParAcheteurLe, referenceAcheteur, noteAcheteur          (existant)
   confirmeParExportateurLe, noteExportateur                      (existant : « réception déclarée par le vendeur »)
 
@@ -284,9 +288,11 @@ Quatre états **indépendants**. Aucun ne modifie un autre automatiquement.
 stateDiagram-v2
     direction LR
     state "Règlement direct (déclarations des parties)" as D {
-        [*] --> aucun
-        aucun --> declare_par_acheteur: acheteur déclare
-        declare_par_acheteur --> reception_declaree_par_vendeur: vendeur déclare la réception
+        [*] --> none
+        none --> terms_accepted: les DEUX parties acceptent la version en vigueur
+        terms_accepted --> none: nouvelle version proposée (à réaccepter)
+        terms_accepted --> payment_declared: acheteur déclare (preuve facultative)
+        payment_declared --> payment_confirmed: vendeur confirme la réception
     }
 ```
 
@@ -368,12 +374,13 @@ sequenceDiagram
     participant P as VIT AUTO
     V->>P: Offre finale
     A->>P: Accepte l'offre
-    V->>P: Propose les conditions v1 (facultatif en direct)
-    A->>P: Accepte v1
-    V->>P: Accepte v1
+    P->>P: Crée les conditions v1 (montant, parties, Incoterm de la transaction)
+    A->>P: Accepte v(n)
+    V->>P: Accepte v(n)
+    Note over A,V: OBLIGATOIRE avant toute déclaration (terms_accepted)
     A-->>V: Règle directement, hors VIT AUTO
-    A->>P: Déclare le règlement (déclaration)
-    V->>P: Déclare la réception (déclaration)
+    A->>P: Déclare le règlement, preuve facultative (payment_declared)
+    V->>P: Confirme la réception (payment_confirmed)
     V->>P: Documents, expédition déclarée
     A->>P: Confirme la livraison, ou ouvre un litige
 ```
@@ -432,9 +439,11 @@ sequenceDiagram
   et s'appliquent à N seulement : la N+1 doit être réacceptée par les deux parties.
 - **Jamais de modification rétroactive.** Une version acceptée par les deux parties reste
   consultable telle quelle.
-- **Circuit** : `reglement_direct` (facultatif, l'écran précise que les conditions encadrent la
-  livraison, la conformité et la réclamation, **pas des fonds**) ou `sequestre_prestataire`
-  (obligatoire, futur).
+- **Circuit** : `reglement_direct` — **obligatoire** depuis le 2026-10-31 : la version en vigueur
+  doit être acceptée par les deux parties avant que l'acheteur puisse déclarer son règlement
+  (409 `CONDITIONS_NON_ACCEPTEES`) ; une version 1 est créée par la plateforme dès que la
+  transaction devient payable (offre acceptée, achat direct). Les conditions encadrent livraison,
+  conformité et réclamation, **pas des fonds**. `sequestre_prestataire` : futur, obligatoire aussi.
 - **Proposition** : le vendeur, l'acheteur ou l'admin peut proposer une version ; le montant et la
   devise sont repris de l'offre finale en base, jamais du navigateur.
 - **Incoterm® 2020** : repris de la transaction comme clause de **livraison**, jamais comme règle
@@ -454,9 +463,9 @@ mémoire.
 | 5 | Paiement échoué | `payment.webhook.test.js` (session expirée) | ✅ |
 | 6 | Confirmation valide | `payment.webhook.test.js` | ✅ |
 | 7 | Libération non autorisée | `sequestreSuspendu.test.js` (503, aucune écriture) ; parcours navigateur IE (libération refusée en 503) | ✅ |
-| 8 | Litige sans changement du statut commercial | **Non couvert : le code actuel écrase le statut** (§4, risque 4). Test à écrire avec le nouveau modèle `Litige` | ⏳ conception |
-| 9 | Litige sans fausse suspension des fonds | Texte actuel : « VIT AUTO va intervenir », sans promesse de suspension ; test à écrire avec `Litige` | ⏳ conception |
-| 10–12 | Conditions de libération versionnées, double acceptation, modification après acceptation | Modèle `ConditionsLiberation` à construire (§11) | ⏳ conception |
+| 8 | Litige sans changement du statut commercial | `litiges.test.js` (empreinte statut, règlement direct, paiement, expédition, documents identique avant/après ; ancienne route `/dispute` incluse) ; balayage navigateur (réclamation ouverte, statut inchangé) | ✅ |
+| 9 | Litige sans fausse suspension des fonds | `litiges.test.js` (aucune notification ne parle de fonds bloqués ; « VIT AUTO ne détient pas les fonds ») ; `LitigesConditions.render.test.jsx` (écran) ; libération non demandable tant que le litige n'est pas clos | ✅ |
+| 10–12 | Conditions de libération versionnées, double acceptation, modification après acceptation | `conditionsLiberation.test.js` : montant et parties repris de la transaction, hash, acceptation par partie sans IP, version N+1 à réaccepter, version acceptée intacte, écritures refusées par le modèle ; transitions du paiement sécurisé préparé | ✅ |
 | 13 | Transaction liée à plusieurs dossiers logistiques | `logistique.test.js`, `dossierImport*.test.js` | ✅ (existant) |
 | 14 | Préservation des transactions historiques | `sequestreSuspendu.test.js` (aucune écriture sur refus) ; aucun statut historique migré | ✅ |
 | 15 | Textes dans les cinq langues | `src/i18n/i18n.promessesPaiement.test.js` (aucune promesse de séquestre) ; `i18n.completude.test.js` (5 langues présentes) | ✅ |
@@ -467,7 +476,8 @@ Exécutions :
 - vérification locale complète (`.githooks/pre-push`) : tests front **241/241**, build,
   balayage navigateur sans anomalie, parcours critiques aboutis, dont Import/Export en règlement
   direct ;
-- suite serveur complète : lancée, résultat ci-dessous une fois terminée.
+- suite serveur complète (second lot) : **228/228 fichiers, 1 961 tests** ;
+- litiges et conditions : **15/15** tests serveur, **3/3** tests d'écran.
 
 ## 13. Décisions à valider
 
@@ -489,6 +499,7 @@ Exécutions :
 | 3 | Délais de réclamation et de validation : **à fixer par contrat**, jamais par défaut. Points de départ proposés pour en discuter : véhicule, 7 jours après la livraison confirmée ; pièces détachées, 14 jours après réception ; autres marchandises, selon le contrat | Exploitant et juriste |
 | 4 | Sort du règlement direct IE une fois le prestataire en place | Exploitant |
 | 5 | Circuit des remboursements « manuels » (§4, risque 3 bis) dans le futur modèle | Exploitant |
+| 6 | ~~Conditions en règlement direct facultatives ?~~ **Tranché le 2026-10-31 : obligatoires** pour les deux parties avant la déclaration de l'acheteur ; réacceptation à chaque nouvelle version ; trace horodatée par version | Exploitant ✅ |
 
 ## 14. Prérequis prestataire
 
