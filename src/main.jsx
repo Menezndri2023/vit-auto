@@ -7,6 +7,8 @@ import { installerRafraichissementSession } from './utils/fetchSession.js'
 import { installerAppuiFiable } from './utils/appuiFiable.js'
 import { Capacitor } from '@capacitor/core'
 import { redirigerPrefixeFrancais } from './i18n/langueUrl.js'
+import { chargerDictionnaire } from './i18n/dictionnaire.js'
+import { langueInitiale } from './context/I18nContext.jsx'
 
 // `/fr/...` doublonnerait la forme nue, qui EST la version française. Redirigé
 // avant tout rendu : la page ne s'affiche jamais à la mauvaise adresse, et le
@@ -85,8 +87,17 @@ if ("serviceWorker" in navigator && !Capacitor.isNativePlatform()) {
 
 // GoogleAuthButton.jsx se masque lui-même si VITE_GOOGLE_CLIENT_ID est absent
 // — un clientId vide ici ne casse rien tant qu'aucun <GoogleLogin> n'est monté.
-createRoot(document.getElementById('root')).render(
+// Seul le dictionnaire de la langue du visiteur est téléchargé (≈ 1/4 des
+// traductions, voir vite.i18n.js), avant le premier rendu : t() le lit de façon
+// synchrone. Un échec réseau n'empêche jamais l'affichage (une seconde
+// tentative, puis rendu quand même).
+const rendre = () => createRoot(document.getElementById('root')).render(
   <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ""}>
     <App />
   </GoogleOAuthProvider>
 )
+const langue = langueInitiale()
+chargerDictionnaire(langue)
+  .catch(() => chargerDictionnaire(langue))
+  .catch(() => {})
+  .finally(rendre)

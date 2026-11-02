@@ -44,8 +44,12 @@
   display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px;
   color: #fff; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: .88rem; white-space: nowrap;
 }
-.headerLinkImport { background: #6366f1; }
-.headerLinkPro    { background: #0f1b3f; border: 1px solid rgba(255,255,255,.25); }
+/* Liens secondaires de l'en-tête (2026-11-02) : contour discret — seul
+   « + Nouvelle annonce » est un bouton plein, l'action principale. */
+.headerLinkImport,
+.headerLinkPro { background: transparent; border: 1.5px solid rgba(255,255,255,.3); font-weight: 600; font-size: .82rem; padding: 0 14px; }
+.headerLinkImport:hover,
+.headerLinkPro:hover { background: rgba(255,255,255,.08); }
 .headerTitle { font-size: 1.2rem; font-weight: 800; color: #fff; margin: 0 0 2px; }
 .headerSub   { font-size: .85rem; color: #94a3b8; margin: 0; }
 .headerSub strong { color: #c7d2fe; }
@@ -535,7 +539,10 @@
   .orderCardFinance { grid-template-columns: 1fr 1fr; }
   .detailGrid { grid-template-columns: 1fr; }
   .decisionBtns { grid-template-columns: 1fr; }
-  .nav { padding: 0 12px; }
+  /* Fondu à droite : les onglets suivants se devinent (« Mes opportuni… »
+     semblait coupé, pas défilable). */
+  .nav { padding: 0 12px; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); scroll-padding-right: 28px; }
+  .nav::after { content: ""; flex: 0 0 28px; }
   .navTab { padding: 12px 14px; font-size: .8rem; }
 }
 @media (max-width: 480px) {
@@ -566,7 +573,8 @@
      bouton ↻ seul à gauche, puis deux colonnes égales (audit mobile 2026-09-16). */
   .headerRight { width: 100%; gap: 8px; }
   .headerRight .headerLink, .headerRight .btnPrimary { flex: 1 1 calc(50% - 30px); justify-content: center; padding-left: 10px; padding-right: 10px; }
-  .headerRight .btnPrimary { flex-basis: 100%; }
+  /* Action principale en tête, pleine largeur ; liens secondaires dessous. */
+  .headerRight .btnPrimary { flex-basis: 100%; order: -1; }
 }
 
 /* Tactile (audit 2026-09-18) : voile « voir la pièce » visible sans survol ;

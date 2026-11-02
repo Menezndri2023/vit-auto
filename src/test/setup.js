@@ -1,6 +1,10 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
+import { chargerDictionnaire } from "../i18n/dictionnaire";
+
+// Les cinq dictionnaires : des tests rendent les écrans en anglais et en arabe.
+await Promise.all(["fr", "en", "ar", "es", "zh"].map(chargerDictionnaire));
 
 // jsdom ne fournit pas ces API, que plusieurs écrans appellent au montage.
 // Sans elles, l'échec du test ne dirait rien du code applicatif.

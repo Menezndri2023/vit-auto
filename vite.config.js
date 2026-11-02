@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import i18nParLangue from './vite.i18n.js'
 
 // Identifiant de build unique par déploiement (SHA du commit sur Vercel, sinon
 // horodatage en local) — sert à détecter côté client qu'une nouvelle version a
@@ -23,7 +24,7 @@ const versionFilePlugin = () => ({
 });
 
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), versionFilePlugin()],
+  plugins: [react(), versionFilePlugin(), i18nParLangue()],
 
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),

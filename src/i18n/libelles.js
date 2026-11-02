@@ -1,4 +1,4 @@
-import translations from "./translations";
+import { dictionnaire } from "./dictionnaire";
 
 /**
  * Libellé d'un code métier (type d'activité, catégorie de pièce…) dans la
@@ -15,5 +15,5 @@ import translations from "./translations";
 export function libelleTraduit(t, prefixe, code, tableFr = {}) {
   if (!code) return "";
   const cle = `${prefixe}.${code}`;
-  return translations[cle] ? t(cle) : (tableFr[code] || code);
+  return dictionnaire()[cle] ? t(cle) : (tableFr[code] || code);
 }

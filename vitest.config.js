@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import i18nParLangue from "./vite.i18n.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TESTS DE RENDU DE L'INTERFACE
@@ -20,7 +21,7 @@ import react from "@vitejs/plugin-react";
 // Configuration séparée de vite.config.js (build) et de server/ (qui a sa
 // propre suite avec mongodb-memory-server) : `npm test` ne lance que le front.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), i18nParLangue()],
   resolve: {
     alias: {
       // Voir src/test/socketStub.js : sans ce double, chaque écran monté

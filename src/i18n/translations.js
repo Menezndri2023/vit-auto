@@ -7,19 +7,19 @@
  * de ce fichier : ce fichier-ci dépassait déjà 800 lignes, et une seule
  * rallonge par surface traduite le rendait inconsultable.
  */
-import accueil from "./accueil";
-import pagesPubliques, { LIBELLES_METIER } from "./pagesPubliques";
-import services from "./services";
-import pourquoi from "./pourquoi";
-import chrome from "./chrome";
-import faq from "./faq";
-import aide from "./aide";
-import catalogue from "./catalogue";
-import partenaires from "./partenaires";
-import importExport from "./importExport";
-import tarifs from "./tarifs";
-import connexion from "./connexion";
-import logistique from "./logistique";
+import accueil from "./accueil.js";
+import pagesPubliques, { LIBELLES_METIER } from "./pagesPubliques.js";
+import services from "./services.js";
+import pourquoi from "./pourquoi.js";
+import chrome from "./chrome.js";
+import faq from "./faq.js";
+import aide from "./aide.js";
+import catalogue from "./catalogue.js";
+import partenaires from "./partenaires.js";
+import importExport from "./importExport.js";
+import tarifs from "./tarifs.js";
+import connexion from "./connexion.js";
+import logistique from "./logistique.js";
 
 const translations = {
 

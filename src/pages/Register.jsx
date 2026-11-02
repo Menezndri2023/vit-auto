@@ -64,11 +64,22 @@ const Register = () => {
   const [consentTransfert, setConsentTransfert] = useState(false);
   const consentOk = consentCgu && consentTransfert;
   const consentRef = useRef(null);
+  // Inscription Google : les accords et les deux champs que Google ne
+  // transmet pas s'ouvrent SOUS le bouton au premier clic — plus de date de
+  // naissance affichée deux fois d'emblée, ni d'accords en tête de page loin
+  // du bouton « Créer mon compte » (2026-11-02).
+  const [googleOuvert, setGoogleOuvert] = useState(false);
+  const googleDateRef = useRef(null);
+  const googlePaysRef = useRef(null);
   const allerAuChampManquant = () => {
-    const cible = (!consentOk ? consentRef : !form.birthDate ? champDateRef : champPaysRef).current;
-    if (!cible) return;
-    cible.scrollIntoView({ behavior: "smooth", block: "center" });
-    cible.focus({ preventScroll: true });
+    if (!googleOuvert) setGoogleOuvert(true);
+    // Le panneau Google vient d'être monté : on attend son rendu avant de défiler.
+    requestAnimationFrame(() => {
+      const cible = (!consentOk ? consentRef : !form.birthDate ? googleDateRef : googlePaysRef).current;
+      if (!cible) return;
+      cible.scrollIntoView({ behavior: "smooth", block: "center" });
+      cible.focus({ preventScroll: true });
+    });
   };
 
   const [submitting,   setSubmitting]   = useState(false);
@@ -334,6 +345,22 @@ const Register = () => {
     };
   })();
 
+  const blocConsentements = (
+    <fieldset className={styles.consentements} ref={consentRef} tabIndex={-1}>
+      <legend>{t("consent.title")}</legend>
+      <p>{t("consent.intro")}</p>
+      <label className={styles.consentement} htmlFor="consent-cgu">
+        <input id="consent-cgu" name="consent-cgu" type="checkbox" checked={consentCgu} onChange={(e) => setConsentCgu(e.target.checked)} />
+        <span>{t("consent.cgu")}</span>
+      </label>
+      <label className={styles.consentement} htmlFor="consent-transfert">
+        <input id="consent-transfert" name="consent-transfert" type="checkbox" checked={consentTransfert} onChange={(e) => setConsentTransfert(e.target.checked)} />
+        <span>{t("consent.transfert")}</span>
+      </label>
+      <Link to="/privacy" target="_blank" rel="noopener" className={styles.consentLien}>{t("consent.links")}</Link>
+    </fieldset>
+  );
+
   return (
     <div className={styles.page}>
       <div className={`${styles.card} ${styles.cardLarge}`}>
@@ -351,19 +378,6 @@ const Register = () => {
             qu'un bouton grisé renvoyant vers des champs deux écrans plus bas
             (téléphone), les deux champs manquants s'affichent JUSTE sous le
             bouton, liés aux mêmes valeurs que le formulaire complet. */}
-        <fieldset className={styles.consentements} ref={consentRef} tabIndex={-1}>
-          <legend>{t("consent.title")}</legend>
-          <p>{t("consent.intro")}</p>
-          <label className={styles.consentement}>
-            <input type="checkbox" checked={consentCgu} onChange={(e) => setConsentCgu(e.target.checked)} />
-            <span>{t("consent.cgu")}</span>
-          </label>
-          <label className={styles.consentement}>
-            <input type="checkbox" checked={consentTransfert} onChange={(e) => setConsentTransfert(e.target.checked)} />
-            <span>{t("consent.transfert")}</span>
-          </label>
-          <Link to="/privacy" target="_blank" rel="noopener" className={styles.consentLien}>{t("consent.links")}</Link>
-        </fieldset>
 
         <div className={styles.googleBloc}>
           <GoogleAuthButton
@@ -371,14 +385,16 @@ const Register = () => {
             disabled={googleDisabled}
             onDisabledClick={allerAuChampManquant}
           />
-          {googleDisabled && (
+          {googleOuvert && googleDisabled && (
             <div className={styles.googleChamps}>
+              {blocConsentements}
               <p className={styles.googleNote}>{t("reg.googleNeeds")}</p>
               <div className={styles.row}>
                 {!form.birthDate && (
                   <div className={styles.field}>
                     <label htmlFor="google-birthDate">{t("reg.birthDate")}</label>
                     <input
+                      ref={googleDateRef}
                       id="google-birthDate"
                       type="date"
                       name="birthDate"
@@ -392,7 +408,7 @@ const Register = () => {
                 {!form.country && (
                   <div className={styles.field}>
                     <label htmlFor="google-country">{t("auth.country")}</label>
-                    <select id="google-country" name="country" value={form.country} onChange={handleChange} autoComplete="country">
+                    <select ref={googlePaysRef} id="google-country" name="country" value={form.country} onChange={handleChange} autoComplete="country">
                       <option value="" disabled>{t("reg.pickCountry")}</option>
                       {WORLD_COUNTRIES.map((c) => (
                         <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
@@ -670,6 +686,8 @@ const Register = () => {
               </Link>
             </div>
           )}
+
+          {!googleOuvert && blocConsentements}
 
           <button type="submit" className={styles.submitBtn} disabled={submitting}>
             {submitting ? t("reg.creating") : t("reg.createBtn")}

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useMemo } from "react";
-import translations from "../i18n/translations";
+import { dictionnaire } from "../i18n/dictionnaire";
 import {
   LANGUES, CODES, LANGUE_DEFAUT, langueDuChemin, cheminDansLangue,
 } from "../i18n/langueUrl";
@@ -45,7 +45,7 @@ export function langueDuNavigateur() {
 // le sitemap et le canonical déclarent française. C'était précisément le
 // désaccord que `hreflang` est censé lever. La détection sert maintenant à
 // PROPOSER l'autre version, pas à l'imposer.
-function langueInitiale() {
+export function langueInitiale() {
   const duChemin = langueDuChemin(window.location.pathname);
   if (duChemin) return duChemin;
   try {
@@ -84,8 +84,9 @@ export function I18nProvider({ children }) {
   // véhicule...). Rétrocompatible : t("key") sans params fonctionne comme avant.
   const t = useCallback(
     (key, params) => {
-      const entry = translations[key];
-      let str = entry ? (entry[lang] || entry["fr"] || key) : key;
+      // Dictionnaire de la langue courante, repli français déjà appliqué
+      // (chargé avant le premier rendu, voir main.jsx et vite.i18n.js).
+      let str = dictionnaire(lang)[key] || key;
       if (params) {
         str = str.replace(/\{(\w+)\}/g, (match, name) => (params[name] !== undefined ? params[name] : match));
       }
