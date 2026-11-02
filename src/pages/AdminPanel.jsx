@@ -67,6 +67,34 @@ import CertificationSection from "./admin/sections/CertificationSection.jsx";
 import KycSection from "./admin/sections/KycSection.jsx";
 import BusinessConfigSection from "./admin/sections/BusinessConfigSection.jsx";
 import useConfigurationMetier from "./admin/hooks/useConfigurationMetier.js";
+import useImportExportAdmin from "./admin/hooks/useImportExportAdmin.js";
+import useAbonnementsAValider from "./admin/hooks/useAbonnementsAValider.js";
+import useCommissionsFactures from "./admin/hooks/useCommissionsFactures.js";
+import useSignalements from "./admin/hooks/useSignalements.js";
+import useVerificationPartenaires from "./admin/hooks/useVerificationPartenaires.js";
+import useCrmPartenaires from "./admin/hooks/useCrmPartenaires.js";
+import useFoundingPartners from "./admin/hooks/useFoundingPartners.js";
+import usePartnerHub from "./admin/hooks/usePartnerHub.js";
+import useCertifications from "./admin/hooks/useCertifications.js";
+import useKycAdmin from "./admin/hooks/useKycAdmin.js";
+import useSupervisionChats from "./admin/hooks/useSupervisionChats.js";
+import useDemandesAValider from "./admin/hooks/useDemandesAValider.js";
+import useSupportClient from "./admin/hooks/useSupportClient.js";
+import useWhatsapp from "./admin/hooks/useWhatsapp.js";
+import useAssistance from "./admin/hooks/useAssistance.js";
+import useJournalAudit from "./admin/hooks/useJournalAudit.js";
+import useContrats from "./admin/hooks/useContrats.js";
+import useCoutsImport from "./admin/hooks/useCoutsImport.js";
+import useAutresServices from "./admin/hooks/useAutresServices.js";
+import useAssurance from "./admin/hooks/useAssurance.js";
+import useReversements from "./admin/hooks/useReversements.js";
+import usePublicites from "./admin/hooks/usePublicites.js";
+import useRoles from "./admin/hooks/useRoles.js";
+import useFinancement from "./admin/hooks/useFinancement.js";
+import useEmailsLivraison from "./admin/hooks/useEmailsLivraison.js";
+import useAnalytics from "./admin/hooks/useAnalytics.js";
+import useSanteSysteme from "./admin/hooks/useSanteSysteme.js";
+import useModerationAvis from "./admin/hooks/useModerationAvis.js";
 
 // CRM partenaires : taille de page côté serveur (adminList plafonne à 200).
 const CRM_PAR_PAGE = 50;
@@ -143,137 +171,17 @@ export default function AdminPanel() {
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, []);
-  const [ieRequests, setIeRequests]       = useState([]);
-  const [ieRequestsTotal, setIeRequestsTotal] = useState(0);
-  const [ieRequestsLimit, setIeRequestsLimit] = useState(100);
-  const [ieLoading,  setIeLoading]        = useState(false);
-  const [ieActionSaving, setIeActionSaving] = useState(false);
-  // Transactions IE réelles (pipeline escrow 14 étapes) — distinctes des
-  // "requests" ci-dessus (demandes initiales étapes 1-3). Aucune interface
-  // admin n'exposait auparavant les litiges ou l'inspection indépendante de
-  // ce pipeline, alors que de l'argent réel y est bloqué en entiercement.
-  const [ieTransactions, setIeTransactions] = useState([]);
-  const [ieTxLoading,    setIeTxLoading]    = useState(false);
-  const [ieTxModal,      setIeTxModal]      = useState(null); // { tx, mode: "dispute"|"inspection" }
-  const [ieTxNote,       setIeTxNote]       = useState("");
-  const [ieTxRelease,    setIeTxRelease]    = useState(true);
-  const [ieTxSaving,     setIeTxSaving]     = useState(false);
-  // Commissions & Factures
-  const [commissions,      setCommissions]      = useState([]);
-  const [commissionsStats, setCommissionsStats] = useState(null);
-  const [invoices,         setInvoices]         = useState([]);
-  const [invoicesStats,    setInvoicesStats]    = useState(null);
-  const [invoiceLoading,   setInvoiceLoading]   = useState(false);
-  const [invoiceYear,      setInvoiceYear]      = useState(new Date().getFullYear());
-  const [invoiceMonth,     setInvoiceMonth]     = useState("");
 
-  // Abonnements Pro / Boosts en attente de confirmation manuelle de paiement
-  const [subRequests,      setSubRequests]      = useState([]);
-  const [subLoading,       setSubLoading]       = useState(false);
-  const [subActioning,     setSubActioning]     = useState(null);
 
-  // Modération des avis clients
-  const [reviewsList,      setReviewsList]      = useState([]);
-  const [reviewsLoading,   setReviewsLoading]   = useState(false);
-  const [reviewsFilter,    setReviewsFilter]    = useState(""); // "" | "true" | "false"
-  const [reviewsTargetType, setReviewsTargetType] = useState(""); // "" | vehicle | driver | partner | platform | client
-  const [platformReviewStats, setPlatformReviewStats] = useState(null);
 
-  // ── Santé système (2026-09) — /api/health existait déjà, jamais affiché
-  // ailleurs qu'en curl manuel. Pas de nouvel endpoint : juste une vue.
-  const [systemHealth,        setSystemHealth]        = useState(null);
-  const [systemHealthLoading, setSystemHealthLoading]  = useState(false);
-  const loadSystemHealth = useCallback(async () => {
-    setSystemHealthLoading(true);
-    try {
-      // /api/health renvoie 503 quand le système est DÉGRADÉ — soit le seul cas
-      // que cet écran de diagnostic doit couvrir. En ne lisant que les réponses
-      // 2xx, l'admin voyait « impossible de joindre /api/health » alors que la
-      // réponse contenait précisément « database: disconnected ».
-      // En-tête d'authentification indispensable depuis que /api/health ne
-      // renvoie le détail qu'à un administrateur (le public n'obtient plus que
-      // l'état de santé, pour ne pas divulguer l'inventaire du service).
-      const r = await fetch("/api/health", { headers });
-      const d = await r.json().catch(() => null);
-      if (d) setSystemHealth(d);
-      else setSystemHealth({ status: "unreachable", error: `HTTP ${r.status}` });
-    } catch { setSystemHealth({ status: "unreachable", error: "réseau injoignable" }); }
-    setSystemHealthLoading(false);
-  }, [headers]);
-  const [reviewActioning,  setReviewActioning]  = useState(null);
 
-  // Analytics avancé
-  const [analytics,        setAnalytics]        = useState(null);
-  const [analyticsLoading, setAnalyticsLoading] = useState(false);
-  // Emails & livraison — voir commWebhookController.js pour l'origine des
-  // statuts "bounced"/"complained" (webhook Resend, sans lequel un email
-  // rejeté par le serveur destinataire restait indiscernable d'un email
-  // réellement livré).
-  const [emailStats,           setEmailStats]           = useState(null);
-  const [emailFailures,        setEmailFailures]        = useState([]);
-  const [emailDeliveryLoading, setEmailDeliveryLoading] = useState(false);
 
-  // Financement (leasing/crédit)
-  const [financingRequests, setFinancingRequests] = useState([]);
-  const [financingLoading,  setFinancingLoading]  = useState(false);
-  const [financingModal,    setFinancingModal]    = useState(null); // { id, decision }
-  const [financingNote,     setFinancingNote]     = useState("");
-  const [financingSaving,   setFinancingSaving]   = useState(false);
 
-  // Rôles & Permissions
-  const [adminAccounts,     setAdminAccounts]     = useState([]);
-  const [rolesLoading,      setRolesLoading]      = useState(false);
-  const [rolesSavingId,     setRolesSavingId]     = useState(null);
 
-  // Publicités & Campagnes
-  const [adsList,        setAdsList]        = useState([]);
-  const [adsLoading,     setAdsLoading]     = useState(false);
-  const [adForm,         setAdForm]         = useState(null); // objet en édition/création, null = fermé
-  const [adSaving,       setAdSaving]       = useState(false);
 
-  // Assurance
-  const [insuranceList,    setInsuranceList]    = useState([]);
-  const [costConfigs,      setCostConfigs]      = useState([]);
-  const [laneRates,        setLaneRates]        = useState([]);
-  const [importCostLoading, setImportCostLoading] = useState(false);
-  const [costConfigForm,  setCostConfigForm]    = useState(null); // null = fermé, {} = nouveau, objet = édition
-  const [laneForm,        setLaneForm]          = useState(null);
-  const [insuranceLoading, setInsuranceLoading] = useState(false);
-  const [insuranceModal,   setInsuranceModal]   = useState(null); // { id, status }
-  // Reversements partenaire (suivi dû vs déjà versé — voir commissionLedger.js)
-  const [payoutsList,      setPayoutsList]      = useState([]);
-  const [payoutsTotal,     setPayoutsTotal]     = useState(0);
-  const [payoutsPendingCount, setPayoutsPendingCount] = useState(0);
-  const [payoutsLoading,   setPayoutsLoading]   = useState(false);
-  const [payoutsFilter,    setPayoutsFilter]    = useState("pending");
-  const [payoutMarkingId,  setPayoutMarkingId]  = useState(null);
-  const [insurancePremium, setInsurancePremium] = useState("");
-  const [insuranceNote,    setInsuranceNote]    = useState("");
 
-  // Demandes de services génériques (transport/transit/douanes/immatriculation/
-  // garantie/financement/change de devises) — voir server/models/ServiceRequest.js
-  const [svcReqList,       setSvcReqList]       = useState([]);
-  const [svcReqLoading,    setSvcReqLoading]    = useState(false);
-  const [svcReqCategory,   setSvcReqCategory]   = useState("");
-  const [svcReqModal,      setSvcReqModal]      = useState(null); // { id, status }
-  const [svcReqAmount,     setSvcReqAmount]     = useState("");
-  const [svcReqNote,       setSvcReqNote]       = useState("");
-  const [svcReqSaving,     setSvcReqSaving]     = useState(false);
 
-  const [insuranceSaving,  setInsuranceSaving]  = useState(false);
 
-  // Journal d'audit
-  // Contrats de réservation (Contract) — aucun écran admin n'existait : la
-  // donnée n'était consultable que par le partenaire propriétaire, alors que
-  // c'est une pièce contractuelle (identité client, montants, signature).
-  const [contracts,        setContracts]        = useState([]);
-  const [contractsLoading, setContractsLoading] = useState(false);
-  const [auditEntries,     setAuditEntries]     = useState([]);
-  const [auditLoading,     setAuditLoading]     = useState(false);
-  const [auditFacets,      setAuditFacets]      = useState({ actions: [], resources: [] });
-  const [auditFilter,      setAuditFilter]      = useState({ action: "", resource: "", success: "" });
-  const [generateForm,     setGenerateForm]     = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
-  const [generating,       setGenerating]       = useState(false);
   const [importerProfiles, setImporterProfiles] = useState([]);
   const [importerListings, setImporterListings] = useState([]);
   const [importerListingsTotal, setImporterListingsTotal] = useState(0);
@@ -322,51 +230,7 @@ export default function AdminPanel() {
   const [listingRejectModal, setListingRejectModal] = useState(null);
   const [listingRejectNote,  setListingRejectNote]  = useState("");
   const [exporterDetail,     setExporterDetail]     = useState(null);
-  // KYC Admin
-  const [kycList,       setKycList]       = useState([]);
-  const [kycTotal,      setKycTotal]      = useState(0);
-  const [kycLimit,      setKycLimit]      = useState(50);
-  const [kycLoading,    setKycLoading]    = useState(false);
-  // "ALL" par défaut — un défaut sur "EN_ATTENTE" rendait un compte déjà
-  // vérifié/refusé introuvable dans cet onglet tant que l'admin ne pensait pas
-  // à cliquer sur le filtre correspondant (le backend gérait déjà ce cas, voir
-  // getKycList, mais le défaut front ne l'exploitait pas).
-  const [kycFilter,     setKycFilter]     = useState("ALL");
-  const [kycSearch,     setKycSearch]     = useState("");
-  const [kycDetailUser, setKycDetailUser] = useState(null);
-  const [kycDetailLoading, setKycDetailLoading] = useState(false);
-  const [kycReviewForm, setKycReviewForm] = useState({ decision: "VERIFIE", note: "" });
-  const [kycReviewLoading, setKycReviewLoading] = useState(false);
-  const [kycReviewMsg,  setKycReviewMsg]  = useState("");
-  // Compteur "en attente" indépendant du filtre actuellement affiché (kycList
-  // change selon kycFilter — un badge calculé dessus mentirait dès que l'admin
-  // clique sur un autre filtre, voir loadKycPendingTotal ci-dessous).
-  const [kycPendingTotal, setKycPendingTotal] = useState(0);
-  // Support Client (inbox chats client_support / partner_support)
-  const [supportChats,    setSupportChats]    = useState([]);
-  // File de la billetterie d'assistance — distincte des conversations : un
-  // ticket porte une échéance de première réponse dérivée du palier du
-  // partenaire, ce qu'un chat n'a pas.
-  const [tickets,         setTickets]         = useState([]);
-  // Filtre de statut de la file d'assistance : vide = demandes en cours.
-  // Sans lui, les demandes résolues ou clôturées n'étaient JAMAIS visibles
-  // (le serveur les exclut par défaut) — audit admin du 2026-10-05.
-  const [ticketsStatut,   setTicketsStatut]   = useState("");
-  const [ticketsEnRetard, setTicketsEnRetard] = useState(0);
-  const [ticketOuvert,    setTicketOuvert]    = useState(null);
-  const [ticketReponse,   setTicketReponse]   = useState("");
 
-  // Essai gratuit accordé par le support. Aucune passerelle de paiement n'étant
-  // branchée, c'est aujourd'hui le seul moyen de faire constater à un partenaire
-  // ce qu'un palier contient.
-  const [essaiRecherche, setEssaiRecherche] = useState("");
-  const [essaiResultats, setEssaiResultats] = useState([]);
-  const [essaiVendeur,   setEssaiVendeur]   = useState(null);
-  const [essaiPalier,    setEssaiPalier]    = useState("business");
-  const [essaiRetour,    setEssaiRetour]    = useState(null);
-  const [reports,         setReports]         = useState([]);
-  const [trustModal,      setTrustModal]      = useState(null);   // utilisateur ciblé
-  const [trustOverview,   setTrustOverview]   = useState(null);
   // Fidélité d'un client (solde, palier, mouvements) — aucune vue admin
   // n'existait, alors que 100 points = 1 USD de remise à la réservation
   // suivante. Lecture seule : voir loyaltyController.getUserLoyaltyAdmin.
@@ -376,55 +240,7 @@ export default function AdminPanel() {
   const VIDE_AJUST = { direction: "credit", points: "", reason: "", countsTowardTier: false };
   const [loyaltyForm,    setLoyaltyForm]    = useState(VIDE_AJUST);
   const [loyaltySaving,  setLoyaltySaving]  = useState(false);
-  const [trustLoading,    setTrustLoading]    = useState(false);
-  const [reportsLoading,  setReportsLoading]  = useState(false);
-  const [reportFilter,    setReportFilter]    = useState("en_attente");
-  // Bot WhatsApp partenaires — conversations à reprendre (status="escalated")
-  const [waConversations, setWaConversations] = useState([]);
-  const [waLoading,       setWaLoading]       = useState(false);
-  const [waFilter,        setWaFilter]        = useState("escalated");
-  const [waActive,        setWaActive]        = useState(null);   // conversation ouverte (détail complet)
-  const [waReply,         setWaReply]         = useState("");
-  const [supportLoading,  setSupportLoading]  = useState(false);
-  const [supportActive,   setSupportActive]   = useState(null);   // chat sélectionné (résumé liste)
-  const [supportMessages, setSupportMessages] = useState([]);
-  const [supportMsgLoading, setSupportMsgLoading] = useState(false);
-  const [supportReply,    setSupportReply]    = useState("");
-  const [supportSending,  setSupportSending]  = useState(false);
-  // Gate admin obligatoire (audit 2026-08) — file d'attente de validation
-  // (réservations + achats directs IE) et inbox de supervision des chats
-  // client_partner (lecture seule, voir chatController.getClientPartnerChats).
-  const [pendingValidationBookings, setPendingValidationBookings] = useState([]);
-  const [pendingValidationDirect,   setPendingValidationDirect]   = useState([]);
-  const [pendingValidationLoading,  setPendingValidationLoading]  = useState(false);
-  const [validationRejectModal,     setValidationRejectModal]     = useState(null); // { kind: "booking"|"direct", item }
-  const [validationRejectReason,    setValidationRejectReason]    = useState("");
-  const [cpChats,        setCpChats]        = useState([]);
-  const [cpChatsLoading, setCpChatsLoading] = useState(false);
-  const [cpActive,       setCpActive]       = useState(null);
-  const [cpMessages,     setCpMessages]     = useState([]);
-  const [cpMsgLoading,   setCpMsgLoading]   = useState(false);
-  // Certification Partenaire
-  const [certList,          setCertList]          = useState([]);
-  const [certLoading,       setCertLoading]        = useState(false);
-  const [certFilter,        setCertFilter]         = useState("all");
-  const [certDetail,        setCertDetail]         = useState(null);
-  const [certReviewLevel,   setCertReviewLevel]    = useState(null);
-  const [certReviewForm,    setCertReviewForm]     = useState({ decision: "approved", note: "" });
-  const [certBadgeForm,     setCertBadgeForm]      = useState({ badge: "verifie", publicStatement: "", note: "" });
-  const [certReviewLoading, setCertReviewLoading]  = useState(false);
-  const [certReviewMsg,     setCertReviewMsg]      = useState("");
 
-  // Partner Verification System
-  const [pvList,            setPvList]            = useState([]);
-  const [pvStats,           setPvStats]           = useState(null);
-  const [pvLoading,         setPvLoading]         = useState(false);
-  const [pvFilter,          setPvFilter]          = useState({ status: "", trustLevel: "", companyType: "", search: "" });
-  const [pvDetail,          setPvDetail]          = useState(null);
-  const [pvCreateModal,     setPvCreateModal]     = useState(false);
-  const [pvCreateForm,      setPvCreateForm]      = useState({ userId: "", companyName: "", companyType: "importateur", country: "", city: "", website: "", phone: "", email: "", description: "", exportCountries: [], importCountries: [], vehicleCategories: [], yearsExperience: 0, annualVolume: "", adminNote: "" });
-  const [pvSaving,          setPvSaving]          = useState(false);
-  const [pvCriterionLoading,setPvCriterionLoading]= useState("");
 
   const [stats,     setStats]     = useState(null);
   const [users,     setUsers]     = useState([]);
@@ -460,57 +276,8 @@ export default function AdminPanel() {
   const [liveNewListings, setLiveNewListings] = useState(0);
   const [liveDisputes,    setLiveDisputes]    = useState(0);
 
-  // PMS Admin
-  const [pmsStats,    setPmsStats]    = useState(null);
-  const [pmsShowrooms,setPmsShowrooms]= useState([]);
-  const [pmsLoading,  setPmsLoading]  = useState(false);
-  const [pmsFilter,   setPmsFilter]   = useState("all");
 
-  // Founding Partner Onboarding Admin
-  const [foundingList,      setFoundingList]     = useState([]);
-  const [foundingStats,     setFoundingStats]    = useState(null);
-  const [foundingLoading,   setFoundingLoading]  = useState(false);
-  const [foundingDetail,    setFoundingDetail]   = useState(null);
-  const [foundingSignLink,  setFoundingSignLink] = useState(null); // { id, link, type, companyName }
-  const [foundingNote,      setFoundingNote]     = useState("");
-  const [foundingAction,    setFoundingAction]   = useState(null); // { id, type: 'approve'|'reject'|'agreement' }
-  const [foundingSubmitting, setFoundingSubmitting] = useState(false); // évite le double-clic (envoi LOI/accord/rejet en double) — utilisé uniquement par le MODAL (une seule cible à la fois)
-  // Bug réel corrigé (audit — remonté par l'utilisateur) : les boutons "Relancer"/
-  // "Envoyer Accord"/"Renvoyer la LOI"/"Renvoyer l'accord" de CHAQUE ligne du
-  // tableau Founding Partner partageaient tous le même booléen foundingSubmitting
-  // — cliquer "Relancer" sur UN partenaire désactivait/grisait visuellement les
-  // boutons de TOUS les autres partenaires de la liste pendant l'appel réseau
-  // (aucun mauvais envoi ne partait réellement, mais l'admin le percevait comme
-  // "le bouton s'active pour tous"). Un id précis (plutôt qu'un booléen global)
-  // permet de ne griser que le bouton de la ligne réellement concernée.
-  const [foundingRowActionId, setFoundingRowActionId] = useState(null);
-  // CRM Directory
-  const [foundingView,      setFoundingView]     = useState("onboarding"); // "onboarding" | "crm"
-  const [foundingCRMFilter, setFoundingCRMFilter]= useState("");           // crmStatus filter
-  const [foundingCRMEdit,   setFoundingCRMEdit]  = useState(null);         // { id, data: {...} }
 
-  // ── CRM Partenaires (pipeline de prospection à 9 étapes) ──────────────────
-  const [crmList,      setCrmList]      = useState([]);
-  const [crmStats,     setCrmStats]     = useState(null);
-  const [crmLoading,   setCrmLoading]   = useState(false);
-  const [crmView,      setCrmView]      = useState("liste"); // "liste" | "pipeline"
-  const [crmFilter,    setCrmFilter]    = useState({ statut: "", pays: "", secteur: "", assignedTo: "", source: "", aRelancer: false });
-  const [crmPage,      setCrmPage]      = useState(1);
-  const [crmTotal,     setCrmTotal]     = useState(0);
-  const [crmErreur,    setCrmErreur]    = useState("");
-  const [crmDoublons,  setCrmDoublons]  = useState(null); // correspondances signalées à la création
-  const [crmSearch,    setCrmSearch]    = useState("");
-  const [crmDetail,    setCrmDetail]    = useState(null); // dossier ouvert (modal détail)
-  const [crmDetailData, setCrmDetailData] = useState(null); // { crm, liveStats }
-  const [crmEditData,  setCrmEditData]  = useState(null); // formulaire d'édition du détail
-  const [crmCreating,  setCrmCreating]  = useState(false);
-  const [crmNewForm,   setCrmNewForm]   = useState({
-    entreprise: "", pays: "", ville: "", secteur: "",
-    contactNom: "", contactTel: "", contactEmail: "", website: "",
-    source: "", assignedTo: "", priority: "medium",
-  });
-  const [crmSubmitting, setCrmSubmitting] = useState(false);
-  const [crmLinkUserId, setCrmLinkUserId] = useState("");
 
   // Filtres
   const [userSearch,  setUserSearch]  = useState("");
@@ -859,116 +626,13 @@ export default function AdminPanel() {
     else showToast("Erreur approbation", "error");
   }, [headers, showToast, loadAll]);
 
-  // ── Demandes Import/Export ──────────────────────────────────────────────────
-  const loadImportExport = useCallback(async () => {
-    if (!token) return;
-    setIeLoading(true);
-    try {
-      // Pages successives (fetchPaged) : le serveur plafonne une page à 500 et
-      // « Charger plus » renvoyait toujours les mêmes 500 (audit 2026-10-05).
-      const { items, total } = await fetchPaged("/api/import-export/requests", { limit: ieRequestsLimit, pageSize: 100, key: "requests" });
-      setIeRequests(items);
-      setIeRequestsTotal(total || items.length);
-    } catch { /* endpoint optionnel */ }
-    setIeLoading(false);
-  }, [token, ieRequestsLimit, fetchPaged]);
 
-  const loadMoreIeRequests = useCallback(() => setIeRequestsLimit((l) => l + 200), []);
 
-  // Bug réel corrigé (audit) : ce tableau était 100% en lecture seule côté
-  // admin alors que le backend expose déjà un workflow complet (approuver/
-  // rejeter/marquer contacté/supprimer, avec notification au client — voir
-  // updateRequestStatus/deleteRequest, importExportController.js). Le badge
-  // de navigation "Transactions I/E" affichait un compteur "en attente" comme
-  // si ces demandes étaient actionnables depuis cet onglet — elles ne
-  // l'étaient pas.
-  const updateIeRequestStatus = useCallback(async (id, status) => {
-    if (ieActionSaving) return;
-    setIeActionSaving(true);
-    try {
-      const r = await fetch(`/api/import-export/requests/${id}/status`, {
-        method: "PATCH", headers, body: JSON.stringify({ status }),
-      });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      showToast("Demande mise à jour", "success");
-      loadImportExport();
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setIeActionSaving(false); }
-  }, [headers, showToast, loadImportExport, ieActionSaving]);
 
-  const deleteIeRequest = useCallback(async (id) => {
-    if (ieActionSaving) return;
-    setIeActionSaving(true);
-    try {
-      const r = await fetch(`/api/import-export/requests/${id}`, { method: "DELETE", headers });
-      if (!r.ok) { const data = await r.json().catch(() => ({})); showToast(data.message || "Erreur", "error"); return; }
-      setIeRequests((prev) => prev.filter((r2) => r2._id !== id));
-      showToast("Demande supprimée", "success");
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setIeActionSaving(false); }
-  }, [headers, showToast, ieActionSaving]);
 
-  const loadIeTransactions = useCallback(async () => {
-    if (!token) return;
-    setIeTxLoading(true);
-    try {
-      // Toutes les pages (fetchPaged) : la 1re page de 100 seulement rendait
-      // les enregistrements plus anciens inaccessibles (audit du 2026-10-05).
-      const { items } = await fetchPaged("/api/import-export/transactions", { limit: 5000, pageSize: 100, key: "transactions" });
-      setIeTransactions(items);
-    } catch { /* ignore */ }
-    setIeTxLoading(false);
-  }, [token, fetchPaged]);
 
-  const handleResolveIeDispute = async () => {
-    if (!ieTxModal?.tx) return;
-    setIeTxSaving(true);
-    try {
-      const r = await fetch(`/api/import-export/transactions/${ieTxModal.tx._id}/dispute/resolve`, {
-        method: "PATCH", headers,
-        body: JSON.stringify({ resolution: ieTxNote, releaseToPartner: ieTxRelease }),
-      });
-      const d = await r.json();
-      if (r.ok) { showToast("Litige résolu.", "success"); setIeTxModal(null); setIeTxNote(""); loadIeTransactions(); }
-      else showToast(d.message || "Erreur.", "error");
-    } catch { showToast("Erreur réseau.", "error"); }
-    setIeTxSaving(false);
-  };
 
-  const handleCompleteIeInspection = async () => {
-    if (!ieTxModal?.tx) return;
-    setIeTxSaving(true);
-    try {
-      const r = await fetch(`/api/import-export/transactions/${ieTxModal.tx._id}/complete-inspection`, {
-        method: "PATCH", headers,
-        body: JSON.stringify({ reportNotes: ieTxNote }),
-      });
-      const d = await r.json();
-      if (r.ok) { showToast("Inspection complétée.", "success"); setIeTxModal(null); setIeTxNote(""); loadIeTransactions(); }
-      else showToast(d.message || "Erreur.", "error");
-    } catch { showToast("Erreur réseau.", "error"); }
-    setIeTxSaving(false);
-  };
 
-  // Paiement manuel (virement/mobile money/crypto, ou carte sans Stripe
-  // configuré) déclaré par le client — aucune vérification automatique
-  // possible sans intégration bancaire réelle, un admin doit confirmer avant
-  // que l'entiercement ne soit considéré comme sécurisé.
-  const handleVerifyIePayment = async (approve) => {
-    if (!ieTxModal?.tx) return;
-    setIeTxSaving(true);
-    try {
-      const r = await fetch(`/api/import-export/transactions/${ieTxModal.tx._id}/${approve ? "verify-payment" : "reject-payment"}`, {
-        method: "PATCH", headers,
-        body: JSON.stringify({ reason: ieTxNote }),
-      });
-      const d = await r.json();
-      if (r.ok) { showToast(approve ? "Paiement vérifié." : "Paiement rejeté.", "success"); setIeTxModal(null); setIeTxNote(""); loadIeTransactions(); }
-      else showToast(d.message || "Erreur.", "error");
-    } catch { showToast("Erreur réseau.", "error"); }
-    setIeTxSaving(false);
-  };
 
   // ── Profils & annonces importateurs ────────────────────────────────────────
   // Récupère TOUJOURS la liste complète (tous statuts confondus) — le filtre
@@ -1009,187 +673,23 @@ export default function AdminPanel() {
     } catch { showToast("Impossible de charger l'annonce.", "error"); }
   };
 
-  const loadCommissions = useCallback(async () => {
-    if (!token) return;
-    try {
-      const params = new URLSearchParams({ year: invoiceYear });
-      if (invoiceMonth) params.set("month", invoiceMonth);
-      const r = await fetch(`/api/invoices/commissions?${params}`, { headers });
-      if (r.ok) {
-        const d = await r.json();
-        setCommissions(d.bookings || []);
-        setCommissionsStats({ total: d.totalCommissions, transactions: d.totalTransactions, count: d.count });
-      }
-    } catch { /* ignore */ }
-  }, [token, headers, invoiceYear, invoiceMonth]);
 
-  const loadInvoices = useCallback(async () => {
-    if (!token) return;
-    setInvoiceLoading(true);
-    try {
-      // Toutes les pages (fetchPaged) : la 1re page de 100 seulement rendait
-      // les enregistrements plus anciens inaccessibles (audit du 2026-10-05).
-      const { items } = await fetchPaged("/api/invoices", { limit: 5000, pageSize: 100, key: "invoices" });
-      setInvoices(items);
-      const r = await fetch("/api/invoices?limit=1", { headers });
-      if (r.ok) {
-        const d = await r.json();
-        setInvoicesStats({ totalPaid: d.totalPaid, totalPending: d.totalPending });
-      }
-    } catch { /* ignore */ }
-    setInvoiceLoading(false);
-  }, [token, headers, fetchPaged]);
 
-  // Factures de PRESTATION (une par commande terminée, voir issueServiceInvoice
-  // dans bookingController.js) — distinctes des factures mensuelles de commission
-  // ci-dessus (ce que le partenaire doit à VIT AUTO) : ici, ce que le partenaire
-  // a encaissé/à percevoir, enregistré côté admin pour supervision.
-  const [serviceInvoicesAdmin, setServiceInvoicesAdmin] = useState([]);
-  const [serviceInvoicesAdminLoading, setServiceInvoicesAdminLoading] = useState(false);
-  const loadServiceInvoicesAdmin = useCallback(async () => {
-    if (!token) return;
-    setServiceInvoicesAdminLoading(true);
-    try {
-      // Toutes les pages (fetchPaged) : la 1re page de 100 seulement rendait
-      // les enregistrements plus anciens inaccessibles (audit du 2026-10-05).
-      const { items } = await fetchPaged("/api/service-invoices", { limit: 5000, pageSize: 100, key: "invoices" });
-      setServiceInvoicesAdmin(items);
-    } catch { /* ignore */ }
-    setServiceInvoicesAdminLoading(false);
-  }, [token, fetchPaged]);
 
-  // ── Abonnements Pro / Boosts (paiements en attente de confirmation) ─────────
-  const loadSubRequests = useCallback(async () => {
-    if (!token) return;
-    setSubLoading(true);
-    try {
-      const r = await fetch("/api/subscriptions/admin/pending", { headers });
-      if (r.ok) setSubRequests((await r.json()).subscriptions || []);
-    } catch { /* ignore */ }
-    setSubLoading(false);
-  }, [token, headers]);
 
-  const subAction = async (path, subId, itemId) => {
-    const key = `${subId}:${itemId}`;
-    if (subActioning) return;
-    setSubActioning(key);
-    try {
-      const r = await fetch(`/api/subscriptions/admin/${subId}/${path}`, { method: "PATCH", headers });
-      const d = await r.json().catch(() => null);
-      if (r.ok) { showToast(d?.message || "Effectué."); loadSubRequests(); }
-      else showToast(d?.message || "Erreur", "error");
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setSubActioning(null); }
-  };
 
-  // ── Modération des avis ──────────────────────────────────────────────────────
-  const loadReviews = useCallback(async () => {
-    if (!token) return;
-    setReviewsLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (reviewsFilter) params.set("visible", reviewsFilter);
-      if (reviewsTargetType) params.set("targetType", reviewsTargetType);
-      // Tous les avis (fetchPaged) — seuls les 50 plus récents étaient visibles.
-      const { items } = await fetchPaged(`/api/reviews/admin/list?${params}`, { limit: 5000, pageSize: 100, key: "reviews" });
-      setReviewsList(items);
-      const r = await fetch(`/api/reviews/admin/list?${params}${params.toString() ? "&" : ""}limit=1`, { headers });
-      if (r.ok) setPlatformReviewStats((await r.json()).platformStats || null);
-    } catch { /* ignore */ }
-    setReviewsLoading(false);
-  }, [token, headers, reviewsFilter, reviewsTargetType, fetchPaged]);
 
-  const toggleReviewVisibility = async (review) => {
-    if (reviewActioning) return;
-    setReviewActioning(review._id);
-    try {
-      const r = await fetch(`/api/reviews/${review._id}/${review.visible ? "hide" : "unhide"}`, { method: "PATCH", headers });
-      if (r.ok) { showToast(review.visible ? "Avis masqué." : "Avis réaffiché."); loadReviews(); }
-      else showToast("Erreur", "error");
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setReviewActioning(null); }
-  };
 
-  // ── Analytics avancé ────────────────────────────────────────────────────────
-  const loadAnalytics = useCallback(async () => {
-    if (!token) return;
-    setAnalyticsLoading(true);
-    try {
-      const r = await fetch("/api/analytics/admin", { headers });
-      if (r.ok) setAnalytics(await r.json());
-    } catch { /* ignore */ }
-    setAnalyticsLoading(false);
-  }, [token, headers]);
 
-  // ── Emails & livraison (bounces/échecs Resend) ───────────────────────────────
-  const loadEmailDelivery = useCallback(async () => {
-    if (!token) return;
-    setEmailDeliveryLoading(true);
-    try {
-      const [sRes, fRes] = await Promise.all([
-        fetch("/api/comm/stats", { headers }),
-        fetch("/api/comm/failures?limit=100", { headers }),
-      ]);
-      if (sRes.ok) setEmailStats((await sRes.json()).stats);
-      if (fRes.ok) setEmailFailures((await fRes.json()).failures || []);
-    } catch { /* ignore */ }
-    setEmailDeliveryLoading(false);
-  }, [token, headers]);
 
-  // ── Financement ──────────────────────────────────────────────────────────────
-  const loadFinancing = useCallback(async () => {
-    if (!token) return;
-    setFinancingLoading(true);
-    try {
-      const r = await fetch("/api/bookings/admin/financing", { headers });
-      if (r.ok) setFinancingRequests((await r.json()).requests || []);
-    } catch { /* ignore */ }
-    setFinancingLoading(false);
-  }, [token, headers]);
 
-  const submitFinancingDecision = async () => {
-    if (!financingModal) return;
-    setFinancingSaving(true);
-    try {
-      const r = await fetch(`/api/bookings/${financingModal.id}/financing-decision`, {
-        method: "PATCH", headers,
-        body: JSON.stringify({ decision: financingModal.decision, note: financingNote }),
-      });
-      const data = await r.json();
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      showToast("Décision enregistrée — client notifié", "success");
-      setFinancingModal(null);
-      setFinancingNote("");
-      loadFinancing();
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setFinancingSaving(false); }
-  };
 
-  // ── Rôles & Permissions ──────────────────────────────────────────────────────
-  const loadAdminAccounts = useCallback(async () => {
-    if (!token) return;
-    setRolesLoading(true);
-    try {
-      const r = await fetch("/api/users/admin/accounts", { headers });
-      if (r.ok) setAdminAccounts((await r.json()).admins || []);
-    } catch { /* ignore */ }
-    setRolesLoading(false);
-  }, [token, headers]);
 
-  const applyAdminScope = async (adminId, next) => {
-    setRolesSavingId(adminId);
-    try {
-      const r = await fetch(`/api/users/admin/${adminId}/scope`, {
-        method: "PATCH", headers,
-        body: JSON.stringify({ scope: next }),
-      });
-      const data = await r.json();
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      showToast("Permissions mises à jour", "success");
-      loadAdminAccounts();
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setRolesSavingId(null); }
-  };
+
+  // Rôles & permissions : voir admin/hooks/useRoles.js.
+  const {
+    adminAccounts, applyAdminScope, loadAdminAccounts, rolesLoading, rolesSavingId,
+  } = useRoles({ headers, showToast, token });
 
   // Bug réel corrigé (audit) : cliquer une SEULE permission sur un admin à
   // "accès complet" (adminScope=[]) le restreignait immédiatement et
@@ -1242,337 +742,29 @@ export default function AdminPanel() {
     applyAdminScope(adminId, next);
   };
 
-  // ── Publicités & Campagnes ───────────────────────────────────────────────────
-  const loadAds = useCallback(async () => {
-    if (!token) return;
-    setAdsLoading(true);
-    try {
-      const r = await fetch("/api/ads/all", { headers });
-      if (r.ok) setAdsList(await r.json());
-    } catch { /* ignore */ }
-    setAdsLoading(false);
-  }, [token, headers]);
 
-  const saveAd = async () => {
-    if (!adForm?.title?.trim()) { showToast("Titre requis", "error"); return; }
-    setAdSaving(true);
-    try {
-      const isNew = !adForm._id;
-      const r = await fetch(isNew ? "/api/ads" : `/api/ads/${adForm._id}`, {
-        method: isNew ? "POST" : "PUT", headers,
-        body: JSON.stringify(adForm),
-      });
-      const data = await r.json();
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      showToast(isNew ? "Annonce créée." : "Annonce mise à jour.", "success");
-      setAdForm(null);
-      loadAds();
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setAdSaving(false); }
-  };
 
-  const toggleAdActive = async (ad) => {
-    try {
-      const r = await fetch(`/api/ads/${ad._id}`, {
-        method: "PUT", headers,
-        body: JSON.stringify({ active: !ad.active }),
-      });
-      if (r.ok) loadAds();
-    } catch { showToast("Erreur réseau", "error"); }
-  };
 
-  const deleteAd = async (id) => {
-    if (!window.confirm("Supprimer définitivement cette annonce ?")) return;
-    try {
-      const r = await fetch(`/api/ads/${id}`, { method: "DELETE", headers });
-      if (r.ok) { showToast("Annonce supprimée.", "success"); loadAds(); }
-    } catch { showToast("Erreur réseau", "error"); }
-  };
 
-  // ── Reversements partenaire ────────────────────────────────────────────────
-  const loadPayouts = useCallback(async () => {
-    if (!token) return;
-    setPayoutsLoading(true);
-    try {
-      // sens=reversements : ce que VIT AUTO doit aux partenaires, sans les
-      // commissions de vente qu'ILS doivent (platform_fee) — audit 2026-10-05.
-      const params = new URLSearchParams({ sens: "reversements" });
-      if (payoutsFilter) params.set("status", payoutsFilter);
-      // Toutes les pages (fetchPaged) : la 1re page de 100 seulement rendait
-      // les enregistrements plus anciens inaccessibles (audit du 2026-10-05).
-      const { items, total } = await fetchPaged(`/api/commission-ledger/admin?${params}`, { limit: 5000, pageSize: 200, key: "entries" });
-      setPayoutsList(items); setPayoutsTotal(total || 0);
-      const rPending = await fetch(`/api/commission-ledger/admin?status=pending&limit=1&sens=reversements`, { headers });
-      if (rPending.ok) setPayoutsPendingCount((await rPending.json()).total || 0);
-    } catch { /* ignore */ }
-    setPayoutsLoading(false);
-  }, [token, headers, payoutsFilter, fetchPaged]);
 
-  const markPayoutPaid = async (id) => {
-    if (payoutMarkingId) return;
-    const paidViaTxId = window.prompt("Référence du virement (optionnel — banque/mobile money) :", "");
-    if (paidViaTxId === null) return; // annulé
-    setPayoutMarkingId(id);
-    try {
-      const r = await fetch(`/api/commission-ledger/admin/${id}/mark-paid`, {
-        method: "PATCH", headers, body: JSON.stringify({ paidViaTxId: paidViaTxId || undefined }),
-      });
-      const data = await r.json();
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      showToast("Reversement marqué comme payé", "success");
-      loadPayouts();
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setPayoutMarkingId(null); }
-  };
 
-  // ── Assurance ────────────────────────────────────────────────────────────────
-  const loadInsurance = useCallback(async () => {
-    if (!token) return;
-    setInsuranceLoading(true);
-    try {
-      const r = await fetch("/api/insurance/admin/list", { headers });
-      if (r.ok) setInsuranceList((await r.json()).requests || []);
-    } catch { /* ignore */ }
-    setInsuranceLoading(false);
-  }, [token, headers]);
 
-  const submitInsuranceDecision = async () => {
-    if (!insuranceModal) return;
-    setInsuranceSaving(true);
-    try {
-      const r = await fetch(`/api/insurance/${insuranceModal.id}/decision`, {
-        method: "PATCH", headers,
-        body: JSON.stringify({ status: insuranceModal.status, premium: insurancePremium, note: insuranceNote }),
-      });
-      const data = await r.json();
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      showToast("Décision enregistrée — client notifié", "success");
-      setInsuranceModal(null);
-      setInsurancePremium("");
-      setInsuranceNote("");
-      loadInsurance();
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setInsuranceSaving(false); }
-  };
 
-  // ── Demandes de services génériques ──────────────────────────────────────────
-  const loadServiceRequests = useCallback(async () => {
-    if (!token) return;
-    setSvcReqLoading(true);
-    try {
-      const params = svcReqCategory ? `?category=${svcReqCategory}` : "";
-      const r = await fetch(`/api/service-requests/admin/list${params}`, { headers });
-      if (r.ok) setSvcReqList((await r.json()).requests || []);
-    } catch { /* ignore */ }
-    setSvcReqLoading(false);
-  }, [token, headers, svcReqCategory]);
 
-  const submitServiceRequestDecision = async () => {
-    if (!svcReqModal) return;
-    setSvcReqSaving(true);
-    try {
-      const r = await fetch(`/api/service-requests/${svcReqModal.id}/decision`, {
-        method: "PATCH", headers,
-        body: JSON.stringify({ status: svcReqModal.status, quotedAmountUSD: svcReqAmount, note: svcReqNote }),
-      });
-      const data = await r.json();
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      showToast("Décision enregistrée — client notifié", "success");
-      setSvcReqModal(null);
-      setSvcReqAmount("");
-      setSvcReqNote("");
-      loadServiceRequests();
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setSvcReqSaving(false); }
-  };
 
-  // ── Import Cost Engine — barèmes pays + liaisons de fret ─────────────────────
-  const loadImportCostData = useCallback(async () => {
-    if (!token) return;
-    setImportCostLoading(true);
-    try {
-      const [cRes, lRes] = await Promise.all([
-        fetch("/api/import-cost/admin/configs", { headers }),
-        fetch("/api/import-cost/admin/lanes",   { headers }),
-      ]);
-      if (cRes.ok) setCostConfigs((await cRes.json()).configs || []);
-      if (lRes.ok) setLaneRates((await lRes.json()).lanes || []);
-    } catch { /* ignore */ }
-    setImportCostLoading(false);
-  }, [token, headers]);
 
-  const saveCostConfig = async () => {
-    if (!costConfigForm?.country) { showToast("Pays requis", "error"); return; }
-    try {
-      const r = await fetch("/api/import-cost/admin/configs", {
-        method: "POST", headers, body: JSON.stringify(costConfigForm),
-      });
-      const d = await r.json().catch(() => null);
-      if (r.ok) { showToast("Barème enregistré."); setCostConfigForm(null); loadImportCostData(); }
-      else showToast(d?.message || "Erreur", "error");
-    } catch { showToast("Erreur réseau", "error"); }
-  };
 
-  // Fenêtre de confirmation du panneau : `confirm` y désigne son état, pas
-  // window.confirm — l'appel levait « confirm is not a function » (2026-11-02).
-  const deleteCostConfig = (id) => setConfirm({ message: "Supprimer ce barème ?", danger: true, action: () => deleteCostConfigConfirme(id) });
-  const deleteCostConfigConfirme = async (id) => {
-    // La réponse n'était pas vérifiée : un refus (droits insuffisants sur ce
-    // scope, contrainte serveur) affichait quand même un message de succès, et
-    // la ligne restait à l'écran après rechargement — l'admin croyait à un
-    // bug d'affichage et recommençait.
-    try {
-      const r = await fetch(`/api/import-cost/admin/configs/${id}`, { method: "DELETE", headers });
-      if (!r.ok) {
-        const d = await r.json().catch(() => null);
-        showToast(d?.message || "Suppression refusée par le serveur.", "error");
-        return;
-      }
-      showToast("Barème supprimé.");
-      loadImportCostData();
-    } catch { showToast("Erreur réseau — rien n'a été supprimé.", "error"); }
-  };
 
-  const saveLaneRate = async () => {
-    if (!laneForm?.sourceCountry || !laneForm?.destCountry || !laneForm?.seaFreightUSD) {
-      showToast("Pays d'origine, destination et tarif de fret requis", "error"); return;
-    }
-    try {
-      const isEdit = !!laneForm._id;
-      const r = await fetch(isEdit ? `/api/import-cost/admin/lanes/${laneForm._id}` : "/api/import-cost/admin/lanes", {
-        method: isEdit ? "PATCH" : "POST", headers, body: JSON.stringify(laneForm),
-      });
-      const d = await r.json().catch(() => null);
-      if (r.ok) { showToast("Liaison enregistrée."); setLaneForm(null); loadImportCostData(); }
-      else showToast(d?.message || "Erreur", "error");
-    } catch { showToast("Erreur réseau", "error"); }
-  };
 
-  // Fenêtre de confirmation du panneau : `confirm` y désigne son état, pas
-  // window.confirm — l'appel levait « confirm is not a function » (2026-11-02).
-  const deleteLaneRate = (id) => setConfirm({ message: "Supprimer cette liaison ?", danger: true, action: () => deleteLaneRateConfirme(id) });
-  const deleteLaneRateConfirme = async (id) => {
-    try {
-      const r = await fetch(`/api/import-cost/admin/lanes/${id}`, { method: "DELETE", headers });
-      if (!r.ok) {
-        const d = await r.json().catch(() => null);
-        showToast(d?.message || "Suppression refusée par le serveur.", "error");
-        return;
-      }
-      showToast("Liaison supprimée.");
-      loadImportCostData();
-    } catch { showToast("Erreur réseau — rien n'a été supprimé.", "error"); }
-  };
 
-  // ── Journal d'audit ──────────────────────────────────────────────────────────
-  const loadContracts = useCallback(async () => {
-    if (!token) return;
-    setContractsLoading(true);
-    try {
-      const r = await fetch("/api/contracts/mine", { headers });
-      if (r.ok) setContracts((await r.json()).contracts || []);
-    } catch { /* ignore */ }
-    setContractsLoading(false);
-  }, [token, headers]);
 
-  const loadAuditLog = useCallback(async () => {
-    if (!token) return;
-    setAuditLoading(true);
-    try {
-      const params = new URLSearchParams({ limit: "50" });
-      if (auditFilter.action)   params.set("action",   auditFilter.action);
-      if (auditFilter.resource) params.set("resource", auditFilter.resource);
-      if (auditFilter.success)  params.set("success",  auditFilter.success);
-      params.delete("limit"); params.delete("page");
-      // Jusqu'à 1 000 entrées par filtre (fetchPaged) — 50 seulement avant.
-      const [listRes, facetsRes] = await Promise.all([
-        fetchPaged(`/api/audit-log/admin/list?${params}`, { limit: 1000, pageSize: 100, key: "entries" }),
-        fetch("/api/audit-log/admin/actions",           { headers }),
-      ]);
-      setAuditEntries(listRes.items || []);
-      if (facetsRes.ok) setAuditFacets(await facetsRes.json());
-    } catch { /* ignore */ }
-    setAuditLoading(false);
-  }, [token, headers, auditFilter, fetchPaged]);
 
-  // ── Support Client ──────────────────────────────────────────────────────────
-  const chercherPartenaireEssai = useCallback(async (query) => {
-    setEssaiRecherche(query);
-    setEssaiVendeur(null);
-    // La liste `users` du tableau de bord est PAGINÉE : s'en servir aurait
-    // rendu invisibles tous les partenaires au-delà de la première page. La
-    // recherche interroge donc le serveur, comme le transfert d'activité.
-    if (query.trim().length < 2) { setEssaiResultats([]); return; }
-    try {
-      const r = await fetch(`/api/users?search=${encodeURIComponent(query.trim())}&role=partenaire&limit=6`, { headers });
-      if (r.ok) { const d = await r.json(); setEssaiResultats(d.users || []); }
-    } catch { /* recherche non bloquante */ }
-  }, [headers]);
 
-  const accorderEssai = useCallback(async () => {
-    if (!essaiVendeur) return;
-    setEssaiRetour(null);
-    // Route ADMIN (`/admin/:vendorId/trial`) — l'omettre visait une route
-    // inexistante et renvoyait un 404 silencieux dans l'interface.
-    const r = await fetch(`/api/subscriptions/admin/${essaiVendeur._id}/trial`, {
-      method: "POST", headers, body: JSON.stringify({ planTier: essaiPalier }),
-    });
-    const d = await r.json().catch(() => ({}));
-    setEssaiRetour({ ok: r.ok, message: d.message || (r.ok ? "Essai accordé." : "Échec.") });
-    if (r.ok) { setEssaiVendeur(null); setEssaiRecherche(""); setEssaiResultats([]); loadSubRequests(); }
-  }, [headers, essaiVendeur, essaiPalier, loadSubRequests]);
 
-  const loadTickets = useCallback(async () => {
-    if (!token) return;
-    try {
-      const r = await fetch(`/api/support/admin/tickets${ticketsStatut ? `?status=${ticketsStatut}` : ""}`, { headers });
-      if (r.ok) {
-        const d = await r.json();
-        setTickets(d.tickets || []);
-        setTicketsEnRetard(d.enRetard || 0);
-      }
-    } catch { /* ignore */ }
-  }, [token, headers, ticketsStatut]);
 
-  const repondreTicket = useCallback(async (id, content) => {
-    if (!content?.trim()) return;
-    const r = await fetch(`/api/support/tickets/${id}/messages`, {
-      method: "POST", headers, body: JSON.stringify({ content }),
-    });
-    if (r.ok) { setTicketReponse(""); loadTickets(); }
-  }, [headers, loadTickets]);
 
-  const changerStatutTicket = useCallback(async (id, status) => {
-    const r = await fetch(`/api/support/admin/tickets/${id}`, {
-      method: "PATCH", headers, body: JSON.stringify({ status }),
-    });
-    if (r.ok) { setTicketOuvert(null); loadTickets(); }
-  }, [headers, loadTickets]);
 
-  const loadSupportChats = useCallback(async () => {
-    if (!token) return;
-    setSupportLoading(true);
-    try {
-      const r = await fetch("/api/chats/support", { headers });
-      if (r.ok) { const d = await r.json(); setSupportChats(d.chats || []); }
-    } catch { /* ignore */ }
-    setSupportLoading(false);
-  }, [token, headers]);
 
-  // Toujours chargé sans filtre serveur — le filtre (reportFilter) s'applique
-  // côté client, pour que le badge "en attente" reste exact quel que soit le
-  // filtre actuellement affiché (voir pendingReports plus haut).
-  const loadReports = useCallback(async () => {
-    if (!token) return;
-    setReportsLoading(true);
-    try {
-      // Tous les signalements (fetchPaged) : au-delà des 100 plus récents, un
-      // signalement en attente disparaissait de la liste ET du compteur.
-      const { items } = await fetchPaged("/api/reports/admin", { limit: 5000, pageSize: 100, key: "reports" });
-      setReports(items);
-    } catch { /* ignore */ }
-    setReportsLoading(false);
-  }, [token, fetchPaged]);
 
   const openLoyalty = async (u) => {
     setLoyaltyModal(u);
@@ -1619,679 +811,233 @@ export default function AdminPanel() {
 
   const [vitrineModal, setVitrineModal] = useState(null);
 
-  const openTrustOverview = async (u) => {
-    setTrustModal(u);
-    setTrustOverview(null);
-    setTrustLoading(true);
-    try {
-      const r = await fetch(`/api/users/${u._id}/trust-overview`, { headers });
-      if (r.ok) { const d = await r.json(); setTrustOverview(d.overview); }
-    } catch { /* ignore */ }
-    setTrustLoading(false);
-  };
 
-  const decideReport = async (id, status) => {
-    // prompt() renvoie null quand l'admin clique « Annuler » : l'ancien
-    // `prompt(...) || null` continuait, et la décision était appliquée quand
-    // même. On abandonne réellement.
-    let note = null;
-    if (status !== "classe_sans_suite") {
-      const answer = prompt("Note (optionnel) :");
-      if (answer === null) return;
-      note = answer.trim() || null;
-    }
-    try {
-      const r = await fetch(`/api/reports/admin/${id}`, {
-        method: "PATCH", headers, body: JSON.stringify({ status, reviewNote: note }),
-      });
-      if (r.ok) { showToast("Signalement mis à jour."); loadReports(); }
-      else showToast("Erreur", "error");
-    } catch { showToast("Erreur réseau", "error"); }
-  };
 
-  const loadWaConversations = useCallback(async () => {
-    if (!token) return;
-    setWaLoading(true);
-    try {
-      const r = await fetch(`/api/whatsapp/admin/conversations?status=${waFilter}`, { headers });
-      if (r.ok) { const d = await r.json(); setWaConversations(d.conversations || []); }
-    } catch { /* ignore */ }
-    setWaLoading(false);
-  }, [token, headers, waFilter]);
 
-  const openWaConversation = async (conv) => {
-    try {
-      const r = await fetch(`/api/whatsapp/admin/conversations/${conv._id}`, { headers });
-      if (r.ok) { const d = await r.json(); setWaActive(d.conversation); }
-    } catch { showToast("Erreur réseau", "error"); }
-  };
 
-  const sendWaReply = async () => {
-    if (!waReply.trim() || !waActive) return;
-    try {
-      const r = await fetch(`/api/whatsapp/admin/conversations/${waActive._id}/reply`, {
-        method: "POST", headers, body: JSON.stringify({ message: waReply.trim() }),
-      });
-      const d = await r.json();
-      if (r.ok) { setWaActive(d.conversation); setWaReply(""); loadWaConversations(); }
-      else showToast(d.message || "Échec d'envoi.", "error");
-    } catch { showToast("Erreur réseau", "error"); }
-  };
 
-  const waSetStatus = async (id, status) => {
-    try {
-      const r = await fetch(`/api/whatsapp/admin/conversations/${id}/status`, {
-        method: "PATCH", headers, body: JSON.stringify({ status }),
-      });
-      if (r.ok) {
-        showToast(status === "bot" ? "Rendu au bot." : "Conversation clôturée.");
-        setWaActive(null);
-        loadWaConversations();
-      }
-    } catch { showToast("Erreur réseau", "error"); }
-  };
 
-  const openSupportChat = useCallback(async (chat) => {
-    setSupportActive(chat);
-    setSupportMsgLoading(true);
-    setSupportMessages([]);
-    try {
-      const r = await fetch(`/api/chats/${chat._id}`, { headers });
-      if (r.ok) {
-        const d = await r.json();
-        setSupportMessages(d.messages || []);
-        setSupportChats((prev) => prev.map((c) => c._id === chat._id ? { ...c, unread: 0, needsReply: false } : c));
-      }
-    } catch { /* ignore */ }
-    setSupportMsgLoading(false);
-  }, [headers]);
 
-  const sendSupportReply = useCallback(async () => {
-    const content = supportReply.trim();
-    if (!content || !supportActive) return;
-    setSupportSending(true);
-    try {
-      const r = await fetch(`/api/chats/${supportActive._id}`, {
-        method: "POST", headers, body: JSON.stringify({ content }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (r.ok) {
-        setSupportMessages((prev) => [...prev, d.message]);
-        setSupportReply("");
-        setSupportChats((prev) => prev.map((c) =>
-          c._id === supportActive._id
-            ? { ...c, lastMessage: content.slice(0, 100), lastMessageAt: new Date().toISOString(), needsReply: false }
-            : c
-        ));
-      } else {
-        showToast(d.message || "Erreur lors de l'envoi.", "error");
-      }
-    } catch { showToast("Erreur réseau.", "error"); }
-    setSupportSending(false);
-  }, [headers, supportReply, supportActive, showToast]);
 
-  // ── Gate admin obligatoire (audit 2026-08) ─────────────────────────────
-  const loadPendingValidation = useCallback(async () => {
-    if (!token) return;
-    setPendingValidationLoading(true);
-    try {
-      const [bRes, tRes] = await Promise.all([
-        fetch("/api/bookings/admin/pending-validation", { headers }),
-        fetch("/api/import-export/transactions/admin/pending-validation", { headers }),
-      ]);
-      if (bRes.ok) setPendingValidationBookings((await bRes.json()).bookings || []);
-      if (tRes.ok) setPendingValidationDirect((await tRes.json()).transactions || []);
-    } catch { /* ignore */ }
-    setPendingValidationLoading(false);
-  }, [token, headers]);
 
-  const adminValidateBookingReq = useCallback(async (id, decision, refusalReason) => {
-    try {
-      const r = await fetch(`/api/bookings/${id}/admin-validate`, {
-        method: "PATCH", headers, body: JSON.stringify({ decision, refusalReason }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (r.ok) {
-        showToast(decision === "approved" ? "Réservation transmise au partenaire." : "Demande refusée.");
-        setPendingValidationBookings((prev) => prev.filter((b) => b._id !== id));
-      } else {
-        showToast(d.message || "Erreur lors de la validation.", "error");
-      }
-    } catch { showToast("Erreur réseau.", "error"); }
-  }, [headers, showToast]);
 
-  const adminValidateDirectReq = useCallback(async (id, decision, refusalReason) => {
-    try {
-      const r = await fetch(`/api/import-export/transactions/${id}/admin-validate-direct`, {
-        method: "PATCH", headers, body: JSON.stringify({ decision, refusalReason }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (r.ok) {
-        showToast(decision === "approved" ? "Achat direct transmis au partenaire." : "Achat direct refusé.");
-        setPendingValidationDirect((prev) => prev.filter((t) => t._id !== id));
-      } else {
-        showToast(d.message || "Erreur lors de la validation.", "error");
-      }
-    } catch { showToast("Erreur réseau.", "error"); }
-  }, [headers, showToast]);
 
-  const confirmValidationReject = useCallback(async () => {
-    if (!validationRejectModal) return;
-    const { kind, item } = validationRejectModal;
-    if (kind === "booking") await adminValidateBookingReq(item._id, "rejected", validationRejectReason.trim());
-    else await adminValidateDirectReq(item._id, "rejected", validationRejectReason.trim());
-    setValidationRejectModal(null);
-    setValidationRejectReason("");
-  }, [validationRejectModal, validationRejectReason, adminValidateBookingReq, adminValidateDirectReq]);
 
-  // ── Supervision chats client_partner (lecture seule, audit 2026-08) ─────
-  const loadClientPartnerChats = useCallback(async () => {
-    if (!token) return;
-    setCpChatsLoading(true);
-    try {
-      const r = await fetch("/api/chats/admin/client-partner", { headers });
-      if (r.ok) setCpChats((await r.json()).chats || []);
-    } catch { /* ignore */ }
-    setCpChatsLoading(false);
-  }, [token, headers]);
 
-  const openClientPartnerChat = useCallback(async (chat) => {
-    setCpActive(chat);
-    setCpMsgLoading(true);
-    setCpMessages([]);
-    try {
-      const r = await fetch(`/api/chats/admin/client-partner/${chat._id}`, { headers });
-      if (r.ok) setCpMessages((await r.json()).messages || []);
-    } catch { /* ignore */ }
-    setCpMsgLoading(false);
-  }, [headers]);
 
-  // Bug réel corrigé (audit) : plafonné à 50, trié du plus récent au plus
-  // ancien, sans aucune pagination — les dossiers les plus ANCIENS (donc les
-  // plus en retard de traitement) disparaissaient silencieusement en premier
-  // dès que le nombre de dossiers dépassait 50. `limit` paramétrable +
-  // `kycTotal` renvoyé par le backend permettent désormais un "Charger plus"
-  // réel plutôt qu'un plafond invisible.
-  const loadKycList = useCallback(async (status = "", limit = kycLimit) => {
-    if (!token) return;
-    setKycLoading(true);
-    try {
-      const params = new URLSearchParams({ limit: String(limit) });
-      if (status) params.set("status", status);
-      const r = await fetch(`/api/kyc/admin/list?${params}`, { headers });
-      if (r.ok) { const d = await r.json(); setKycList(d.users || []); setKycTotal(d.total || 0); }
-    } catch { /* ignore */ }
-    setKycLoading(false);
-  }, [token, headers, kycLimit]);
 
-  const loadMoreKyc = useCallback(() => {
-    const next = kycLimit + 100;
-    setKycLimit(next);
-    // "ALL" est compris par le serveur (aucun filtre) ; le convertir en ""
-    // faisait basculer « Charger plus » sur les seuls dossiers en attente.
-    loadKycList(kycFilter, next);
-  }, [kycLimit, kycFilter, loadKycList]);
 
-  // Compteur "en attente" — toujours interrogé SANS filtre de statut (le backend
-  // applique alors son défaut EN_ATTENTE + A_REVOIR_MANUELLEMENT, voir
-  // kycController.getKycList) donc jamais affecté par le filtre choisi dans l'UI.
-  const loadKycPendingTotal = useCallback(async () => {
-    if (!token) return;
-    try {
-      const r = await fetch("/api/kyc/admin/list?limit=1", { headers });
-      if (r.ok) { const d = await r.json(); setKycPendingTotal(d.total || 0); }
-    } catch { /* ignore */ }
-  }, [token, headers]);
 
-  useEffect(() => { loadKycPendingTotal(); }, [loadKycPendingTotal]);
 
-  const loadCertList = useCallback(async () => {
-    if (!token) return;
-    setCertLoading(true);
-    try {
-      // Toutes les pages (fetchPaged) : la 1re page de 100 seulement rendait
-      // les enregistrements plus anciens inaccessibles (audit du 2026-10-05).
-      const { items } = await fetchPaged("/api/certification/admin/list", { limit: 5000, pageSize: 100, key: "certifications" });
-      setCertList(items);
-    } catch { /* ignore */ }
-    setCertLoading(false);
-  }, [token, fetchPaged]);
 
-  const handleCertLevelReview = useCallback(async (userId, level) => {
-    setCertReviewLoading(true); setCertReviewMsg("");
-    try {
-      const r = await fetch(`/api/certification/admin/${userId}/level/${level}/review`, {
-        method: "PATCH", headers, body: JSON.stringify(certReviewForm),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (r.ok) {
-        setCertReviewMsg(`✅ Niveau ${level} : ${certReviewForm.decision}`);
-        setCertReviewLevel(null);
-        loadCertList();
-        if (certDetail?.userId?._id === userId) {
-          const dr = await fetch(`/api/certification/admin/${userId}`, { headers });
-          if (dr.ok) { const dd = await dr.json(); setCertDetail(dd.certification); }
-        }
-      } else {
-        setCertReviewMsg(`❌ ${d.message || "Erreur."}`);
-      }
-    } catch { setCertReviewMsg("❌ Connexion impossible."); }
-    setCertReviewLoading(false);
-  }, [headers, certReviewForm, certDetail, loadCertList]);
 
-  const handleCertBadge = useCallback(async (userId) => {
-    setCertReviewLoading(true); setCertReviewMsg("");
-    try {
-      const r = await fetch(`/api/certification/admin/${userId}/badge`, {
-        method: "PATCH", headers, body: JSON.stringify(certBadgeForm),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (r.ok) {
-        setCertReviewMsg(`✅ Badge attribué : ${certBadgeForm.badge}`);
-        loadCertList();
-        if (certDetail?.userId?._id === userId) {
-          const dr = await fetch(`/api/certification/admin/${userId}`, { headers });
-          if (dr.ok) { const dd = await dr.json(); setCertDetail(dd.certification); }
-        }
-      } else {
-        setCertReviewMsg(`❌ ${d.message || "Erreur."}`);
-      }
-    } catch { setCertReviewMsg("❌ Connexion impossible."); }
-    setCertReviewLoading(false);
-  }, [headers, certBadgeForm, certDetail, loadCertList]);
 
-  const handleCertRelance = useCallback(async () => {
-    if (!certDetail?.userId?._id) return;
-    setCertReviewLoading(true);
-    try {
-      const r = await fetch(`/api/certification/admin/${certDetail.userId._id}/relance`, { method: "POST", headers });
-      const d = await r.json().catch(() => ({}));
-      if (r.ok) showToast(`Relance envoyée (${d.missingDocs.join(", ")})`);
-      else showToast(d.message || "Erreur", "error");
-    } catch { showToast("Connexion impossible", "error"); }
-    setCertReviewLoading(false);
-  }, [headers, certDetail, showToast]);
 
-  // Ouvre le dossier KYC — charge le détail complet (photos recto/verso/selfie,
-  // permis de conduire...) depuis /api/kyc/admin/:userId, car la LISTE exclut
-  // volontairement ces images base64 (trop lourdes pour un listing de 50 dossiers).
-  const openKycDetail = useCallback(async (u) => {
-    setKycDetailUser(u);
-    setKycReviewForm({ decision: u.kycStatus === "VERIFIE" ? "EN_ATTENTE" : "VERIFIE", note: "" });
-    setKycReviewMsg("");
-    setKycDetailLoading(true);
-    try {
-      const r = await fetch(`/api/kyc/admin/${u._id}`, { headers });
-      if (r.ok) {
-        const d = await r.json();
-        setKycDetailUser(d.user);
-      }
-    } catch { /* garde les données de la liste en cas d'échec réseau */ }
-    setKycDetailLoading(false);
-  }, [headers]);
 
-  const handleKycReview = async (userId) => {
-    setKycReviewLoading(true); setKycReviewMsg("");
-    try {
-      const r = await fetch(`/api/kyc/admin/${userId}/review`, {
-        method: "PATCH",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify(kycReviewForm),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (r.ok) {
-        // La confirmation s'affichait DANS la fenêtre du dossier, fermée à la
-        // ligne suivante : l'admin ne voyait rien et croyait la validation en
-        // échec alors qu'elle était enregistrée (2026-10-06, dossier Sangare).
-        // Toast global + mise à jour immédiate de la ligne dans la liste.
-        const libelles = { VERIFIE: "validé", REFUSE: "refusé", A_REVOIR_MANUELLEMENT: "mis en révision", EN_ATTENTE: "remis en attente" };
-        const nom = `${kycDetailUser?.firstName || ""} ${kycDetailUser?.lastName || ""}`.trim() || "Le dossier";
-        showToast(`✅ Dossier KYC de ${nom} ${libelles[kycReviewForm.decision] || kycReviewForm.decision}.`);
-        setKycList((liste) => liste.map((u) => (u._id === userId ? { ...u, kycStatus: kycReviewForm.decision } : u)));
-        setKycReviewMsg("");
-        setKycDetailUser(null);
-        loadKycList(kycFilter);
-        loadKycPendingTotal();
-      } else {
-        setKycReviewMsg(`❌ ${d.message || "Erreur."}`);
-      }
-    } catch { setKycReviewMsg("❌ Connexion impossible."); }
-    setKycReviewLoading(false);
-  };
 
-  // ── PMS Admin ─────────────────────────────────────────────────────────────
-  const loadPMSAdmin = useCallback(async () => {
-    if (!token) return;
-    setPmsLoading(true);
-    try {
-      const published = pmsFilter === "all" ? "" : `?published=${pmsFilter === "published"}`;
-      const [statsRes, showroomsRes] = await Promise.all([
-        fetch("/api/pms/admin/stats",             { headers }),
-        fetch(`/api/pms/admin/showrooms${published}`, { headers }),
-      ]);
-      if (statsRes.ok)     setPmsStats(await statsRes.json());
-      if (showroomsRes.ok) setPmsShowrooms((await showroomsRes.json()).showrooms || []);
-    } catch { /* ignore */ }
-    setPmsLoading(false);
-  }, [token, headers, pmsFilter]);
 
-  const loadFoundingPartners = useCallback(async () => {
-    if (!token) return;
-    setFoundingLoading(true);
-    try {
-      const [listRes, statsRes] = await Promise.all([
-        fetchPaged("/api/partner-onboarding/admin/list", { limit: 5000, pageSize: 100, key: "onboardings" }),
-        fetch("/api/partner-onboarding/admin/stats",          { headers }),
-      ]);
-      // Toutes les pages (fetchPaged) — l'onglet n'en montrait que 100.
-      setFoundingList(listRes.items || []);
-      if (statsRes.ok) setFoundingStats(await statsRes.json());
-    } catch { /* ignore */ }
-    setFoundingLoading(false);
-  }, [token, headers, fetchPaged]);
 
-  const foundingApprove = async (id, note) => {
-    if (foundingSubmitting) return; // évite le double-clic (double envoi de LOI)
-    setFoundingSubmitting(true);
-    try {
-      const r = await fetch(`/api/partner-onboarding/admin/${id}/approve`, {
-        method: "POST", headers,
-        body: JSON.stringify({ note: note || "" }),
-      });
-      const data = await r.json();
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      const company = foundingList.find(o => o._id === id)?.companyInfo?.legalName || "Partenaire";
-      setFoundingSignLink({ id, link: data.signLink, type: "loi", companyName: company });
-      showToast("Candidature approuvée — LOI envoyée par email", "success");
-      setFoundingAction(null);
-      setFoundingNote("");
-      loadFoundingPartners();
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setFoundingSubmitting(false); }
-  };
 
-  const foundingSendAgreement = async (id) => {
-    if (foundingRowActionId) return; // évite le double-clic (double envoi de l'accord)
-    setFoundingRowActionId(id);
-    try {
-      const r = await fetch(`/api/partner-onboarding/admin/${id}/send-agreement`, {
-        method: "POST", headers,
-      });
-      const data = await r.json();
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      const company = foundingList.find(o => o._id === id)?.companyInfo?.legalName || "Partenaire";
-      setFoundingSignLink({ id, link: data.signLink, type: "agreement", companyName: company });
-      showToast("Accord envoyé par email", "success");
-      loadFoundingPartners();
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setFoundingRowActionId(null); }
-  };
 
-  // Renvoie un lien de signature FRAIS (LOI ou Accord, selon le statut actuel)
-  // dans un seul email — remplace l'ancien bouton "Renvoyer l'accord" qui
-  // appelait send-agreement (lequel exige status "loi_signee" et échouait donc
-  // systématiquement une fois l'accord déjà envoyé), et comble l'absence totale
-  // de moyen de renvoyer une LOI dont le lien a expiré ou ne s'est pas ouvert.
-  const foundingResendDocuments = async (id) => {
-    if (foundingRowActionId) return;
-    setFoundingRowActionId(id);
-    try {
-      const r = await fetch(`/api/partner-onboarding/admin/${id}/resend-documents`, {
-        method: "POST", headers,
-      });
-      const data = await r.json();
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      const company = foundingList.find(o => o._id === id)?.companyInfo?.legalName || "Partenaire";
-      setFoundingSignLink({ id, link: data.signLink, type: data.status === "loi_envoyee" ? "loi" : "agreement", companyName: company });
-      showToast("Nouveau lien de signature envoyé par email", "success");
-      loadFoundingPartners();
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setFoundingRowActionId(null); }
-  };
 
-  // Relance une entité SANS AUCUN dossier Founding Partner (voir adminList,
-  // lignes "orphanRows" — un partenaire ayant une entité PartnerBusiness mais
-  // n'ayant jamais cliqué "Commencer ma candidature"). `id` est ici l'ID de
-  // l'entité (PartnerBusiness), pas d'un PartnerOnboarding — il n'en existe pas.
-  const foundingRelaunchBusiness = async (businessId) => {
-    if (foundingRowActionId) return;
-    setFoundingRowActionId(businessId);
-    try {
-      const r = await fetch(`/api/partner-onboarding/admin/relaunch-business/${businessId}`, {
-        method: "POST", headers,
-      });
-      const data = await r.json();
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      showToast("Invitation à démarrer sa candidature envoyée par email", "success");
-      loadFoundingPartners();
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setFoundingRowActionId(null); }
-  };
 
-  // Relance un dossier resté incomplet (brouillon jamais soumis, ou déjà relancé
-  // une première fois) — endpoint backend existant depuis longtemps
-  // (adminRequestInfo) mais jusqu'ici jamais appelé depuis cette interface : un
-  // partenaire ayant sauté des étapes n'avait aucun moyen d'être notifié pour
-  // compléter son dossier.
-  const foundingRequestInfo = async (id, infoRequested) => {
-    if (!infoRequested?.trim()) { showToast("Précisez ce qui doit être complété", "error"); return; }
-    if (foundingSubmitting) return;
-    setFoundingSubmitting(true);
-    try {
-      const r = await fetch(`/api/partner-onboarding/admin/${id}/request-info`, {
-        method: "POST", headers,
-        body: JSON.stringify({ infoRequested }),
-      });
-      const data = await r.json();
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      showToast("Partenaire relancé — notification envoyée", "success");
-      setFoundingAction(null);
-      setFoundingNote("");
-      loadFoundingPartners();
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setFoundingSubmitting(false); }
-  };
 
-  const foundingReject = async (id, note) => {
-    if (!note?.trim()) { showToast("Note de rejet requise", "error"); return; }
-    if (foundingSubmitting) return; // évite le double-clic (double rejet)
-    setFoundingSubmitting(true);
-    try {
-      const r = await fetch(`/api/partner-onboarding/admin/${id}/reject`, {
-        method: "POST", headers,
-        body: JSON.stringify({ note }),
-      });
-      if (!r.ok) { showToast("Erreur", "error"); return; }
-      showToast("Dossier rejeté", "success");
-      setFoundingAction(null);
-      setFoundingNote("");
-      loadFoundingPartners();
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setFoundingSubmitting(false); }
-  };
 
-  const foundingUpdateCRM = async (id, data) => {
-    try {
-      const r = await fetch(`/api/partner-onboarding/admin/${id}/crm`, {
-        method: "PATCH", headers,
-        body: JSON.stringify(data),
-      });
-      const json = await r.json();
-      if (!r.ok) { showToast(json.message || "Erreur CRM", "error"); return; }
-      showToast("CRM mis à jour", "success");
-      setFoundingCRMEdit(null);
-      setFoundingList((prev) => prev.map((o) =>
-        o._id === id ? { ...o, adminCRM: json.adminCRM } : o
-      ));
-    } catch { showToast("Erreur réseau", "error"); }
-  };
 
-  // ── CRM Partenaires (pipeline de prospection à 9 étapes) ──────────────────
-  const loadPartnerCrm = useCallback(async () => {
-    if (!token) return;
-    setCrmLoading(true);
-    setCrmErreur("");
-    try {
-      const params = new URLSearchParams({ limit: String(CRM_PAR_PAGE), page: String(crmPage) });
-      if (crmFilter.statut)     params.set("statut", crmFilter.statut);
-      if (crmFilter.pays)       params.set("pays", crmFilter.pays);
-      if (crmFilter.secteur)    params.set("secteur", crmFilter.secteur);
-      if (crmFilter.assignedTo) params.set("assignedTo", crmFilter.assignedTo);
-      if (crmFilter.source)     params.set("source", crmFilter.source);
-      if (crmFilter.aRelancer)  params.set("aRelancer", "1");
-      if (crmSearch)            params.set("search", crmSearch);
-      const [listRes, statsRes] = await Promise.all([
-        fetch(`/api/partner-crm/admin/list?${params}`, { headers }),
-        fetch("/api/partner-crm/admin/stats",           { headers }),
-      ]);
-      // Une erreur s'affiche comme une erreur — jamais comme « aucun prospect ».
-      if (listRes.ok) {
-        const l = await listRes.json();
-        setCrmList(l.items || []);
-        setCrmTotal(l.total || 0);
-      } else {
-        setCrmErreur((await listRes.json().catch(() => ({}))).message || `Chargement impossible (${listRes.status}).`);
-      }
-      if (statsRes.ok) setCrmStats(await statsRes.json());
-    } catch { setCrmErreur("Erreur réseau : la liste n'a pas pu être chargée."); }
-    setCrmLoading(false);
-  }, [token, headers, crmFilter, crmSearch, crmPage]);
-  // Nouveau filtre ou nouvelle recherche : retour à la première page.
-  useEffect(() => { setCrmPage(1); }, [crmFilter, crmSearch]);
 
-  const crmCreateProspect = async (confirmerDoublon = false) => {
-    if (crmSubmitting) return;
-    if (!crmNewForm.entreprise.trim()) { showToast("Le nom de l'entreprise est requis", "error"); return; }
-    setCrmSubmitting(true);
-    try {
-      const r = await fetch("/api/partner-crm/admin", {
-        method: "POST", headers,
-        body: JSON.stringify({ ...crmNewForm, confirmerDoublon }),
-      });
-      const data = await r.json();
-      if (r.status === 409 && data.code === "DOUBLON_POSSIBLE") { setCrmDoublons(data.doublons || []); return; }
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      showToast("Prospect créé", "success");
-      setCrmDoublons(null);
-      setCrmCreating(false);
-      setCrmNewForm({ entreprise: "", pays: "", ville: "", secteur: "", contactNom: "", contactTel: "", contactEmail: "", website: "", source: "", assignedTo: "", priority: "medium" });
-      loadPartnerCrm();
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setCrmSubmitting(false); }
-  };
 
-  const crmAdvanceStatut = async (id, statut) => {
-    try {
-      const r = await fetch(`/api/partner-crm/admin/${id}/statut`, {
-        method: "PATCH", headers,
-        body: JSON.stringify({ statut }),
-      });
-      const data = await r.json();
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      showToast(`Étape → ${statut}`, "success");
-      setCrmList((prev) => prev.map((c) => c._id === id ? { ...c, statut, dateInscription: data.dateInscription || c.dateInscription } : c));
-      loadPartnerCrm();
-    } catch { showToast("Erreur réseau", "error"); }
-  };
 
-  const crmOpenDetail = async (id) => {
-    setCrmDetail(id);
-    setCrmDetailData(null);
-    setCrmEditData(null);
-    try {
-      const r = await fetch(`/api/partner-crm/admin/${id}`, { headers });
-      if (r.ok) {
-        const data = await r.json();
-        setCrmDetailData(data);
-        setCrmEditData({
-          entreprise: data.crm.entreprise || "", pays: data.crm.pays || "", ville: data.crm.ville || "",
-          secteur: data.crm.secteur || "", contactNom: data.crm.contactNom || "", contactTel: data.crm.contactTel || "",
-          contactEmail: data.crm.contactEmail || "", website: data.crm.website || "",
-          internalNotes: data.crm.internalNotes || "", source: data.crm.source || "",
-          prochaineAction: data.crm.prochaineAction || "",
-          priority: data.crm.priority || "medium", assignedTo: data.crm.assignedTo?._id || "",
-          lastContactDate: data.crm.lastContactDate ? new Date(data.crm.lastContactDate).toISOString().slice(0, 10) : "",
-          lastContactChannel: data.crm.lastContactChannel || "",
-          nextFollowUpDate: data.crm.nextFollowUpDate ? new Date(data.crm.nextFollowUpDate).toISOString().slice(0, 10) : "",
-          commissionTaux: data.crm.commission?.taux ?? "", commissionNotes: data.crm.commission?.notes || "",
-          contratReference: data.crm.contrat?.reference || "", contratUrl: data.crm.contrat?.url || "",
-          services: (data.crm.services || []).join(", "),
-        });
-      }
-    } catch { showToast("Erreur réseau", "error"); }
-  };
 
-  const crmSaveDetail = async () => {
-    if (!crmDetail || !crmEditData) return;
-    setCrmSubmitting(true);
-    try {
-      const r = await fetch(`/api/partner-crm/admin/${crmDetail}`, {
-        method: "PATCH", headers,
-        body: JSON.stringify({
-          ...crmEditData,
-          services: crmEditData.services.split(",").map((s) => s.trim()).filter(Boolean),
-          commission: { taux: crmEditData.commissionTaux === "" ? null : Number(crmEditData.commissionTaux), notes: crmEditData.commissionNotes },
-          contrat: { reference: crmEditData.contratReference, url: crmEditData.contratUrl },
-        }),
-      });
-      const data = await r.json();
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      showToast("Prospect mis à jour", "success");
-      loadPartnerCrm();
-      crmOpenDetail(crmDetail);
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setCrmSubmitting(false); }
-  };
 
-  const crmLinkAccount = async () => {
-    if (!crmDetail || !crmLinkUserId.trim()) return;
-    setCrmSubmitting(true);
-    try {
-      const r = await fetch(`/api/partner-crm/admin/${crmDetail}/link`, {
-        method: "PATCH", headers,
-        body: JSON.stringify({ userId: crmLinkUserId.trim() }),
-      });
-      const data = await r.json();
-      if (!r.ok) { showToast(data.message || "Erreur", "error"); return; }
-      showToast("Compte lié avec succès", "success");
-      setCrmLinkUserId("");
-      loadPartnerCrm();
-      crmOpenDetail(crmDetail);
-    } catch { showToast("Erreur réseau", "error"); }
-    finally { setCrmSubmitting(false); }
-  };
 
-  const adminToggleShowroom = async (id) => {
-    try {
-      const r = await fetch(`/api/pms/admin/showrooms/${id}/toggle`, { method: "PATCH", headers });
-      if (r.ok) {
-        const { isPublished } = await r.json();
-        setPmsShowrooms((prev) => prev.map((s) => s._id === id ? { ...s, isPublished } : s));
-        showToast(isPublished ? "Showroom publié" : "Showroom dépublié", "success");
-      }
-    } catch { showToast("Erreur", "error"); }
-  };
 
-  // ── Partner Verification ───────────────────────────────────────────────────
-  const loadPartnerVerif = useCallback(async () => {
-    if (!token) return;
-    setPvLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (pvFilter.status)      params.set("status",      pvFilter.status);
-      if (pvFilter.trustLevel)  params.set("trustLevel",  pvFilter.trustLevel);
-      if (pvFilter.companyType) params.set("companyType", pvFilter.companyType);
-      if (pvFilter.search)      params.set("search",      pvFilter.search);
-      params.set("limit", "100");
-      const [listRes, statsRes] = await Promise.all([
-        fetch(`/api/partner-verif/admin/list?${params}`, { headers }),
-        fetch("/api/partner-verif/admin/stats",          { headers }),
-      ]);
-      if (listRes.ok)  setPvList((await listRes.json()).verifications || []);
-      if (statsRes.ok) setPvStats(await statsRes.json());
-    } catch { /* ignore */ }
-    setPvLoading(false);
-  }, [token, headers, pvFilter]);
+
+  // Modération des avis clients : voir admin/hooks/useModerationAvis.js.
+  const {
+    loadReviews, platformReviewStats, reviewActioning, reviewsFilter, reviewsList,
+    reviewsLoading, reviewsTargetType, setReviewsFilter, setReviewsTargetType, toggleReviewVisibility,
+  } = useModerationAvis({ fetchPaged, headers, showToast, token });
+
+  // Santé système : voir admin/hooks/useSanteSysteme.js.
+  const {
+    loadSystemHealth, systemHealth, systemHealthLoading,
+  } = useSanteSysteme({ headers });
+
+  // Analytics : voir admin/hooks/useAnalytics.js.
+  const {
+    analytics, analyticsLoading, loadAnalytics,
+  } = useAnalytics({ headers, token });
+
+  // Emails & livraison : voir admin/hooks/useEmailsLivraison.js.
+  const {
+    emailDeliveryLoading, emailFailures, emailStats, loadEmailDelivery,
+  } = useEmailsLivraison({ headers, token });
+
+  // Financement (leasing/crédit) : voir admin/hooks/useFinancement.js.
+  const {
+    financingLoading, financingModal, financingNote, financingRequests, financingSaving,
+    loadFinancing, setFinancingModal, setFinancingNote, submitFinancingDecision,
+  } = useFinancement({ headers, showToast, token });
+
+  // Publicités & campagnes : voir admin/hooks/usePublicites.js.
+  const {
+    adForm, adSaving, adsList, adsLoading, deleteAd,
+    loadAds, saveAd, setAdForm, toggleAdActive,
+  } = usePublicites({ headers, showToast, token });
+
+  // Reversements partenaire : voir admin/hooks/useReversements.js.
+  const {
+    loadPayouts, markPayoutPaid, payoutMarkingId, payoutsFilter, payoutsList,
+    payoutsLoading, payoutsPendingCount, payoutsTotal, setPayoutsFilter,
+  } = useReversements({ fetchPaged, headers, showToast, token });
+
+  // Assurance : voir admin/hooks/useAssurance.js.
+  const {
+    insuranceList, insuranceLoading, insuranceModal, insuranceNote, insurancePremium,
+    insuranceSaving, loadInsurance, setInsuranceModal, setInsuranceNote, setInsurancePremium,
+    submitInsuranceDecision,
+  } = useAssurance({ headers, showToast, token });
+
+  // Autres services (transport, transit, douanes…) : voir admin/hooks/useAutresServices.js.
+  const {
+    loadServiceRequests, setSvcReqAmount, setSvcReqCategory, setSvcReqModal, setSvcReqNote,
+    submitServiceRequestDecision, svcReqAmount, svcReqCategory, svcReqList, svcReqLoading,
+    svcReqModal, svcReqNote, svcReqSaving,
+  } = useAutresServices({ headers, showToast, token });
+
+  // Coûts d'import : voir admin/hooks/useCoutsImport.js.
+  const {
+    costConfigForm, costConfigs, deleteCostConfig, deleteLaneRate, importCostLoading,
+    laneForm, laneRates, loadImportCostData, saveCostConfig, saveLaneRate,
+    setCostConfigForm, setLaneForm,
+  } = useCoutsImport({ headers, setConfirm, showToast, token });
+
+  // Contrats de réservation : voir admin/hooks/useContrats.js.
+  const {
+    contracts, contractsLoading, loadContracts,
+  } = useContrats({ headers, token });
+
+  // Journal d'audit : voir admin/hooks/useJournalAudit.js.
+  const {
+    auditEntries, auditFacets, auditFilter, auditLoading, loadAuditLog,
+    setAuditFilter,
+  } = useJournalAudit({ fetchPaged, headers, token });
+
+  // Abonnements et boosts à confirmer : voir admin/hooks/useAbonnementsAValider.js.
+  const {
+    loadSubRequests, subAction, subActioning, subLoading, subRequests,
+  } = useAbonnementsAValider({ headers, showToast, token });
+
+  // Demandes d'assistance et essais Pro : voir admin/hooks/useAssistance.js.
+  const {
+    accorderEssai, changerStatutTicket, chercherPartenaireEssai, essaiPalier, essaiRecherche,
+    essaiResultats, essaiRetour, essaiVendeur, loadTickets, repondreTicket,
+    setEssaiPalier, setEssaiResultats, setEssaiVendeur, setTicketOuvert, setTicketReponse,
+    setTicketsStatut, ticketOuvert, ticketReponse, tickets, ticketsEnRetard,
+    ticketsStatut,
+  } = useAssistance({ headers, loadSubRequests, token });
+
+  // Bot WhatsApp partenaires : voir admin/hooks/useWhatsapp.js.
+  const {
+    loadWaConversations, openWaConversation, sendWaReply, setWaFilter, setWaReply,
+    waActive, waConversations, waFilter, waLoading, waReply,
+    waSetStatus,
+  } = useWhatsapp({ headers, showToast, token });
+
+  // Support client : voir admin/hooks/useSupportClient.js.
+  const {
+    loadSupportChats, openSupportChat, sendSupportReply, setSupportMessages, setSupportReply,
+    supportActive, supportChats, supportLoading, supportMessages, supportMsgLoading,
+    supportReply, supportSending,
+  } = useSupportClient({ activeTab, headers, showToast, token });
+
+  // Demandes à valider : voir admin/hooks/useDemandesAValider.js.
+  const {
+    adminValidateBookingReq, adminValidateDirectReq, confirmValidationReject, loadPendingValidation, pendingValidationBookings,
+    pendingValidationDirect, pendingValidationLoading, setValidationRejectModal, setValidationRejectReason, validationRejectModal,
+    validationRejectReason,
+  } = useDemandesAValider({ headers, showToast, token });
+
+  // Supervision des chats client ↔ partenaire : voir admin/hooks/useSupervisionChats.js.
+  const {
+    cpActive, cpChats, cpChatsLoading, cpMessages, cpMsgLoading,
+    loadClientPartnerChats, openClientPartnerChat, setCpMessages,
+  } = useSupervisionChats({ activeTab, headers, token });
+
+  // KYC / identités : voir admin/hooks/useKycAdmin.js.
+  const {
+    handleKycReview, kycDetailLoading, kycDetailUser, kycFilter, kycList,
+    kycLoading, kycPendingTotal, kycReviewForm, kycReviewLoading, kycReviewMsg,
+    kycSearch, kycTotal, loadKycList, loadMoreKyc, openKycDetail,
+    setKycDetailUser, setKycFilter, setKycReviewForm, setKycSearch,
+  } = useKycAdmin({ headers, showToast, token });
+
+  // Certifications partenaires : voir admin/hooks/useCertifications.js.
+  const {
+    certBadgeForm, certDetail, certFilter, certList, certLoading,
+    certReviewForm, certReviewLevel, certReviewLoading, certReviewMsg, handleCertBadge,
+    handleCertLevelReview, handleCertRelance, loadCertList, setCertBadgeForm, setCertDetail,
+    setCertFilter, setCertReviewForm, setCertReviewLevel, setCertReviewMsg,
+  } = useCertifications({ fetchPaged, headers, showToast, token });
+
+  // Partner Hub PMS : voir admin/hooks/usePartnerHub.js.
+  const {
+    adminToggleShowroom, loadPMSAdmin, pmsFilter, pmsLoading, pmsShowrooms,
+    pmsStats, setPmsFilter,
+  } = usePartnerHub({ headers, showToast, token });
+
+  // Founding Partners : voir admin/hooks/useFoundingPartners.js.
+  const {
+    foundingAction, foundingApprove, foundingCRMEdit, foundingCRMFilter, foundingDetail,
+    foundingList, foundingLoading, foundingNote, foundingReject, foundingRelaunchBusiness,
+    foundingRequestInfo, foundingResendDocuments, foundingRowActionId, foundingSendAgreement, foundingSignLink,
+    foundingStats, foundingSubmitting, foundingUpdateCRM, foundingView, loadFoundingPartners,
+    setFoundingAction, setFoundingCRMEdit, setFoundingCRMFilter, setFoundingDetail, setFoundingNote,
+    setFoundingSignLink, setFoundingView,
+  } = useFoundingPartners({ fetchPaged, headers, showToast, token });
+
+  // CRM partenaires : voir admin/hooks/useCrmPartenaires.js.
+  const {
+    crmAdvanceStatut, crmCreateProspect, crmCreating, crmDetail, crmDetailData,
+    crmDoublons, crmEditData, crmErreur, crmFilter, crmLinkAccount,
+    crmLinkUserId, crmList, crmLoading, crmNewForm, crmOpenDetail,
+    crmPage, crmSaveDetail, crmSearch, crmStats, crmSubmitting,
+    crmTotal, crmView, loadPartnerCrm, setCrmCreating, setCrmDetail,
+    setCrmDoublons, setCrmEditData, setCrmFilter, setCrmLinkUserId, setCrmNewForm,
+    setCrmPage, setCrmSearch, setCrmView,
+  } = useCrmPartenaires({ CRM_PAR_PAGE, headers, showToast, token });
+
+  // Vérification partenaires : voir admin/hooks/useVerificationPartenaires.js.
+  const {
+    loadPartnerVerif, pvCreateForm, pvCreateModal, pvCriterionLoading, pvDetail,
+    pvFilter, pvList, pvLoading, pvSaving, pvStats,
+    setPvCreateForm, setPvCreateModal, setPvCriterionLoading, setPvDetail, setPvFilter,
+    setPvSaving,
+  } = useVerificationPartenaires({ headers, token });
+
+  // Signalements et confiance : voir admin/hooks/useSignalements.js.
+  const {
+    decideReport, loadReports, openTrustOverview, reportFilter, reports,
+    reportsLoading, setReportFilter, setTrustModal, trustLoading, trustModal,
+    trustOverview,
+  } = useSignalements({ fetchPaged, headers, showToast, token });
+
+  // Commissions et factures : voir admin/hooks/useCommissionsFactures.js.
+  const {
+    commissions, commissionsStats, generateForm, generating, invoiceLoading,
+    invoiceMonth, invoiceYear, invoices, invoicesStats, loadCommissions,
+    loadInvoices, loadServiceInvoicesAdmin, serviceInvoicesAdmin, serviceInvoicesAdminLoading, setGenerateForm,
+    setGenerating, setInvoiceMonth, setInvoiceYear,
+  } = useCommissionsFactures({ fetchPaged, headers, token });
+
+  // Import/Export : demandes et transactions : voir admin/hooks/useImportExportAdmin.js.
+  const {
+    deleteIeRequest, handleCompleteIeInspection, handleResolveIeDispute, handleVerifyIePayment, ieActionSaving,
+    ieLoading, ieRequests, ieRequestsTotal, ieTransactions, ieTxLoading,
+    ieTxModal, ieTxNote, ieTxRelease, ieTxSaving, loadIeTransactions,
+    loadImportExport, loadMoreIeRequests, setIeTxModal, setIeTxNote, setIeTxRelease,
+    updateIeRequestStatus,
+  } = useImportExportAdmin({ fetchPaged, headers, showToast, token });
 
   useEffect(() => {
     // Les onglets Escrow et Transport affichent EXACTEMENT les mêmes données
@@ -2339,20 +1085,7 @@ export default function AdminPanel() {
   }, [activeTab, loadDriversList, loadImportExport, loadIeTransactions, loadImporters, loadCommissions, loadInvoices, loadKycList, kycFilter, loadCertList, loadPartnerVerif, loadPMSAdmin, loadFoundingPartners, loadPartnerCrm, loadSupportChats, loadTickets, loadServiceInvoicesAdmin, loadEmailDelivery, loadSubRequests, loadReviews, loadAuditLog, loadAnalytics, loadFinancing, loadAdminAccounts, loadAds, loadInsurance, loadServiceRequests, loadImportCostData, loadReports, loadWaConversations, loadBusinessConfig, loadPayouts, loadPendingValidation, loadClientPartnerChats, loadSystemHealth, loadContracts]);
 
 
-  // Rafraîchissement périodique de la liste support (nouvelles demandes) tant que
-  // l'onglet est affiché — même logique de polling que le widget chat public.
-  useEffect(() => {
-    if (activeTab !== "support") return undefined;
-    const t = setInterval(loadSupportChats, 15_000);
-    return () => clearInterval(t);
-  }, [activeTab, loadSupportChats]);
 
-  // Même logique de polling pour la supervision chats client_partner (audit 2026-08).
-  useEffect(() => {
-    if (activeTab !== "chat_supervision") return undefined;
-    const t = setInterval(loadClientPartnerChats, 15_000);
-    return () => clearInterval(t);
-  }, [activeTab, loadClientPartnerChats]);
 
   // Temps réel : un message client_partner doit apparaître instantanément dans
   // la supervision admin (voir chatController.sendMessage, qui émet désormais
@@ -2365,7 +1098,7 @@ export default function AdminPanel() {
       }
       if (activeTab === "chat_supervision") loadClientPartnerChats();
     });
-  }, [onSocket, cpActive, activeTab, loadClientPartnerChats]);
+  }, [onSocket, cpActive, activeTab, loadClientPartnerChats, setCpMessages]);
 
   // Temps réel : un client/partenaire qui écrit doit apparaître instantanément
   // dans la file support partagée, sans attendre jusqu'à 15s de polling — et si
@@ -2378,7 +1111,7 @@ export default function AdminPanel() {
       }
       if (activeTab === "support") loadSupportChats();
     });
-  }, [onSocket, supportActive, activeTab, loadSupportChats]);
+  }, [onSocket, supportActive, activeTab, loadSupportChats, setSupportMessages]);
 
   // Bug réel corrigé (audit) : le backend émettait déjà "refund_needed" à
   // plusieurs endroits (annulation payée par le client/partenaire, litige
@@ -2462,7 +1195,8 @@ export default function AdminPanel() {
     setKycDetailUser(null);
     setPvDetail(null);
     setPvCreateModal(false);
-  }, [activeTab]);
+    // Les setters venus des hooks de domaine sont stables : ils ne relancent rien.
+  }, [activeTab, setKycDetailUser, setPvDetail, setPvCreateModal]);
 
   // ── Actions utilisateurs ────────────────────────────────────────────────────
   const toggleBlock = useCallback(async (uid) => {
