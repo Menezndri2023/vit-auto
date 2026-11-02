@@ -93,11 +93,11 @@ export default {
   },
   "aide.q7": { fr: "Comment importer un véhicule depuis la Chine ou Dubaï ?", en: "How do I import a vehicle from China or Dubai?", ar: "كيف أستورد مركبة من الصين أو دبي؟", es: "¿Cómo importo un vehículo desde China o Dubái?", zh: "如何从中国或迪拜进口车辆？" },
   "aide.a7": {
-    fr: "Rendez-vous sur la page Import/Export pour découvrir nos packs (Silver, Gold, Platinum). Notre équipe gère l'inspection, le transport international, le dédouanement et la livraison de A à Z.",
-    en: "Go to the Import/Export page to see our packages (Silver, Gold, Platinum). Our team handles inspection, international transport, customs clearance and delivery from start to finish.",
-    ar: "توجّه إلى صفحة الاستيراد والتصدير لاكتشاف باقاتنا (سيلفر، جولد، بلاتينيوم). يتولى فريقنا الفحص والنقل الدولي والتخليص الجمركي والتسليم بالكامل.",
-    es: "Ve a la página de Importación/Exportación para ver nuestros paquetes (Silver, Gold, Platinum). Nuestro equipo gestiona la inspección, el transporte internacional, el despacho aduanero y la entrega de principio a fin.",
-    zh: "前往「进出口」页面了解我们的套餐（Silver、Gold、Platinum）。我们的团队全程负责验车、国际运输、清关与交付。",
+    fr: "Rendez-vous sur la page Import/Export : vous y trouvez les annonces des exportateurs et les professionnels (inspection, transport, transit, dédouanement) avec qui VIT AUTO vous met en relation. Votre dossier se suit ensuite dans « Mes importations ».",
+    en: "Go to the Import/Export page: you'll find exporters' listings and the professionals (inspection, transport, forwarding, customs) VIT AUTO connects you with. You then track your file under \"My imports\".",
+    ar: "توجّه إلى صفحة الاستيراد والتصدير: تجد فيها إعلانات المصدّرين والمحترفين (الفحص والنقل والعبور والتخليص الجمركي) الذين تضعك VIT AUTO على تواصل معهم. ثم تتابع ملفك في «وارداتي».",
+    es: "Ve a la página de Importación/Exportación: encontrarás los anuncios de los exportadores y los profesionales (inspección, transporte, tránsito, aduanas) con los que VIT AUTO te pone en contacto. Después sigues tu expediente en «Mis importaciones».",
+    zh: "前往「进出口」页面：您可查看出口商发布的信息，以及 VIT AUTO 为您对接的专业方（验车、运输、货代、清关）。之后可在「我的进口」中跟进订单。",
   },
   "aide.q8": { fr: "VIT AUTO opère dans combien de pays ?", en: "How many countries does VIT AUTO operate in?", ar: "في كم دولة تعمل VIT AUTO؟", es: "¿En cuántos países opera VIT AUTO?", zh: "VIT AUTO 在多少个国家运营？" },
   "aide.a8": {

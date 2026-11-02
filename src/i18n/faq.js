@@ -76,11 +76,11 @@ export default {
   "faq.cat.payment": { fr: "💳 Paiement", en: "💳 Payment", ar: "💳 الدفع", es: "💳 Pago", zh: "💳 支付" },
   "faq.payment.1.q": { fr: "Quels modes de paiement acceptez-vous ?", en: "Which payment methods do you accept?", ar: "ما طرق الدفع المقبولة؟", es: "¿Qué métodos de pago aceptáis?", zh: "支持哪些支付方式？" },
   "faq.payment.1.a": {
-    fr: "Orange Money, Wave, MTN Mobile Money, Moov Money, carte bancaire (Visa/Mastercard), PayPal, virement SEPA (Europe), CMI et CIH (Maroc), et espèces à la livraison chez certains partenaires.",
-    en: "Orange Money, Wave, MTN Mobile Money, Moov Money, bank card (Visa/Mastercard), PayPal, SEPA transfer (Europe), CMI and CIH (Morocco), and cash on delivery with some partners.",
-    ar: "أورنج موني وويف وMTN موبايل موني وموف موني والبطاقة البنكية (فيزا/ماستركارد) وباي بال والتحويل SEPA (أوروبا) وCMI وCIH (المغرب)، والدفع نقداً عند التسليم لدى بعض الشركاء.",
-    es: "Orange Money, Wave, MTN Mobile Money, Moov Money, tarjeta bancaria (Visa/Mastercard), PayPal, transferencia SEPA (Europa), CMI y CIH (Marruecos), y efectivo en la entrega con algunos socios.",
-    zh: "Orange Money、Wave、MTN Mobile Money、Moov Money、银行卡（Visa/Mastercard）、PayPal、SEPA 转账（欧洲）、CMI 与 CIH（摩洛哥），部分商家支持货到付款。",
+    fr: "Vous payez directement le partenaire, par les moyens qu'il accepte : selon le pays, mobile money (Orange Money, Wave, MTN, Moov…), carte, virement ou espèces. Ils sont indiqués sur l'annonce et dans votre réservation. VIT AUTO n'encaisse pas le paiement pour le compte des partenaires.",
+    en: "You pay the partner directly, by the methods they accept: depending on the country, mobile money (Orange Money, Wave, MTN, Moov…), card, bank transfer or cash. They are shown on the listing and in your booking. VIT AUTO does not collect payment on partners' behalf.",
+    ar: "تدفع للشريك مباشرة بالوسائل التي يقبلها: حسب البلد، الدفع عبر الهاتف (أورنج موني، ويف، MTN، موف…) أو البطاقة أو التحويل أو نقداً. وهي مذكورة في الإعلان وفي حجزك. لا تحصّل VIT AUTO المدفوعات نيابةً عن الشركاء.",
+    es: "Pagas directamente al socio, con los medios que acepta: según el país, dinero móvil (Orange Money, Wave, MTN, Moov…), tarjeta, transferencia o efectivo. Se indican en el anuncio y en tu reserva. VIT AUTO no cobra por cuenta de los socios.",
+    zh: "您直接向商家付款，使用其接受的方式：视国家而定，可用移动支付（Orange Money、Wave、MTN、Moov 等）、银行卡、转账或现金。具体方式显示在信息页及您的预订中。VIT AUTO 不代商家收款。",
   },
   "faq.payment.2.q": { fr: "Le paiement est-il sécurisé ?", en: "Is payment secure?", ar: "هل الدفع آمن؟", es: "¿El pago es seguro?", zh: "支付安全吗？" },
   "faq.payment.2.a": {
@@ -182,11 +182,11 @@ export default {
   "faq.cat.ie": { fr: "🌍 Import / Export International", en: "🌍 International import / export", ar: "🌍 الاستيراد والتصدير الدولي", es: "🌍 Importación / exportación internacional", zh: "🌍 国际进出口" },
   "faq.ie.1.q": { fr: "Qu'est-ce que le service Import/Export ?", en: "What is the import/export service?", ar: "ما هي خدمة الاستيراد والتصدير؟", es: "¿Qué es el servicio de importación/exportación?", zh: "进出口服务是什么？" },
   "faq.ie.1.a": {
-    fr: "VIT AUTO vous permet d'importer des véhicules depuis la Chine, Dubaï ou l'Europe, ou d'en exporter vers l'Afrique et le Maghreb. Nous gérons l'inspection, le transport maritime, le dédouanement et la livraison de A à Z.",
-    en: "VIT AUTO lets you import vehicles from China, Dubai or Europe, or export them to Africa and the Maghreb. We handle inspection, sea freight, customs clearance and delivery from start to finish.",
-    ar: "تتيح لك VIT AUTO استيراد المركبات من الصين أو دبي أو أوروبا، أو تصديرها إلى إفريقيا والمغرب العربي. نتولى الفحص والشحن البحري والتخليص الجمركي والتسليم من الألف إلى الياء.",
-    es: "VIT AUTO te permite importar vehículos desde China, Dubái o Europa, o exportarlos a África y el Magreb. Gestionamos la inspección, el transporte marítimo, el despacho aduanero y la entrega de principio a fin.",
-    zh: "VIT AUTO 可帮您从中国、迪拜或欧洲进口车辆，或出口至非洲与马格里布地区。验车、海运、清关与交付由我们全程负责。",
+    fr: "VIT AUTO vous permet d'importer des véhicules depuis la Chine, Dubaï ou l'Europe, ou d'en exporter vers l'Afrique et le Maghreb. Nous vous mettons en relation avec des exportateurs, inspecteurs, transporteurs et transitaires, et suivons votre dossier ; chaque prestation est assurée par le professionnel choisi.",
+    en: "VIT AUTO lets you import vehicles from China, Dubai or Europe, or export them to Africa and the Maghreb. We connect you with exporters, inspectors, carriers and freight forwarders and track your file; each service is performed by the professional you choose.",
+    ar: "تتيح لك VIT AUTO استيراد المركبات من الصين أو دبي أو أوروبا، أو تصديرها إلى إفريقيا والمغرب العربي. نضعك على تواصل مع المصدّرين والمفتشين والناقلين ووكلاء العبور ونتابع ملفك؛ ويؤدي كل خدمة المحترفُ الذي تختاره.",
+    es: "VIT AUTO te permite importar vehículos desde China, Dubái o Europa, o exportarlos a África y el Magreb. Te ponemos en contacto con exportadores, inspectores, transportistas y transitarios y seguimos tu expediente; cada servicio lo presta el profesional que elijas.",
+    zh: "VIT AUTO 可帮您从中国、迪拜或欧洲进口车辆，或出口至非洲与马格里布地区。我们为您对接出口商、验车机构、承运商与货代，并跟进您的订单；各项服务由您选定的专业方提供。",
   },
   "faq.ie.2.q": { fr: "Quels sont les packs disponibles ?", en: "Which packages are available?", ar: "ما الباقات المتاحة؟", es: "¿Qué paquetes hay disponibles?", zh: "有哪些服务套餐？" },
   "faq.ie.2.a": {
