@@ -37,6 +37,14 @@ import { DirectionSection } from "./admin/sections/DirectionSection.jsx";
 import { CatalogueSection } from "./admin/sections/CatalogueSection.jsx";
 import { MarketingSection } from "./admin/sections/MarketingSection.jsx";
 import { BadgeActivation, ProchaineAction, BlocActivation, BlocDoublons, JournalEchanges, Abandon } from "./admin/sections/CrmSuivi.jsx";
+import SupportSection from "./admin/sections/SupportSection.jsx";
+import ChauffeursSection from "./admin/sections/ChauffeursSection.jsx";
+import ComptesSection from "./admin/sections/ComptesSection.jsx";
+import VueEnsembleSection from "./admin/sections/VueEnsembleSection.jsx";
+import PmsPartnersSection from "./admin/sections/PmsPartnersSection.jsx";
+import TransactionsIESection from "./admin/sections/TransactionsIESection.jsx";
+import ActivitesSection from "./admin/sections/ActivitesSection.jsx";
+import ReservationsSection from "./admin/sections/ReservationsSection.jsx";
 import ExportateursSection from "./admin/sections/ExportateursSection.jsx";
 import FacturesSection from "./admin/sections/FacturesSection.jsx";
 import CertificationSection from "./admin/sections/CertificationSection.jsx";
@@ -3608,286 +3616,59 @@ export default function AdminPanel() {
 
           {/* ══════════════════════ TAB DASHBOARD ══════════════════════ */}
           {activeTab === "dashboard" && (
-            <div className={styles.tabContent}>
-
-              {/* Statistiques globales */}
-              <div className={styles.statsGrid}>
-                <StatCard icon="👥" label="Utilisateurs" value={stats?.users?.total || 0}
-                  sub={`+${stats?.users?.newThisMonth || 0} ce mois`} color="#3b82f6" />
-                <StatCard icon="🤝" label="Partenaires" value={stats?.users?.partenaires || 0}
-                  sub={`${stats?.users?.admins || 0} admin(s)`} color="#10b981" />
-                <StatCard icon="🚗" label="Annonces publiées" value={stats?.vehicles?.approved || 0}
-                  sub={`${stats?.vehicles?.pending || 0} en attente`} color="#8b5cf6" />
-                <StatCard icon="📋" label="Commandes totales" value={stats?.bookings?.total || 0}
-                  sub={`+${stats?.bookings?.newThisMonth || 0} ce mois`} color="#f59e0b" />
-                <StatCard icon="✅" label="Commandes terminées" value={stats?.bookings?.completed || 0}
-                  sub={`${stats?.bookings?.cancelled || 0} annulées`} color="#64748b" />
-                <StatCard icon="💰" label="Revenus totaux"
-                  value={fmtUSD(stats?.revenue?.total || 0)}
-                  sub={`Ce mois : ${fmtUSD(stats?.revenue?.thisMonth || 0)}`}
-                  color="#ef4444" />
-                <StatCard icon="🌍" label="Import/Export"
-                  value={ieRequestsTotal || ieRequests.length || "—"}
-                  sub="Demandes reçues"
-                  color="#ff4d2d" />
-              </div>
-
-              {/* ── À TRAITER AUJOURD'HUI ────────────────────────────────
-                  File unique : tout ce qui attend une décision, au même
-                  endroit. L'admin devait auparavant faire le tour d'une
-                  trentaine d'onglets pour savoir ce qui l'attendait, en se
-                  fiant à des pastilles dispersées dans le menu. Chaque ligne
-                  n'apparaît que si le compte a la permission d'agir dessus
-                  (canSeeTab) — inutile de signaler un dossier qu'on ne peut
-                  pas ouvrir. */}
-              {(() => {
-                const queue = [
-                  { tab: "pending_validation", icon: "⏳", n: pendingValidationTotal, label: "demande(s) de réservation à valider", urgent: true },
-                  { tab: "litiges",            icon: "⚖️", n: disputedBk,          label: "litige(s) à arbitrer", urgent: true },
-                  { tab: "kyc",                icon: "🛡️", n: pendingKyc,            label: "dossier(s) KYC à examiner" },
-                  { tab: "catalogue",          icon: "🚗", n: stats?.vehicles?.pending || 0, label: "annonce(s) en attente de validation" },
-                  { tab: "chauffeurs",         icon: "🧑‍✈️", n: pendingDrivers,        label: "profil(s) chauffeur à valider" },
-                  { tab: "activites",          icon: "🎈", n: pendingActivities,      label: "activité(s) à valider" },
-                  { tab: "certification",      icon: "🏅", n: pendingCert,            label: "certification(s) partenaire à examiner" },
-                  { tab: "paiements",          icon: "💳", n: pendingSub,             label: "paiement(s) d'abonnement à confirmer" },
-                  { tab: "factures",           icon: "📄", n: pendingInv,             label: "facture(s) en attente" },
-                  { tab: "reports",            icon: "🚩", n: pendingReports,         label: "signalement(s) à traiter" },
-                  { tab: "import_export",      icon: "🌍", n: pendingIe,              label: "demande(s) Import/Export" },
-                  { tab: "service_requests",   icon: "🧰", n: pendingSvcReq,          label: "demande(s) de service" },
-                  { tab: "exportateurs",       icon: "🤝", n: pendingImp,             label: "profil(s) exportateur à valider" },
-                ].filter((q) => q.n > 0 && canSeeTab(q.tab));
-
-                return (
-                  <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
-                    <h3 className={styles.chartTitle}>
-                      🎯 À traiter aujourd'hui {queue.length > 0 && <span style={{ color: "#dc2626" }}>({queue.reduce((t, q) => t + q.n, 0)})</span>}
-                    </h3>
-                    {queue.length === 0 ? (
-                      <p style={{ margin: 0, fontSize: ".86rem", color: "#059669", fontWeight: 700 }}>
-                        ✅ Rien en attente — tout est traité.
-                      </p>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        {queue.map((q) => (
-                          <button key={q.tab} onClick={() => setActiveTab(q.tab)}
-                            style={{
-                              display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
-                              padding: "10px 14px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
-                              border: "1.5px solid", borderColor: q.urgent ? "#fecaca" : "#e2e8f0",
-                              background: q.urgent ? "#fef2f2" : "#f8fafc",
-                            }}>
-                            <span style={{ fontSize: "1.05rem" }}>{q.icon}</span>
-                            <span style={{ fontWeight: 800, color: q.urgent ? "#b91c1c" : "#0f1b3f", fontSize: ".9rem", minWidth: 28 }}>{q.n}</span>
-                            <span style={{ fontSize: ".85rem", color: "#475569", flex: 1 }}>{q.label}</span>
-                            <span style={{ fontSize: ".8rem", color: "#6366f1", fontWeight: 700 }}>Traiter →</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Graphique revenus 6 mois */}
-              {revByMonth.length > 0 && (
-                <div className={styles.chartCard}>
-                  <h3 className={styles.chartTitle}>📈 Revenus — 6 derniers mois</h3>
-                  <div className={styles.chart}>
-                    {revByMonth.map((m) => (
-                      <div key={`${m._id.year}-${m._id.month}`} className={styles.chartCol}>
-                        <span className={styles.chartVal}>{Math.round(m.total / 1000)}k</span>
-                        <div className={styles.chartBarWrap}>
-                          <div className={styles.chartBar} style={{ height: `${Math.round((m.total / maxRev) * 100)}%` }} />
-                        </div>
-                        <span className={styles.chartLabel}>{MOIS[(m._id.month - 1)]}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Répartition commandes par type */}
-              {(stats?.bookings?.byType || []).length > 0 && (
-                <div className={styles.chartCard}>
-                  <h3 className={styles.chartTitle}>📊 Commandes par type</h3>
-                  <div className={styles.pieGrid}>
-                    {stats.bookings.byType.map(({ _id, count }) => {
-                      const colors = { location: "#3b82f6", essai: "#10b981", chauffeur: "#f59e0b", leasing: "#8b5cf6", import_export: "#ff4d2d" };
-                      const labels = { location: "📅 Location", essai: "🔑 Essai", chauffeur: "🚘 Chauffeur", leasing: "🏦 Leasing", import_export: "🌍 Import/Export" };
-                      return (
-                        <div key={_id} className={styles.pieItem}>
-                          <div className={styles.pieDot} style={{ background: colors[_id] || "#94a3b8" }} />
-                          <span className={styles.pieLabel}>{labels[_id] || _id}</span>
-                          <strong className={styles.pieCount}>{count}</strong>
-                          <MiniBar value={count} max={stats.bookings.total} color={colors[_id] || "#94a3b8"} />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Répartition utilisateurs */}
-              <div className={styles.chartCard}>
-                <h3 className={styles.chartTitle}>👥 Répartition des comptes</h3>
-                <div className={styles.pieGrid}>
-                  {[
-                    { key: "clients",     label: "Clients",     count: stats?.users?.clients || 0,     color: "#3b82f6" },
-                    { key: "partenaires", label: "Partenaires", count: stats?.users?.partenaires || 0, color: "#10b981" },
-                    { key: "admins",      label: "Admins",      count: stats?.users?.admins || 0,      color: "#f59e0b" },
-                    { key: "blocked",     label: "Bloqués",     count: stats?.users?.blocked || 0,     color: "#ef4444" },
-                  ].map(({ key, label, count, color }) => (
-                    <div key={key} className={styles.pieItem}>
-                      <div className={styles.pieDot} style={{ background: color }} />
-                      <span className={styles.pieLabel}>{label}</span>
-                      <strong className={styles.pieCount}>{count}</strong>
-                      <MiniBar value={count} max={stats?.users?.total || 1} color={color} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <VueEnsembleSection
+              canSeeTab={canSeeTab}
+              disputedBk={disputedBk}
+              fmtUSD={fmtUSD}
+              ieRequests={ieRequests}
+              ieRequestsTotal={ieRequestsTotal}
+              maxRev={maxRev}
+              pendingActivities={pendingActivities}
+              pendingCert={pendingCert}
+              pendingDrivers={pendingDrivers}
+              pendingIe={pendingIe}
+              pendingImp={pendingImp}
+              pendingInv={pendingInv}
+              pendingKyc={pendingKyc}
+              pendingReports={pendingReports}
+              pendingSub={pendingSub}
+              pendingSvcReq={pendingSvcReq}
+              pendingValidationTotal={pendingValidationTotal}
+              revByMonth={revByMonth}
+              setActiveTab={setActiveTab}
+              stats={stats}
+            />
           )}
 
           {/* ══════════════════════ TAB UTILISATEURS ══════════════════════ */}
           {activeTab === "users" && (
-            <div className={styles.tabContent}>
-              <div className={styles.filterBar}>
-                <input className={styles.searchInput} placeholder="🔍 Rechercher un utilisateur..."
-                  value={userSearch} onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }} />
-                <select className={styles.filterSelect} value={userRole}
-                  onChange={(e) => { setUserRole(e.target.value); setUserPage(1); }}>
-                  <option value="all">Tous les rôles</option>
-                  <option value="client">Clients</option>
-                  <option value="partenaire">Partenaires</option>
-                  <option value="admin">Admins</option>
-                  <option value="chauffeur">Chauffeurs</option>
-                </select>
-                <select className={styles.filterSelect} value={userCountry}
-                  onChange={(e) => { setUserCountry(e.target.value); setUserPage(1); }}>
-                  <option value="all">Tous les pays</option>
-                  {userCountryOptions.map((code) => {
-                    const cfg = COUNTRIES_CONFIG.find((c) => c.code === code);
-                    return <option key={code} value={code}>{cfg ? `${cfg.flag} ${cfg.name}` : code}</option>;
-                  })}
-                </select>
-                <span className={styles.filterCount}>{filteredUsers.length} résultat{filteredUsers.length !== 1 ? "s" : ""}</span>
-              </div>
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr><th>Utilisateur</th><th>Email</th><th>Rôle</th><th>Compte</th><th>KYC</th><th>Certif.</th><th>Inscrit le</th><th>Actions</th></tr>
-                  </thead>
-                  <tbody>
-                    {paginate(filteredUsers, userPage).map((u) => {
-                      const rc = ROLE_CONFIG[u.role] || ROLE_CONFIG.client;
-                      const isSelf = String(u._id) === String(user?.id ?? user?._id);
-                      const kyc    = KYC_CFG[u.kycStatus] || { label: "—", color: "#94a3b8", bg: "#f8fafc" };
-                      const certif = CERTIF_CFG[u.certificationBadge];
-                      return (
-                        <tr key={u._id} className={`${styles.tr} ${!u.isActive ? styles.trBlocked : ""}`}>
-                          <td>
-                            <div className={styles.userCell}>
-                              <div className={styles.avatar}>
-                                {u.profilePhoto ? <img src={u.profilePhoto} alt="" loading="lazy" decoding="async" /> : <span>{(u.firstName?.[0] || "?").toUpperCase()}</span>}
-                              </div>
-                              <div>
-                                <strong>{u.firstName} {u.lastName}<CountryFlag code={u.country} countriesConfig={COUNTRIES_CONFIG} /></strong>
-                                {isSelf && <span className={styles.selfTag}>Vous</span>}
-                                {/* Registre de Commerce — saisi à l'inscription
-                                    par les entités professionnelles. Affiché ici
-                                    parce que c'est la seule pièce qui rattache un
-                                    compte à une société réelle ; sans elle sous
-                                    les yeux, l'admin valide un partenaire dont il
-                                    ne peut pas vérifier l'existence légale. */}
-                                {u.business?.rccm && (
-                                  <div style={{ fontSize: ".72rem", color: "#475569" }}>
-                                    RC : <strong>{u.business.rccm}</strong>
-                                  </div>
-                                )}
-                                <div style={{ fontSize:".72rem", color: u.phone ? "#94a3b8" : "#cbd5e1", display: "flex", alignItems: "center", gap: 4 }}>
-                                  {u.phone || "— aucun numéro —"}
-                                  <button type="button" onClick={() => updatePhone(u._id, u.phone)} title="Modifier le téléphone"
-                                    style={{ border: "none", background: "none", cursor: "pointer", padding: 0, fontSize: ".78rem", lineHeight: 1 }}>
-                                    ✏️
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className={styles.tdEmail}>{u.email}</td>
-                          <td>
-                            <select className={styles.roleSelect} value={u.role} disabled={isSelf}
-                              onChange={(e) => setConfirm({ message: `Changer le rôle de ${u.firstName} en "${e.target.value}" ?`, action: () => changeRole(u._id, e.target.value) })}
-                              style={{ color: rc.color, background: rc.bg, borderColor: rc.color + "60" }}>
-                              <option value="client">Client</option>
-                              <option value="partenaire">Partenaire</option>
-                              <option value="admin">Admin</option>
-                              {/* « Chauffeur » retiré : ce n'est pas un rôle de COMPTE
-                                  (usersController.updateUserRole n'accepte que client/
-                                  partenaire/admin). Un chauffeur est une fiche publiée
-                                  par un partenaire — le choisir ici renvoyait toujours
-                                  400, sans message exploitable. */}
-                            </select>
-                          </td>
-                          <td>{u.isActive ? <Badge label="Actif" color="#10b981" bg="#ecfdf5" /> : <Badge label="Bloqué" color="#ef4444" bg="#fef2f2" />}</td>
-                          <td><Badge label={kyc.label} color={kyc.color} bg={kyc.bg} /></td>
-                          <td>{certif ? <Badge label={certif.label} color={certif.color} bg={certif.bg} /> : <span style={{ color:"#cbd5e1", fontSize:".75rem" }}>—</span>}</td>
-                          <td className={styles.tdDate}>{fmtDate(u.createdAt)}</td>
-                          <td>
-                            <div className={styles.actionBtns}>
-                              {!isSelf && (
-                                <button className={u.isActive ? styles.btnBlock : styles.btnUnblock}
-                                  onClick={() => setConfirm({ message: `${u.isActive ? "Bloquer" : "Débloquer"} le compte de ${u.firstName} ${u.lastName} ?`, action: () => toggleBlock(u._id) })}
-                                  title={u.isActive ? "Bloquer" : "Débloquer"}>
-                                  {u.isActive ? "🚫 Bloquer" : "✅ Débloquer"}
-                                </button>
-                              )}
-                              {!isSelf && (
-                                <button className={styles.btnDeleteSm}
-                                  onClick={() => setConfirm({ message: `Supprimer définitivement ${u.firstName} ${u.lastName} ? Cette action est irréversible.`, danger: true, action: () => deleteUser(u._id) })}
-                                  title="Supprimer">🗑️</button>
-                              )}
-                              {u.role === "partenaire" && (
-                                <button className={styles.btnGhost} style={{ fontSize: ".72rem" }}
-                                  onClick={() => openTrustOverview(u)}
-                                  title="Vue de confiance unifiée">🛡️ Confiance</button>
-                              )}
-                              {/* L'administrateur partage lui aussi les liens
-                                  de vitrine des partenaires (consigne du
-                                  2026-09-25). Le lien court suit le palier DU
-                                  PARTENAIRE, pas les droits de l'admin. */}
-                              {u.role === "partenaire" && (
-                                <button className={styles.btnGhost} style={{ fontSize: ".72rem" }}
-                                  onClick={() => setVitrineModal(u)}
-                                  title="Lien de vitrine à partager">🔗 Vitrine</button>
-                              )}
-                              {u.role === "client" && (
-                                <button className={styles.btnGhost} style={{ fontSize: ".72rem" }}
-                                  onClick={() => openLoyalty(u)}
-                                  title="Points de fidélité et historique">🎁 Fidélité</button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <Pagination page={userPage} total={totalPages(filteredUsers)} onChange={setUserPage} />
-              {/* Bug réel corrigé (audit) : plafond de 200 comptes chargés,
-                  invisible pour l'admin — voir loadMoreUsers. */}
-              {users.length < usersTotal && (
-                <div style={{ textAlign: "center", marginTop: 10 }}>
-                  <p style={{ fontSize: ".8rem", color: "#94a3b8", marginBottom: 6 }}>{users.length} chargés sur {usersTotal} au total</p>
-                  <button onClick={loadMoreUsers}
-                    style={{ padding: "6px 16px", borderRadius: 10, border: "1.5px solid #6366f1", background: "#fff", color: "#6366f1", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                    Charger plus
-                  </button>
-                </div>
-              )}
-            </div>
+            <ComptesSection
+              COUNTRIES_CONFIG={COUNTRIES_CONFIG}
+              changeRole={changeRole}
+              deleteUser={deleteUser}
+              filteredUsers={filteredUsers}
+              loadMoreUsers={loadMoreUsers}
+              openLoyalty={openLoyalty}
+              openTrustOverview={openTrustOverview}
+              paginate={paginate}
+              setConfirm={setConfirm}
+              setUserCountry={setUserCountry}
+              setUserPage={setUserPage}
+              setUserRole={setUserRole}
+              setUserSearch={setUserSearch}
+              setVitrineModal={setVitrineModal}
+              toggleBlock={toggleBlock}
+              totalPages={totalPages}
+              updatePhone={updatePhone}
+              user={user}
+              userCountry={userCountry}
+              userCountryOptions={userCountryOptions}
+              userPage={userPage}
+              userRole={userRole}
+              userSearch={userSearch}
+              users={users}
+              usersTotal={usersTotal}
+            />
           )}
 
           {/* ── Modal fidélité client (lecture seule) ── */}
@@ -4253,185 +4034,40 @@ export default function AdminPanel() {
 
           {/* ══════════════════════ TAB COMMANDES ══════════════════════ */}
           {activeTab === "bookings" && (
-            <div className={styles.tabContent}>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(130px,1fr))", gap:10, marginBottom:16 }}>
-                {[
-                  { l:"Toutes",    v: bookings.length,                                                                              c:"#6366f1", s:"all" },
-                  { l:"Nouvelles", v: bookings.filter(b=>b.status==="pending").length,                                              c:"#f59e0b", s:"pending" },
-                  { l:"En cours",  v: bookings.filter(b=>["confirmed","preparing","ready","in_progress","client_arrived"].includes(b.status)).length, c:"#2563eb", s:"confirmed,preparing,ready,in_progress,client_arrived" },
-                  { l:"À valider", v: bookings.filter(b=>b.status==="waiting_client_validation").length,                            c:"#d97706", s:"waiting_client_validation" },
-                  { l:"Terminées", v: bookings.filter(b=>b.status==="completed").length,                                            c:"#059669", s:"completed" },
-                  { l:"Litiges",   v: bookings.filter(b=>b.status==="disputed").length,                                             c:"#dc2626", s:"disputed" },
-                  { l:"Annulées",  v: bookings.filter(b=>b.status==="cancelled").length,                                            c:"#94a3b8", s:"cancelled" },
-                ].map(k => (
-                  <button key={k.s} onClick={() => { setBkStatus(k.s); setBkPage(1); }}
-                    style={{ background: bkStatus===k.s?k.c:"#f8fafc", color: bkStatus===k.s?"#fff":k.c, border:`2px solid ${k.c}`, borderRadius:10, padding:"8px 6px", cursor:"pointer", fontWeight:700, fontSize:"0.8rem" }}>
-                    <div style={{ fontSize:"1.3rem", lineHeight:1.2 }}>{k.v}</div>
-                    <div style={{ fontSize:"0.7rem", opacity:.85 }}>{k.l}</div>
-                  </button>
-                ))}
-              </div>
-
-              <div className={styles.filterBar} style={{ flexWrap:"wrap", gap:8 }}>
-                <input type="search" placeholder="Ref., client, email, tel…" value={bkSearch}
-                  onChange={e => { setBkSearch(e.target.value); setBkPage(1); }}
-                  style={{ flex:1, minWidth:160, padding:"0.4rem 0.75rem", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:"0.85rem" }} />
-                <select className={styles.filterSelect} value={bkType} onChange={e => { setBkType(e.target.value); setBkPage(1); }}>
-                  <option value="all">Tous types</option>
-                  <option value="location">📅 Location</option>
-                  <option value="essai">🔑 Essai/Vente</option>
-                  <option value="chauffeur">🚘 Chauffeur</option>
-                  <option value="leasing">🏦 Leasing</option>
-                  <option value="activite">🎈 Loisirs</option>
-                  <option value="piece">🔩 Pièces</option>
-                </select>
-                <select className={styles.filterSelect} value={bkStatus} onChange={e => { setBkStatus(e.target.value); setBkPage(1); }}>
-                  <option value="all">Tous statuts</option>
-                  <option value="pending">Nouvelles</option>
-                  <option value="confirmed">Acceptées</option>
-                  <option value="in_progress">En cours</option>
-                  <option value="waiting_client_validation">À valider</option>
-                  <option value="completed">Terminées</option>
-                  <option value="disputed">⚠️ Litiges</option>
-                  <option value="cancelled">Annulées</option>
-                </select>
-                <span className={styles.filterCount}>{filteredBookings.length} résultat{filteredBookings.length!==1?"s":""}</span>
-                <button onClick={() => exportBookings("csv")} style={{ padding:"0.4rem 0.9rem", background:"#0f1b3f", color:"#fff", border:"none", borderRadius:8, cursor:"pointer", fontSize:"0.8rem", fontWeight:700 }}>⬇️ CSV</button>
-                <button onClick={loadAll} className={styles.btnRefresh}>↻</button>
-              </div>
-
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr><th>Référence</th><th>Client / KYC</th><th>Véhicule / Type</th><th>Montant</th><th>Statut</th><th>Date</th><th>Actions</th></tr>
-                  </thead>
-                  <tbody>
-                    {paginate(filteredBookings, bkPage).map((b) => {
-                      const bs = STATUS_BK[b.status] || STATUS_BK.pending;
-                      const typeIcons = { location:"📅", essai:"🔑", chauffeur:"🚘", leasing:"🏦" };
-                      const vName = b.vehicle ? [b.vehicle.title, b.vehicle.marque, b.vehicle.modele].filter(Boolean).join(" ") : (b.driver ? `Chauffeur: ${b.driver.firstName||""}` : "—");
-                      const clientName = `${b.clientInfo?.firstName||""} ${b.clientInfo?.lastName||""}`.trim();
-                      const kycColors = { VERIFIE:"#059669", EN_ATTENTE:"#d97706", REFUSE:"#dc2626", A_REVOIR_MANUELLEMENT:"#2563eb" };
-                      const kycStatus = b.clientInfo?.kycStatus || b.client?.kycStatus;
-                      const isDisputed = b.status === "disputed";
-                      const isActive = !["completed","cancelled","disputed"].includes(b.status);
-                      return (
-                        <tr key={b._id} className={styles.tr} style={isDisputed ? { background:"#fff5f5" } : {}}>
-                          <td>
-                            <div>
-                              <strong style={{ fontSize:"0.8rem", fontFamily:"monospace", color:"#6366f1" }}>{b.reference || b._id?.slice(-6)}</strong>
-                              {isDisputed && <span style={{ display:"block", fontSize:"0.7rem", color:"#dc2626", fontWeight:700 }}>⚠️ LITIGE</span>}
-                            </div>
-                          </td>
-                          <td>
-                            <div>
-                              <strong style={{ fontSize:"0.82rem" }}>{clientName || "—"}</strong>
-                              <span className={styles.vehMeta}>{b.clientInfo?.email}</span>
-                              <span className={styles.vehMeta} title="Numéro de passeport" style={{ fontFamily:"monospace" }}>📔 {b.clientInfo?.passportNumber || "—"}</span>
-                              {kycStatus && (
-                                <span style={{ display:"inline-block", fontSize:"0.65rem", fontWeight:700, padding:"1px 6px", borderRadius:99, background: kycStatus==="VERIFIE"?"#d1fae5":"#fef3c7", color: kycColors[kycStatus]||"#d97706", marginTop:2 }}>
-                                  {kycStatus==="VERIFIE"?"✅ KYC":kycStatus==="REFUSE"?"❌ KYC":"⏳ KYC"}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td>
-                            <div>
-                              <span className={styles.vehName}>{vName}</span>
-                              <Badge label={`${typeIcons[b.type]||""} ${b.type||"—"}`} color="#64748b" bg="#f1f5f9" />
-                            </div>
-                          </td>
-                          <td className={styles.tdPrice}>
-                            {b.montantTotal > 0 ? fmtUSD(b.montantTotal) : "—"}
-                            {b.commissionAmount > 0 && <span style={{ display:"block", fontSize:"0.68rem", color:"#dc2626" }}>Com: {fmtUSD(b.commissionAmount)}</span>}
-                          </td>
-                          <td><Badge label={bs.label} color={bs.color} bg={bs.bg} /></td>
-                          <td className={styles.tdDate}>{fmtDate(b.createdAt)}</td>
-                          <td>
-                            <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                              {/* Ces routes PDF exigent un en-tête Authorization qu'un simple
-                                  <a href> n'envoie jamais : le clic ouvrait un onglet
-                                  {"message":"Non autorisé"} au lieu du document (voir
-                                  utils/downloadAuthFile.js). */}
-                              <button type="button" onClick={async () => {
-                                  const r = await downloadAuthFile(`/api/bookings/${b._id}/receipt`, `recu-${b.reference || b._id}.pdf`, token);
-                                  if (!r.ok) showToast(r.message, "error");
-                                }}
-                                style={{ fontSize:"0.7rem", padding:"2px 6px", background:"#f1f5f9", color:"#0f1b3f", border:"none", borderRadius:6, cursor:"pointer" }} title="Reçu PDF">🧾</button>
-                              {/* Documents client joints à la réservation (2026-09) — l'admin
-                                  ne voyait que le numéro de pièce, jamais les documents
-                                  eux-mêmes, alors qu'ils sont la pièce maîtresse en cas de
-                                  litige (voir ClientDocumentsModal). */}
-                              <button style={{ fontSize:"0.7rem", padding:"2px 6px", background:"#eff6ff", color:"#1d4ed8", border:"none", borderRadius:6, cursor:"pointer", fontWeight:700 }}
-                                onClick={() => setDocsModal({ booking: b })} title="Documents client">📄</button>
-                              {b.status === "pending" && (
-                                <button className={styles.btnApprove} style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem" }}
-                                  onClick={() => setBkActionModal({ id:b._id, name:clientName, action:"confirmed" })} title="Confirmer">✅</button>
-                              )}
-                              {isActive && b.status !== "pending" && (
-                                <button style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem", background:"#e0f2fe", color:"#0369a1", border:"none", borderRadius:6, cursor:"pointer", fontWeight:700 }}
-                                  onClick={() => { setForceModal({ booking:b }); setForceAmount(b.montantTotal||""); setForceNote(""); }}
-                                  title="Forcer complétion">⚡</button>
-                              )}
-                              {/* Refonte (demande explicite) : parité admin/partenaire sur les
-                                  réservations — le partenaire fait progresser une commande étape
-                                  par étape (préparation, prêt, en cours, client arrivé...) via
-                                  VendorDashboard, l'admin n'avait jusqu'ici que confirmer/annuler/
-                                  forcer/litige. Le backend valide déjà la transition (machine à
-                                  états, isOwner||admin), ce select réutilise adminUpdateBooking
-                                  tel quel — une étape invalide est simplement rejetée par le
-                                  serveur avec un message d'erreur. */}
-                              {isActive && b.status !== "pending" && (
-                                <select value="" onChange={(e) => { if (e.target.value) adminUpdateBooking(b._id, e.target.value); }}
-                                  title="Changer l'étape (comme le partenaire)"
-                                  style={{ fontSize:"0.7rem", padding:"2px 4px", borderRadius:6, border:"1.5px solid #e2e8f0", color:"#0f1b3f", fontWeight:600 }}>
-                                  <option value="">Étape…</option>
-                                  <option value="preparing">⚙️ Préparation</option>
-                                  <option value="ready">✅ Prêt</option>
-                                  <option value="in_progress">🚗 En cours</option>
-                                  <option value="client_arrived">🤝 Client présent</option>
-                                  <option value="driver_arrived">📍 Chauffeur arrivé</option>
-                                  <option value="waiting_client_validation">💰 Transaction</option>
-                                  <option value="transaction_concluded">✔️ Transaction conclue</option>
-                                  <option value="completed">🏁 Terminée</option>
-                                </select>
-                              )}
-                              {isDisputed && (
-                                <button style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem", background:"#fee2e2", color:"#dc2626", border:"1px solid #fca5a5", borderRadius:6, cursor:"pointer", fontWeight:700 }}
-                                  onClick={() => { setDisputeModal({ booking:b }); setDisputeNote(""); setDisputeResol("completed"); }}
-                                  title="Résoudre litige">⚖️</button>
-                              )}
-                              {!["cancelled","completed"].includes(b.status) && (
-                                <button className={styles.btnReject} style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem" }}
-                                  onClick={() => { setBkActionModal({ id:b._id, name:clientName, action:"cancelled" }); setBkCancelReason(""); setBkCancelReasonCode(""); }}
-                                  title="Annuler">✕</button>
-                              )}
-                              {b.status === "cancelled" && (
-                                <button className={styles.btnReject} style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem", opacity:.7 }}
-                                  onClick={() => setConfirm({ message:`Supprimer définitivement la commande ${b.reference||""}?`, danger:true, action:()=>adminDeleteBooking(b._id) })}
-                                  title="Supprimer">🗑️</button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <Pagination page={bkPage} total={totalPages(filteredBookings)} onChange={setBkPage} />
-              {/* Bug réel corrigé (audit) : plafond de 200 réservations
-                  chargées, invisible pour l'admin — voir loadMoreBookings. */}
-              {bookings.length < bookingsTotal && (
-                <div style={{ textAlign: "center", marginTop: 10 }}>
-                  <p style={{ fontSize: ".8rem", color: "#94a3b8", marginBottom: 6 }}>{bookings.length} chargées sur {bookingsTotal} au total</p>
-                  <button onClick={loadMoreBookings}
-                    style={{ padding: "6px 16px", borderRadius: 10, border: "1.5px solid #6366f1", background: "#fff", color: "#6366f1", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                    Charger plus
-                  </button>
-                </div>
-              )}
-            </div>
+            <ReservationsSection
+              adminDeleteBooking={adminDeleteBooking}
+              adminUpdateBooking={adminUpdateBooking}
+              bkPage={bkPage}
+              bkSearch={bkSearch}
+              bkStatus={bkStatus}
+              bkType={bkType}
+              bookings={bookings}
+              bookingsTotal={bookingsTotal}
+              exportBookings={exportBookings}
+              filteredBookings={filteredBookings}
+              fmtUSD={fmtUSD}
+              loadAll={loadAll}
+              loadMoreBookings={loadMoreBookings}
+              paginate={paginate}
+              setBkActionModal={setBkActionModal}
+              setBkCancelReason={setBkCancelReason}
+              setBkCancelReasonCode={setBkCancelReasonCode}
+              setBkPage={setBkPage}
+              setBkSearch={setBkSearch}
+              setBkStatus={setBkStatus}
+              setBkType={setBkType}
+              setConfirm={setConfirm}
+              setDisputeModal={setDisputeModal}
+              setDisputeNote={setDisputeNote}
+              setDisputeResol={setDisputeResol}
+              setDocsModal={setDocsModal}
+              setForceAmount={setForceAmount}
+              setForceModal={setForceModal}
+              setForceNote={setForceNote}
+              showToast={showToast}
+              token={token}
+              totalPages={totalPages}
+            />
           )}
 
           {/* ══════════════════════ TAB EXPORTATEURS ══════════════════════ */}
@@ -5004,179 +4640,23 @@ export default function AdminPanel() {
 
       {/* ══════════════════════ TAB IMPORT/EXPORT ══════════════════════ */}
       {activeTab === "import_export" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🌍 Transactions Import / Export</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Suivi de toutes les demandes et transactions internationales.</p>
-            </div>
-            <button className={styles.btnRefresh} onClick={loadImportExport}>↻ Actualiser</button>
-          </div>
-
-          {/* KPIs */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: "1.5rem" }}>
-            {[
-              { icon: "🌍", label: "Total demandes",       value: ieRequests.length,                                             color: "#6366f1" },
-              { icon: "⏳", label: "En attente",           value: ieRequests.filter(r => r.status === "pending").length,          color: "#f59e0b" },
-              { icon: "✅", label: "Approuvées",           value: ieRequests.filter(r => r.status === "approved").length,         color: "#10b981" },
-              { icon: "❌", label: "Rejetées",             value: ieRequests.filter(r => r.status === "rejected").length,         color: "#ef4444" },
-            ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
-          </div>
-
-          {ieLoading ? (
-            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>
-          ) : ieRequests.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
-              <div style={{ fontSize: "3rem", marginBottom: 12 }}>🌍</div>
-              <p style={{ fontWeight: 600 }}>Aucune transaction import/export pour le moment.</p>
-            </div>
-          ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr><th>Référence</th><th>Type</th><th>Client</th><th>Montant</th><th>Statut</th><th>Date</th><th>Actions</th></tr>
-                </thead>
-                <tbody>
-                  {ieRequests.map((r) => {
-                    const ST = { pending: { l: "En attente", c: "#d97706", bg: "#fef3c7" }, approved: { l: "Approuvée", c: "#16a34a", bg: "#dcfce7" }, rejected: { l: "Rejetée", c: "#dc2626", bg: "#fee2e2" }, in_progress: { l: "En cours", c: "#3b82f6", bg: "#eff6ff" }, completed: { l: "Terminée", c: "#6366f1", bg: "#eef2ff" }, processing: { l: "En traitement", c: "#3b82f6", bg: "#eff6ff" }, contacted: { l: "Contacté", c: "#6366f1", bg: "#eef2ff" } };
-                    const st = ST[r.status] || ST.pending;
-                    return (
-                      <tr key={r._id} className={styles.tr}>
-                        <td style={{ fontWeight: 700, fontSize: ".85rem", fontFamily: "monospace" }}>{r.reference || r._id?.slice(-8)}</td>
-                        <td><Badge label={r.type === "import" ? "📥 Import" : r.type === "export" ? "📤 Export" : r.type || "—"} color="#6366f1" bg="#eef2ff" /></td>
-                        <td>
-                          <div>
-                            <strong style={{ fontSize: ".87rem" }}>{r.clientInfo?.firstName || r.buyer?.firstName || ""} {r.clientInfo?.lastName || r.buyer?.lastName || ""}</strong>
-                            <div style={{ fontSize: ".74rem", color: "#94a3b8" }}>{r.clientInfo?.email || r.buyer?.email || "—"}</div>
-                          </div>
-                        </td>
-                        <td className={styles.tdPrice}>{r.totalAmount ? `${Number(r.totalAmount).toLocaleString("fr-FR")} ${r.currency || "EUR"}` : "—"}</td>
-                        <td><Badge label={st.l} color={st.c} bg={st.bg} /></td>
-                        <td className={styles.tdDate}>{fmtDate(r.createdAt)}</td>
-                        <td>
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                            {["pending", "processing"].includes(r.status) && (
-                              <>
-                                <button disabled={ieActionSaving} onClick={() => updateIeRequestStatus(r._id, "approved")}
-                                  title="Approuver" style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: "#16a34a", color: "#fff", fontWeight: 700, fontSize: ".72rem", cursor: ieActionSaving ? "not-allowed" : "pointer" }}>✅</button>
-                                <button disabled={ieActionSaving} onClick={() => updateIeRequestStatus(r._id, "rejected")}
-                                  title="Rejeter" style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: "#dc2626", color: "#fff", fontWeight: 700, fontSize: ".72rem", cursor: ieActionSaving ? "not-allowed" : "pointer" }}>❌</button>
-                                <button disabled={ieActionSaving} onClick={() => updateIeRequestStatus(r._id, "contacted")}
-                                  title="Marquer contacté" style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: "#6366f1", color: "#fff", fontWeight: 700, fontSize: ".72rem", cursor: ieActionSaving ? "not-allowed" : "pointer" }}>📞</button>
-                              </>
-                            )}
-                            <button disabled={ieActionSaving}
-                              onClick={() => setConfirm({ message: `Supprimer définitivement la demande ${r.reference || ""} ?`, danger: true, action: () => deleteIeRequest(r._id) })}
-                              title="Supprimer" style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: "#f1f5f9", color: "#64748b", fontWeight: 700, fontSize: ".72rem", cursor: ieActionSaving ? "not-allowed" : "pointer" }}>🗑️</button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {/* Bug réel corrigé (audit) : plafond de 100 demandes chargées,
-              invisible pour l'admin — voir loadMoreIeRequests. */}
-          {ieRequests.length < ieRequestsTotal && (
-            <div style={{ textAlign: "center", margin: "10px 0" }}>
-              <p style={{ fontSize: ".8rem", color: "#94a3b8", marginBottom: 6 }}>{ieRequests.length} chargées sur {ieRequestsTotal} au total</p>
-              <button onClick={loadMoreIeRequests}
-                style={{ padding: "6px 16px", borderRadius: 10, border: "1.5px solid #6366f1", background: "#fff", color: "#6366f1", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                Charger plus
-              </button>
-            </div>
-          )}
-
-          {/* ── Transactions IE réelles (pipeline escrow) — litiges & inspections ── */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2rem 0 1rem", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h3 style={{ fontSize: "1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>Transactions Import/Export en cours</h3>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Pipeline réel étapes 4-14 — argent bloqué en entiercement, litiges et inspections à traiter ici.</p>
-            </div>
-            <button className={styles.btnRefresh} onClick={loadIeTransactions}>↻ Actualiser</button>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: "1.5rem" }}>
-            {[
-              { icon: "🔒", label: "Total",         value: ieTransactions.length, color: "#6366f1" },
-              { icon: "⚖️", label: "En litige",      value: ieTransactions.filter(t => t.status === "disputed").length, color: "#dc2626" },
-              { icon: "🔍", label: "Inspection en attente", value: ieTransactions.filter(t => t.status === "inspection_requested").length, color: "#d97706" },
-              { icon: "⏳", label: "Paiement à vérifier", value: ieTransactions.filter(t => t.status === "payment_submitted").length, color: "#d97706" },
-              { icon: "✅", label: "Terminées",      value: ieTransactions.filter(t => ["completed","funds_released"].includes(t.status)).length, color: "#10b981" },
-            ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
-          </div>
-
-          {ieTxLoading ? (
-            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>
-          ) : ieTransactions.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
-              <div style={{ fontSize: "3rem", marginBottom: 12 }}>🔒</div>
-              <p style={{ fontWeight: 600 }}>Aucune transaction escrow pour le moment.</p>
-            </div>
-          ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr><th>Client</th><th>Partenaire</th><th>Montant</th><th>Statut</th><th>Litige</th><th>Date</th><th>Actions</th></tr>
-                </thead>
-                <tbody>
-                  {ieTransactions.map((t) => {
-                    const ST = {
-                      reserved: { l: "Réservée", c: "#6366f1", bg: "#eef2ff" },
-                      disputed: { l: "⚖️ Litige", c: "#dc2626", bg: "#fee2e2" },
-                      inspection_requested: { l: "Inspection demandée", c: "#d97706", bg: "#fef3c7" },
-                      payment_submitted: { l: "⏳ Paiement à vérifier", c: "#d97706", bg: "#fef3c7" },
-                      in_escrow: { l: "En entiercement", c: "#0891b2", bg: "#ecfeff" },
-                      funds_released: { l: "Fonds libérés", c: "#10b981", bg: "#d1fae5" },
-                      completed: { l: "Terminée", c: "#10b981", bg: "#d1fae5" },
-                      cancelled: { l: "Annulée", c: "#94a3b8", bg: "#f1f5f9" },
-                    };
-                    const st = ST[t.status] || { l: t.status, c: "#64748b", bg: "#f1f5f9" };
-                    return (
-                      <tr key={t._id} className={styles.tr}>
-                        <td><strong style={{ fontSize: ".85rem" }}>{t.client?.firstName} {t.client?.lastName}</strong><div style={{ fontSize: ".74rem", color: "#94a3b8" }}>{t.client?.email}</div></td>
-                        <td><strong style={{ fontSize: ".85rem" }}>{t.partner?.firstName} {t.partner?.lastName}</strong><div style={{ fontSize: ".74rem", color: "#94a3b8" }}>{t.partner?.business?.name || t.partner?.email}</div></td>
-                        <td className={styles.tdPrice}>
-                          {t.finalOffer?.totalAmount ? `${Number(t.finalOffer.totalAmount).toLocaleString("fr-FR")} ${t.finalOffer.currency}` : "—"}
-                          {t.payment?.commission?.amount != null && (
-                            <div style={{ fontSize: ".72rem", color: "#059669", fontWeight: 700 }}>
-                              Commission {(t.payment.commission.rate * 100).toFixed(0)}% : {Number(t.payment.commission.amount).toLocaleString("fr-FR")} {t.payment.currency}
-                            </div>
-                          )}
-                        </td>
-                        <td><Badge label={st.l} color={st.c} bg={st.bg} /></td>
-                        <td style={{ fontSize: ".78rem", color: "#64748b", maxWidth: 200 }}>{t.dispute?.opened ? (t.dispute.reason || "Litige ouvert") : "—"}</td>
-                        <td className={styles.tdDate}>{fmtDate(t.createdAt)}</td>
-                        <td>
-                          {t.status === "disputed" && (
-                            <button className={styles.btnRefresh} style={{ background: "#dc2626", color: "#fff", border: "none" }}
-                              onClick={() => { setIeTxModal({ tx: t, mode: "dispute" }); setIeTxNote(""); setIeTxRelease(true); }}>
-                              ⚖️ Trancher
-                            </button>
-                          )}
-                          {t.status === "inspection_requested" && (
-                            <button className={styles.btnRefresh} style={{ background: "#d97706", color: "#fff", border: "none" }}
-                              onClick={() => { setIeTxModal({ tx: t, mode: "inspection" }); setIeTxNote(""); }}>
-                              🔍 Compléter
-                            </button>
-                          )}
-                          {t.status === "payment_submitted" && (
-                            <button className={styles.btnRefresh} style={{ background: "#d97706", color: "#fff", border: "none" }}
-                              onClick={() => { setIeTxModal({ tx: t, mode: "payment" }); setIeTxNote(""); }}>
-                              ⏳ Vérifier
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <TransactionsIESection
+          deleteIeRequest={deleteIeRequest}
+          ieActionSaving={ieActionSaving}
+          ieLoading={ieLoading}
+          ieRequests={ieRequests}
+          ieRequestsTotal={ieRequestsTotal}
+          ieTransactions={ieTransactions}
+          ieTxLoading={ieTxLoading}
+          loadIeTransactions={loadIeTransactions}
+          loadImportExport={loadImportExport}
+          loadMoreIeRequests={loadMoreIeRequests}
+          setConfirm={setConfirm}
+          setIeTxModal={setIeTxModal}
+          setIeTxNote={setIeTxNote}
+          setIeTxRelease={setIeTxRelease}
+          updateIeRequestStatus={updateIeRequestStatus}
+        />
       )}
 
       {ieTxModal && (
@@ -5336,143 +4816,21 @@ export default function AdminPanel() {
 
       {/* ══════════════════════ TAB CHAUFFEURS ══════════════════════ */}
       {activeTab === "chauffeurs" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>👨‍✈️ Gestion des chauffeurs</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Validez les dossiers, gérez les chauffeurs actifs et leurs missions.</p>
-            </div>
-            <button className={styles.btnRefresh} style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px" }} onClick={loadAll}>↻ Actualiser</button>
-          </div>
-
-          {/* KPIs chauffeurs */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, marginBottom: "1.5rem" }}>
-            {[
-              { icon:"👨‍✈️", label:"En attente validation", value: pendingDrivers,                                                  color:"#f59e0b" },
-              { icon:"✅",   label:"Chauffeurs actifs",      value: activeDrivers.length,       color:"#10b981" },
-              { icon:"🚗",   label:"Missions terminées",     value: bookings.filter(b=>b.type==="chauffeur"&&b.status==="completed").length, color:"#3b82f6" },
-              { icon:"💰",   label:"Revenue chauffeurs",     value: fmtUSD(bookings.filter(b=>b.type==="chauffeur"&&b.status==="completed").reduce((s,b)=>s+(b.montantTotal||0),0)), color:"#6366f1" },
-            ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
-          </div>
-
-          {/* Dossiers en attente */}
-          <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
-            <h3 className={styles.chartTitle}>⏳ Dossiers en attente de validation ({pendingDrivers})</h3>
-            {pendingDrivers === 0 ? (
-              <p style={{ color: "#64748b", fontSize: "0.9rem" }}>Aucun profil chauffeur en attente.</p>
-            ) : (
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr><th>Chauffeur</th><th>Disponibilité</th><th>Tarif</th><th>Zone</th><th>Documents</th><th>Soumis le</th><th>Actions</th></tr>
-                  </thead>
-                  <tbody>
-                    {pendingDriversList.map((d) => (
-                      <tr key={d._id} className={styles.tr}>
-                        <td>
-                          <div className={styles.vehicleCell}>
-                            {d.profilePhoto || d.images?.[0] ? <img src={d.profilePhoto || d.images[0]} alt="" className={styles.vehThumb} loading="lazy" decoding="async" style={{ borderRadius:"50%" }} /> : <div className={styles.vehThumbPlaceholder}>👤</div>}
-                            <div>
-                              <strong>{d.firstName} {d.lastName}</strong>
-                              <span className={styles.vehMeta}>{d.title}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td><Badge label={d.disponibilite||"—"} color="#8b5cf6" bg="#f5f3ff" /></td>
-                        <td className={styles.tdPrice}>{d.tarif?`${fmtUSD(d.tarif)}/j`:"—"}</td>
-                        <td style={{ fontSize:"0.85rem", color:"#64748b" }}>{d.zone||d.ville||"—"}</td>
-                        <td>
-                          {/* Restructuration réservation 2026-09 : documents joints
-                              directement à la création du profil (voir driverController.
-                              processDriverDocuments), à vérifier ici avant validation —
-                              remplace l'ancien circuit KYC bloquant séparé. */}
-                          <div style={{ display:"flex", gap:4 }}>
-                            {d.identityDocument?.frontImage
-                              ? <a href={d.identityDocument.frontImage} target="_blank" rel="noopener noreferrer" title="Pièce d'identité"><img src={d.identityDocument.frontImage} alt="Identité" style={{ width:32, height:32, objectFit:"cover", borderRadius:6, border:"1px solid #e2e8f0" }} /></a>
-                              : <span style={{ fontSize:"0.75rem", color:"#dc2626" }}>Identité ✕</span>}
-                            {d.licenseDocument?.frontImage
-                              ? <a href={d.licenseDocument.frontImage} target="_blank" rel="noopener noreferrer" title="Permis de conduire"><img src={d.licenseDocument.frontImage} alt="Permis" style={{ width:32, height:32, objectFit:"cover", borderRadius:6, border:"1px solid #e2e8f0" }} /></a>
-                              : <span style={{ fontSize:"0.75rem", color:"#dc2626" }}>Permis ✕</span>}
-                          </div>
-                        </td>
-                        <td className={styles.tdDate}>{fmtDate(d.createdAt)}</td>
-                        <td>
-                          <div className={styles.actionBtns}>
-                            <button className={styles.btnApprove} onClick={() => setConfirm({ message:`Approuver ${d.firstName} ${d.lastName} ?`, action:()=>updateDriverStatus(d._id,"approved") })}>✅ Valider</button>
-                            <button className={styles.btnReject} onClick={() => { setDriverRejectModal({ id:d._id, name:`${d.firstName} ${d.lastName}` }); setDriverRejectReason(""); }}>✕ Rejeter</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Chauffeurs actifs — profils Driver approuvés (catalogue public "Chauffeur"),
-              pas des comptes User : un chauffeur est une fiche de service publiée par
-              un partenaire (owner), jamais un rôle de compte autonome (voir Register.jsx,
-              qui ne propose que client/partenaire à l'inscription). */}
-          <div className={styles.chartCard}>
-            <h3 className={styles.chartTitle}>✅ Chauffeurs actifs ({activeDrivers.length})</h3>
-            {activeDrivers.length === 0 ? (
-              <p style={{ color:"#64748b", fontSize:"0.9rem" }}>Aucun chauffeur actif dans le catalogue.</p>
-            ) : (
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead><tr><th>Chauffeur</th><th>Partenaire</th><th>Zone</th><th>Tarif</th><th>Note</th><th>Actions</th></tr></thead>
-                  <tbody>
-                    {activeDrivers.map(d => (
-                      <tr key={d._id} className={styles.tr}>
-                        <td>
-                          <div className={styles.userCell}>
-                            <div className={styles.avatar}>{d.firstName?.[0]?.toUpperCase()||"?"}</div>
-                            <strong>{d.firstName} {d.lastName}</strong>
-                          </div>
-                        </td>
-                        <td style={{ fontSize:"0.85rem", color:"#64748b" }}>{d.owner?.firstName||"—"} {d.owner?.phone ? `· ${d.owner.phone}` : ""}</td>
-                        <td style={{ fontSize:"0.85rem", color:"#64748b" }}>{d.zone||"—"}</td>
-                        <td className={styles.tdPrice}>{d.tarif?`${fmtUSD(d.tarif)}/j`:"—"}</td>
-                        <td>{d.noteMoyenne > 0 ? `⭐ ${d.noteMoyenne.toFixed(1)}` : "—"}</td>
-                        <td>
-                          <button className={styles.btnReject}
-                            onClick={() => setConfirm({ message:`Retirer ${d.firstName} ${d.lastName} du catalogue ?`, action:()=>deactivateActiveDriver(d._id) })}>
-                            🚫 Retirer
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Bug réel : le bouton « ✕ Rejeter » de cet onglet ouvrait une modale
-              qui n'existait QUE dans CatalogueSection (onglet Annonces) — donc
-              jamais rendue ici. Le clic ne produisait rien, et la modale
-              resurgissait plus tard en changeant d'onglet, avec le mauvais
-              chauffeur. La voici, dans la portée où le bouton vit réellement. */}
-          {driverRejectModal && (
-            <div className={styles.overlay} onClick={() => { setDriverRejectModal(null); setDriverRejectReason(""); }}>
-              <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
-                <p className={styles.confirmMsg}>Raison du refus pour « {driverRejectModal.name} »</p>
-                <textarea className={styles.textarea} rows={3} value={driverRejectReason}
-                  onChange={(e) => setDriverRejectReason(e.target.value)}
-                  placeholder="Motif communiqué au partenaire (documents illisibles, permis expiré…)" />
-                <div className={styles.confirmActions}>
-                  <button className={styles.btnDanger}
-                    onClick={async () => {
-                      await updateDriverStatus(driverRejectModal.id, "rejected", driverRejectReason);
-                      setDriverRejectModal(null); setDriverRejectReason("");
-                    }}>Refuser</button>
-                  <button className={styles.btnGhost} onClick={() => { setDriverRejectModal(null); setDriverRejectReason(""); }}>Annuler</button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        <ChauffeursSection
+          activeDrivers={activeDrivers}
+          bookings={bookings}
+          deactivateActiveDriver={deactivateActiveDriver}
+          driverRejectModal={driverRejectModal}
+          driverRejectReason={driverRejectReason}
+          fmtUSD={fmtUSD}
+          loadAll={loadAll}
+          pendingDrivers={pendingDrivers}
+          pendingDriversList={pendingDriversList}
+          setConfirm={setConfirm}
+          setDriverRejectModal={setDriverRejectModal}
+          setDriverRejectReason={setDriverRejectReason}
+          updateDriverStatus={updateDriverStatus}
+        />
       )}
 
       {/* ══════════════════════ TAB ACTIVITÉS (OTHERS) ══════════════════════ */}
@@ -5481,180 +4839,31 @@ export default function AdminPanel() {
       )}
 
       {activeTab === "activites" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🎈 Activités et Loisirs</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Validez les annonces (Quad, Surf, Montgolfière, Jetski, Jet privé, Bateau...) et gérez les activités actives.</p>
-            </div>
-            <button className={styles.btnRefresh} style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px" }} onClick={loadAll}>↻ Actualiser</button>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, marginBottom: "1.5rem" }}>
-            {[
-              { icon:"🎈", label:"En attente validation", value: pendingActivities,                                                        color:"#f59e0b" },
-              { icon:"✅", label:"Activités actives",      value: activeActivities.length,     color:"#10b981" },
-              { icon:"📅", label:"Réservations terminées", value: bookings.filter(b=>b.type==="activite"&&b.status==="completed").length, color:"#3b82f6" },
-              { icon:"💰", label:"Revenue activités",      value: fmtUSD(bookings.filter(b=>b.type==="activite"&&b.status==="completed").reduce((s,b)=>s+(b.montantTotal||0),0)), color:"#6366f1" },
-            ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
-          </div>
-
-          <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
-            <h3 className={styles.chartTitle}>⏳ Annonces en attente de validation ({pendingActivities})</h3>
-            {pendingActivities === 0 ? (
-              <p style={{ color: "#64748b", fontSize: "0.9rem" }}>Aucune activité en attente.</p>
-            ) : (
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr><th>Activité</th><th>Type</th><th>Prix</th><th>Ville</th><th>Soumis le</th><th>Actions</th></tr>
-                  </thead>
-                  <tbody>
-                    {pendingActivitiesList.map((a) => (
-                      <tr key={a._id} className={styles.tr}>
-                        <td>
-                          <div className={styles.vehicleCell}>
-                            {a.thumbnail || a.images?.[0] ? <img src={a.thumbnail || a.images[0]} alt="" className={styles.vehThumb} loading="lazy" decoding="async" /> : <div className={styles.vehThumbPlaceholder}>🎈</div>}
-                            <div>
-                              <strong>{a.title}</strong>
-                              <span className={styles.vehMeta}>{a.owner?.firstName || ""} {a.owner?.lastName || ""}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td><Badge label={ACTIVITY_TYPE_LABELS[a.activityType] || a.activityType} color="#8b5cf6" bg="#f5f3ff" /></td>
-                        <td className={styles.tdPrice}>{a.price ? `${fmtUSD(a.price)}${a.priceUnit === "per_session" ? "/sortie" : "/pers."}` : "—"}</td>
-                        <td style={{ fontSize:"0.85rem", color:"#64748b" }}>{a.ville || "—"}</td>
-                        <td className={styles.tdDate}>{fmtDate(a.createdAt)}</td>
-                        <td>
-                          <div className={styles.actionBtns}>
-                            <button className={styles.btnApprove} onClick={() => setConfirm({ message:`Approuver "${a.title}" ?`, action:()=>updateActivityStatus(a._id,"approved") })}>✅ Valider</button>
-                            <button className={styles.btnReject} onClick={() => { setActivityRejectModal({ id:a._id, name:a.title }); setActivityRejectReason(""); }}>✕ Rejeter</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          <div className={styles.chartCard}>
-            <h3 className={styles.chartTitle}>✅ Activités actives ({activeActivities.length})</h3>
-            {activeActivities.length === 0 ? (
-              <p style={{ color:"#64748b", fontSize:"0.9rem" }}>Aucune activité active dans le catalogue.</p>
-            ) : (
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead><tr><th>Activité</th><th>Partenaire</th><th>Type</th><th>Prix</th><th>Note</th><th>Actions</th></tr></thead>
-                  <tbody>
-                    {activeActivities.map(a => (
-                      <tr key={a._id} className={styles.tr}>
-                        <td>
-                          <div className={styles.userCell}>
-                            <div className={styles.avatar}>{a.title?.[0]?.toUpperCase()||"?"}</div>
-                            <strong>{a.title}</strong>
-                          </div>
-                        </td>
-                        <td style={{ fontSize:"0.85rem", color:"#64748b" }}>{a.owner?.firstName||"—"} {a.owner?.phone ? `· ${a.owner.phone}` : ""}</td>
-                        <td><Badge label={ACTIVITY_TYPE_LABELS[a.activityType] || a.activityType} color="#8b5cf6" bg="#f5f3ff" /></td>
-                        <td className={styles.tdPrice}>{a.price ? `${fmtUSD(a.price)}${a.priceUnit === "per_session" ? "/sortie" : "/pers."}` : "—"}</td>
-                        <td>{a.noteMoyenne > 0 ? `⭐ ${a.noteMoyenne.toFixed(1)}` : "—"}</td>
-                        <td>
-                          <div className={styles.actionBtns}>
-                            <button className={styles.btnGhost} title="Transférer vers un autre compte/entreprise/pays/ville"
-                              onClick={() => openActivityTransfer(a._id, a.title, a.country, a.ville)}>
-                              🔀 Transférer
-                            </button>
-                            <button className={styles.btnReject}
-                              onClick={() => setConfirm({ message:`Retirer "${a.title}" du catalogue ?`, action:()=>deactivateActiveActivity(a._id) })}>
-                              🚫 Retirer
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {activityRejectModal && (
-            <div className={styles.overlay} onClick={() => setActivityRejectModal(null)}>
-              <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
-                <p className={styles.confirmMsg}>Raison du refus pour « {activityRejectModal.name} »</p>
-                <textarea style={{ width: "100%", borderRadius: 8, border: "1px solid #e2e8f0", padding: ".6rem", fontSize: ".9rem", marginBottom: ".75rem", resize: "vertical" }}
-                  rows={3} placeholder="Ex: Photos insuffisantes…"
-                  value={activityRejectReason} onChange={(e) => setActivityRejectReason(e.target.value)} />
-                <div className={styles.confirmActions}>
-                  <button className={styles.btnDanger} onClick={() => handleRejectActivity(activityRejectModal.id, activityRejectReason)}>Refuser</button>
-                  <button className={styles.btnGhost} onClick={() => setActivityRejectModal(null)}>Annuler</button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ══ MODAL TRANSFERT (activité) — même outil que CatalogueSection.transferModal ══ */}
-          {activityTransferModal && (
-            <div className={styles.overlay} onClick={() => setActivityTransferModal(null)}>
-              <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ width: "min(480px, 92vw)" }}>
-                <p className={styles.confirmMsg}>🔀 Transférer « {activityTransferModal.label} » (activité)</p>
-
-                <div style={{ marginBottom: 12, position: "relative" }}>
-                  <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#374151", display: "block", marginBottom: 4 }}>
-                    Nouveau propriétaire (nom ou email) — laisser vide pour ne pas changer
-                  </label>
-                  <input type="text" value={activityTransferForm.selectedOwner ? `${activityTransferForm.selectedOwner.firstName} ${activityTransferForm.selectedOwner.lastName} (${activityTransferForm.selectedOwner.email})` : activityTransferForm.ownerQuery}
-                    onChange={(e) => { setActivityTransferForm((p) => ({ ...p, selectedOwner: null })); searchActivityTransferOwners(e.target.value); }}
-                    placeholder="Ex : Jean Kouassi ou jean@exemple.com"
-                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".88rem", boxSizing: "border-box" }} />
-                  {activityTransferForm.ownerResults.length > 0 && !activityTransferForm.selectedOwner && (
-                    <div style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, marginTop: 4, maxHeight: 160, overflowY: "auto", background: "#fff" }}>
-                      {activityTransferForm.ownerResults.map((o) => (
-                        <div key={o._id} onClick={() => setActivityTransferForm((p) => ({ ...p, selectedOwner: o, ownerResults: [] }))}
-                          style={{ padding: "6px 10px", fontSize: ".82rem", cursor: "pointer", borderBottom: "1px solid #f1f5f9" }}>
-                          {o.firstName} {o.lastName} — {o.email}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-                  <div>
-                    <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#374151", display: "block", marginBottom: 4 }}>Pays</label>
-                    <select value={activityTransferForm.country} onChange={(e) => setActivityTransferForm((p) => ({ ...p, country: e.target.value }))}
-                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".88rem" }}>
-                      <option value="">— Ne pas changer —</option>
-                      {COUNTRIES_CONFIG.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#374151", display: "block", marginBottom: 4 }}>Ville</label>
-                    <input type="text" value={activityTransferForm.ville} onChange={(e) => setActivityTransferForm((p) => ({ ...p, ville: e.target.value }))}
-                      placeholder="Ne pas changer"
-                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".88rem", boxSizing: "border-box" }} />
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 14 }}>
-                  <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#374151", display: "block", marginBottom: 4 }}>
-                    ID entreprise (PartnerBusiness) — optionnel, avancé
-                  </label>
-                  <input type="text" value={activityTransferForm.businessId} onChange={(e) => setActivityTransferForm((p) => ({ ...p, businessId: e.target.value }))}
-                    placeholder="Laisser vide pour ne pas rattacher"
-                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".88rem", boxSizing: "border-box" }} />
-                </div>
-
-                <div className={styles.confirmActions}>
-                  <button className={styles.btnPrimary} onClick={submitActivityTransfer} disabled={activityTransferSaving}>{activityTransferSaving ? "…" : "Transférer"}</button>
-                  <button className={styles.btnGhost} onClick={() => setActivityTransferModal(null)}>Annuler</button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        <ActivitesSection
+          COUNTRIES_CONFIG={COUNTRIES_CONFIG}
+          activeActivities={activeActivities}
+          activityRejectModal={activityRejectModal}
+          activityRejectReason={activityRejectReason}
+          activityTransferForm={activityTransferForm}
+          activityTransferModal={activityTransferModal}
+          activityTransferSaving={activityTransferSaving}
+          bookings={bookings}
+          deactivateActiveActivity={deactivateActiveActivity}
+          fmtUSD={fmtUSD}
+          handleRejectActivity={handleRejectActivity}
+          loadAll={loadAll}
+          openActivityTransfer={openActivityTransfer}
+          pendingActivities={pendingActivities}
+          pendingActivitiesList={pendingActivitiesList}
+          searchActivityTransferOwners={searchActivityTransferOwners}
+          setActivityRejectModal={setActivityRejectModal}
+          setActivityRejectReason={setActivityRejectReason}
+          setActivityTransferForm={setActivityTransferForm}
+          setActivityTransferModal={setActivityTransferModal}
+          setConfirm={setConfirm}
+          submitActivityTransfer={submitActivityTransfer}
+          updateActivityStatus={updateActivityStatus}
+        />
       )}
 
       {/* ══════════════════════ TAB NOTIFICATIONS ══════════════════════ */}
@@ -6649,148 +5858,16 @@ export default function AdminPanel() {
       )}
       {/* ══════════════════════ TAB PMS PARTNERS ══════════════════════ */}
       {activeTab === "pms_partners" && (
-        <div className={styles.tabContent}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1.2rem", flexWrap:"wrap", gap:12 }}>
-            <div>
-              <h2 style={{ fontSize:"1.1rem", fontWeight:800, color:"#0f1b3f", margin:"0 0 3px" }}>🏪 Partner Hub PMS</h2>
-              <p style={{ margin:0, fontSize:".83rem", color:"#64748b" }}>Showrooms, leads et devis de tous les partenaires.</p>
-            </div>
-            <button className={styles.btnRefresh} onClick={loadPMSAdmin}>↻ Actualiser</button>
-          </div>
-
-          {/* KPIs */}
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12, marginBottom:"1.5rem" }}>
-            {[
-              { icon:"🏪", label:"Showrooms total",  value: pmsStats?.totalShowrooms  || 0, color:"#6366f1" },
-              { icon:"🌐", label:"Publiés",           value: pmsStats?.publishedShowrooms || 0, color:"#10b981" },
-              { icon:"🎯", label:"Leads total",       value: pmsStats?.totalLeads      || 0, color:"#3b82f6" },
-              { icon:"🏆", label:"Leads gagnés",      value: pmsStats?.wonLeads        || 0, color:"#059669" },
-              { icon:"📄", label:"Devis total",       value: pmsStats?.totalQuotes     || 0, color:"#8b5cf6" },
-              { icon:"✅", label:"Devis acceptés",    value: pmsStats?.acceptedQuotes  || 0, color:"#d97706" },
-            ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
-          </div>
-
-          {/* Filtres */}
-          <div className={styles.filterBar}>
-            {[
-              { v:"all",       l:"Tous les showrooms" },
-              { v:"published", l:"✅ Publiés" },
-              { v:"hidden",    l:"👁 Non publiés" },
-            ].map(f => (
-              <button key={f.v} onClick={() => { setPmsFilter(f.v); }}
-                style={{ padding:"6px 14px", borderRadius:8, border:`2px solid ${pmsFilter===f.v?"#6366f1":"#e2e8f0"}`,
-                  background: pmsFilter===f.v?"#6366f1":"#fff", color: pmsFilter===f.v?"#fff":"#374151",
-                  fontWeight:700, fontSize:".8rem", cursor:"pointer" }}>
-                {f.l}
-              </button>
-            ))}
-          </div>
-
-          {/* Table showrooms */}
-          {pmsLoading ? (
-            <div style={{ textAlign:"center", padding:"3rem", color:"#94a3b8" }}>Chargement…</div>
-          ) : pmsShowrooms.length === 0 ? (
-            <div style={{ textAlign:"center", padding:"3rem", color:"#94a3b8" }}>
-              <div style={{ fontSize:"3rem", marginBottom:12 }}>🏪</div>
-              <p style={{ fontWeight:600 }}>Aucun showroom partenaire pour le moment.</p>
-            </div>
-          ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Partenaire</th>
-                    <th>Showroom</th>
-                    <th>Pays</th>
-                    <th>Trust Score</th>
-                    <th>Vues</th>
-                    <th>KYC</th>
-                    <th>Statut</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pmsShowrooms.map((s) => {
-                    const p = s.partnerId || {};
-                    const KYC_COLOR = { VERIFIE:"#16a34a", EN_ATTENTE:"#d97706", REFUSE:"#dc2626" };
-                    const kycColor = KYC_COLOR[p.kycStatus] || "#94a3b8";
-                    const score = s.trustScore?.overall || 0;
-                    const scoreColor = score >= 75 ? "#16a34a" : score >= 50 ? "#d97706" : "#dc2626";
-                    return (
-                      <tr key={s._id} className={styles.tr}>
-                        <td>
-                          <div style={{ fontWeight:700, fontSize:".85rem" }}>
-                            {p.firstName} {p.lastName}
-                          </div>
-                          <div style={{ fontSize:".73rem", color:"#64748b" }}>{p.email}</div>
-                          <div style={{ fontSize:".72rem", marginTop:2 }}>
-                            <span style={{ color: kycColor, fontWeight:700 }}>
-                              {p.kycStatus === "VERIFIE" ? "✅ KYC" : p.kycStatus === "REFUSE" ? "❌ KYC" : "⏳ KYC"}
-                            </span>
-                            {!p.isActive && <span style={{ marginLeft:6, color:"#ef4444", fontWeight:700 }}>● Bloqué</span>}
-                          </div>
-                        </td>
-                        <td>
-                          <div style={{ fontWeight:700, fontSize:".85rem" }}>{s.companyName || "—"}</div>
-                          {s.tagline && <div style={{ fontSize:".73rem", color:"#64748b" }}>{s.tagline}</div>}
-                          {s.slug && <div style={{ fontSize:".72rem", color:"#94a3b8" }}>/{s.slug}</div>}
-                        </td>
-                        <td style={{ fontSize:".82rem" }}>{s.country || "—"}</td>
-                        <td>
-                          <span style={{ fontWeight:800, color: scoreColor, fontSize:".9rem" }}>{score}/100</span>
-                        </td>
-                        <td style={{ fontSize:".82rem", color:"#64748b" }}>{s.viewCount || 0}</td>
-                        <td>
-                          {p.certificationBadge === "premium"   && <Badge label="⭐ Premium"   color="#7c3aed" bg="#ede9fe" />}
-                          {p.certificationBadge === "fondateur" && <Badge label="🏆 Fondateur" color="#d97706" bg="#fef3c7" />}
-                          {p.certificationBadge === "verifie"   && <Badge label="🟢 Vérifié"  color="#16a34a" bg="#dcfce7" />}
-                          {!p.certificationBadge && <span style={{ color:"#cbd5e1", fontSize:".75rem" }}>—</span>}
-                        </td>
-                        <td>
-                          {s.isPublished
-                            ? <Badge label="🌐 En ligne"   color="#16a34a" bg="#dcfce7" />
-                            : <Badge label="👁 Brouillon"  color="#d97706" bg="#fef3c7" />}
-                        </td>
-                        <td>
-                          <div className={styles.actionBtns}>
-                            <button
-                              onClick={() => adminToggleShowroom(s._id)}
-                              style={{ padding:"4px 10px", borderRadius:6, border:"1.5px solid",
-                                borderColor: s.isPublished ? "#fca5a5" : "#86efac",
-                                background:  s.isPublished ? "#fef2f2" : "#f0fdf4",
-                                color:       s.isPublished ? "#dc2626" : "#16a34a",
-                                fontWeight:700, fontSize:".75rem", cursor:"pointer" }}>
-                              {s.isPublished ? "Dépublier" : "Publier"}
-                            </button>
-                            {s.slug && (
-                              <a href={`/showroom/${s.slug}`} target="_blank" rel="noopener noreferrer"
-                                style={{ padding:"4px 10px", borderRadius:6, border:"1.5px solid #bfdbfe",
-                                  background:"#eff6ff", color:"#2563eb", fontWeight:700,
-                                  fontSize:".75rem", textDecoration:"none" }}>
-                                Voir →
-                              </a>
-                            )}
-                            {/* Vue de confiance unifiée — croise ce partenaire avec
-                                KYC/Founding Partner/Certification sans changer d'onglet. */}
-                            {p._id && (
-                              <button
-                                title="Vue de confiance unifiée"
-                                onClick={() => openTrustOverview(p)}
-                                style={{ padding:"4px 10px", borderRadius:6, border:"1.5px solid #e2e8f0",
-                                  background:"#f8fafc", color:"#0f1b3f", fontWeight:700, fontSize:".75rem", cursor:"pointer" }}>
-                                🛡️
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <PmsPartnersSection
+          adminToggleShowroom={adminToggleShowroom}
+          loadPMSAdmin={loadPMSAdmin}
+          openTrustOverview={openTrustOverview}
+          pmsFilter={pmsFilter}
+          pmsLoading={pmsLoading}
+          pmsShowrooms={pmsShowrooms}
+          pmsStats={pmsStats}
+          setPmsFilter={setPmsFilter}
+        />
       )}
 
       {activeTab === "founding_partners" && (() => {
@@ -7904,127 +6981,19 @@ export default function AdminPanel() {
       )}
 
       {activeTab === "support" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🎧 Support Client</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Conversations client_support / partner_support — file partagée entre tous les admins actifs.</p>
-            </div>
-            <button style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 700, fontSize: ".8rem" }}
-              onClick={loadSupportChats}>↻ Actualiser</button>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 340px) 1fr", gap: 16, minHeight: 480, alignItems: "stretch" }}>
-            {/* ── Liste des conversations ── */}
-            <div style={{ border: "1.5px solid #e2e8f0", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", background: "#fff" }}>
-              <div style={{ padding: "10px 14px", borderBottom: "1.5px solid #e2e8f0", fontSize: ".78rem", fontWeight: 700, color: "#64748b", display: "flex", justifyContent: "space-between" }}>
-                <span>{supportChats.length} conversation{supportChats.length > 1 ? "s" : ""}</span>
-                {supportChats.some((c) => c.needsReply) && (
-                  <span style={{ color: "#dc2626" }}>{supportChats.filter((c) => c.needsReply).length} en attente</span>
-                )}
-              </div>
-              <div style={{ overflowY: "auto", flex: 1, maxHeight: 520 }}>
-                {supportLoading && supportChats.length === 0 ? (
-                  <div style={{ padding: 24, textAlign: "center", color: "#94a3b8", fontSize: ".85rem" }}>Chargement…</div>
-                ) : supportChats.length === 0 ? (
-                  <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>
-                    <div style={{ fontSize: "2rem", marginBottom: 8 }}>💬</div>
-                    <p style={{ fontSize: ".85rem", fontWeight: 600 }}>Aucune conversation support.</p>
-                  </div>
-                ) : supportChats.map((c) => {
-                  const isActive = supportActive?._id === c._id;
-                  const name = c.requester ? `${c.requester.firstName} ${c.requester.lastName}` : "Utilisateur";
-                  return (
-                    <div key={c._id} onClick={() => openSupportChat(c)}
-                      style={{
-                        padding: "11px 14px", cursor: "pointer", display: "flex", gap: 10, alignItems: "center",
-                        background: isActive ? "#eff6ff" : c.needsReply ? "#fffbeb" : "#fff",
-                        borderBottom: "1px solid #f1f5f9",
-                      }}>
-                      <div style={{
-                        width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
-                        background: c.type === "partner_support" ? "#fff7ed" : "#f0f6ff",
-                        display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: ".85rem",
-                        color: c.type === "partner_support" ? "#d97706" : "#3b82f6",
-                      }}>
-                        {(c.requester?.firstName?.[0] || "?").toUpperCase()}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
-                          <strong style={{ fontSize: ".85rem", color: "#0f1b3f", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</strong>
-                          <span style={{ fontSize: ".7rem", color: "#94a3b8", flexShrink: 0 }}>{timeAgo(c.lastMessageAt)}</span>
-                        </div>
-                        <div style={{ fontSize: ".76rem", color: c.needsReply ? "#92400e" : "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: c.needsReply ? 700 : 400 }}>
-                          {c.type === "partner_support" ? "🤝 " : ""}{c.lastMessage || "Conversation ouverte"}
-                        </div>
-                      </div>
-                      {c.unread > 0 && (
-                        <span style={{ background: "#dc2626", color: "#fff", borderRadius: 99, fontSize: ".68rem", fontWeight: 800, padding: "2px 6px", flexShrink: 0 }}>{c.unread}</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* ── Fil de conversation ── */}
-            <div style={{ border: "1.5px solid #e2e8f0", borderRadius: 12, display: "flex", flexDirection: "column", background: "#fff", overflow: "hidden" }}>
-              {!supportActive ? (
-                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", flexDirection: "column", gap: 8 }}>
-                  <div style={{ fontSize: "2.4rem" }}>🎧</div>
-                  <p style={{ fontSize: ".85rem", fontWeight: 600 }}>Sélectionnez une conversation pour répondre.</p>
-                </div>
-              ) : (
-                <>
-                  <div style={{ padding: "12px 16px", borderBottom: "1.5px solid #e2e8f0", fontWeight: 700, color: "#0f1b3f", fontSize: ".9rem" }}>
-                    {supportActive.requester ? `${supportActive.requester.firstName} ${supportActive.requester.lastName}` : "Utilisateur"}
-                    <span style={{ marginLeft: 8, fontSize: ".72rem", fontWeight: 600, color: "#94a3b8" }}>
-                      {supportActive.type === "partner_support" ? "Support Partenaires" : "Service Client"} · {supportActive.requester?.email}
-                    </span>
-                  </div>
-                  <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 10, maxHeight: 420 }}>
-                    {supportMsgLoading ? (
-                      <div style={{ textAlign: "center", color: "#94a3b8", fontSize: ".85rem" }}>Chargement…</div>
-                    ) : supportMessages.length === 0 ? (
-                      <div style={{ textAlign: "center", color: "#94a3b8", fontSize: ".85rem" }}>Aucun message pour l'instant.</div>
-                    ) : supportMessages.map((m) => {
-                      const isAdminMsg = m.senderRole === "admin";
-                      return (
-                        <div key={m._id} style={{ alignSelf: isAdminMsg ? "flex-end" : "flex-start", maxWidth: "72%" }}>
-                          <div style={{
-                            padding: "8px 12px", borderRadius: 12,
-                            background: isAdminMsg ? "#0f1b3f" : "#f1f5f9",
-                            color: isAdminMsg ? "#fff" : "#0f1b3f",
-                            fontSize: ".85rem", whiteSpace: "pre-wrap", wordBreak: "break-word",
-                          }}>
-                            {m.content}
-                          </div>
-                          <div style={{ fontSize: ".68rem", color: "#94a3b8", marginTop: 3, textAlign: isAdminMsg ? "right" : "left" }}>
-                            {timeAgo(m.createdAt)}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div style={{ padding: 12, borderTop: "1.5px solid #e2e8f0", display: "flex", gap: 8 }}>
-                    <textarea
-                      value={supportReply}
-                      onChange={(e) => setSupportReply(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendSupportReply(); } }}
-                      placeholder="Votre réponse…"
-                      rows={1}
-                      style={{ flex: 1, resize: "none", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: "9px 12px", fontSize: ".85rem", fontFamily: "inherit" }}
-                    />
-                    <button onClick={sendSupportReply} disabled={supportSending || !supportReply.trim()}
-                      style={{ background: "#0f1b3f", color: "#fff", border: "none", borderRadius: 10, padding: "0 18px", fontWeight: 700, cursor: "pointer", fontSize: ".85rem" }}>
-                      {supportSending ? "…" : "Envoyer"}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+        <SupportSection
+          loadSupportChats={loadSupportChats}
+          openSupportChat={openSupportChat}
+          sendSupportReply={sendSupportReply}
+          setSupportReply={setSupportReply}
+          supportActive={supportActive}
+          supportChats={supportChats}
+          supportLoading={supportLoading}
+          supportMessages={supportMessages}
+          supportMsgLoading={supportMsgLoading}
+          supportReply={supportReply}
+          supportSending={supportSending}
+        />
       )}
 
       {/* ══════ TAB SUPERVISION CHATS CLIENT↔PARTENAIRE (audit 2026-08) ══════ */}
