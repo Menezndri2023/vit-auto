@@ -12,7 +12,7 @@ import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import { ACTIVITY_TYPE_LABELS } from "../constants/activityTypes";
 import { downloadAuthFile } from "../utils/downloadAuthFile";
 import AdminSalesLeads from "../components/AdminSalesLeads/AdminSalesLeads";
-import { ADMIN_SCOPE_CFG, Badge, CERTIF_CFG, ConfirmModal, CountryFlag, KYC_CFG, MOIS, MiniBar, PLAN_TIER_LABELS, Pagination, ROLE_CONFIG, STATUS_BK, StatCard, WipSection, fmtDate, safeHref, safeImgHref, timeAgo } from "./admin/shared.jsx";
+import { ADMIN_SCOPE_CFG, Badge, CERTIF_CFG, ConfirmModal, CountryFlag, KYC_CFG, MOIS, MiniBar, PLAN_TIER_LABELS, Pagination, ROLE_CONFIG, STATUS_BK, StatCard, WipSection, fmtDate, safeHref, safeImgHref } from "./admin/shared.jsx";
 import { CertLevelDocs, FoundingDocs, FoundingBusinessInfo } from "./admin/sections/FoundingDocs.jsx";
 import { AnalyticsSection } from "./admin/sections/AnalyticsSection.jsx";
 import { ClientDocuments, ClientDocumentsModal } from "./admin/sections/ClientDocuments.jsx";
@@ -37,6 +37,22 @@ import { DirectionSection } from "./admin/sections/DirectionSection.jsx";
 import { CatalogueSection } from "./admin/sections/CatalogueSection.jsx";
 import { MarketingSection } from "./admin/sections/MarketingSection.jsx";
 import { BadgeActivation, ProchaineAction, BlocActivation, BlocDoublons, JournalEchanges, Abandon } from "./admin/sections/CrmSuivi.jsx";
+import NotificationsSection from "./admin/sections/NotificationsSection.jsx";
+import SanteSystemeSection from "./admin/sections/SanteSystemeSection.jsx";
+import AuditLogsSection from "./admin/sections/AuditLogsSection.jsx";
+import ContratsSection from "./admin/sections/ContratsSection.jsx";
+import ReversementsSection from "./admin/sections/ReversementsSection.jsx";
+import EmailsSection from "./admin/sections/EmailsSection.jsx";
+import SignalementsSection from "./admin/sections/SignalementsSection.jsx";
+import AvisSection from "./admin/sections/AvisSection.jsx";
+import SupervisionChatsSection from "./admin/sections/SupervisionChatsSection.jsx";
+import CommissionsSection from "./admin/sections/CommissionsSection.jsx";
+import AssistanceSection from "./admin/sections/AssistanceSection.jsx";
+import DemandesAValiderSection from "./admin/sections/DemandesAValiderSection.jsx";
+import CoutsImportSection from "./admin/sections/CoutsImportSection.jsx";
+import LitigesSection from "./admin/sections/LitigesSection.jsx";
+import WhatsappSection from "./admin/sections/WhatsappSection.jsx";
+import PaiementsSection from "./admin/sections/PaiementsSection.jsx";
 import SupportSection from "./admin/sections/SupportSection.jsx";
 import ChauffeursSection from "./admin/sections/ChauffeursSection.jsx";
 import ComptesSection from "./admin/sections/ComptesSection.jsx";
@@ -3915,97 +3931,17 @@ export default function AdminPanel() {
 
           {/* ══════════ TAB DEMANDES À VALIDER (gate admin, audit 2026-08) ══════════ */}
           {activeTab === "pending_validation" && (
-            <div className={styles.tabContent}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-                <div>
-                  <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🕐 Demandes à valider</h2>
-                  <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>
-                    Aucune réservation, demande d'essai ou achat direct n'atteint le partenaire tant qu'elle n'est pas approuvée ici.
-                  </p>
-                </div>
-                <button style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 700, fontSize: ".8rem" }}
-                  onClick={loadPendingValidation}>↻ Actualiser</button>
-              </div>
-
-              <h3 style={{ fontSize: ".9rem", color: "#0f1b3f", margin: "0 0 10px" }}>📋 Réservations / essais ({pendingValidationBookings.length})</h3>
-              {pendingValidationLoading && pendingValidationBookings.length === 0 ? (
-                <p style={{ color: "#94a3b8", fontSize: ".85rem" }}>Chargement…</p>
-              ) : pendingValidationBookings.length === 0 ? (
-                <p style={{ color: "#94a3b8", fontSize: ".85rem", marginBottom: 24 }}>Aucune demande en attente.</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28 }}>
-                  {pendingValidationBookings.map((b) => {
-                    const itemLabel = b.vehicle?.title || (b.driver ? `${b.driver.firstName} ${b.driver.lastName}` : b.activity?.title) || "—";
-                    return (
-                      <div key={b._id} style={{ border: "1.5px solid #e2e8f0", borderRadius: 12, padding: 14, background: b.adminValidation?.fastTrack ? "#fff7ed" : "#fff", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: ".88rem", color: "#0f1b3f" }}>
-                            {b.adminValidation?.fastTrack && <span style={{ color: "#d97706" }}>⚡ Instantanée — </span>}
-                            {b.reference} · {b.type}
-                          </div>
-                          <div style={{ fontSize: ".78rem", color: "#64748b", marginTop: 2 }}>
-                            {b.clientInfo?.firstName} {b.clientInfo?.lastName} → {itemLabel}
-                          </div>
-                          <div style={{ fontSize: ".76rem", color: "#94a3b8", marginTop: 2 }}>
-                            {(b.montantTotal || 0).toLocaleString("fr-FR")} $ · {timeAgo(b.createdAt)}
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          {/* Les documents client (pièce d'identité, permis) sont
-                              joints à la réservation : c'est ICI, au moment de la
-                              décision d'approbation, que l'admin en a le plus
-                              besoin — ils n'étaient consultables que depuis
-                              l'onglet Réservations, une fois la décision prise. */}
-                          <button onClick={() => setDocsModal({ booking: b })} title="Documents client joints à la réservation"
-                            style={{ background: "#eff6ff", color: "#1d4ed8", border: "1.5px solid #bfdbfe", borderRadius: 8, padding: "8px 12px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                            📄 Documents
-                          </button>
-                          <button onClick={() => adminValidateBookingReq(b._id, "approved")}
-                            style={{ background: "#16a34a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                            ✅ Approuver
-                          </button>
-                          <button onClick={() => { setValidationRejectModal({ kind: "booking", item: b }); setValidationRejectReason(""); }}
-                            style={{ background: "#fef2f2", color: "#dc2626", border: "1.5px solid #fecaca", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                            ❌ Refuser
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              <h3 style={{ fontSize: ".9rem", color: "#0f1b3f", margin: "0 0 10px" }}>🌍 Achats directs Import/Export ({pendingValidationDirect.length})</h3>
-              {pendingValidationDirect.length === 0 ? (
-                <p style={{ color: "#94a3b8", fontSize: ".85rem" }}>Aucun achat direct en attente.</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {pendingValidationDirect.map((tx) => (
-                    <div key={tx._id} style={{ border: "1.5px solid #e2e8f0", borderRadius: 12, padding: 14, background: "#fff", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: ".88rem", color: "#0f1b3f" }}>{tx.listing?.title || "Annonce"}</div>
-                        <div style={{ fontSize: ".78rem", color: "#64748b", marginTop: 2 }}>
-                          {tx.client?.firstName} {tx.client?.lastName} → {tx.partner?.firstName} {tx.partner?.lastName}
-                        </div>
-                        <div style={{ fontSize: ".76rem", color: "#94a3b8", marginTop: 2 }}>
-                          {(tx.finalOffer?.totalAmount || 0).toLocaleString("fr-FR")} {tx.finalOffer?.currency || ""} · {timeAgo(tx.createdAt)}
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button onClick={() => adminValidateDirectReq(tx._id, "approved")}
-                          style={{ background: "#16a34a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                          ✅ Approuver
-                        </button>
-                        <button onClick={() => { setValidationRejectModal({ kind: "direct", item: tx }); setValidationRejectReason(""); }}
-                          style={{ background: "#fef2f2", color: "#dc2626", border: "1.5px solid #fecaca", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                          ❌ Refuser
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <DemandesAValiderSection
+              adminValidateBookingReq={adminValidateBookingReq}
+              adminValidateDirectReq={adminValidateDirectReq}
+              loadPendingValidation={loadPendingValidation}
+              pendingValidationBookings={pendingValidationBookings}
+              pendingValidationDirect={pendingValidationDirect}
+              pendingValidationLoading={pendingValidationLoading}
+              setDocsModal={setDocsModal}
+              setValidationRejectModal={setValidationRejectModal}
+              setValidationRejectReason={setValidationRejectReason}
+            />
           )}
 
           {/* ── Modale motif de refus (réservation ou achat direct) ── */}
@@ -4470,90 +4406,16 @@ export default function AdminPanel() {
           TAB COMMISSIONS
       ══════════════════════════════════════════════════ */}
       {activeTab === "commissions" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>
-              💰 Commissions VIT-AUTO
-            </h2>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <input
-                type="number"
-                value={invoiceYear}
-                onChange={(e) => setInvoiceYear(Number(e.target.value))}
-                style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "6px 12px", width: 90, fontSize: "0.85rem" }}
-                placeholder="Année"
-              />
-              <select
-                value={invoiceMonth}
-                onChange={(e) => setInvoiceMonth(e.target.value)}
-                style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "6px 12px", fontSize: "0.85rem" }}
-              >
-                <option value="">Tous les mois</option>
-                {MOIS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-              </select>
-              <button className={styles.btnRefresh} onClick={loadCommissions}>Filtrer</button>
-            </div>
-          </div>
-
-          {/* KPIs */}
-          {commissionsStats && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
-              <StatCard icon="📊" label="Transactions terminées" value={commissionsStats.count} color="#6366f1" />
-              <StatCard icon="💵" label="Montant total transactions" value={fmtUSD(commissionsStats.transactions || 0)} color="#0ea5e9" />
-              <StatCard icon="💰" label="Commissions générées" value={fmtUSD(commissionsStats.total || 0)} color="#10b981" />
-            </div>
-          )}
-
-          {commissions.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>
-              <div style={{ fontSize: "3rem", marginBottom: 12 }}>💳</div>
-              <p>Aucune commission pour cette période.</p>
-            </div>
-          ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Référence</th>
-                    <th>Type</th>
-                    <th>Client</th>
-                    <th>Montant transaction</th>
-                    <th>Taux commission</th>
-                    <th>Commission VIT-AUTO</th>
-                    <th>Date</th>
-                    <th>Facturé</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {commissions.map((b) => (
-                    <tr key={b._id}>
-                      <td style={{ fontWeight: 700, fontFamily: "monospace", fontSize: "0.83rem" }}>{b.reference || "—"}</td>
-                      <td><Badge label={b.type} color="#6366f1" bg="#f5f3ff" /></td>
-                      <td style={{ fontSize: "0.83rem" }}>{b.clientInfo?.firstName} {b.clientInfo?.lastName}</td>
-                      <td style={{ fontWeight: 700 }}>
-                        {fmtUSD(b.transaction?.finalAmount || b.montantTotal || 0)}
-                      </td>
-                      <td style={{ color: "#6366f1", fontWeight: 700 }}>
-                        {Math.round((b.commissionRate || 0) * 100)} %
-                      </td>
-                      <td style={{ fontWeight: 800, color: "#10b981" }}>
-                        {fmtUSD(b.commissionAmount || 0)}
-                      </td>
-                      <td style={{ fontSize: "0.83rem" }}>
-                        {b.paidAt ? new Date(b.paidAt).toLocaleDateString("fr-FR") : "—"}
-                      </td>
-                      <td>
-                        {b.invoiced
-                          ? <Badge label="Facturé" color="#10b981" bg="#dcfce7" />
-                          : <Badge label="Non facturé" color="#f59e0b" bg="#fef3c7" />}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <CommissionsSection
+          commissions={commissions}
+          commissionsStats={commissionsStats}
+          fmtUSD={fmtUSD}
+          invoiceMonth={invoiceMonth}
+          invoiceYear={invoiceYear}
+          loadCommissions={loadCommissions}
+          setInvoiceMonth={setInvoiceMonth}
+          setInvoiceYear={setInvoiceYear}
+        />
       )}
 
       {/* ══════════════════════════════════════════════════
@@ -4711,107 +4573,15 @@ export default function AdminPanel() {
 
       {/* ══════════════════════ TAB LITIGES ══════════════════════ */}
       {activeTab === "litiges" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>⚖️ Gestion des litiges</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Toutes les commandes en dispute requérant une décision administrative.</p>
-            </div>
-            <button className={styles.btnRefresh} style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px" }} onClick={loadAll}>↻ Actualiser</button>
-          </div>
-
-          {/* Réclamations Import/Export (2026-10-31) — modèle Litige, statut des transactions inchangé. */}
-          <ReclamationsIESection headers={headers} />
-
-          {/* KPIs litiges */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 12, marginBottom: "1.5rem" }}>
-            {[
-              { icon: "⚖️", label: "Litiges ouverts",  value: bookings.filter(b => b.status === "disputed").length, color: "#dc2626" },
-              { icon: "✅", label: "Résolus ce mois",   value: bookings.filter(b => {
-                const d = b.disputeResolution?.resolvedAt;
-                if (!d) return false;
-                const now = new Date(); const rd = new Date(d);
-                return rd.getMonth() === now.getMonth() && rd.getFullYear() === now.getFullYear();
-              }).length, color: "#10b981" },
-              { icon: "💰", label: "Montant en jeu",    value: fmtUSD(bookings.filter(b=>b.status==="disputed").reduce((s,b)=>s+(b.montantTotal||0),0)), color: "#f59e0b" },
-            ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
-          </div>
-
-          {/* Tendance (8 dernières semaines) — calculée côté client sur les
-              `bookings` déjà chargés, sans nouvel endpoint : compte les
-              litiges OUVERTS par semaine (clientValidation.disputedAt), pas
-              seulement ceux encore ouverts aujourd'hui. */}
-          {(() => {
-            const weeks = Array.from({ length: 8 }, (_, i) => {
-              const start = new Date();
-              start.setHours(0, 0, 0, 0);
-              start.setDate(start.getDate() - start.getDay() - (7 - i) * 7);
-              const end = new Date(start); end.setDate(end.getDate() + 7);
-              return { start, end, count: 0 };
-            });
-            for (const b of bookings) {
-              const d = b.clientValidation?.disputedAt;
-              if (!d) continue;
-              const dd = new Date(d);
-              const w = weeks.find((w) => dd >= w.start && dd < w.end);
-              if (w) w.count++;
-            }
-            const hasAny = weeks.some((w) => w.count > 0);
-            if (!hasAny) return null;
-            const maxCount = Math.max(...weeks.map((w) => w.count), 1);
-            return (
-              <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
-                <div style={{ fontSize: ".82rem", fontWeight: 700, color: "#64748b", marginBottom: 10 }}>Litiges ouverts par semaine (8 dernières semaines)</div>
-                <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 80 }}>
-                  {weeks.map((w, i) => (
-                    <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                      <span style={{ fontSize: ".68rem", color: "#64748b", fontWeight: 700 }}>{w.count || ""}</span>
-                      <div style={{ width: "100%", height: Math.max(3, Math.round((w.count / maxCount) * 50)), background: w.count > 0 ? "linear-gradient(180deg,#f87171,#dc2626)" : "#e2e8f0", borderRadius: "4px 4px 0 0" }} />
-                      <span style={{ fontSize: ".62rem", color: "#94a3b8" }}>{w.start.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
-
-          {bookings.filter(b => b.status === "disputed").length === 0 ? (
-            <div style={{ textAlign: "center", padding: "60px 0", color: "#94a3b8" }}>
-              <div style={{ fontSize: "3rem", marginBottom: 12 }}>⚖️</div>
-              <p style={{ fontWeight: 700, color: "#64748b" }}>Aucun litige en cours.</p>
-            </div>
-          ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr><th>Référence</th><th>Client</th><th>Véhicule / Service</th><th>Raison du litige</th><th>Montant</th><th>Date</th><th>Actions</th></tr>
-                </thead>
-                <tbody>
-                  {bookings.filter(b => b.status === "disputed").map((b) => {
-                    const clientName = `${b.clientInfo?.firstName||""} ${b.clientInfo?.lastName||""}`.trim();
-                    const vName = b.vehicle ? [b.vehicle.marque, b.vehicle.modele].filter(Boolean).join(" ") : (b.driver ? `Chauffeur` : "—");
-                    return (
-                      <tr key={b._id} className={styles.tr} style={{ background: "#fff5f5" }}>
-                        <td><strong style={{ fontSize:"0.8rem", fontFamily:"monospace", color:"#6366f1" }}>{b.reference||b._id?.slice(-6)}</strong></td>
-                        <td><div><strong style={{ fontSize:"0.82rem" }}>{clientName||"—"}</strong><span className={styles.vehMeta}>{b.clientInfo?.email}</span></div></td>
-                        <td style={{ fontSize:"0.82rem" }}>{vName}</td>
-                        <td style={{ fontSize:"0.8rem", color:"#dc2626", maxWidth:200 }}>{b.clientValidation?.disputeReason||"Non précisée"}</td>
-                        <td className={styles.tdPrice}>{b.montantTotal>0?fmtUSD(b.montantTotal):"—"}</td>
-                        <td className={styles.tdDate}>{fmtDate(b.createdAt)}</td>
-                        <td>
-                          <button style={{ padding:"5px 12px", background:"#fee2e2", color:"#dc2626", border:"1px solid #fca5a5", borderRadius:8, cursor:"pointer", fontWeight:700, fontSize:"0.78rem" }}
-                            onClick={() => { setDisputeModal({ booking:b }); setDisputeNote(""); setDisputeResol("completed"); }}>
-                            ⚖️ Résoudre
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <LitigesSection
+          bookings={bookings}
+          fmtUSD={fmtUSD}
+          headers={headers}
+          loadAll={loadAll}
+          setDisputeModal={setDisputeModal}
+          setDisputeNote={setDisputeNote}
+          setDisputeResol={setDisputeResol}
+        />
       )}
 
       {/* ══════════════════════ TAB CHAUFFEURS ══════════════════════ */}
@@ -4868,57 +4638,12 @@ export default function AdminPanel() {
 
       {/* ══════════════════════ TAB NOTIFICATIONS ══════════════════════ */}
       {activeTab === "notifications" && (
-        <div className={styles.tabContent}>
-          <h2 style={{ fontSize:"1.1rem", fontWeight:800, color:"#0f1b3f", margin:"0 0 1.5rem" }}>🔔 Centre de notifications</h2>
-
-          {/* Broadcast */}
-          <div className={styles.chartCard} style={{ marginBottom:"1.5rem" }}>
-            <h3 className={styles.chartTitle}>📢 Envoyer une notification groupée</h3>
-            <div style={{ display:"flex", flexDirection:"column", gap:10, maxWidth:520 }}>
-              <input style={{ borderRadius:8, border:"1.5px solid #e2e8f0", padding:"10px 14px", fontSize:"0.9rem", fontFamily:"inherit" }}
-                placeholder="Titre *" value={broadcastForm.titre}
-                onChange={e => setBroadcastForm({ ...broadcastForm, titre: e.target.value })} />
-              <textarea style={{ borderRadius:8, border:"1.5px solid #e2e8f0", padding:"10px 14px", fontSize:"0.9rem", resize:"vertical", fontFamily:"inherit" }}
-                rows={3} placeholder="Message *" value={broadcastForm.message}
-                onChange={e => setBroadcastForm({ ...broadcastForm, message: e.target.value })} />
-              <select style={{ borderRadius:8, border:"1.5px solid #e2e8f0", padding:"10px 14px", fontSize:"0.9rem" }}
-                value={broadcastForm.targetRole} onChange={e => setBroadcastForm({ ...broadcastForm, targetRole: e.target.value })}>
-                <option value="all">Tous les utilisateurs</option>
-                <option value="client">Clients uniquement</option>
-                <option value="partenaire">Partenaires uniquement</option>
-                <option value="chauffeur">Chauffeurs uniquement</option>
-                <option value="importateur">Importateurs</option>
-              </select>
-              <input style={{ borderRadius:8, border:"1.5px solid #e2e8f0", padding:"10px 14px", fontSize:"0.9rem", fontFamily:"inherit" }}
-                placeholder="Lien interne (ex: /catalogue) — optionnel" value={broadcastForm.lien}
-                onChange={e => setBroadcastForm({ ...broadcastForm, lien: e.target.value })} />
-              <button className={styles.btnPrimary} style={{ width:"fit-content" }}
-                disabled={broadcastSending} onClick={sendBroadcast}>
-                {broadcastSending ? "Envoi en cours…" : "📤 Envoyer la notification"}
-              </button>
-            </div>
-          </div>
-
-          {/* Canaux disponibles */}
-          <div className={styles.chartCard}>
-            <h3 className={styles.chartTitle}>📡 Canaux de communication</h3>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
-              {[
-                { icon:"🔔", label:"Notifications in-app",  status:"Actif",       color:"#10b981" },
-                { icon:"📧", label:"Email (Nodemailer)",    status:"À configurer", color:"#f59e0b" },
-                { icon:"📱", label:"SMS",                   status:"Bientôt",     color:"#94a3b8" },
-                { icon:"💬", label:"WhatsApp Business",     status:"Bientôt",     color:"#94a3b8" },
-                { icon:"🌐", label:"Push Web (PWA)",        status:"Bientôt",     color:"#94a3b8" },
-              ].map(c => (
-                <div key={c.label} style={{ background:"#f8fafc", borderRadius:12, padding:"16px", border:"1.5px solid #e2e8f0" }}>
-                  <div style={{ fontSize:"1.5rem", marginBottom:8 }}>{c.icon}</div>
-                  <div style={{ fontWeight:700, fontSize:"0.88rem", color:"#0f1b3f", marginBottom:4 }}>{c.label}</div>
-                  <Badge label={c.status} color={c.color} bg={c.color+"18"} />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <NotificationsSection
+          broadcastForm={broadcastForm}
+          broadcastSending={broadcastSending}
+          sendBroadcast={sendBroadcast}
+          setBroadcastForm={setBroadcastForm}
+        />
       )}
 
       {/* ══════════════════════ WIP STUBS ══════════════════════ */}
@@ -4951,104 +4676,16 @@ export default function AdminPanel() {
         </div>
       )}
       {activeTab === "import_cost" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🧮 Coûts Import — Barèmes</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Configure le moteur de calcul du coût total d'importation (devis instantané côté acheteur). Montants en USD.</p>
-            </div>
-            <button className={styles.btnRefresh} onClick={loadImportCostData}>↻ Actualiser</button>
-          </div>
-
-          {/* ── Barèmes pays de destination ── */}
-          <div className={styles.chartCard}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 className={styles.chartTitle} style={{ margin: 0 }}>🌍 Barèmes par pays de destination</h3>
-              <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
-                onClick={() => setCostConfigForm({
-                  country: "", customsDutyPercent: 20, vatPercent: 18, transitFixedFeeUSD: 150,
-                  redevancesFixedFeeUSD: 100, portFeesFixedUSD: 300, deliveryFixedFeeUSD: 200,
-                  insurancePercent: 1, defaultSeaFreightUSD: 1200,
-                  ageSurchargeThresholdYears: 8, ageSurchargePercent: 0, active: true,
-                })}>+ Nouveau barème</button>
-            </div>
-            {importCostLoading ? (
-              <div className={styles.loadingBox} style={{ minHeight: 80 }}><div className={styles.spinner} /></div>
-            ) : costConfigs.length === 0 ? (
-              <p style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>Aucun barème configuré — le calculateur acheteur reste indisponible tant qu'aucun pays n'est configuré.</p>
-            ) : (
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr><th>Pays</th><th>Douane</th><th>TVA</th><th>Transit</th><th>Redevances</th><th>Port</th><th>Livraison</th><th>Assurance</th><th>Fret défaut</th><th>Statut</th><th>Actions</th></tr>
-                  </thead>
-                  <tbody>
-                    {costConfigs.map((c) => (
-                      <tr key={c._id} className={styles.tr}>
-                        <td style={{ fontWeight: 700 }}>{c.country}</td>
-                        <td>{c.customsDutyPercent}%</td>
-                        <td>{c.vatPercent}%</td>
-                        <td>${c.transitFixedFeeUSD}</td>
-                        <td>${c.redevancesFixedFeeUSD}</td>
-                        <td>${c.portFeesFixedUSD}</td>
-                        <td>${c.deliveryFixedFeeUSD}</td>
-                        <td>{c.insurancePercent}%</td>
-                        <td>${c.defaultSeaFreightUSD}</td>
-                        <td><Badge label={c.active ? "Actif" : "Inactif"} color={c.active ? "#10b981" : "#94a3b8"} bg={c.active ? "#ecfdf5" : "#f1f5f9"} /></td>
-                        <td>
-                          <div className={styles.actionBtns}>
-                            <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setCostConfigForm(c)}>✏️</button>
-                            <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteCostConfig(c._id)}>🗑️</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* ── Liaisons de fret ── */}
-          <div className={styles.chartCard}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 className={styles.chartTitle} style={{ margin: 0 }}>🚢 Liaisons de fret (origine → destination)</h3>
-              <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
-                onClick={() => setLaneForm({ sourceCountry: "", destCountry: "", seaFreightUSD: "", inlandTransportUSD: 150, carrier: "", estimatedDelayDays: "" })}>
-                + Nouvelle liaison</button>
-            </div>
-            {laneRates.length === 0 ? (
-              <p style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>Aucune liaison configurée — le fret retombe sur l'estimation générique du pays de destination.</p>
-            ) : (
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr><th>Origine</th><th>Destination</th><th>Fret maritime</th><th>Transport intérieur</th><th>Compagnie</th><th>Délai</th><th>Statut</th><th>Actions</th></tr>
-                  </thead>
-                  <tbody>
-                    {laneRates.map((l) => (
-                      <tr key={l._id} className={styles.tr}>
-                        <td>{l.sourceCountry}</td>
-                        <td>{l.destCountry}</td>
-                        <td>${l.seaFreightUSD}</td>
-                        <td>${l.inlandTransportUSD}</td>
-                        <td>{l.carrier || "—"}</td>
-                        <td>{l.estimatedDelayDays ? `${l.estimatedDelayDays} j` : "—"}</td>
-                        <td><Badge label={l.active ? "Actif" : "Inactif"} color={l.active ? "#10b981" : "#94a3b8"} bg={l.active ? "#ecfdf5" : "#f1f5f9"} /></td>
-                        <td>
-                          <div className={styles.actionBtns}>
-                            <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setLaneForm(l)}>✏️</button>
-                            <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteLaneRate(l._id)}>🗑️</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
+        <CoutsImportSection
+          costConfigs={costConfigs}
+          deleteCostConfig={deleteCostConfig}
+          deleteLaneRate={deleteLaneRate}
+          importCostLoading={importCostLoading}
+          laneRates={laneRates}
+          loadImportCostData={loadImportCostData}
+          setCostConfigForm={setCostConfigForm}
+          setLaneForm={setLaneForm}
+        />
       )}
 
       {activeTab === "business_config" && (
@@ -5452,68 +5089,17 @@ export default function AdminPanel() {
       )}
 
       {activeTab === "reversements" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>💸 Reversements partenaire ({payoutsTotal})</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>
-                Ce que VIT AUTO doit à chaque partenaire (généré automatiquement à la complétion d'une commande) — aucun virement n'est exécuté automatiquement, "Marquer payé" trace seulement qu'il a été fait manuellement (banque/mobile money).
-              </p>
-            </div>
-            <button className={styles.btnRefresh} onClick={loadPayouts}>↻ Actualiser</button>
-          </div>
-
-          <div className={styles.filterBar} style={{ marginBottom: 16 }}>
-            {["pending", "paid", ""].map((s) => (
-              <button key={s || "all"}
-                className={`${styles.filterBtn} ${payoutsFilter === s ? styles.filterActive : ""}`}
-                onClick={() => setPayoutsFilter(s)}>
-                {s === "pending" ? "En attente" : s === "paid" ? "Payés" : "Tous"}
-              </button>
-            ))}
-          </div>
-
-          {payoutsLoading ? (
-            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>
-          ) : payoutsList.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Aucun reversement pour ce filtre.</div>
-          ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead><tr><th>Partenaire</th><th>Référence</th><th>Montant</th><th>Statut</th><th>Date</th><th>Actions</th></tr></thead>
-                <tbody>
-                  {payoutsList.map((p) => (
-                    <tr key={p._id}>
-                      <td>
-                        <div style={{ fontWeight: 700 }}>{p.partnerId?.firstName} {p.partnerId?.lastName}</div>
-                        <div style={{ fontSize: ".78rem", color: "#64748b" }}>{p.partnerId?.email}</div>
-                      </td>
-                      <td style={{ fontSize: ".82rem" }}>{p.notes || p.transactionId}</td>
-                      <td className={styles.tdPrice}>{fmtUSD(p.commissionAmount)}</td>
-                      <td>
-                        {p.status === "paid"
-                          ? <Badge label="✅ Payé" color="#16a34a" bg="#dcfce7" />
-                          : <Badge label="🕐 En attente" color="#d97706" bg="#fef3c7" />}
-                        {p.status === "paid" && p.paidViaTxId && (
-                          <div style={{ fontSize: ".72rem", color: "#94a3b8", marginTop: 2 }}>Réf : {p.paidViaTxId}</div>
-                        )}
-                      </td>
-                      <td className={styles.tdDate}>{fmtDate(p.createdAt)}</td>
-                      <td>
-                        {p.status !== "paid" && (
-                          <button disabled={payoutMarkingId === p._id} onClick={() => markPayoutPaid(p._id)}
-                            style={{ padding: "5px 12px", borderRadius: 8, border: "none", background: "#16a34a", color: "#fff", fontWeight: 700, fontSize: ".78rem", cursor: payoutMarkingId === p._id ? "not-allowed" : "pointer", opacity: payoutMarkingId === p._id ? 0.6 : 1 }}>
-                            {payoutMarkingId === p._id ? "…" : "✅ Marquer payé"}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <ReversementsSection
+          fmtUSD={fmtUSD}
+          loadPayouts={loadPayouts}
+          markPayoutPaid={markPayoutPaid}
+          payoutMarkingId={payoutMarkingId}
+          payoutsFilter={payoutsFilter}
+          payoutsList={payoutsList}
+          payoutsLoading={payoutsLoading}
+          payoutsTotal={payoutsTotal}
+          setPayoutsFilter={setPayoutsFilter}
+        />
       )}
 
       {activeTab === "service_requests" && (
@@ -5556,257 +5142,52 @@ export default function AdminPanel() {
           hors-plateforme (virement, dépôt, etc.).
       ══════════════════════════════════════════════════ */}
       {activeTab === "paiements" && (
-        <div className={styles.tabContent}>
-          <PaymentsSection headers={headers} />
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>
-              💳 Abonnements Pro & Mises en avant — confirmation de paiement
-            </h2>
-            <button className={styles.btnRefresh} onClick={loadSubRequests}>↻ Actualiser</button>
-          </div>
-
-          {/* ── Essai gratuit ────────────────────────────────────────────
-              Un palier que personne n'a jamais vu fonctionner ne se vend pas.
-              L'essai n'exige aucune plomberie de paiement : l'activation passe
-              déjà par une confirmation manuelle. */}
-          <div className={styles.chartCard} style={{ marginBottom: 20 }}>
-            <h3 className={styles.chartTitle}>🎁 Accorder un essai gratuit de 30 jours</h3>
-            <p style={{ margin: "0 0 12px", fontSize: ".83rem", color: "#64748b" }}>
-              Un seul essai par compte, pour toujours. Refusé si le partenaire a déjà un abonnement actif.
-            </p>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <div style={{ flex: "1 1 260px", position: "relative" }}>
-                <input
-                  value={essaiVendeur ? `${[essaiVendeur.firstName, essaiVendeur.lastName].filter(Boolean).join(" ")} — ${essaiVendeur.email || essaiVendeur.phone || ""}` : essaiRecherche}
-                  onChange={(e) => chercherPartenaireEssai(e.target.value)}
-                  placeholder="Rechercher un partenaire (nom ou e-mail)…"
-                  style={{ width: "100%", padding: "9px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: ".88rem", boxSizing: "border-box" }}
-                />
-                {essaiResultats.length > 0 && !essaiVendeur && (
-                  <ul style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, margin: "4px 0 0", padding: 0, listStyle: "none", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, boxShadow: "0 8px 24px rgba(15,27,63,.12)", maxHeight: 220, overflowY: "auto" }}>
-                    {essaiResultats.map((u) => (
-                      <li key={u._id}>
-                        <button type="button"
-                          onClick={() => { setEssaiVendeur(u); setEssaiResultats([]); }}
-                          style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 12px", border: "none", background: "none", cursor: "pointer", fontSize: ".85rem" }}>
-                          {[u.firstName, u.lastName].filter(Boolean).join(" ")} — {u.email || u.phone || "sans contact"}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <select value={essaiPalier} onChange={(e) => setEssaiPalier(e.target.value)}
-                style={{ padding: "9px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: ".88rem" }}>
-                <option value="individuel_plus">Individuel Plus</option>
-                <option value="business">Business</option>
-                <option value="exportateur">Exportateur</option>
-              </select>
-              <button disabled={!essaiVendeur} onClick={accorderEssai}
-                style={{ background: essaiVendeur ? "#16a34a" : "#cbd5e1", color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", cursor: essaiVendeur ? "pointer" : "not-allowed", fontWeight: 700, fontSize: ".85rem" }}>
-                Accorder l'essai
-              </button>
-            </div>
-            {essaiRetour && (
-              <p style={{ margin: "12px 0 0", fontSize: ".85rem", color: essaiRetour.ok ? "#16a34a" : "#dc2626" }}>
-                {essaiRetour.message}
-              </p>
-            )}
-          </div>
-
-          {subLoading ? (
-            <p style={{ color: "#64748b" }}>Chargement…</p>
-          ) : subRequests.length === 0 ? (
-            <p style={{ color: "#64748b" }}>Aucune demande en attente de confirmation.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {subRequests.map((sub) => {
-                const pendingPayments = (sub.paymentHistory || []).filter((p) => p.status === "pending");
-                const pendingBoosts   = (sub.boosts || []).filter((b) => !b.isActive);
-                if (!pendingPayments.length && !pendingBoosts.length) return null;
-                return (
-                  <div key={sub._id} className={styles.chartCard}>
-                    <h3 className={styles.chartTitle}>
-                      {sub.vendor?.firstName} {sub.vendor?.lastName} — {sub.vendor?.email}
-                    </h3>
-                    {pendingPayments.map((p) => (
-                      <div key={p._id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderTop: "1px solid #f1f5f9", flexWrap: "wrap" }}>
-                        <div style={{ fontSize: ".88rem" }}>
-                          <strong>{PLAN_TIER_LABELS[p.planTier] || p.planTier}</strong> — {fmtUSD(p.amount)} · {p.method} · période {p.period}
-                          {p.promoCode && <span style={{ marginLeft: 8, fontSize: ".72rem", fontWeight: 700, color: "#7c3aed", background: "#ede9fe", padding: "2px 8px", borderRadius: 6 }}>🎟️ {p.promoCode}</span>}
-                        </div>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button
-                            className={styles.btnPrimary}
-                            disabled={subActioning === `${sub._id}:${p._id}`}
-                            onClick={() => subAction(`plan/${p._id}/approve`, sub._id, p._id)}
-                          >✅ Confirmer le paiement</button>
-                          <button
-                            className={styles.btnDanger}
-                            disabled={subActioning === `${sub._id}:${p._id}`}
-                            onClick={() => subAction(`plan/${p._id}/reject`, sub._id, p._id)}
-                          >❌ Rejeter</button>
-                        </div>
-                      </div>
-                    ))}
-                    {pendingBoosts.map((b) => (
-                      <div key={b._id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderTop: "1px solid #f1f5f9", flexWrap: "wrap" }}>
-                        <div style={{ fontSize: ".88rem" }}>
-                          <strong>Mise en avant ({b.tier})</strong> — véhicule #{String(b.vehicle).slice(-6)} · {fmtUSD(b.priceUSD)}
-                          {b.promoCode && <span style={{ marginLeft: 8, fontSize: ".72rem", fontWeight: 700, color: "#7c3aed", background: "#ede9fe", padding: "2px 8px", borderRadius: 6 }}>🎟️ {b.promoCode}</span>}
-                        </div>
-                        <button
-                          className={styles.btnPrimary}
-                          disabled={subActioning === `${sub._id}:${b._id}`}
-                          onClick={() => subAction(`boost/${b._id}/approve`, sub._id, b._id)}
-                        >✅ Confirmer le paiement</button>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <PaiementsSection
+          accorderEssai={accorderEssai}
+          chercherPartenaireEssai={chercherPartenaireEssai}
+          essaiPalier={essaiPalier}
+          essaiRecherche={essaiRecherche}
+          essaiResultats={essaiResultats}
+          essaiRetour={essaiRetour}
+          essaiVendeur={essaiVendeur}
+          fmtUSD={fmtUSD}
+          headers={headers}
+          loadSubRequests={loadSubRequests}
+          setEssaiPalier={setEssaiPalier}
+          setEssaiResultats={setEssaiResultats}
+          setEssaiVendeur={setEssaiVendeur}
+          subAction={subAction}
+          subActioning={subActioning}
+          subLoading={subLoading}
+          subRequests={subRequests}
+        />
       )}
 
       {/* ══════════════════════════════════════════════════
           TAB AVIS CLIENTS — modération
       ══════════════════════════════════════════════════ */}
       {activeTab === "reviews" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>⭐ Avis clients — modération</h2>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <select value={reviewsTargetType} onChange={(e) => setReviewsTargetType(e.target.value)} style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: ".85rem" }}>
-                <option value="">Toutes les cibles</option>
-                <option value="vehicle">Véhicule</option>
-                <option value="driver">Chauffeur</option>
-                <option value="partner">Agence</option>
-                <option value="platform">Plateforme (VIT AUTO)</option>
-                <option value="client">Client (fiabilité)</option>
-              </select>
-              <select value={reviewsFilter} onChange={(e) => setReviewsFilter(e.target.value)} style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: ".85rem" }}>
-                <option value="">Tous les avis</option>
-                <option value="true">Visibles</option>
-                <option value="false">Masqués</option>
-              </select>
-              <button className={styles.btnRefresh} onClick={loadReviews}>↻ Actualiser</button>
-            </div>
-          </div>
-
-          {reviewsTargetType === "platform" && platformReviewStats && (
-            <div style={{ display: "flex", gap: 12, marginBottom: "1.5rem", flexWrap: "wrap" }}>
-              <div className={styles.chartCard} style={{ flex: "1 1 160px" }}>
-                <div style={{ fontSize: ".78rem", color: "#64748b", fontWeight: 700 }}>NOTE MOYENNE</div>
-                <div style={{ fontSize: "1.6rem", fontWeight: 900, color: "#0f1b3f" }}>★ {platformReviewStats.noteMoyenne}</div>
-              </div>
-              <div className={styles.chartCard} style={{ flex: "1 1 160px" }}>
-                <div style={{ fontSize: ".78rem", color: "#64748b", fontWeight: 700 }}>TRANSACTIONS BIEN DÉROULÉES</div>
-                <div style={{ fontSize: "1.6rem", fontWeight: 900, color: platformReviewStats.wentWellRate >= 80 ? "#059669" : platformReviewStats.wentWellRate >= 50 ? "#d97706" : "#dc2626" }}>
-                  {platformReviewStats.wentWellRate != null ? `${platformReviewStats.wentWellRate}%` : "—"}
-                </div>
-              </div>
-              <div className={styles.chartCard} style={{ flex: "1 1 160px" }}>
-                <div style={{ fontSize: ".78rem", color: "#64748b", fontWeight: 700 }}>TOTAL AVIS</div>
-                <div style={{ fontSize: "1.6rem", fontWeight: 900, color: "#0f1b3f" }}>{platformReviewStats.total}</div>
-              </div>
-            </div>
-          )}
-
-          {reviewsLoading ? (
-            <p style={{ color: "#64748b" }}>Chargement…</p>
-          ) : reviewsList.length === 0 ? (
-            <p style={{ color: "#64748b" }}>Aucun avis.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {reviewsList.map((r) => (
-                <div key={r._id} className={styles.chartCard} style={{ opacity: r.visible ? 1 : 0.6 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-                    <div>
-                      <strong>{"⭐".repeat(r.note)}</strong>{" "}
-                      <span style={{ color: "#64748b", fontSize: ".85rem" }}>
-                        — {r.targetType === "platform" ? "Plateforme VIT AUTO" : r.targetLabel || (r.targetType === "vehicle" ? "Véhicule" : r.targetType === "driver" ? "Chauffeur" : r.targetType === "partner" ? "Agence" : "Client")} · par {r.reviewer?.firstName} {r.reviewer?.lastName}
-                      </span>
-                      {r.targetType === "platform" && r.wentWell != null && (
-                        <span style={{ marginLeft: 8, fontSize: ".78rem", fontWeight: 700, color: r.wentWell ? "#059669" : "#dc2626" }}>
-                          {r.wentWell ? "👍 Bien déroulée" : "👎 Mal déroulée"}
-                        </span>
-                      )}
-                      {!r.visible && <span style={{ marginLeft: 8, fontSize: ".72rem", color: "#ef4444", fontWeight: 700 }}>MASQUÉ</span>}
-                      {r.commentaire && <p style={{ margin: "6px 0 0", fontSize: ".88rem", color: "#374151" }}>{r.commentaire}</p>}
-                    </div>
-                    <button
-                      className={r.visible ? styles.btnDanger : styles.btnPrimary}
-                      disabled={reviewActioning === r._id}
-                      onClick={() => toggleReviewVisibility(r)}
-                    >
-                      {r.visible ? "🚫 Masquer" : "↺ Réafficher"}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <AvisSection
+          loadReviews={loadReviews}
+          platformReviewStats={platformReviewStats}
+          reviewActioning={reviewActioning}
+          reviewsFilter={reviewsFilter}
+          reviewsList={reviewsList}
+          reviewsLoading={reviewsLoading}
+          reviewsTargetType={reviewsTargetType}
+          setReviewsFilter={setReviewsFilter}
+          setReviewsTargetType={setReviewsTargetType}
+          toggleReviewVisibility={toggleReviewVisibility}
+        />
       )}
 
       {activeTab === "system_health" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>🩺 Santé système</h2>
-            <button className={styles.btnRefresh} onClick={loadSystemHealth}>↻ Actualiser</button>
-          </div>
-
-          {systemHealthLoading ? (
-            <p style={{ color: "#64748b" }}>Chargement…</p>
-          ) : !systemHealth ? (
-            <p style={{ color: "#64748b" }}>Impossible de joindre /api/health.</p>
-          ) : (
-            <>
-              <p style={{ color: "#64748b", fontSize: ".85rem", marginBottom: 16 }}>
-                Statut global : <strong style={{ color: systemHealth.status === "healthy" ? "#059669" : "#dc2626" }}>{systemHealth.status}</strong>
-                {" · "}Uptime : {Math.floor((systemHealth.uptime || 0) / 3600)}h{Math.floor(((systemHealth.uptime || 0) % 3600) / 60)}min
-                {systemHealth.memory && ` · Mémoire : ${systemHealth.memory.used} / ${systemHealth.memory.total}`}
-              </p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
-                {Object.entries(systemHealth.services || {}).map(([name, value]) => {
-                  const ok = ["connected", "ready", "resend", "smtp", "configured", true].includes(value);
-                  const neutral = ["disabled", "sync-mode"].includes(value);
-                  const color = ok ? "#059669" : neutral ? "#94a3b8" : "#dc2626";
-                  const bg = ok ? "#f0fdf4" : neutral ? "#f8fafc" : "#fef2f2";
-                  return (
-                    <div key={name} className={styles.chartCard} style={{ background: bg, borderColor: color }}>
-                      <div style={{ fontSize: ".72rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>{name}</div>
-                      <div style={{ fontSize: "1rem", fontWeight: 800, color }}>{String(value)}</div>
-                    </div>
-                  );
-                })}
-              </div>
-              {systemHealth.integrations && (
-                <div style={{ marginTop: "1.5rem" }}>
-                  <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f1b3f", margin: "0 0 4px" }}>🔌 Intégrations configurées en production</h3>
-                  <p style={{ margin: "0 0 .75rem", fontSize: ".8rem", color: "#64748b" }}>Seuls les noms des variables manquantes sont affichés, jamais leurs valeurs. À compléter dans les variables d'environnement Render.</p>
-                  <div style={{ overflowX: "auto" }}>
-                    <table className={styles.table} style={{ width: "100%", fontSize: ".82rem" }}>
-                      <thead><tr><th>Intégration</th><th>État</th><th>Variables manquantes</th></tr></thead>
-                      <tbody>
-                        {Object.entries(systemHealth.integrations).map(([nom, { etat, manquantes }]) => (
-                          <tr key={nom}>
-                            <td>{nom}</td>
-                            <td style={{ fontWeight: 700, color: etat === "configuré" ? "#059669" : etat === "incomplet" ? "#d97706" : "#94a3b8" }}>{etat}</td>
-                            <td style={{ fontFamily: "monospace", fontSize: ".75rem", overflowWrap: "anywhere" }}>{manquantes.join(", ") || "—"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-          <MaintenanceSection headers={headers} />
-        </div>
+        <SanteSystemeSection
+          headers={headers}
+          loadSystemHealth={loadSystemHealth}
+          systemHealth={systemHealth}
+          systemHealthLoading={systemHealthLoading}
+        />
       )}
 
       {activeTab === "escrow" && (
@@ -6893,91 +6274,19 @@ export default function AdminPanel() {
           qu'un abonné ouvre un ticket, alors que l'échéance fait remonter
           d'elle-même un dossier gratuit ouvert depuis deux jours. */}
       {activeTab === "assistance" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🎫 Demandes d'assistance</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>
-                File ordonnée par échéance de première réponse.
-                {ticketsEnRetard > 0 && <strong style={{ color: "#dc2626" }}> {ticketsEnRetard} demande{ticketsEnRetard > 1 ? "s" : ""} hors délai.</strong>}
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <select value={ticketsStatut} onChange={(e) => setTicketsStatut(e.target.value)}
-                aria-label="Statut des demandes"
-                style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 10px", fontSize: ".8rem", minHeight: 36 }}>
-                <option value="">En cours</option>
-                <option value="open">Ouvertes</option>
-                <option value="in_progress">En traitement</option>
-                <option value="waiting_user">En attente de l'utilisateur</option>
-                <option value="resolved">Résolues</option>
-                <option value="closed">Clôturées</option>
-              </select>
-              <button style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 700, fontSize: ".8rem" }}
-                onClick={loadTickets}>↻ Actualiser</button>
-            </div>
-          </div>
-
-          {tickets.length === 0 ? (
-            <p style={{ color: "#64748b", fontSize: ".9rem" }}>Aucune demande en cours.</p>
-          ) : (
-            <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 10 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: ".85rem", background: "#fff" }}>
-                <thead>
-                  <tr style={{ background: "#f8fafc" }}>
-                    {["Objet", "Demandeur", "Formule", "Priorité", "Échéance", "État", ""].map((h) => (
-                      <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: "#475569", fontWeight: 600, whiteSpace: "nowrap" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {tickets.map((t) => (
-                    <tr key={t._id} style={{ borderTop: "1px solid #f1f5f9", background: t.enRetard ? "#fef2f2" : undefined }}>
-                      <td style={{ padding: "10px 12px" }}>{t.subject}</td>
-                      <td style={{ padding: "10px 12px" }}>{[t.userId?.firstName, t.userId?.lastName].filter(Boolean).join(" ") || t.userId?.email || "—"}</td>
-                      <td style={{ padding: "10px 12px" }}>{t.plan}</td>
-                      <td style={{ padding: "10px 12px" }}>{t.priority}</td>
-                      <td style={{ padding: "10px 12px", color: t.enRetard ? "#dc2626" : "#475569", fontWeight: t.enRetard ? 700 : 400 }}>
-                        {t.slaDueAt ? new Date(t.slaDueAt).toLocaleString("fr-FR") : "—"}
-                      </td>
-                      <td style={{ padding: "10px 12px" }}>{t.status}</td>
-                      <td style={{ padding: "10px 12px" }}>
-                        <button style={{ background: "#f1f5f9", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontWeight: 700, fontSize: ".78rem" }}
-                          onClick={() => { setTicketOuvert(ticketOuvert?._id === t._id ? null : t); setTicketReponse(""); }}>
-                          {ticketOuvert?._id === t._id ? "Fermer" : "Ouvrir"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {ticketOuvert && (
-            <div style={{ marginTop: 20, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 18 }}>
-              <h3 style={{ margin: "0 0 12px", fontSize: "1rem", color: "#0f1b3f" }}>{ticketOuvert.subject}</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-                {(ticketOuvert.messages || []).map((m, i) => (
-                  <div key={i} style={{ padding: "10px 14px", borderRadius: 10, maxWidth: "80%", alignSelf: m.isAdmin ? "flex-end" : "flex-start", background: m.isAdmin ? "#eff6ff" : "#f1f5f9" }}>
-                    <strong style={{ fontSize: ".75rem", color: "#64748b" }}>{m.isAdmin ? "Support" : "Partenaire"}</strong>
-                    <p style={{ margin: "4px 0 0", lineHeight: 1.55 }}>{m.content}</p>
-                  </div>
-                ))}
-              </div>
-              <textarea rows={4} value={ticketReponse} onChange={(e) => setTicketReponse(e.target.value)} placeholder="Votre réponse…"
-                style={{ width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontFamily: "inherit", fontSize: ".9rem", boxSizing: "border-box", resize: "vertical" }} />
-              <div style={{ display: "flex", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
-                <button style={{ background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, padding: "9px 18px", cursor: "pointer", fontWeight: 700, fontSize: ".85rem" }}
-                  onClick={() => repondreTicket(ticketOuvert._id, ticketReponse)}>Répondre</button>
-                <button style={{ background: "#fff", color: "#16a34a", border: "1.5px solid #bbf7d0", borderRadius: 8, padding: "9px 18px", cursor: "pointer", fontWeight: 700, fontSize: ".85rem" }}
-                  onClick={() => changerStatutTicket(ticketOuvert._id, "resolved")}>Marquer résolue</button>
-                <button style={{ background: "#fff", color: "#64748b", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "9px 18px", cursor: "pointer", fontWeight: 700, fontSize: ".85rem" }}
-                  onClick={() => changerStatutTicket(ticketOuvert._id, "closed")}>Clôturer</button>
-              </div>
-            </div>
-          )}
-        </div>
+        <AssistanceSection
+          changerStatutTicket={changerStatutTicket}
+          loadTickets={loadTickets}
+          repondreTicket={repondreTicket}
+          setTicketOuvert={setTicketOuvert}
+          setTicketReponse={setTicketReponse}
+          setTicketsStatut={setTicketsStatut}
+          ticketOuvert={ticketOuvert}
+          ticketReponse={ticketReponse}
+          tickets={tickets}
+          ticketsEnRetard={ticketsEnRetard}
+          ticketsStatut={ticketsStatut}
+        />
       )}
 
       {activeTab === "support" && (
@@ -7002,345 +6311,49 @@ export default function AdminPanel() {
           relais obligatoire des messages — les 2 parties continuent
           d'échanger directement, supervisées sans être bloquées. */}
       {activeTab === "chat_supervision" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>👁️ Chats Client↔Partenaire</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Supervision en lecture seule — aucun échange n'a lieu hors de la plateforme.</p>
-            </div>
-            <button style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 700, fontSize: ".8rem" }}
-              onClick={loadClientPartnerChats}>↻ Actualiser</button>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 340px) 1fr", gap: 16, minHeight: 480, alignItems: "stretch" }}>
-            <div style={{ border: "1.5px solid #e2e8f0", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", background: "#fff" }}>
-              <div style={{ padding: "10px 14px", borderBottom: "1.5px solid #e2e8f0", fontSize: ".78rem", fontWeight: 700, color: "#64748b" }}>
-                {cpChats.length} conversation{cpChats.length > 1 ? "s" : ""}
-              </div>
-              <div style={{ overflowY: "auto", flex: 1, maxHeight: 520 }}>
-                {cpChatsLoading && cpChats.length === 0 ? (
-                  <div style={{ padding: 24, textAlign: "center", color: "#94a3b8", fontSize: ".85rem" }}>Chargement…</div>
-                ) : cpChats.length === 0 ? (
-                  <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>
-                    <div style={{ fontSize: "2rem", marginBottom: 8 }}>👁️</div>
-                    <p style={{ fontSize: ".85rem", fontWeight: 600 }}>Aucune conversation client↔partenaire.</p>
-                  </div>
-                ) : cpChats.map((c) => {
-                  const isActive = cpActive?._id === c._id;
-                  return (
-                    <div key={c._id} onClick={() => openClientPartnerChat(c)}
-                      style={{ padding: "11px 14px", cursor: "pointer", background: isActive ? "#eff6ff" : "#fff", borderBottom: "1px solid #f1f5f9" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
-                        <strong style={{ fontSize: ".85rem", color: "#0f1b3f" }}>
-                          {c.client?.firstName} {c.client?.lastName} ↔ {c.partner?.firstName} {c.partner?.lastName}
-                        </strong>
-                        <span style={{ fontSize: ".7rem", color: "#94a3b8", flexShrink: 0 }}>{timeAgo(c.lastMessageAt)}</span>
-                      </div>
-                      <div style={{ fontSize: ".76rem", color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {c.booking?.reference ? `${c.booking.reference} · ` : ""}{c.lastMessage || "Conversation ouverte"}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div style={{ border: "1.5px solid #e2e8f0", borderRadius: 12, display: "flex", flexDirection: "column", background: "#fff", overflow: "hidden" }}>
-              {!cpActive ? (
-                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", flexDirection: "column", gap: 8 }}>
-                  <div style={{ fontSize: "2.4rem" }}>👁️</div>
-                  <p style={{ fontSize: ".85rem", fontWeight: 600 }}>Sélectionnez une conversation à superviser.</p>
-                </div>
-              ) : (
-                <>
-                  <div style={{ padding: "12px 16px", borderBottom: "1.5px solid #e2e8f0", fontWeight: 700, color: "#0f1b3f", fontSize: ".9rem" }}>
-                    {cpActive.client?.firstName} {cpActive.client?.lastName} ↔ {cpActive.partner?.firstName} {cpActive.partner?.lastName}
-                  </div>
-                  <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 10, maxHeight: 420 }}>
-                    {cpMsgLoading ? (
-                      <div style={{ textAlign: "center", color: "#94a3b8", fontSize: ".85rem" }}>Chargement…</div>
-                    ) : cpMessages.length === 0 ? (
-                      <div style={{ textAlign: "center", color: "#94a3b8", fontSize: ".85rem" }}>Aucun message pour l'instant.</div>
-                    ) : cpMessages.map((m) => {
-                      const isPartnerMsg = m.senderRole !== "client";
-                      return (
-                        <div key={m._id} style={{ alignSelf: isPartnerMsg ? "flex-end" : "flex-start", maxWidth: "72%" }}>
-                          <div style={{
-                            padding: "8px 12px", borderRadius: 12,
-                            background: isPartnerMsg ? "#0f1b3f" : "#f1f5f9",
-                            color: isPartnerMsg ? "#fff" : "#0f1b3f",
-                            fontSize: ".85rem", whiteSpace: "pre-wrap", wordBreak: "break-word",
-                          }}>
-                            {m.content}
-                          </div>
-                          <div style={{ fontSize: ".68rem", color: "#94a3b8", marginTop: 3, textAlign: isPartnerMsg ? "right" : "left" }}>
-                            {m.sender?.firstName} · {timeAgo(m.createdAt)}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+        <SupervisionChatsSection
+          cpActive={cpActive}
+          cpChats={cpChats}
+          cpChatsLoading={cpChatsLoading}
+          cpMessages={cpMessages}
+          cpMsgLoading={cpMsgLoading}
+          loadClientPartnerChats={loadClientPartnerChats}
+          openClientPartnerChat={openClientPartnerChat}
+        />
       )}
 
       {activeTab === "reports" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🚩 Signalements</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Signalements envoyés par les utilisateurs sur des annonces, avis ou profils.</p>
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <select value={reportFilter} onChange={(e) => setReportFilter(e.target.value)}
-                style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}>
-                <option value="">Tous</option>
-                <option value="en_attente">En attente</option>
-                <option value="examine">Examiné</option>
-                <option value="classe_sans_suite">Classé sans suite</option>
-                <option value="action_prise">Action prise</option>
-              </select>
-              <button className={styles.btnRefresh} onClick={loadReports}>↻ Actualiser</button>
-            </div>
-          </div>
-          {reportsLoading ? (
-            <div className={styles.loadingBox}><div className={styles.spinner} /></div>
-          ) : (() => {
-            const filtered = reportFilter ? reports.filter((r) => r.status === reportFilter) : reports;
-            const STATUS_CFG = {
-              en_attente:         { label: "En attente",         color: "#d97706", bg: "#fffbeb" },
-              examine:            { label: "Examiné",            color: "#2563eb", bg: "#eff6ff" },
-              classe_sans_suite:  { label: "Classé sans suite",  color: "#94a3b8", bg: "#f1f5f9" },
-              action_prise:       { label: "Action prise",       color: "#059669", bg: "#ecfdf5" },
-            };
-            const REASON_LABELS = {
-              fraude: "Fraude / arnaque", contenu_inapproprie: "Contenu inapproprié",
-              annonce_fausse: "Annonce fausse", contenu_illicite: "Contenu illicite",
-              harcelement: "Harcèlement", autre: "Autre",
-            };
-            return filtered.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
-                <div style={{ fontSize: "3rem", marginBottom: 12 }}>🚩</div>
-                <p style={{ fontWeight: 600 }}>Aucun signalement pour ce filtre.</p>
-              </div>
-            ) : (
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr><th>Cible</th><th>Motif</th><th>Description</th><th>Par</th><th>Statut</th><th>Date</th><th>Actions</th></tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((r) => {
-                      const sc = STATUS_CFG[r.status] || STATUS_CFG.en_attente;
-                      return (
-                        <tr key={r._id} className={styles.tr}>
-                          <td style={{ fontSize: ".82rem" }}>{r.targetType} <span style={{ color: "#94a3b8", fontFamily: "monospace", fontSize: ".72rem" }}>{r.targetId}</span></td>
-                          <td style={{ fontSize: ".82rem" }}>{REASON_LABELS[r.reason] || r.reason}</td>
-                          <td style={{ fontSize: ".8rem", maxWidth: 240 }}>{r.description || "—"}</td>
-                          <td style={{ fontSize: ".82rem" }}>{r.reporter?.firstName} {r.reporter?.lastName}</td>
-                          <td><Badge label={sc.label} color={sc.color} bg={sc.bg} /></td>
-                          <td className={styles.tdDate}>{fmtDate(r.createdAt)}</td>
-                          <td>
-                            <div className={styles.actionBtns}>
-                              {r.status === "en_attente" && (
-                                <>
-                                  <button className={styles.btnApprove} style={{ fontSize: ".72rem" }} onClick={() => decideReport(r._id, "action_prise")}>Action prise</button>
-                                  <button className={styles.btnGhost} style={{ fontSize: ".72rem" }} onClick={() => decideReport(r._id, "classe_sans_suite")}>Classer sans suite</button>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            );
-          })()}
-        </div>
+        <SignalementsSection
+          decideReport={decideReport}
+          loadReports={loadReports}
+          reportFilter={reportFilter}
+          reports={reports}
+          reportsLoading={reportsLoading}
+          setReportFilter={setReportFilter}
+        />
       )}
       {activeTab === "whatsapp" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>💬 Bot WhatsApp partenaires</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Claude répond automatiquement aux prospects/partenaires sur WhatsApp. Conversations transférées à un humain ci-dessous.</p>
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <select value={waFilter} onChange={(e) => setWaFilter(e.target.value)}
-                style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}>
-                <option value="escalated">À reprendre</option>
-                <option value="bot">Gérées par le bot</option>
-                <option value="closed">Clôturées</option>
-                <option value="">Toutes</option>
-              </select>
-              <button className={styles.btnRefresh} onClick={loadWaConversations}>↻ Actualiser</button>
-            </div>
-          </div>
-
-          {waLoading ? (
-            <div className={styles.loadingBox}><div className={styles.spinner} /></div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: waActive ? "320px 1fr" : "1fr", gap: 20, alignItems: "start" }}>
-              {/* Liste des conversations */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {waConversations.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
-                    <div style={{ fontSize: "3rem", marginBottom: 12 }}>💬</div>
-                    <p style={{ fontWeight: 600 }}>Aucune conversation pour ce filtre.</p>
-                  </div>
-                ) : waConversations.map((c) => (
-                  <div key={c._id} onClick={() => openWaConversation(c)}
-                    style={{
-                      cursor: "pointer", padding: "12px 14px", borderRadius: 10,
-                      border: `1.5px solid ${waActive?._id === c._id ? "#0f1b3f" : "#e2e8f0"}`,
-                      background: waActive?._id === c._id ? "#f8fafc" : "#fff",
-                    }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <strong style={{ fontSize: ".88rem", color: "#0f1b3f" }}>{c.contactName || c.phone}</strong>
-                      <Badge
-                        label={{ bot: "🤖 Bot", escalated: "🚩 À reprendre", closed: "Clôturée" }[c.status]}
-                        color={c.status === "escalated" ? "#dc2626" : c.status === "bot" ? "#059669" : "#94a3b8"}
-                        bg={c.status === "escalated" ? "#fee2e2" : c.status === "bot" ? "#ecfdf5" : "#f1f5f9"}
-                      />
-                    </div>
-                    <p style={{ margin: "4px 0 0", fontSize: ".78rem", color: "#64748b" }}>{c.phone}</p>
-                    {c.escalationReason && <p style={{ margin: "2px 0 0", fontSize: ".75rem", color: "#dc2626" }}>{c.escalationReason}</p>}
-                    <p style={{ margin: "4px 0 0", fontSize: ".72rem", color: "#94a3b8" }}>{fmtDate(c.lastMessageAt)}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Thread + réponse */}
-              {waActive && (
-                <div style={{ background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <strong style={{ color: "#0f1b3f" }}>{waActive.contactName || waActive.phone}</strong>
-                      <span style={{ marginLeft: 8, fontSize: ".78rem", color: "#64748b" }}>{waActive.phone}</span>
-                    </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      {waActive.status !== "bot" && (
-                        <button className={styles.btnGhost} style={{ fontSize: ".76rem" }} onClick={() => waSetStatus(waActive._id, "bot")}>Rendre au bot</button>
-                      )}
-                      {waActive.status !== "closed" && (
-                        <button className={styles.btnGhost} style={{ fontSize: ".76rem" }} onClick={() => waSetStatus(waActive._id, "closed")}>Clôturer</button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div style={{ maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, padding: "8px 0" }}>
-                    {waActive.messages.map((m, i) => (
-                      <div key={i} style={{
-                        alignSelf: m.role === "user" ? "flex-start" : "flex-end",
-                        maxWidth: "75%", padding: "8px 12px", borderRadius: 10, fontSize: ".85rem",
-                        background: m.role === "user" ? "#f1f5f9" : m.role === "admin" ? "#0f1b3f" : "#eff6ff",
-                        color: m.role === "admin" ? "#fff" : "#0f172a",
-                      }}>
-                        {m.role !== "user" && (
-                          <div style={{ fontSize: ".68rem", fontWeight: 700, opacity: 0.7, marginBottom: 2 }}>
-                            {m.role === "admin" ? "Vous (admin)" : "🤖 Bot"}
-                          </div>
-                        )}
-                        {m.content}
-                      </div>
-                    ))}
-                  </div>
-
-                  {waActive.status !== "closed" && (
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <input value={waReply} onChange={(e) => setWaReply(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && sendWaReply()}
-                        placeholder="Répondre au partenaire..."
-                        style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }} />
-                      <button className={styles.btnApprove} onClick={sendWaReply} disabled={!waReply.trim()}>Envoyer</button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        <WhatsappSection
+          loadWaConversations={loadWaConversations}
+          openWaConversation={openWaConversation}
+          sendWaReply={sendWaReply}
+          setWaFilter={setWaFilter}
+          setWaReply={setWaReply}
+          waActive={waActive}
+          waConversations={waConversations}
+          waFilter={waFilter}
+          waLoading={waLoading}
+          waReply={waReply}
+          waSetStatus={waSetStatus}
+        />
       )}
       {activeTab === "email_delivery" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>📧 Emails & Livraison</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>
-                Suivi réel des envois (Resend) — LOI, Accords, factures, confirmations... Un email "envoyé" n'est confirmé "livré" que via le webhook Resend
-                (ou l'ouverture du message) ; "Rejeté/Signalé spam" signifie que le serveur destinataire a explicitement refusé l'email.
-              </p>
-            </div>
-            <button className={styles.btnRefresh} onClick={loadEmailDelivery}>↻ Actualiser</button>
-          </div>
-
-          {emailDeliveryLoading ? (
-            <div className={styles.loadingBox}><div className={styles.spinner} /></div>
-          ) : (
-            <>
-              <div style={{ background: "#fffbeb", border: "1.5px solid #fcd34d", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: ".82rem", color: "#92400e" }}>
-                ⚠️ Si "Rejetés/Signalés spam" reste élevé : vérifiez dans le dashboard Resend (Domains) que <code>vit-auto.com</code> est bien "Verified"
-                (SPF/DKIM/DMARC) — un domaine non vérifié fait rejeter une grande partie des emails par Gmail/Outlook. Le webhook Resend doit aussi être
-                configuré (Webhooks → email.delivered/bounced/complained/delivery_delayed → <code>RESEND_WEBHOOK_SECRET</code> côté serveur) pour que ce
-                tableau reflète la réalité plutôt que de rester bloqué sur "Envoyé".
-              </div>
-
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
-                <StatCard icon="📤" label="Envoyés (email)" value={emailStats?.email?.totalSent || 0} color="#6366f1" />
-                <StatCard icon="✅" label="Livrés/Ouverts" value={emailStats?.email?.totalOpened || 0} sub={`${emailStats?.email?.openRate || 0}% de taux d'ouverture`} color="#10b981" />
-                <StatCard icon="🚫" label="Rejetés / Signalés spam" value={(emailStats?.byStatus?.bounced || 0) + (emailStats?.byStatus?.complained || 0)} color="#ef4444" />
-                <StatCard icon="⚠️" label="Échecs immédiats" value={emailStats?.byStatus?.failed || 0} color="#f59e0b" />
-              </div>
-
-              <h3 style={{ fontSize: ".95rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 10px" }}>Envois en échec récents</h3>
-              {emailFailures.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "20px 0", color: "#94a3b8" }}>
-                  <p style={{ margin: 0 }}>Aucun échec/bounce enregistré récemment.</p>
-                </div>
-              ) : (
-                <div className={styles.tableWrap}>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th>Destinataire</th>
-                        <th>Type de document</th>
-                        <th>Statut</th>
-                        <th>Raison</th>
-                        <th>Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {emailFailures.map((f) => {
-                        const stCfg = {
-                          bounced:    { label: "Rejeté",        color: "#ef4444", bg: "#fef2f2" },
-                          complained: { label: "Signalé spam",  color: "#dc2626", bg: "#fef2f2" },
-                          failed:     { label: "Échec immédiat", color: "#f59e0b", bg: "#fffbeb" },
-                        }[f.status] || { label: f.status, color: "#94a3b8", bg: "#f8fafc" };
-                        return (
-                          <tr key={f._id} className={styles.tr}>
-                            <td style={{ fontSize: ".82rem" }}>
-                              {f.to}
-                              {f.userId && <span className={styles.vehMeta}>{f.userId.firstName} {f.userId.lastName}</span>}
-                            </td>
-                            <td style={{ fontSize: ".82rem" }}>{f.template || f.subject || "—"}</td>
-                            <td><Badge label={stCfg.label} color={stCfg.color} bg={stCfg.bg} /></td>
-                            <td style={{ fontSize: ".78rem", color: "#64748b", maxWidth: 320 }}>{f.errorMessage || "—"}</td>
-                            <td className={styles.tdDate}>{fmtDate(f.createdAt)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+        <EmailsSection
+          emailDeliveryLoading={emailDeliveryLoading}
+          emailFailures={emailFailures}
+          emailStats={emailStats}
+          loadEmailDelivery={loadEmailDelivery}
+        />
       )}
       {activeTab === "roles" && (
         <div className={styles.tabContent}>
@@ -7365,124 +6378,22 @@ export default function AdminPanel() {
       )}
 
       {activeTab === "contrats" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>📑 Contrats de réservation</h2>
-            <button className={styles.btnRefresh} onClick={loadContracts}>↻ Actualiser</button>
-          </div>
-
-          {contractsLoading ? (
-            <p style={{ color: "#64748b" }}>Chargement…</p>
-          ) : contracts.length === 0 ? (
-            <p style={{ color: "#64748b" }}>Aucun contrat émis pour l'instant.</p>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>N°</th>
-                    <th>Date</th>
-                    <th>Type</th>
-                    <th>Client</th>
-                    <th>Partenaire</th>
-                    <th>Réservation</th>
-                    <th>Montant</th>
-                    <th>Signature</th>
-                    <th>Statut</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {contracts.map((ct) => (
-                    <tr key={ct._id} className={styles.tr}>
-                      <td style={{ fontSize: ".8rem", fontWeight: 700, whiteSpace: "nowrap" }}>{ct.contractNumber || `#${String(ct._id).slice(-6)}`}</td>
-                      <td style={{ fontSize: ".8rem", whiteSpace: "nowrap" }}>{ct.createdAt ? new Date(ct.createdAt).toLocaleDateString("fr-FR") : "—"}</td>
-                      <td style={{ fontSize: ".8rem" }}>{ct.type || "—"}</td>
-                      <td style={{ fontSize: ".8rem" }}>{`${ct.client?.firstName || ""} ${ct.client?.lastName || ""}`.trim() || ct.client?.email || "—"}</td>
-                      <td style={{ fontSize: ".8rem" }}>{ct.vendor?.name || "—"}</td>
-                      <td style={{ fontSize: ".8rem" }}>{ct.booking?.reference || "—"}</td>
-                      {/* Montant affiché dans la devise PROPRE du contrat : les
-                          contrats antérieurs à la refonte du modèle économique
-                          sont en XOF, les suivants en USD (voir Contract.currency).
-                          Les convertir ici afficherait un montant qui ne
-                          correspond plus à la pièce signée. */}
-                      <td style={{ fontSize: ".8rem", whiteSpace: "nowrap" }}>
-                        {ct.terms?.totalXOF != null
-                          ? `${Number(ct.terms.totalXOF).toLocaleString("fr-FR")} ${ct.currency || "USD"}`
-                          : "—"}
-                      </td>
-                      <td style={{ fontSize: ".8rem", whiteSpace: "nowrap" }}>
-                        {ct.isSigned
-                          ? <span style={{ color: "#10b981", fontWeight: 700 }}>✅ {ct.signedAt ? new Date(ct.signedAt).toLocaleDateString("fr-FR") : ""}</span>
-                          : <span style={{ color: "#94a3b8" }}>Non signé</span>}
-                      </td>
-                      <td><span className={styles.badge}>{ct.status || "—"}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <ContratsSection
+          contracts={contracts}
+          contractsLoading={contractsLoading}
+          loadContracts={loadContracts}
+        />
       )}
 
       {activeTab === "audit" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>📜 Journal d'audit</h2>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <select value={auditFilter.action} onChange={(e) => setAuditFilter((f) => ({ ...f, action: e.target.value }))} style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: ".85rem" }}>
-                <option value="">Toutes les actions</option>
-                {auditFacets.actions.map((a) => <option key={a} value={a}>{a}</option>)}
-              </select>
-              <select value={auditFilter.resource} onChange={(e) => setAuditFilter((f) => ({ ...f, resource: e.target.value }))} style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: ".85rem" }}>
-                <option value="">Toutes les ressources</option>
-                {auditFacets.resources.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-              <select value={auditFilter.success} onChange={(e) => setAuditFilter((f) => ({ ...f, success: e.target.value }))} style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: ".85rem" }}>
-                <option value="">Tous résultats</option>
-                <option value="true">Succès</option>
-                <option value="false">Échec</option>
-              </select>
-              <button className={styles.btnRefresh} onClick={loadAuditLog}>↻ Actualiser</button>
-            </div>
-          </div>
-
-          {auditLoading ? (
-            <p style={{ color: "#64748b" }}>Chargement…</p>
-          ) : auditEntries.length === 0 ? (
-            <p style={{ color: "#64748b" }}>Aucune entrée trouvée.</p>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Admin</th>
-                    <th>Action</th>
-                    <th>Ressource</th>
-                    <th>Résultat</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {auditEntries.map((e) => (
-                    <tr key={e._id} className={styles.tr}>
-                      <td style={{ fontSize: ".8rem", whiteSpace: "nowrap" }}>{new Date(e.createdAt).toLocaleString("fr-FR")}</td>
-                      <td style={{ fontSize: ".8rem" }}>{e.userEmail || "—"} <span style={{ color: "#94a3b8" }}>({e.userRole})</span></td>
-                      <td style={{ fontSize: ".8rem", fontWeight: 600 }}>{e.action}</td>
-                      <td style={{ fontSize: ".8rem" }}>{e.resource}{e.resourceId ? ` #${String(e.resourceId).slice(-6)}` : ""}</td>
-                      <td>
-                        {e.success
-                          ? <span style={{ color: "#10b981", fontSize: ".8rem", fontWeight: 700 }}>✅</span>
-                          : <span style={{ color: "#ef4444", fontSize: ".8rem", fontWeight: 700 }} title={e.errorMessage || ""}>❌</span>
-                        }
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <AuditLogsSection
+          auditEntries={auditEntries}
+          auditFacets={auditFacets}
+          auditFilter={auditFilter}
+          auditLoading={auditLoading}
+          loadAuditLog={loadAuditLog}
+          setAuditFilter={setAuditFilter}
+        />
       )}
 
         </div>
