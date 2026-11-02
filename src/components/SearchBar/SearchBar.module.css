@@ -78,6 +78,8 @@
 }
 
 .toggleBtn .icon {
+  display: inline-flex;
+  align-items: center;
   font-size: 1rem;
 }
 
@@ -169,6 +171,8 @@
 }
 
 .inputIcon {
+  display: inline-flex;
+  align-items: center;
   font-size: 0.9rem;
   flex-shrink: 0;
   color: #94a3b8;
@@ -238,6 +242,8 @@
 }
 
 .selectIcon {
+  display: inline-flex;
+  align-items: center;
   font-size: 0.9rem;
   flex-shrink: 0;
   color: #94a3b8;
@@ -593,3 +599,7 @@
 /* Modificateur appliqué au bouton pendant la recherche : le curseur dit que
    ça travaille, et le bouton cesse d'inviter au clic. */
 .loading { opacity: 0.65; cursor: wait; pointer-events: none; }
+
+/* Icône de chargement de la géolocalisation (2026-11-02). */
+.tourne { animation: tourneIcone .9s linear infinite; }
+@keyframes tourneIcone { to { transform: rotate(360deg); } }

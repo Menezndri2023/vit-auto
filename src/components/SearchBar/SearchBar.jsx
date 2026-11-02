@@ -1,4 +1,5 @@
 import { useState, memo, useCallback } from "react";
+import { MapPin, LocateFixed, Loader2, Car, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useLocation } from "../../context/LocationContext";
 import ModeToggle from "./ModeToggle";
@@ -77,7 +78,7 @@ const SearchBar = memo(() => {
         <div className={`${styles.field} ${styles.locationField}`}>
           <label>Localisation</label>
           <div className={styles.inputWrapper}>
-            <span className={styles.inputIcon}>📍</span>
+            <span className={styles.inputIcon}><MapPin size={16} aria-hidden="true" /></span>
             <input
               type="text"
               placeholder="Ville, quartier..."
@@ -92,7 +93,7 @@ const SearchBar = memo(() => {
               disabled={geoLoading}
               title={t("search.useGps")}
             >
-              {geoLoading ? "⏳" : "🎯"}
+              {geoLoading ? <Loader2 size={16} className={styles.tourne} aria-hidden="true" /> : <LocateFixed size={16} aria-hidden="true" />}
             </button>
             {location && (
               <button type="button" className={styles.clearBtn} onClick={() => setLocation("")} aria-label="Effacer">✕</button>
@@ -121,7 +122,7 @@ const SearchBar = memo(() => {
         <div className={`${styles.field} ${styles.typeField}`}>
           <label>{t("search.model")}</label>
           <div className={styles.selectWrapper}>
-            <span className={styles.selectIcon}>🚙</span>
+            <span className={styles.selectIcon}><Car size={16} aria-hidden="true" /></span>
             <select value={modele} onChange={(e) => setModele(e.target.value)}>
               {MODELES.map((m) => <option key={m} value={m}>{m === TOUS_MODELES ? t("search.allModels") : t(`bodyType.${m}`)}</option>)}
             </select>
@@ -135,7 +136,7 @@ const SearchBar = memo(() => {
           disabled={loading}
           type="button"
         >
-          {loading ? <span className={styles.spinner} /> : <><span>🔍</span><span>{t("search.go")}</span></>}
+          {loading ? <span className={styles.spinner} /> : <><Search size={18} aria-hidden="true" /><span>{t("search.go")}</span></>}
         </button>
 
         {/* RESET */}

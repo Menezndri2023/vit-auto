@@ -1,4 +1,5 @@
 import React from "react";
+import { MapPinned, Navigation, ShieldCheck, Ship, Zap, BadgeCheck } from "lucide-react";
 import styles from "./WhySection.module.css";
 import { useI18n } from "../../context/I18nContext";
 
@@ -6,11 +7,13 @@ import { useI18n } from "../../context/I18nContext";
 // traduction et l'habillage. Le texte lui-même est dans i18n/accueil.js, en
 // cinq langues — sans quoi /en/, /ar/… afficheraient une section française et
 // la page mentirait à son propre `hreflang`.
+// Icônes vectorielles d'une seule couleur, celle de la marque (2026-11-02) :
+// six émojis sur six couleurs différentes donnaient un effet « arc-en-ciel ».
 const FEATURES = [
-  { cle: "f1", icon: "🌍", color: "#ff4d2d", bg: "rgba(255,77,45,0.10)" },
-  { cle: "f2", icon: "🛰️", color: "#6366f1", bg: "rgba(99,102,241,0.10)" },
-  { cle: "f3", icon: "🛡️", color: "#10b981", bg: "rgba(16,185,129,0.10)" },
-  { cle: "f4", icon: "🚢", color: "#0ea5e9", bg: "rgba(14,165,233,0.10)" },
+  { cle: "f1", Icone: MapPinned },
+  { cle: "f2", Icone: Navigation },
+  { cle: "f3", Icone: ShieldCheck },
+  { cle: "f4", Icone: Ship },
   // La carte « Réservation en 2 minutes » promettait « contrat signé
   // immédiatement, confirmation par SMS ». Deux affirmations que la plateforme
   // ne tient pas : le SMS est désactivé en dur depuis l'incident Twilio de
@@ -18,8 +21,8 @@ const FEATURES = [
   // annonce publiée n'a la réservation instantanée activée — toute demande
   // passe par l'acceptation du partenaire. Le texte traduit dit désormais ce
   // qui se passe réellement.
-  { cle: "f5", icon: "⚡", color: "#f59e0b", bg: "rgba(245,158,11,0.10)" },
-  { cle: "f6", icon: "🤝", color: "#8b5cf6", bg: "rgba(139,92,246,0.10)" },
+  { cle: "f5", Icone: Zap },
+  { cle: "f6", Icone: BadgeCheck },
 ];
 
 const STEPS = [
@@ -45,16 +48,16 @@ const WhySection = () => {
 
       {/* ── Feature cards ── */}
       <div className={styles.grid}>
-        {FEATURES.map((f) => (
-          <article key={f.cle} className={styles.card}>
-            <div className={styles.iconWrap} style={{ background: f.bg }}>
-              <span style={{ color: f.color }}>{f.icon}</span>
+        {FEATURES.map((f) => { const { cle, Icone } = f; return (
+          <article key={cle} className={styles.card}>
+            <div className={styles.iconWrap}>
+              <Icone size={22} strokeWidth={2} aria-hidden="true" />
             </div>
-            <h3 className={styles.cardTitle}>{t(`why.${f.cle}.title`)}</h3>
-            <p className={styles.cardDesc}>{t(`why.${f.cle}.desc`)}</p>
-            <div className={styles.cardAccent} style={{ background: f.color }} />
+            <h3 className={styles.cardTitle}>{t(`why.${cle}.title`)}</h3>
+            <p className={styles.cardDesc}>{t(`why.${cle}.desc`)}</p>
+            <div className={styles.cardAccent} />
           </article>
-        ))}
+        ); })}
       </div>
 
       {/* ── Comment ça marche ── */}

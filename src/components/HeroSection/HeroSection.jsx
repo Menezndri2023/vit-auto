@@ -4,6 +4,8 @@ import { useSpotlight } from "../../hooks/useSpotlight";
 import { useCurrency } from "../../context/CurrencyContext";
 import { useI18n } from "../../context/I18nContext";
 import { ORIGINES_EN_AVANT } from "../../constants/importOrigins";
+import { BadgeCheck, ShieldCheck, Ship, Car, Globe, Star, MapPin } from "lucide-react";
+import Drapeau from "../Drapeau/Drapeau";
 // Les pastilles pointaient vers une vue filtrée du catalogue — une URL que les
 // moteurs ne peuvent pas distinguer de la page principale. Elles mènent
 // désormais à la page indexable du corridor.
@@ -26,24 +28,24 @@ import { optimizedImageUrl } from "../../utils/imageOptim";
 // bande de pays affichée juste en dessous les porte toutes
 // (constants/importOrigins.js).
 // Le Maroc d'abord (2026-11-02) : les origines des exportateurs partenaires.
-const STAT_IMPORT = { icon: "🚢", value: "Import", label: "Chine · Dubaï · Europe" };
+const statImport = (t) => ({ Icone: Ship, value: "Import", label: t("hero.statImportOrigins") });
 
 function buildStats(stats, t) {
-  if (!stats) return [STAT_IMPORT];
+  if (!stats) return [statImport(t)];
   const items = [];
   if (stats.vehicles > 0) {
-    items.push({ icon: "🚗", value: stats.vehicles.toLocaleString("fr-FR"), label: t("home.statVehicles") });
+    items.push({ Icone: Car, value: stats.vehicles.toLocaleString("fr-FR"), label: t("home.statVehicles") });
   }
   if (stats.countries > 0) {
-    items.push({ icon: "🌍", value: String(stats.countries), label: t(stats.countries > 1 ? "home.statCountries" : "home.statCountry") });
+    items.push({ Icone: Globe, value: String(stats.countries), label: t(stats.countries > 1 ? "home.statCountries" : "home.statCountry") });
   }
   // Seuil volontaire : une moyenne calculée sur deux avis n'est pas une note,
   // c'est un hasard — et l'afficher comme telle serait le même travers que les
   // chiffres inventés qu'on retire ici.
   if (stats.rating && stats.reviewCount >= 5) {
-    items.push({ icon: "⭐", value: `${stats.rating.toLocaleString("fr-FR")}/5`, label: t("home.statRating", { n: stats.reviewCount }) });
+    items.push({ Icone: Star, value: `${stats.rating.toLocaleString("fr-FR")}/5`, label: t("home.statRating", { n: stats.reviewCount }) });
   }
-  items.push(STAT_IMPORT);
+  items.push(statImport(t));
   return items;
 }
 
@@ -198,7 +200,7 @@ export default function HeroSection() {
     <section className={styles.hero}>
       {/* ─── COLONNE GAUCHE ─── */}
       <div className={styles.left}>
-        <span className={styles.intlBadge}>{t("hero.intlBadge")}</span>
+        <span className={styles.intlBadge}><MapPin size={14} aria-hidden="true" /> {t("hero.intlBadge")}</span>
 
         <h1 className={styles.title}>
           {heroContent.heroTitle
@@ -221,9 +223,9 @@ export default function HeroSection() {
 
         {/* Mini-stats sous les CTA */}
         <div className={styles.trustPills}>
-          <span>{t("hero.badgeIdentity")}</span>
-          <span>{t("hero.badgePayment")}</span>
-          <span>{t("hero.badgeImport")}</span>
+          <span><BadgeCheck size={14} aria-hidden="true" /> {t("hero.badgeIdentity")}</span>
+          <span><ShieldCheck size={14} aria-hidden="true" /> {t("hero.badgePayment")}</span>
+          <span><Ship size={14} aria-hidden="true" /> {t("hero.badgeImport")}</span>
         </div>
       </div>
 
@@ -322,7 +324,7 @@ export default function HeroSection() {
           l'essentiel du catalogue Import/Export. Chaque pays mène au catalogue
           filtré sur cette origine. */}
       <div className={styles.originsRow}>
-        <span className={styles.originsLabel}>{t("hero.importFrom")}</span>
+        <span className={styles.originsLabel}><Ship size={15} aria-hidden="true" /> {t("hero.importFrom")}</span>
         <div className={styles.originsScroll}>
           {ORIGINES_EN_AVANT.map((o) => (
             <Link
@@ -331,7 +333,7 @@ export default function HeroSection() {
               className={styles.originChip}
               title={`Véhicules à importer depuis : ${o.name}`}
             >
-              <span aria-hidden="true">{o.flag}</span>
+              <Drapeau code={o.code} emoji={o.flag} taille={14} />
               <span>{o.name}</span>
             </Link>
           ))}
@@ -342,7 +344,7 @@ export default function HeroSection() {
       <div className={styles.statsRow}>
         {buildStats(publicStats, t).map((s) => (
           <div key={s.label} className={styles.statItem}>
-            <span className={styles.statIcon}>{s.icon}</span>
+            <span className={styles.statIcon}><s.Icone size={20} aria-hidden="true" /></span>
             <div>
               <strong>{s.value}</strong>
               <span>{s.label}</span>

@@ -284,26 +284,23 @@
   letter-spacing: 0.06em;
 }
 
-/* ── Chips caractéristiques ────────────────────────── */
+/* ── Caractéristiques : une ligne d'icônes (2026-11-02) ─ */
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px 12px;
 }
 
 .meta span {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-size: 0.72rem;
-  font-weight: 600;
+  gap: 4px;
+  font-size: var(--fs-sm, 0.82rem);
+  font-weight: 500;
   color: var(--c-text-secondary, #4a5876);
-  background: var(--c-bg, #f5f7fb);
-  border: 1px solid var(--c-border, #e5eaf5);
-  border-radius: var(--r-xs, 6px);
-  padding: 3px 9px;
   white-space: nowrap;
 }
+.meta svg, .ville svg { color: var(--c-text-muted, #8493b0); flex-shrink: 0; }
 
 /* ── Annonceur badge ───────────────────────────────── */
 .publisherRow {

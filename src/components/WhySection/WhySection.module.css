@@ -50,11 +50,13 @@
 }
 
 /* ── Feature cards ── */
+/* Six cartes : 3 colonnes (deux rangées pleines). Sur 4 colonnes, la
+   seconde rangée n'en portait que deux, avec un vide à droite (2026-11-02). */
 .grid {
-  max-width: 1240px;
+  max-width: 1080px;
   margin: 0 auto 48px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
 
@@ -83,6 +85,7 @@
   width: 48px;
   height: 3px;
   border-radius: 0 3px 0 0;
+  background: var(--c-primary, #ff4d2d);
   transition: width 0.3s ease;
 }
 
@@ -97,9 +100,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.4rem;
   margin-bottom: 14px;
   flex-shrink: 0;
+  background: var(--c-primary-soft, rgba(255, 77, 45, 0.12));
+  color: var(--c-primary, #ff4d2d);
 }
 
 .cardTitle {

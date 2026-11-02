@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import Drapeau from "../components/Drapeau/Drapeau";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import styles from "./ImportExport.module.css";
@@ -441,7 +442,7 @@ const ImportExport = () => {
         <div className={styles.countriesScroll}>
           {COUNTRIES.map((c) => (
             <div key={c.key} className={styles.countryChip}>
-              <span>{c.flag}</span>
+              <Drapeau code={c.key.split(".")[1]} emoji={c.flag} taille={14} />
               <span>{t(c.key)}</span>
             </div>
           ))}

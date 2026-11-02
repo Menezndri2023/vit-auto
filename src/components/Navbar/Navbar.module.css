@@ -509,7 +509,10 @@ a.linkBtn { display: inline-flex; align-items: center; text-decoration: none; }
 
   /* Entrées de la grande barre absentes du menu burger (ex. Loisirs, porté
      par l'onglet de la barre du bas sur mobile). */
-  .desktopOnly {
+  .desktopOnly,
+  /* `a.linkBtn` (lien « Connexion ») est plus spécifique que `.desktopOnly` :
+     sans ce sélecteur, le bouton restait affiché sur mobile (2026-11-02). */
+  .navRight a.desktopOnly {
     display: none;
   }
   .navRight {

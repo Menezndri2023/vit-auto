@@ -126,9 +126,12 @@
 }
 
 .trustPills span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 0.76rem;
   font-weight: 600;
-  color: #5a6a8a;
+  color: var(--c-text-secondary, #4a5876);
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 999px;
@@ -416,7 +419,8 @@
 
 .statItem:last-child { border-right: none; }
 
-.statIcon { font-size: 1.5rem; flex-shrink: 0; }
+.statIcon { flex-shrink: 0; display: inline-flex; color: var(--c-primary, #ff4d2d); }
+.trustPills svg { color: var(--c-success, #10b981); }
 
 .statItem div {
   display: flex;
@@ -612,6 +616,9 @@
 .originsRow::-webkit-scrollbar { display: none; }
 
 .originsLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex: 0 0 auto;
   font-size: .82rem;
   font-weight: 800;

@@ -6,6 +6,7 @@ import { useFavorites } from "../../context/FavoritesContext";
 import PriceTag from "../PriceTag/PriceTag";
 import { getDisplayRule } from "../../utils/promotion";
 import { optimizedImageUrl } from "../../utils/imageOptim";
+import { Users, Cog, Fuel, Star, MapPin, Tag, Car, BadgeCheck } from "lucide-react";
 import styles from "./VehicleCard.module.css";
 import { useI18n } from "../../context/I18nContext";
 
@@ -104,7 +105,7 @@ const VehicleCard = React.memo(({ car, compact }) => {
             )}
           </>
         ) : (
-          <div className={styles.coverPlaceholder}>🚗</div>
+          <div className={styles.coverPlaceholder}><Car size={44} strokeWidth={1.5} aria-hidden="true" /></div>
         )}
 
         <div className={styles.badges}>
@@ -120,7 +121,7 @@ const VehicleCard = React.memo(({ car, compact }) => {
         </div>
         {promoActive && (
           <span className={`${styles.badge} ${styles.promo}`}>
-            🏷️ {promo.type === "percent" ? `-${promo.value} %` : `-${fmt(promo.value)}`}
+            <Tag size={12} aria-hidden="true" /> {promo.type === "percent" ? `-${promo.value} %` : `-${fmt(promo.value)}`}
             {promo.minDays > 1 ? ` dès ${promo.minDays} j` : ""}
           </span>
         )}
@@ -179,7 +180,7 @@ const VehicleCard = React.memo(({ car, compact }) => {
                 }}
                 title={t("card.certified")}
               >
-                {car.certificationBadge === "premium" ? "⭐" : car.certificationBadge === "fondateur" ? "🏆" : "🟢"} Vérifié
+                <BadgeCheck size={12} aria-hidden="true" /> {t("card.verifiedShort")}
               </span>
             )}
           </div>
@@ -187,10 +188,11 @@ const VehicleCard = React.memo(({ car, compact }) => {
 
         <div className={styles.meta}>
           {car.instantBook && <span title={t("card.instantTitle")}>{t("card.instant")}</span>}
-          {car.rating    != null && <span>⭐ {car.rating} ({car.reviews || 0})</span>}
-          {(car.nombrePlaces || car.seats) != null && <span>🧍 {car.nombrePlaces || car.seats} pl.</span>}
-          {(car.transmission) && <span>⚙️ {car.transmission}</span>}
-          {(car.fuel || car.carburant) && <span>⛽ {car.fuel || car.carburant}</span>}
+          {/* Une ligne d'icônes plutôt que trois pastilles encadrées (2026-11-02). */}
+          {car.rating    != null && <span><Star size={13} aria-hidden="true" /> {car.rating} ({car.reviews || 0})</span>}
+          {(car.nombrePlaces || car.seats) != null && <span title="Places"><Users size={13} aria-hidden="true" /> {car.nombrePlaces || car.seats}</span>}
+          {(car.transmission) && <span><Cog size={13} aria-hidden="true" /> {car.transmission}</span>}
+          {(car.fuel || car.carburant) && <span><Fuel size={13} aria-hidden="true" /> {car.fuel || car.carburant}</span>}
         </div>
 
         <div className={styles.priceBlock}>
@@ -206,7 +208,7 @@ const VehicleCard = React.memo(({ car, compact }) => {
           </p>
           {promoActive && (
             <p className={styles.promoLine}>
-              🏷️ {promo.label
+              <Tag size={12} aria-hidden="true" /> {promo.label
                 ? promo.label
                 : `${promo.type === "percent" ? `-${promo.value} %` : `-${fmt(promo.value)}`}${promo.minDays > 1 ? ` dès ${promo.minDays} jours` : ""}`}
             </p>
@@ -225,7 +227,7 @@ const VehicleCard = React.memo(({ car, compact }) => {
             </p>
           )}
           {(car.ville || car.city) && (
-            <p className={styles.ville}>📍 {car.ville || car.city}</p>
+            <p className={styles.ville}><MapPin size={13} aria-hidden="true" /> {car.ville || car.city}</p>
           )}
         </div>
       </div>

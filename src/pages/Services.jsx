@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import Drapeau from "../components/Drapeau/Drapeau";
 import styles from "./Services.module.css";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { useI18n } from "../context/I18nContext";
@@ -88,7 +89,7 @@ const Services = () => {
         <div className={styles.countriesGrid}>
           {COUNTRIES.map((c) => (
             <div key={c.pays} className={styles.country}>
-              <span className={styles.countryFlag}>{c.flag}</span>
+              <span className={styles.countryFlag}><Drapeau code={c.pays.split(".")[1]} emoji={c.flag} taille={16} /></span>
               <span className={styles.countryName}>{t(c.pays)}</span>
               <span className={styles.countryCity}>{t(c.ville)}</span>
             </div>

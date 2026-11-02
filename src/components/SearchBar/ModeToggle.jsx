@@ -1,4 +1,5 @@
 import React, { memo } from "react";
+import { CarFront, BadgeDollarSign, UserRound, Ship, Sailboat } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import styles from "../SearchBar/SearchBar.module.css";
 
@@ -15,7 +16,7 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
           type="button" title="Louer un véhicule"
           data-label="Louer"
         >
-          <span className={styles.icon}>🚗</span>
+          <span className={styles.icon}><CarFront size={17} aria-hidden="true" /></span>
           <span>Louer</span>
         </button>
 
@@ -25,7 +26,7 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
           type="button" title="Acheter un véhicule"
           data-label="Acheter"
         >
-          <span className={styles.icon}>💳</span>
+          <span className={styles.icon}><BadgeDollarSign size={17} aria-hidden="true" /></span>
           <span>Acheter</span>
         </button>
 
@@ -35,7 +36,7 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
           type="button" title="Réserver un chauffeur"
           data-label="Chauffeur"
         >
-          <span className={styles.icon}>👨‍✈️</span>
+          <span className={styles.icon}><UserRound size={17} aria-hidden="true" /></span>
           <span>Chauffeur</span>
         </button>
 
@@ -45,7 +46,7 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
           type="button" title="Véhicules import/export internationaux"
           data-label="Import"
         >
-          <span className={styles.icon}>🌍</span>
+          <span className={styles.icon}><Ship size={17} aria-hidden="true" /></span>
           <span>Import/Export</span>
         </button>
 
@@ -58,7 +59,7 @@ const ModeToggle = memo(({ mode, setMode, goToCatalogue }) => {
           type="button" title="Activités : Quad, Surf, Montgolfière, Jetski, Jet privé, Bateau..."
           data-label="Autres"
         >
-          <span className={styles.icon}>🎈</span>
+          <span className={styles.icon}><Sailboat size={17} aria-hidden="true" /></span>
           {/* Libellé abrégé : la rangée de 5 boutons est en grille à colonnes
               égales sur mobile (voir SearchBar.module.css) — "Activités et
               Loisirs" en entier y débordait/se coupait, contrairement au nom
