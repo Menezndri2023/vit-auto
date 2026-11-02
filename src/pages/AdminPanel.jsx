@@ -12,7 +12,7 @@ import { PARTNER_CANCEL_REASONS } from "../constants/bookingCancelReasons";
 import { ACTIVITY_TYPE_LABELS } from "../constants/activityTypes";
 import { downloadAuthFile } from "../utils/downloadAuthFile";
 import AdminSalesLeads from "../components/AdminSalesLeads/AdminSalesLeads";
-import { ADMIN_SCOPE_CFG, Badge, CERTIF_CFG, ConfirmModal, CountryFlag, KYC_CFG, MOIS, MiniBar, PLAN_TIER_LABELS, Pagination, ROLE_CONFIG, STATUS_BK, StatCard, WipSection, fmtDate, ieListingIncotermLabel, safeHref, safeImgHref, timeAgo } from "./admin/shared.jsx";
+import { ADMIN_SCOPE_CFG, Badge, CERTIF_CFG, ConfirmModal, CountryFlag, KYC_CFG, MOIS, MiniBar, PLAN_TIER_LABELS, Pagination, ROLE_CONFIG, STATUS_BK, StatCard, WipSection, fmtDate, safeHref, safeImgHref, timeAgo } from "./admin/shared.jsx";
 import { CertLevelDocs, FoundingDocs, FoundingBusinessInfo } from "./admin/sections/FoundingDocs.jsx";
 import { AnalyticsSection } from "./admin/sections/AnalyticsSection.jsx";
 import { ClientDocuments, ClientDocumentsModal } from "./admin/sections/ClientDocuments.jsx";
@@ -37,6 +37,11 @@ import { DirectionSection } from "./admin/sections/DirectionSection.jsx";
 import { CatalogueSection } from "./admin/sections/CatalogueSection.jsx";
 import { MarketingSection } from "./admin/sections/MarketingSection.jsx";
 import { BadgeActivation, ProchaineAction, BlocActivation, BlocDoublons, JournalEchanges, Abandon } from "./admin/sections/CrmSuivi.jsx";
+import ExportateursSection from "./admin/sections/ExportateursSection.jsx";
+import FacturesSection from "./admin/sections/FacturesSection.jsx";
+import CertificationSection from "./admin/sections/CertificationSection.jsx";
+import KycSection from "./admin/sections/KycSection.jsx";
+import BusinessConfigSection from "./admin/sections/BusinessConfigSection.jsx";
 
 // CRM partenaires : taille de page côté serveur (adminList plafonne à 200).
 const CRM_PAR_PAGE = 50;
@@ -4431,288 +4436,34 @@ export default function AdminPanel() {
 
           {/* ══════════════════════ TAB EXPORTATEURS ══════════════════════ */}
           {activeTab === "exportateurs" && (
-            <div className={styles.tabContent}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-                <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>
-                  📦 Partenaires Exportateurs — Dossiers & Annonces d'Export
-                </h2>
-                <button className={styles.btnRefresh} onClick={loadImporters}>↻ Actualiser</button>
-              </div>
-
-              {/* KPIs */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
-                {[
-                  { icon: "📦", label: "Total exportateurs",  value: importerProfiles.length, color: "#6366f1" },
-                  { icon: "⏳", label: "En attente",          value: importerProfiles.filter(p => p.status === "pending").length,  color: "#f59e0b" },
-                  { icon: "✅", label: "Vérifiés",            value: importerProfiles.filter(p => p.status === "verified").length, color: "#10b981" },
-                  { icon: "❌", label: "Refusés",             value: importerProfiles.filter(p => p.status === "rejected").length, color: "#ef4444" },
-                  { icon: "🌍", label: "Annonces export att.", value: importerListings.filter(l => l.status === "pending").length, color: "#f59e0b" },
-                ].map((k) => (
-                  <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />
-                ))}
-              </div>
-
-              {/* ── SECTION 1 : Candidatures ── */}
-              <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
-                  <h3 className={styles.chartTitle} style={{ margin: 0 }}>📦 Dossiers partenaires exportateurs</h3>
-                  <select
-                    className={styles.filterSelect}
-                    value={importerFilter}
-                    onChange={(e) => setImporterFilter(e.target.value)}
-                    style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}
-                  >
-                    <option value="">Tous</option>
-                    <option value="pending">En attente</option>
-                    <option value="verified">Vérifiés</option>
-                    <option value="rejected">Refusés</option>
-                    <option value="suspended">Suspendus</option>
-                  </select>
-                </div>
-
-                {importerLoading ? (
-                  <div className={styles.loadingBox} style={{ minHeight: 100 }}>
-                    <div className={styles.spinner} /><p>Chargement...</p>
-                  </div>
-                ) : filteredImporterProfiles.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "24px 0", color: "#94a3b8" }}>
-                    <div style={{ fontSize: "2rem", marginBottom: 8 }}>🏅</div>
-                    <p style={{ margin: 0 }}>Aucune candidature pour ce filtre.</p>
-                  </div>
-                ) : (
-                  <div className={styles.tableWrap}>
-                    <table className={styles.table}>
-                      <thead>
-                        <tr>
-                          <th>Partenaire</th>
-                          <th>Entreprise</th>
-                          <th>RCCM / NIF</th>
-                          <th>Activités</th>
-                          <th>Statut</th>
-                          <th>Soumis le</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredImporterProfiles.map((p) => {
-                          const stCfg = {
-                            pending:   { label: "En attente", color: "#f59e0b", bg: "#fffbeb" },
-                            verified:  { label: "Vérifié",    color: "#10b981", bg: "#ecfdf5" },
-                            rejected:  { label: "Refusé",     color: "#ef4444", bg: "#fef2f2" },
-                            suspended: { label: "Suspendu",   color: "#ef4444", bg: "#fef2f2" },
-                          }[p.status] || { label: p.status, color: "#94a3b8", bg: "#f8fafc" };
-                          const u = p.userId;
-                          return (
-                            <tr key={p._id} className={styles.tr}>
-                              <td>
-                                <strong>{u?.firstName} {u?.lastName}</strong>
-                                <span className={styles.vehMeta}>{u?.email}</span>
-                              </td>
-                              <td>
-                                <strong style={{ fontSize: ".85rem" }}>{p.companyName}</strong>
-                                <span className={styles.vehMeta}>{p.city}, {p.country}</span>
-                              </td>
-                              <td style={{ fontSize: ".82rem" }}>
-                                <div>RCCM: {p.rccm || "—"}</div>
-                                <div>NIF: {p.taxId || "—"}</div>
-                              </td>
-                              <td style={{ fontSize: ".8rem", color: "#475569" }}>
-                                {(p.activityType || []).join(", ") || "—"}
-                              </td>
-                              <td>
-                                <Badge label={stCfg.label} color={stCfg.color} bg={stCfg.bg} />
-                                {p.badgeLevel && p.badgeLevel !== "none" && (
-                                  <span style={{ marginLeft: 4, fontSize: ".75rem" }}>
-                                    {p.badgeLevel === "silver" ? "🥈" : p.badgeLevel === "gold" ? "🥇" : "💎"}
-                                  </span>
-                                )}
-                              </td>
-                              <td className={styles.tdDate}>{fmtDate(p.submittedAt)}</td>
-                              <td>
-                                <div className={styles.actionBtns}>
-                                  {/* Visualiser le dossier complet */}
-                                  <button
-                                    title="Voir le dossier complet"
-                                    // La liste ne porte plus `documents` (base64,
-                                    // jusqu'à 5 Mo par profil — la réponse échouait
-                                    // après 90 s). La fiche complète est chargée à
-                                    // l'ouverture ; le dossier s'affiche d'abord
-                                    // avec ce qu'on a déjà, puis se complète.
-                                    onClick={async () => {
-                                      setExporterDetail(p);
-                                      try {
-                                        const r = await fetch(`/api/import-export/importer-profiles/${p._id}`, { headers });
-                                        const d = await r.json().catch(() => null);
-                                        const complet = d?.profile || d;
-                                        if (r.ok && complet?._id) setExporterDetail(complet);
-                                      } catch { /* la fiche reste affichée sans les pièces */ }
-                                    }}
-                                    style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#eff6ff", color: "#2563eb", border: "1.5px solid #bfdbfe", borderRadius: 6, cursor: "pointer" }}>
-                                    👁 Visualiser
-                                  </button>
-                                  {/* Approuver / refuser */}
-                                  {p.status !== "verified" && (
-                                    <button className={styles.btnApprove}
-                                      onClick={() => { setReviewModal(p); setReviewDecision({ status: "verified", rejectionReason: "", badgeLevel: "silver" }); }}>
-                                      ✅ Valider
-                                    </button>
-                                  )}
-                                  {p.status !== "rejected" && (
-                                    <button className={styles.btnReject}
-                                      onClick={() => { setReviewModal(p); setReviewDecision({ status: "rejected", rejectionReason: "", badgeLevel: "none" }); }}>
-                                      ✕ Rejeter
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-
-              {/* ── SECTION 2 : Annonces import/export ── */}
-              <div className={styles.chartCard}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
-                  <h3 className={styles.chartTitle} style={{ margin: 0 }}>📢 Annonces Import/Export</h3>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <select
-                      value={listingFilter}
-                      onChange={(e) => setListingFilter(e.target.value)}
-                      style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}
-                    >
-                      <option value="">Toutes</option>
-                      <option value="pending">En attente</option>
-                      <option value="approved">Publiées</option>
-                      <option value="rejected">Refusées</option>
-                    </select>
-                    <select
-                      value={listingCountryFilter}
-                      onChange={(e) => setListingCountryFilter(e.target.value)}
-                      style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}
-                    >
-                      <option value="">🌍 Tous les pays</option>
-                      {importerListingCountryOptions.map((country) => (
-                        <option key={country} value={country}>{country}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={listingVilleFilter}
-                      onChange={(e) => setListingVilleFilter(e.target.value)}
-                      style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}
-                    >
-                      <option value="">📍 Toutes les villes</option>
-                      {importerListingVilleOptions.map((ville) => (
-                        <option key={ville} value={ville}>{ville}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                {importerLoading ? (
-                  <div className={styles.loadingBox} style={{ minHeight: 80 }}><div className={styles.spinner} /></div>
-                ) : filteredImporterListings.length === 0 ? (
-                  <div style={{ textAlign: "center", padding: "20px 0", color: "#94a3b8" }}>
-                    <p style={{ margin: 0 }}>Aucune annonce pour ce filtre.</p>
-                  </div>
-                ) : (
-                  <div className={styles.tableWrap}>
-                    <table className={styles.table}>
-                      <thead>
-                        <tr>
-                          <th>Annonce</th>
-                          <th>Partenaire</th>
-                          <th>Source</th>
-                          <th>Incoterm</th>
-                          <th>Prix</th>
-                          <th>Statut</th>
-                          <th>Date</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredImporterListings.map((l) => {
-                          const stCfg = {
-                            pending:  { label: "En attente", color: "#f59e0b", bg: "#fffbeb" },
-                            approved: { label: "Publiée",    color: "#10b981", bg: "#ecfdf5" },
-                            rejected: { label: "Refusée",    color: "#ef4444", bg: "#fef2f2" },
-                          }[l.status] || { label: l.status, color: "#94a3b8", bg: "#f8fafc" };
-                          return (
-                            <tr key={l._id} className={styles.tr}>
-                              <td>
-                                <strong style={{ fontSize: ".85rem" }}>{l.title}</strong>
-                                <span className={styles.vehMeta}>{l.make} {l.model} {l.year} · {l.condition}</span>
-                              </td>
-                              <td style={{ fontSize: ".82rem" }}>
-                                {l.partner?.firstName} {l.partner?.lastName}
-                                <span className={styles.vehMeta}>{l.importerProfile?.companyName}</span>
-                              </td>
-                              <td style={{ fontSize: ".82rem" }}>{l.sourceCountry}</td>
-                              <td style={{ fontSize: ".82rem" }}>
-                                {l.incoterm
-                                  ? <span title={ieListingIncotermLabel(l.incoterm)} style={{ fontSize: ".72rem", fontWeight: 800, padding: "3px 9px", borderRadius: 20, background: "#f5f3ff", color: "#7c3aed", border: "1px solid #ddd6fe" }}>📦 {l.incoterm}</span>
-                                  : <span style={{ color: "#94a3b8" }}>—</span>}
-                              </td>
-                              <td className={styles.tdPrice}>
-                                {l.price ? `${Number(l.price).toLocaleString("fr-FR")} ${l.currency}` : "—"}
-                              </td>
-                              <td><Badge label={stCfg.label} color={stCfg.color} bg={stCfg.bg} /></td>
-                              <td className={styles.tdDate}>{fmtDate(l.createdAt)}</td>
-                              <td>
-                                <div className={styles.actionBtns}>
-                                  <button className={styles.btnGhost} style={{ fontSize: ".78rem" }}
-                                    onClick={() => openEditIeListing(l._id)}>✏️ Modifier</button>
-                                  {l.status === "pending" && (
-                                    <>
-                                      <button className={styles.btnApprove}
-                                        onClick={async () => {
-                                          const r = await fetch(`/api/import-export/listings/${l._id}/status`, {
-                                            method: "PATCH", headers,
-                                            body: JSON.stringify({ status: "approved" }),
-                                          });
-                                          if (r.ok) { showToast("Annonce publiée !"); loadImporters(); }
-                                          else showToast("Erreur lors de la publication.", "error");
-                                        }}>✅ Publier</button>
-                                      <button className={styles.btnReject}
-                                        onClick={() => { setListingRejectModal(l); setListingRejectNote(""); }}>
-                                        ✕ Refuser</button>
-                                    </>
-                                  )}
-                                  {l.status === "approved" && (
-                                    <button className={styles.btnReject}
-                                      onClick={async () => {
-                                        const r = await fetch(`/api/import-export/listings/${l._id}/status`, {
-                                          method: "PATCH", headers,
-                                          body: JSON.stringify({ status: "archived" }),
-                                        });
-                                        if (r.ok) { showToast("Annonce archivée."); loadImporters(); }
-                                        else showToast("Erreur lors de l'archivage.", "error");
-                                      }}>Archiver</button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-                {/* Bug réel corrigé (audit) : plafond de 100 annonces IE
-                    chargées, invisible pour l'admin — voir loadMoreImporterListings. */}
-                {importerListings.length < importerListingsTotal && (
-                  <div style={{ textAlign: "center", marginTop: 10 }}>
-                    <p style={{ fontSize: ".8rem", color: "#94a3b8", marginBottom: 6 }}>{importerListings.length} chargées sur {importerListingsTotal} au total</p>
-                    <button onClick={loadMoreImporterListings}
-                      style={{ padding: "6px 16px", borderRadius: 10, border: "1.5px solid #6366f1", background: "#fff", color: "#6366f1", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                      Charger plus
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
+            <ExportateursSection
+              filteredImporterListings={filteredImporterListings}
+              filteredImporterProfiles={filteredImporterProfiles}
+              headers={headers}
+              importerFilter={importerFilter}
+              importerListingCountryOptions={importerListingCountryOptions}
+              importerListingVilleOptions={importerListingVilleOptions}
+              importerListings={importerListings}
+              importerListingsTotal={importerListingsTotal}
+              importerLoading={importerLoading}
+              importerProfiles={importerProfiles}
+              listingCountryFilter={listingCountryFilter}
+              listingFilter={listingFilter}
+              listingVilleFilter={listingVilleFilter}
+              loadImporters={loadImporters}
+              loadMoreImporterListings={loadMoreImporterListings}
+              openEditIeListing={openEditIeListing}
+              setExporterDetail={setExporterDetail}
+              setImporterFilter={setImporterFilter}
+              setListingCountryFilter={setListingCountryFilter}
+              setListingFilter={setListingFilter}
+              setListingRejectModal={setListingRejectModal}
+              setListingRejectNote={setListingRejectNote}
+              setListingVilleFilter={setListingVilleFilter}
+              setReviewDecision={setReviewDecision}
+              setReviewModal={setReviewModal}
+              showToast={showToast}
+            />
           )}
 
           {/* ── Modal review candidature importateur ── */}
@@ -5173,841 +4924,82 @@ export default function AdminPanel() {
           TAB FACTURES
       ══════════════════════════════════════════════════ */}
       {activeTab === "factures" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>
-              📄 Gestion des factures partenaires
-            </h2>
-            <button className={styles.btnRefresh} onClick={loadInvoices}>↻ Actualiser</button>
-          </div>
-
-          {/* Génération facture */}
-          <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
-            <h3 className={styles.chartTitle}>🔧 Générer les factures du mois</h3>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-              <div>
-                <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#64748b", marginBottom: 4 }}>Mois</label>
-                <select
-                  value={generateForm.month}
-                  onChange={(e) => setGenerateForm((p) => ({ ...p, month: Number(e.target.value) }))}
-                  style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: "0.85rem" }}
-                >
-                  {MOIS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#64748b", marginBottom: 4 }}>Année</label>
-                <input
-                  type="number"
-                  value={generateForm.year}
-                  onChange={(e) => setGenerateForm((p) => ({ ...p, year: Number(e.target.value) }))}
-                  style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", width: 100, fontSize: "0.85rem" }}
-                />
-              </div>
-              <button
-                className={styles.btnPrimary}
-                disabled={generating}
-                onClick={async () => {
-                  setGenerating(true);
-                  try {
-                    const r = await fetch("/api/invoices/generate-all", {
-                      method: "POST", headers,
-                      body: JSON.stringify(generateForm),
-                    });
-                    const d = await r.json();
-                    if (r.ok) {
-                      showToast(`${d.generated} facture(s) générée(s)`);
-                      loadInvoices();
-                    } else {
-                      showToast(d.message || "Erreur", "error");
-                    }
-                  } catch { showToast("Erreur réseau", "error"); }
-                  setGenerating(false);
-                }}
-              >
-                {generating ? "Génération…" : "📄 Générer toutes les factures"}
-              </button>
-            </div>
-          </div>
-
-          {/* KPIs factures */}
-          {invoicesStats && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
-              <StatCard icon="📄" label="Total factures" value={invoices.length} color="#6366f1" />
-              <StatCard icon="🕐" label="En attente de paiement" value={invoices.filter(i => i.status === "pending").length} color="#f59e0b" />
-              <StatCard icon="✅" label="Payées" value={invoices.filter(i => i.status === "paid").length} color="#10b981" />
-              <StatCard icon="💰" label="Total encaissé" value={fmtUSD(invoicesStats.totalPaid || 0)} color="#10b981" />
-              <StatCard icon="⏳" label="En attente" value={fmtUSD(invoicesStats.totalPending || 0)} color="#f59e0b" />
-            </div>
-          )}
-
-          {invoiceLoading ? (
-            <div className={styles.loadingBox}><div className={styles.spinner} /><p>Chargement…</p></div>
-          ) : invoices.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>
-              <div style={{ fontSize: "3rem", marginBottom: 12 }}>📄</div>
-              <p>Aucune facture générée pour le moment.</p>
-            </div>
-          ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Référence</th>
-                    <th>Partenaire</th>
-                    <th>Période</th>
-                    <th>Transactions</th>
-                    <th>Total commission</th>
-                    <th>Statut</th>
-                    <th>Échéance</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.map((inv) => {
-                    const isPaid    = inv.status === "paid";
-                    const isOverdue = inv.status === "overdue";
-                    const statusColor = isPaid ? "#10b981" : isOverdue ? "#dc2626" : "#d97706";
-                    const statusBg    = isPaid ? "#dcfce7" : isOverdue ? "#fef2f2" : "#fef3c7";
-                    const statusLabel = isPaid ? "Payée" : isOverdue ? "En retard" : "À payer";
-                    return (
-                      <tr key={inv._id}>
-                        <td style={{ fontWeight: 800, fontFamily: "monospace", fontSize: "0.83rem" }}>{inv.reference}</td>
-                        <td style={{ fontSize: "0.85rem" }}>
-                          <div style={{ fontWeight: 700 }}>{inv.partner?.firstName} {inv.partner?.lastName}</div>
-                          <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{inv.partner?.email}</div>
-                          {/* Un partenaire multi-entités reçoit une facture par entité (voir
-                              Invoice.businessId) — sans ce libellé, deux factures du même mois
-                              pour le même partenaire seraient indiscernables dans ce tableau. */}
-                          {inv.businessId?.companyName && (
-                            <div style={{ fontSize: "0.72rem", color: "#8b5cf6", fontWeight: 600 }}>🏢 {inv.businessId.companyName}</div>
-                          )}
-                        </td>
-                        <td style={{ fontSize: "0.85rem" }}>
-                          {MOIS[(inv.month || 1) - 1]} {inv.year}
-                        </td>
-                        <td style={{ textAlign: "center" }}>{(inv.lines || []).length}</td>
-                        <td style={{ fontWeight: 800, color: "#0f1b3f" }}>
-                          {fmtUSD(inv.totalCommission || 0)}
-                        </td>
-                        <td>
-                          <Badge label={statusLabel} color={statusColor} bg={statusBg} />
-                        </td>
-                        <td style={{ fontSize: "0.83rem", color: isOverdue ? "#dc2626" : "#64748b" }}>
-                          {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("fr-FR") : "—"}
-                        </td>
-                        <td>
-                          {!isPaid && (
-                            <button
-                              className={styles.btnApprove}
-                              style={{ fontSize: "0.78rem", padding: "5px 12px" }}
-                              onClick={async () => {
-                                const r = await fetch(`/api/invoices/${inv._id}/paid`, {
-                                  method: "PATCH", headers,
-                                  body: JSON.stringify({ paymentMethod: "virement" }),
-                                });
-                                if (r.ok) { showToast("Facture marquée payée ✅"); loadInvoices(); }
-                                else showToast("Erreur", "error");
-                              }}
-                            >
-                              ✅ Marquer payée
-                            </button>
-                          )}
-                          {isPaid && <span style={{ color: "#10b981", fontSize: "0.82rem", fontWeight: 600 }}>
-                            Payée le {inv.paidAt ? new Date(inv.paidAt).toLocaleDateString("fr-FR") : "—"}
-                          </span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Factures de PRESTATION — une par commande terminée, envoyée au
-              partenaire (voir issueServiceInvoice, distinct des factures de
-              commission ci-dessus) */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2rem 0 1rem", flexWrap: "wrap", gap: 12 }}>
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>
-              🧾 Factures de prestation ({serviceInvoicesAdmin.length})
-            </h2>
-            <button className={styles.btnRefresh} onClick={loadServiceInvoicesAdmin}>↻ Actualiser</button>
-          </div>
-          {serviceInvoicesAdminLoading ? <p style={{ color: "#94a3b8" }}>Chargement…</p> : serviceInvoicesAdmin.length === 0 ? (
-            <p style={{ color: "#64748b", fontSize: "0.9rem" }}>Aucune facture de prestation émise.</p>
-          ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr><th>Référence</th><th>Partenaire</th><th>Commande</th><th>Paiement</th><th>Net partenaire</th><th>Émise le</th><th>PDF</th></tr>
-                </thead>
-                <tbody>
-                  {serviceInvoicesAdmin.map((inv) => (
-                    <tr key={inv._id}>
-                      <td style={{ fontWeight: 800, fontFamily: "monospace", fontSize: "0.8rem" }}>{inv.reference}</td>
-                      <td style={{ fontSize: "0.85rem" }}>
-                        <div style={{ fontWeight: 700 }}>{inv.partner?.firstName} {inv.partner?.lastName}</div>
-                        <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{inv.partner?.email}</div>
-                      </td>
-                      <td style={{ fontSize: "0.83rem" }}>{inv.bookingReference}</td>
-                      <td style={{ fontSize: "0.83rem" }}>{inv.paymentMethod || "—"}</td>
-                      <td style={{ fontWeight: 800, color: "#0f1b3f" }}>{fmtUSD(inv.netPayout || 0)}</td>
-                      <td style={{ fontSize: "0.8rem", color: "#64748b" }}>{inv.createdAt ? new Date(inv.createdAt).toLocaleDateString("fr-FR") : "—"}</td>
-                      <td>
-                        <button type="button" onClick={async () => {
-                            const r = await downloadAuthFile(`/api/service-invoices/${inv._id}/pdf`, `facture-${inv.reference || inv._id}.pdf`, token);
-                            if (!r.ok) showToast(r.message, "error");
-                          }} style={{ color: "#2563eb", fontSize: "0.82rem", background: "none", border: "none", cursor: "pointer", padding: 0 }}>⬇️ Voir</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <FacturesSection
+          fmtUSD={fmtUSD}
+          generateForm={generateForm}
+          generating={generating}
+          headers={headers}
+          invoiceLoading={invoiceLoading}
+          invoices={invoices}
+          invoicesStats={invoicesStats}
+          loadInvoices={loadInvoices}
+          loadServiceInvoicesAdmin={loadServiceInvoicesAdmin}
+          serviceInvoicesAdmin={serviceInvoicesAdmin}
+          serviceInvoicesAdminLoading={serviceInvoicesAdminLoading}
+          setGenerateForm={setGenerateForm}
+          setGenerating={setGenerating}
+          showToast={showToast}
+          token={token}
+        />
       )}
 
       {/* ══════════════════════════════════════════════════
           TAB KYC — Gestion des dossiers d'identité
       ══════════════════════════════════════════════════ */}
       {activeTab === "kyc" && (
-        <div className={styles.tabContent}>
-          {/* En-tête KYC */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🛡️ Gestion des dossiers KYC</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Examinez et validez les dossiers d'identité soumis par les utilisateurs.</p>
-            </div>
-            <button
-              style={{ padding: "8px 16px", borderRadius: 10, background: "#6366f1", color: "#fff", border: "none", fontWeight: 700, fontSize: ".85rem", cursor: "pointer" }}
-              onClick={() => loadKycList(kycFilter)}
-            >
-              🔄 Actualiser
-            </button>
-          </div>
-
-          {/* Pièces d'identité soumises depuis le profil client — file distincte
-              du parcours KYC complet, et jusqu'ici sans aucun écran (voir
-              PendingIdentitiesSection). */}
-          <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
-            <h3 className={styles.chartTitle}>🪪 Pièces d'identité soumises depuis le profil</h3>
-            <p style={{ margin: "0 0 12px", fontSize: ".8rem", color: "#64748b" }}>
-              Envoyées par un client depuis sa page Profil, hors parcours KYC complet.
-            </p>
-            <PendingIdentitiesSection token={token} showToast={showToast} />
-          </div>
-
-          {/* Filtres par statut */}
-          <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap" }}>
-            {[
-              { v: "ALL",                   l: "Tous",       ic: "📋" },
-              { v: "EN_ATTENTE",            l: "En attente", ic: "⏳" },
-              { v: "A_REVOIR_MANUELLEMENT", l: "En révision", ic: "🔍" },
-              { v: "VERIFIE",               l: "Vérifiés",   ic: "✅" },
-              { v: "REFUSE",                l: "Refusés",    ic: "❌" },
-            ].map(({ v, l, ic }) => (
-              <button key={v}
-                style={{
-                  padding: "6px 14px", borderRadius: 20, border: "1.5px solid",
-                  fontSize: ".82rem", fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                  borderColor: kycFilter === v ? "#6366f1" : "#e2e8f0",
-                  background:  kycFilter === v ? "#6366f1" : "#f8fafc",
-                  color:       kycFilter === v ? "#fff"    : "#64748b",
-                }}
-                onClick={() => setKycFilter(v)}
-              >
-                {ic} {l}
-              </button>
-            ))}
-          </div>
-
-          {/* Recherche — pratique pour retrouver un compte précis (ex: déjà
-              approuvé) sans devoir deviner sous quel filtre de statut il se trouve */}
-          <input
-            className={styles.searchInput}
-            placeholder="Rechercher par nom ou email…"
-            value={kycSearch}
-            onChange={(e) => setKycSearch(e.target.value)}
-            style={{ width: "100%", boxSizing: "border-box", marginBottom: "1.25rem" }}
-          />
-
-          {(() => {
-            const q = kycSearch.trim().toLowerCase();
-            const filteredKycList = q
-              ? kycList.filter((u) =>
-                  `${u.firstName} ${u.lastName} ${u.email || ""}`.toLowerCase().includes(q))
-              : kycList;
-
-            if (kycLoading) return (
-              <div className={styles.loadingBox}><div className={styles.spinner} /><p>Chargement des dossiers KYC…</p></div>
-            );
-            if (filteredKycList.length === 0) return (
-              <div className={styles.emptyBox} style={{ textAlign: "center", padding: "40px 20px" }}>
-                <div style={{ fontSize: "2.5rem", marginBottom: 8 }}>✅</div>
-                <p style={{ margin: 0, fontWeight: 600, color: "#475569" }}>
-                  {q
-                    ? "Aucun résultat pour cette recherche."
-                    : kycFilter === "ALL"     ? "Aucun dossier KYC."
-                    : kycFilter === "VERIFIE" ? "Aucun dossier vérifié."
-                    : kycFilter === "REFUSE"  ? "Aucun dossier refusé."
-                    : "Aucun dossier en attente de traitement."}
-                </p>
-              </div>
-            );
-            return (
-            <div style={{ display: "grid", gap: 10 }}>
-              {filteredKycList.map((u) => {
-                const KC = {
-                  VERIFIE:               { c: "#059669", bg: "#d1fae5", border: "#6ee7b7", emoji: "✅" },
-                  EN_ATTENTE:            { c: "#d97706", bg: "#fef3c7", border: "#fde68a", emoji: "⏳" },
-                  A_REVOIR_MANUELLEMENT: { c: "#2563eb", bg: "#dbeafe", border: "#93c5fd", emoji: "🔍" },
-                  REFUSE:                { c: "#dc2626", bg: "#fee2e2", border: "#fca5a5", emoji: "❌" },
-                };
-                const kc = KC[u.kycStatus] || KC["EN_ATTENTE"];
-                return (
-                  <div key={u._id} style={{
-                    background: "#fff", borderRadius: 14,
-                    border: `1.5px solid ${kc.border}`,
-                    padding: "16px 20px",
-                    display: "grid",
-                    gridTemplateColumns: "1fr auto auto auto",
-                    alignItems: "center", gap: 16,
-                  }}>
-                    {/* Infos utilisateur */}
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: ".95rem", color: "#0f1b3f", marginBottom: 2 }}>
-                        {u.firstName} {u.lastName}<CountryFlag code={u.country} countriesConfig={COUNTRIES_CONFIG} />
-                      </div>
-                      <div style={{ fontSize: ".81rem", color: "#64748b" }}>{u.email}</div>
-                      <div style={{ fontSize: ".76rem", color: "#94a3b8", marginTop: 3 }}>
-                        Soumis {u.kycSubmittedAt ? new Date(u.kycSubmittedAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
-                      </div>
-                    </div>
-                    {/* OCR mini */}
-                    {u.kycOcrData ? (
-                      <div style={{ fontSize: ".78rem", color: "#475569", background: "#f8fafc", borderRadius: 8, padding: "8px 12px", textAlign: "right", minWidth: 140 }}>
-                        <div style={{ fontWeight: 700 }}>{u.kycOcrData.documentType || "—"} · {u.kycOcrData.issuingCountry || "—"}</div>
-                        <div>OCR <strong>{u.kycOcrData.ocrConfidence ?? 0}%</strong> · Face <strong>{u.kycFaceMatchScore ?? "—"}%</strong></div>
-                        <div>Score <strong>{u.kycScore ?? 0}/100</strong></div>
-                      </div>
-                    ) : <div />}
-                    {/* Badge statut */}
-                    <span style={{ padding: "4px 14px", borderRadius: 20, background: kc.bg, color: kc.c, fontSize: ".8rem", fontWeight: 800, whiteSpace: "nowrap" }}>
-                      {kc.emoji} {(u.kycStatus || "EN_ATTENTE").replace(/_/g, " ")}
-                    </span>
-                    {/* Boutons — examen KYC + vue de confiance unifiée (croise
-                        KYC/Founding Partner/Certification/PMS sans changer d'onglet) */}
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button
-                        title="Vue de confiance unifiée"
-                        style={{ padding: "8px 12px", borderRadius: 10, background: "#f1f5f9", color: "#0f1b3f", border: "none", fontWeight: 700, fontSize: ".85rem", cursor: "pointer", whiteSpace: "nowrap" }}
-                        onClick={() => openTrustOverview(u)}
-                      >
-                        🛡️
-                      </button>
-                      <button
-                        style={{ padding: "8px 18px", borderRadius: 10, background: "#6366f1", color: "#fff", border: "none", fontWeight: 700, fontSize: ".85rem", cursor: "pointer", whiteSpace: "nowrap" }}
-                        onClick={() => openKycDetail(u)}
-                      >
-                        Examiner →
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            );
-          })()}
-
-          {/* "Charger plus" — voir loadMoreKyc : le plafond était auparavant
-              invisible (bug réel corrigé), les dossiers au-delà disparaissaient
-              silencieusement sans aucun indice qu'il en restait. Volontairement
-              PAS masqué pendant une recherche (bug réel corrigé, audit) — la
-              recherche filtre côté client sur les kycLimit dossiers déjà
-              chargés (comme les onglets Users/Bookings) ; masquer ce bouton
-              en tapant rendait impossible de charger un dossier situé au-delà
-              de kycLimit tant que le champ de recherche n'était pas vidé. */}
-          {!kycLoading && kycList.length < kycTotal && (
-            <div style={{ textAlign: "center", marginTop: 16 }}>
-              <p style={{ fontSize: ".8rem", color: "#94a3b8", marginBottom: 8 }}>
-                {kycList.length} affichés sur {kycTotal} au total
-              </p>
-              <button onClick={loadMoreKyc}
-                style={{ padding: "8px 20px", borderRadius: 10, border: "1.5px solid #6366f1", background: "#fff", color: "#6366f1", fontWeight: 700, fontSize: ".85rem", cursor: "pointer" }}>
-                Charger plus
-              </button>
-            </div>
-          )}
-
-          {/* Modal détail + décision KYC */}
-          {kycDetailUser && (
-            <div className={styles.overlay} onClick={() => setKycDetailUser(null)}>
-              <div style={{ background: "#fff", borderRadius: 20, padding: "0", maxWidth: 740, width: "98%", maxHeight: "94dvh", overflowY: "auto", boxShadow: "0 24px 70px rgba(0,0,0,.22)" }}
-                onClick={(e) => e.stopPropagation()}>
-
-                {/* Header modal KYC */}
-                <div style={{ background: "linear-gradient(135deg,#1e3a8a,#4f46e5)", borderRadius: "20px 20px 0 0", padding: "20px 24px", color: "#fff" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                      {kycDetailUser.profilePhoto
-                        ? <img src={kycDetailUser.profilePhoto} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "3px solid rgba(255,255,255,.4)" }} />
-                        : <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(255,255,255,.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}>👤</div>
-                      }
-                      <div>
-                        <div style={{ fontSize: "1.1rem", fontWeight: 900 }}>{kycDetailUser.firstName} {kycDetailUser.lastName}</div>
-                        <div style={{ fontSize: ".82rem", opacity: .8, marginTop: 2 }}>{kycDetailUser.email || "—"} · {kycDetailUser.phone || "—"}</div>
-                        <div style={{ fontSize: ".75rem", opacity: .65, marginTop: 2 }}>
-                          Rôle : <strong>{kycDetailUser.role}</strong> · Inscrit le {kycDetailUser.createdAt ? new Date(kycDetailUser.createdAt).toLocaleDateString("fr-FR") : "—"}
-                        </div>
-                      </div>
-                    </div>
-                    <button onClick={() => setKycDetailUser(null)} style={{ background: "rgba(255,255,255,.2)", border: "none", borderRadius: "50%", width: 34, height: 34, color: "#fff", fontSize: "1.1rem", cursor: "pointer", flexShrink: 0 }}>✕</button>
-                  </div>
-                </div>
-
-                <div style={{ padding: "20px 24px" }}>
-                  {/* Indicateurs rapides */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 16 }}>
-                    {[
-                      { l: "Score KYC",      v: `${kycDetailUser.kycScore ?? 0}/100`,      color: (kycDetailUser.kycScore ?? 0) >= 70 ? "#16a34a" : "#ef4444" },
-                      { l: "OCR Confiance",  v: `${kycDetailUser.kycOcrData?.ocrConfidence ?? 0}%`, color: "#6366f1" },
-                      { l: "Face match",     v: kycDetailUser.kycFaceMatchScore !== null ? `${kycDetailUser.kycFaceMatchScore}%` : "—", color: "#f59e0b" },
-                      { l: "Badge KYC",      v: kycDetailUser.kycBadge || "—",              color: "#0f1b3f" },
-                    ].map(({ l, v, color }) => (
-                      <div key={l} style={{ background: "#f8fafc", borderRadius: 10, padding: "10px 12px", textAlign: "center", border: "1.5px solid #e2e8f0" }}>
-                        <div style={{ fontSize: ".68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em" }}>{l}</div>
-                        <div style={{ fontSize: "1rem", fontWeight: 900, color, marginTop: 3 }}>{v}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Infos contact */}
-                  <div style={{ background: "#f8fafc", borderRadius: 10, padding: "12px 16px", marginBottom: 14, fontSize: ".86rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 20px", color: "#334155" }}>
-                    <div><span style={{ color: "#94a3b8" }}>Email </span>{kycDetailUser.email ? <>{kycDetailUser.email} {kycDetailUser.emailVerified ? "✅" : "❌"}</> : "—"}</div>
-                    <div><span style={{ color: "#94a3b8" }}>Tél. </span>{kycDetailUser.phone ? <>{kycDetailUser.phone} {kycDetailUser.phoneVerified ? "✅" : "❌"}</> : "—"}</div>
-                    <div><span style={{ color: "#94a3b8" }}>Rôle </span>{kycDetailUser.role}</div>
-                    <div><span style={{ color: "#94a3b8" }}>Soumis </span>{kycDetailUser.kycSubmittedAt ? new Date(kycDetailUser.kycSubmittedAt).toLocaleDateString("fr-FR") : "—"}</div>
-                  </div>
-
-                  {/* Chargement des documents complets (photos recto/verso/selfie/permis) */}
-                  {kycDetailLoading && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10, padding: "14px 16px", marginBottom: 14, color: "#64748b", fontSize: ".85rem" }}>
-                      <div className={styles.spinner} style={{ width: 18, height: 18 }} />
-                      Chargement des documents soumis…
-                    </div>
-                  )}
-
-                  {/* Données OCR */}
-                  {kycDetailUser.kycOcrData && (
-                    <div style={{ background: "#f5f3ff", border: "1.5px solid #c4b5fd", borderRadius: 10, padding: "12px 16px", marginBottom: 14, fontSize: ".86rem", color: "#3730a3" }}>
-                      <strong style={{ display: "block", marginBottom: 8 }}>📄 Données OCR du document</strong>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px" }}>
-                        {kycDetailUser.kycOcrData.firstName      && <div><span style={{ opacity: .7 }}>Prénom </span><strong>{kycDetailUser.kycOcrData.firstName}</strong></div>}
-                        {kycDetailUser.kycOcrData.lastName       && <div><span style={{ opacity: .7 }}>Nom </span><strong>{kycDetailUser.kycOcrData.lastName}</strong></div>}
-                        {kycDetailUser.kycOcrData.documentNumber && <div><span style={{ opacity: .7 }}>N° </span><strong style={{ fontFamily: "monospace" }}>{kycDetailUser.kycOcrData.documentNumber}</strong></div>}
-                        {kycDetailUser.kycOcrData.issuingCountry && <div><span style={{ opacity: .7 }}>Pays </span><strong>{kycDetailUser.kycOcrData.issuingCountry}</strong></div>}
-                        {kycDetailUser.kycOcrData.expiryDate     && <div><span style={{ opacity: .7 }}>Expire </span><strong>{new Date(kycDetailUser.kycOcrData.expiryDate).toLocaleDateString("fr-FR")}</strong></div>}
-                        {kycDetailUser.kycOcrData.gender         && <div><span style={{ opacity: .7 }}>Sexe </span><strong>{kycDetailUser.kycOcrData.gender === "M" ? "Masculin" : "Féminin"}</strong></div>}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── Documents réels (recto, verso, selfie) ── */}
-                  {(kycDetailUser.identity?.frontImage || kycDetailUser.identity?.backImage || kycDetailUser.identity?.selfie) && (
-                    <div style={{ marginBottom: 16 }}>
-                      <strong style={{ fontSize: ".82rem", color: "#0f1b3f", display: "block", marginBottom: 10 }}>
-                        📄 Documents soumis — {kycDetailUser.identity?.type?.toUpperCase() || "PIÈCE D'IDENTITÉ"}
-                      </strong>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-                        {[
-                          { label: "Recto", img: kycDetailUser.identity?.frontImage },
-                          { label: "Verso", img: kycDetailUser.identity?.backImage },
-                          { label: "Selfie", img: kycDetailUser.identity?.selfie },
-                        ].map(({ label, img }) => (
-                          <div key={label} style={{ border: "1.5px solid #e2e8f0", borderRadius: 10, overflow: "hidden", background: "#f8fafc" }}>
-                            <div style={{ fontSize: ".72rem", fontWeight: 700, color: "#64748b", padding: "6px 10px", background: "#f1f5f9", textTransform: "uppercase", letterSpacing: ".04em" }}>{label}</div>
-                            {img ? (
-                              <a href={safeImgHref(img)} target="_blank" rel="noreferrer noopener">
-                                <img src={img} alt={label} loading="lazy" decoding="async" style={{ width: "100%", maxHeight: 120, objectFit: "cover", display: "block" }}
-                                  onError={(e) => { e.target.style.display = "none"; }} />
-                              </a>
-                            ) : (
-                              <div style={{ height: 80, display: "flex", alignItems: "center", justifyContent: "center", color: "#cbd5e1", fontSize: ".8rem" }}>Non fourni</div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {!kycDetailLoading && !(kycDetailUser.identity?.frontImage || kycDetailUser.identity?.backImage || kycDetailUser.identity?.selfie) && (
-                    <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: ".82rem", color: "#dc2626" }}>
-                      ⚠️ Aucune pièce d'identité soumise par cet utilisateur.
-                    </div>
-                  )}
-
-                  {/* ── Permis de conduire (si disponible) ── */}
-                  {(kycDetailUser.driverLicenseOcr?.frontImage || kycDetailUser.driverLicenseOcr?.backImage) && (
-                    <div style={{ marginBottom: 16 }}>
-                      <strong style={{ fontSize: ".82rem", color: "#0f1b3f", display: "block", marginBottom: 10 }}>🚗 Permis de conduire</strong>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                        {[
-                          { label: "Recto permis", img: kycDetailUser.driverLicenseOcr?.frontImage },
-                          { label: "Verso permis",  img: kycDetailUser.driverLicenseOcr?.backImage },
-                        ].map(({ label, img }) => img && (
-                          <div key={label} style={{ border: "1.5px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
-                            <div style={{ fontSize: ".72rem", fontWeight: 700, color: "#64748b", padding: "6px 10px", background: "#f1f5f9" }}>{label}</div>
-                            <a href={img} target="_blank" rel="noreferrer">
-                              <img src={img} alt={label} loading="lazy" decoding="async" style={{ width: "100%", maxHeight: 100, objectFit: "cover", display: "block" }} />
-                            </a>
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{ fontSize: ".78rem", color: "#475569", background: "#f8fafc", borderRadius: 8, padding: "8px 12px", marginTop: 8 }}>
-                        N° : {kycDetailUser.driverLicenseOcr?.licenseNumber || "—"} · Catégories : {kycDetailUser.driverLicenseOcr?.categories || "—"} · Expire : {kycDetailUser.driverLicenseOcr?.expiryDate ? new Date(kycDetailUser.driverLicenseOcr.expiryDate).toLocaleDateString("fr-FR") : "—"}
-                        {kycDetailUser.driverLicenseOcr?.isExpired && <span style={{ color: "#ef4444", fontWeight: 700 }}> ⚠️ EXPIRÉ</span>}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── Infos entreprise (si partenaire) ── */}
-                  {kycDetailUser.business?.companyName && (
-                    <div style={{ background: "#eff6ff", border: "1.5px solid #bfdbfe", borderRadius: 10, padding: "12px 16px", marginBottom: 14 }}>
-                      <strong style={{ fontSize: ".82rem", color: "#1e40af", display: "block", marginBottom: 6 }}>🏢 Entreprise partenaire</strong>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px 16px", fontSize: ".82rem", color: "#1e3a8a" }}>
-                        <div><span style={{ opacity: .7 }}>Société </span><strong>{kycDetailUser.business.companyName}</strong></div>
-                        <div><span style={{ opacity: .7 }}>RCCM </span>{kycDetailUser.business.rccm || "—"}</div>
-                        <div><span style={{ opacity: .7 }}>NIF </span>{kycDetailUser.business.taxId || "—"}</div>
-                        <div><span style={{ opacity: .7 }}>Adresse </span>{kycDetailUser.business.address || "—"}</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Raison du rejet précédent */}
-                  {kycDetailUser.kycRejectionReason && (
-                    <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: ".82rem", color: "#dc2626" }}>
-                      <strong>⚠️ Dernier motif de refus :</strong> {kycDetailUser.kycRejectionReason}
-                    </div>
-                  )}
-                  {kycDetailUser.kycReviewNote && (
-                    <div style={{ background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: ".82rem", color: "#92400e" }}>
-                      <strong>📝 Note de révision :</strong> {kycDetailUser.kycReviewNote}
-                    </div>
-                  )}
-
-                  {/* Journal d'audit */}
-                  {kycDetailUser.kycAuditLog?.length > 0 && (
-                    <div style={{ marginBottom: 16 }}>
-                      <strong style={{ fontSize: ".82rem", color: "#475569", display: "block", marginBottom: 8 }}>📋 Historique des actions</strong>
-                      <div style={{ maxHeight: 110, overflowY: "auto", border: "1.5px solid #e2e8f0", borderRadius: 8 }}>
-                        {kycDetailUser.kycAuditLog.slice().reverse().map((log, i) => (
-                          <div key={i} style={{ fontSize: ".77rem", color: "#64748b", padding: "7px 12px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", gap: 8 }}>
-                            <span><span style={{ fontWeight: 700, color: "#334155" }}>{log.action}</span>{log.note && ` — ${log.note}`}</span>
-                            <span style={{ flexShrink: 0, color: "#94a3b8" }}>{new Date(log.timestamp).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Décision */}
-                  <div style={{ borderTop: "1.5px solid #e2e8f0", paddingTop: 16 }}>
-                    <strong style={{ fontSize: ".88rem", color: "#0f1b3f", display: "block", marginBottom: 12 }}>Décision administrative</strong>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-                      {[
-                        { v: "VERIFIE",               l: "✅ Approuver",    col: "#059669", bg: kycReviewForm.decision === "VERIFIE" ? "#d1fae5" : "#f8fafc" },
-                        { v: "REFUSE",                l: "❌ Refuser",      col: "#dc2626", bg: kycReviewForm.decision === "REFUSE" ? "#fee2e2" : "#f8fafc" },
-                        { v: "A_REVOIR_MANUELLEMENT", l: "🔍 En révision",  col: "#2563eb", bg: kycReviewForm.decision === "A_REVOIR_MANUELLEMENT" ? "#dbeafe" : "#f8fafc" },
-                        { v: "EN_ATTENTE",            l: "⏳ Remettre en attente", col: "#d97706", bg: kycReviewForm.decision === "EN_ATTENTE" ? "#fef3c7" : "#f8fafc" },
-                      ].map(({ v, l, col, bg }) => (
-                        <button key={v}
-                          style={{ padding: "10px 8px", borderRadius: 9, border: `2px solid ${kycReviewForm.decision === v ? col : "#e2e8f0"}`, fontSize: ".82rem", fontWeight: 700, cursor: "pointer", background: bg, color: kycReviewForm.decision === v ? col : "#64748b", fontFamily: "inherit" }}
-                          onClick={() => setKycReviewForm((f) => ({ ...f, decision: v }))}
-                        >
-                          {l}
-                        </button>
-                      ))}
-                    </div>
-                    <textarea
-                      placeholder="Note interne ou raison du refus (visible dans le journal)"
-                      value={kycReviewForm.note}
-                      onChange={(e) => setKycReviewForm((f) => ({ ...f, note: e.target.value }))}
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem", fontFamily: "inherit", resize: "vertical", minHeight: 68, marginBottom: 12, boxSizing: "border-box" }}
-                    />
-                    {kycReviewMsg && (
-                      <p style={{ fontSize: ".85rem", color: kycReviewMsg.startsWith("✅") ? "#059669" : "#dc2626", fontWeight: 600, marginBottom: 10 }}>{kycReviewMsg}</p>
-                    )}
-                    <button
-                      style={{ width: "100%", padding: "12px", borderRadius: 10, background: kycReviewLoading ? "#94a3b8" : "#6366f1", color: "#fff", border: "none", fontWeight: 800, fontSize: ".95rem", cursor: kycReviewLoading ? "not-allowed" : "pointer", fontFamily: "inherit" }}
-                      onClick={() => handleKycReview(kycDetailUser._id)} disabled={kycReviewLoading}
-                    >
-                      {kycReviewLoading ? "Enregistrement…" : "Valider la décision"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        <KycSection
+          COUNTRIES_CONFIG={COUNTRIES_CONFIG}
+          handleKycReview={handleKycReview}
+          kycDetailLoading={kycDetailLoading}
+          kycDetailUser={kycDetailUser}
+          kycFilter={kycFilter}
+          kycList={kycList}
+          kycLoading={kycLoading}
+          kycReviewForm={kycReviewForm}
+          kycReviewLoading={kycReviewLoading}
+          kycReviewMsg={kycReviewMsg}
+          kycSearch={kycSearch}
+          kycTotal={kycTotal}
+          loadKycList={loadKycList}
+          loadMoreKyc={loadMoreKyc}
+          openKycDetail={openKycDetail}
+          openTrustOverview={openTrustOverview}
+          setKycDetailUser={setKycDetailUser}
+          setKycFilter={setKycFilter}
+          setKycReviewForm={setKycReviewForm}
+          setKycSearch={setKycSearch}
+          showToast={showToast}
+          token={token}
+        />
       )}
 
       {/* ══════════════════════════════════════════════════════════
           TAB CERTIFICATION — Gestion des certifications partenaires
       ══════════════════════════════════════════════════════════ */}
       {activeTab === "certification" && (
-        <div className={styles.tabContent}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1.5rem", flexWrap:"wrap", gap:12 }}>
-            <div>
-              <h2 style={{ fontSize:"1.1rem", fontWeight:800, color:"#0f1b3f", margin:"0 0 3px" }}>🏆 Certifications Partenaire VIT AUTO</h2>
-              <p style={{ margin:0, fontSize:".83rem", color:"#64748b" }}>Examinez chaque niveau de certification et attribuez les badges officiels.</p>
-            </div>
-            <button style={{ padding:"8px 16px", borderRadius:10, background:"#f59e0b", color:"#fff", border:"none", fontWeight:700, fontSize:".85rem", cursor:"pointer" }}
-              onClick={loadCertList}>🔄 Actualiser</button>
-          </div>
-
-          {/* KPIs */}
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12, marginBottom:"1.5rem" }}>
-            {[
-              { icon:"📋", label:"Dossiers total",    value: certList.length,                                                    color:"#6366f1" },
-              { icon:"⏳", label:"En attente review", value: pendingCert,                                                         color:"#d97706" },
-              { icon:"🟢", label:"Badge Vérifié",     value: certList.filter(c=>c.certificationBadge==="verifie").length,          color:"#059669" },
-              { icon:"🏆", label:"Badge Fondateur",   value: certList.filter(c=>c.certificationBadge==="fondateur").length,        color:"#d97706" },
-              { icon:"⭐", label:"Badge Premium",     value: certList.filter(c=>c.certificationBadge==="premium").length,          color:"#7c3aed" },
-            ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
-          </div>
-
-          {/* Filtres */}
-          <div style={{ display:"flex", gap:8, marginBottom:"1.25rem", flexWrap:"wrap" }}>
-            {[
-              { v:"all",      l:"Tous" },
-              { v:"pending",  l:"⏳ Niveaux soumis" },
-              { v:"verifie",  l:"🟢 Vérifié" },
-              { v:"fondateur",l:"🏆 Fondateur" },
-              { v:"premium",  l:"⭐ Premium" },
-            ].map(f => (
-              <button key={f.v} onClick={() => setCertFilter(f.v)}
-                style={{ padding:"6px 14px", borderRadius:20, border:"2px solid", fontSize:"0.8rem", fontWeight:700, cursor:"pointer",
-                  borderColor: certFilter===f.v ? "#f59e0b" : "#e2e8f0",
-                  background:  certFilter===f.v ? "#f59e0b" : "#f8fafc",
-                  color:       certFilter===f.v ? "#fff"    : "#64748b" }}>
-                {f.l}
-              </button>
-            ))}
-          </div>
-
-          {certReviewMsg && (
-            <div style={{ padding:"10px 16px", borderRadius:10, marginBottom:12, background: certReviewMsg.startsWith("✅") ? "#d1fae5" : "#fee2e2", color: certReviewMsg.startsWith("✅") ? "#059669" : "#dc2626", fontWeight:700, fontSize:".85rem" }}>
-              {certReviewMsg}
-            </div>
-          )}
-
-          {certLoading ? (
-            <div style={{ textAlign:"center", padding:"60px 0", color:"#94a3b8" }}>⏳ Chargement…</div>
-          ) : certList.length === 0 ? (
-            <div style={{ textAlign:"center", padding:"60px 0", color:"#94a3b8" }}>
-              <div style={{ fontSize:"3rem", marginBottom:12 }}>🏆</div>
-              <p style={{ fontWeight:700, color:"#64748b" }}>Aucune demande de certification pour le moment.</p>
-            </div>
-          ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead><tr><th>Partenaire</th><th>Niveaux</th><th>Badge actuel</th><th>Score</th><th>Actions</th></tr></thead>
-                <tbody>
-                  {certList
-                    .filter(c => {
-                      if (certFilter === "all") return true;
-                      if (certFilter === "pending") return ["level1","level2","level3","level4","level5","level6","level7"].some(l => c[l]?.status === "submitted");
-                      return c.certificationBadge === certFilter;
-                    })
-                    .map((c) => {
-                      const u = c.userId;
-                      const badgeColors = { verifie:"#059669", fondateur:"#d97706", premium:"#7c3aed", none:"#94a3b8" };
-                      const pendingLevels = [1,2,3,4,5,6,7].filter(n => c[`level${n}`]?.status === "submitted");
-                      return (
-                        <tr key={c._id}>
-                          <td>
-                            <div style={{ fontWeight:700 }}>{u?.firstName} {u?.lastName}</div>
-                            <div style={{ fontSize:".78rem", color:"#64748b" }}>{u?.email}</div>
-                            <div style={{ fontSize:".72rem", color:"#94a3b8" }}>
-                              <span style={{ background:"#f0f4ff", color:"#2563eb", padding:"1px 8px", borderRadius:99, fontWeight:700 }}>{u?.role}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                              {[1,2,3,4,5,6,7].map(n => {
-                                const st = c[`level${n}`]?.status || "not_started";
-                                const icons = { not_started:"○", in_progress:"◎", submitted:"⏳", approved:"✅", rejected:"❌" };
-                                const cols  = { not_started:"#94a3b8", in_progress:"#3b82f6", submitted:"#d97706", approved:"#059669", rejected:"#dc2626" };
-                                return (
-                                  <span key={n} title={`Niveau ${n} : ${st}`}
-                                    style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", width:22, height:22, borderRadius:6, background:"#f1f5f9", fontSize:".65rem", color:cols[st], fontWeight:800 }}>
-                                    {n}{icons[st]}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                            {pendingLevels.length > 0 && (
-                              <div style={{ fontSize:".72rem", color:"#d97706", fontWeight:700, marginTop:3 }}>
-                                ⏳ Niveaux à examiner : {pendingLevels.join(", ")}
-                              </div>
-                            )}
-                          </td>
-                          <td>
-                            <span style={{ fontWeight:800, color: badgeColors[c.certificationBadge] || "#94a3b8", fontSize:".85rem" }}>
-                              {c.certificationBadge === "premium" ? "⭐ Premium" : c.certificationBadge === "fondateur" ? "🏆 Fondateur" : c.certificationBadge === "verifie" ? "🟢 Vérifié" : "○ Aucun"}
-                            </span>
-                          </td>
-                          <td style={{ fontWeight:800, color:"#6366f1" }}>{c.certificationScore ?? 0}/100</td>
-                          <td>
-                            <button
-                              style={{ padding:"5px 12px", background:"#ede9fe", color:"#7c3aed", border:"1px solid #c4b5fd", borderRadius:8, cursor:"pointer", fontWeight:700, fontSize:"0.78rem" }}
-                              onClick={async () => {
-                                setCertReviewMsg("");
-                                const r = await fetch(`/api/certification/admin/${u?._id}`, { headers });
-                                if (r.ok) { const d = await r.json(); setCertDetail(d.certification); }
-                              }}>
-                              🔍 Examiner
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* ── Panneau de détail dossier ── */}
-          {certDetail && (
-            <div className={styles.overlay} onClick={() => { setCertDetail(null); setCertReviewLevel(null); setCertReviewMsg(""); }}>
-              <div className={styles.confirmBox} onClick={e => e.stopPropagation()} style={{ maxWidth:680, width:"95%", maxHeight:"85vh", overflow:"auto" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-                  <div>
-                    <h3 style={{ margin:0, fontWeight:900, fontSize:"1.05rem", color:"#0f1b3f" }}>
-                      🏆 Dossier de certification
-                    </h3>
-                    <p style={{ margin:"4px 0 0", color:"#64748b", fontSize:".85rem" }}>
-                      {certDetail.userId?.firstName} {certDetail.userId?.lastName} — {certDetail.userId?.email}
-                    </p>
-                  </div>
-                  <button onClick={() => { setCertDetail(null); setCertReviewLevel(null); setCertReviewMsg(""); }}
-                    style={{ background:"#f1f5f9", border:"none", borderRadius:8, padding:"6px 12px", cursor:"pointer", fontWeight:700 }}>✕</button>
-                </div>
-
-                {certReviewMsg && (
-                  <div style={{ padding:"8px 14px", borderRadius:8, marginBottom:12, background: certReviewMsg.startsWith("✅") ? "#d1fae5" : "#fee2e2", color: certReviewMsg.startsWith("✅") ? "#059669" : "#dc2626", fontWeight:700, fontSize:".83rem" }}>
-                    {certReviewMsg}
-                  </div>
-                )}
-
-                {(() => {
-                  const missingCount = [
-                    certDetail.level1?.registrationDoc?.data, certDetail.level1?.taxDoc?.data,
-                    certDetail.level2?.idFrontDoc?.data, certDetail.level2?.idBackDoc?.data, certDetail.level2?.selfieDoc?.data,
-                  ].filter((v) => !v).length;
-                  if (!missingCount || certDetail.overallStatus === "approved") return null;
-                  return (
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, background:"#fff7ed", border:"1px solid #fed7aa", borderRadius:10, padding:"10px 14px", marginBottom:14 }}>
-                      <span style={{ fontSize:"0.82rem", color:"#92400e" }}>⚠️ {missingCount} document(s) manquant(s) pour ce dossier.</span>
-                      <button className={styles.btnPrimary} style={{ whiteSpace:"nowrap", flexShrink:0 }} onClick={handleCertRelance} disabled={certReviewLoading}>
-                        {certReviewLoading ? "…" : "🔔 Relancer"}
-                      </button>
-                    </div>
-                  );
-                })()}
-
-                {/* Niveaux 1-7 */}
-                {[1,2,3,4,5,6,7].map(n => {
-                  const lv = certDetail[`level${n}`];
-                  const lvTitles = ["","Entreprise","Représentant","Activité","Banque","Véhicules","Export","Contrat"];
-                  const st = lv?.status || "not_started";
-                  const stColors  = { not_started:"#94a3b8", submitted:"#d97706", approved:"#059669", rejected:"#dc2626", in_progress:"#3b82f6" };
-                  const stLabels  = { not_started:"Non commencé", submitted:"Soumis ⏳", approved:"Approuvé ✅", rejected:"Refusé ❌", in_progress:"En cours" };
-                  return (
-                    <div key={n} style={{ border:"1.5px solid #e2e8f0", borderRadius:12, padding:14, marginBottom:10,
-                      borderColor: st === "approved" ? "#6ee7b7" : st === "submitted" ? "#fcd34d" : st === "rejected" ? "#fca5a5" : "#e2e8f0",
-                      background:  st === "approved" ? "#f0fdf4" : st === "submitted" ? "#fffbeb" : "#fff" }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: st === "submitted" ? 10 : 0 }}>
-                        <div style={{ fontWeight:800, fontSize:".9rem", color:"#0f1b3f" }}>
-                          Niveau {n} — {lvTitles[n]}
-                        </div>
-                        <span style={{ fontWeight:800, fontSize:".78rem", color: stColors[st] }}>{stLabels[st]}</span>
-                      </div>
-                      {lv?.adminNote && <p style={{ fontSize:".78rem", color:"#64748b", margin:"4px 0 0" }}>Note : {lv.adminNote}</p>}
-                      {lv?.rejectionReason && <p style={{ fontSize:".78rem", color:"#dc2626", margin:"4px 0 0" }}>Motif refus : {lv.rejectionReason}</p>}
-                      {st !== "not_started" && <CertLevelDocs level={n} lv={lv} />}
-
-                      {st === "submitted" && (
-                        certReviewLevel === n ? (
-                          <div style={{ marginTop:10, background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:10, padding:12 }}>
-                            <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-                              {["approved","rejected"].map(dec => (
-                                <button key={dec} onClick={() => setCertReviewForm(p => ({ ...p, decision:dec }))}
-                                  style={{ flex:1, padding:"7px 0", borderRadius:8, border:"2px solid", cursor:"pointer", fontWeight:700, fontSize:".8rem",
-                                    borderColor: certReviewForm.decision===dec ? (dec==="approved"?"#059669":"#dc2626") : "#e2e8f0",
-                                    background:  certReviewForm.decision===dec ? (dec==="approved"?"#d1fae5":"#fee2e2") : "#fff",
-                                    color:       certReviewForm.decision===dec ? (dec==="approved"?"#059669":"#dc2626") : "#64748b" }}>
-                                  {dec==="approved"?"✅ Approuver":"❌ Refuser"}
-                                </button>
-                              ))}
-                            </div>
-                            <textarea
-                              rows={2}
-                              placeholder="Note ou motif de refus…"
-                              value={certReviewForm.note}
-                              onChange={e => setCertReviewForm(p=>({...p, note:e.target.value}))}
-                              style={{ width:"100%", boxSizing:"border-box", padding:8, borderRadius:8, border:"1.5px solid #e2e8f0", fontSize:".83rem", fontFamily:"inherit", resize:"vertical" }}
-                            />
-                            <div style={{ display:"flex", gap:8, marginTop:8 }}>
-                              <button onClick={() => handleCertLevelReview(certDetail.userId?._id, n)} disabled={certReviewLoading}
-                                style={{ flex:1, padding:"8px 0", background:"#0f1b3f", color:"#fff", border:"none", borderRadius:8, fontWeight:800, cursor:"pointer", fontSize:".83rem" }}>
-                                {certReviewLoading ? "…" : "Confirmer"}
-                              </button>
-                              <button onClick={() => setCertReviewLevel(null)}
-                                style={{ padding:"8px 16px", background:"#f1f5f9", color:"#64748b", border:"none", borderRadius:8, fontWeight:700, cursor:"pointer", fontSize:".83rem" }}>
-                                Annuler
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <button onClick={() => { setCertReviewLevel(n); setCertReviewForm({ decision:"approved", note:"" }); }}
-                            style={{ marginTop:8, padding:"6px 14px", background:"#f59e0b", color:"#fff", border:"none", borderRadius:8, fontWeight:700, fontSize:".8rem", cursor:"pointer" }}>
-                            Examiner ce niveau
-                          </button>
-                        )
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* Attribution du badge final */}
-                <div style={{ border:"2px solid #fcd34d", borderRadius:12, padding:16, background:"#fffbeb", marginTop:4 }}>
-                  <h4 style={{ margin:"0 0 12px", fontWeight:900, color:"#92400e" }}>🏅 Attribution du Badge Final</h4>
-                  <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap:"wrap" }}>
-                    {[{v:"verifie",l:"🟢 Vérifié"},{v:"fondateur",l:"🏆 Fondateur"},{v:"premium",l:"⭐ Premium"},{v:"none",l:"○ Aucun"}].map(b => (
-                      <button key={b.v} onClick={() => setCertBadgeForm(p=>({...p,badge:b.v}))}
-                        style={{ flex:1, minWidth:100, padding:"8px 4px", borderRadius:8, border:"2px solid", cursor:"pointer", fontWeight:800, fontSize:".78rem",
-                          borderColor: certBadgeForm.badge===b.v ? "#f59e0b" : "#e2e8f0",
-                          background:  certBadgeForm.badge===b.v ? "#f59e0b" : "#fff",
-                          color:       certBadgeForm.badge===b.v ? "#fff"    : "#64748b" }}>
-                        {b.l}
-                      </button>
-                    ))}
-                  </div>
-                  <input type="text" placeholder="Message public affiché sur le profil (optionnel)" value={certBadgeForm.publicStatement}
-                    onChange={e => setCertBadgeForm(p=>({...p,publicStatement:e.target.value}))}
-                    style={{ width:"100%", boxSizing:"border-box", padding:"9px 12px", borderRadius:8, border:"1.5px solid #e2e8f0", fontSize:".83rem", fontFamily:"inherit", marginBottom:8 }}
-                  />
-                  <button onClick={() => handleCertBadge(certDetail.userId?._id)} disabled={certReviewLoading}
-                    style={{ width:"100%", padding:"10px 0", background:"linear-gradient(135deg,#0f1b3f,#1e3a6e)", color:"#fff", border:"none", borderRadius:8, fontWeight:800, cursor:"pointer", fontSize:".9rem" }}>
-                    {certReviewLoading ? "Enregistrement…" : "Attribuer le badge"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        <CertificationSection
+          certBadgeForm={certBadgeForm}
+          certDetail={certDetail}
+          certFilter={certFilter}
+          certList={certList}
+          certLoading={certLoading}
+          certReviewForm={certReviewForm}
+          certReviewLevel={certReviewLevel}
+          certReviewLoading={certReviewLoading}
+          certReviewMsg={certReviewMsg}
+          handleCertBadge={handleCertBadge}
+          handleCertLevelReview={handleCertLevelReview}
+          handleCertRelance={handleCertRelance}
+          headers={headers}
+          loadCertList={loadCertList}
+          pendingCert={pendingCert}
+          setCertBadgeForm={setCertBadgeForm}
+          setCertDetail={setCertDetail}
+          setCertFilter={setCertFilter}
+          setCertReviewForm={setCertReviewForm}
+          setCertReviewLevel={setCertReviewLevel}
+          setCertReviewMsg={setCertReviewMsg}
+        />
       )}
 
       {/* ══════════════════════ TAB IMPORT/EXPORT ══════════════════════ */}
@@ -6851,449 +5843,44 @@ export default function AdminPanel() {
       )}
 
       {activeTab === "business_config" && (
-        <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>⚙️ Configuration métier</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Commissions, abonnements, boosts, devises, pays, services et publicités — modifiables sans redéploiement. Tous les montants en USD.</p>
-            </div>
-            <button className={styles.btnRefresh} onClick={loadBusinessConfig}>↻ Actualiser</button>
-          </div>
-
-          <div style={{ display: "flex", gap: 8, marginBottom: "1.25rem", flexWrap: "wrap" }}>
-            {[
-              ["commissions", "💰 Commissions"],
-              ["subs_boosts", "⭐ Abonnements & Boosts"],
-              ["currencies", "🌍 Devises & Pays"],
-              ["services_ads", "🛠️ Services & Publicités"],
-              ["discounts", "🎟️ Codes promo"],
-            ].map(([key, label]) => (
-              <button key={key} onClick={() => setBizSubTab(key)}
-                style={{
-                  padding: "8px 16px", borderRadius: 9, cursor: "pointer", fontWeight: 700, fontSize: ".82rem",
-                  border: bizSubTab === key ? "1.5px solid #6366f1" : "1.5px solid #e2e8f0",
-                  background: bizSubTab === key ? "#eef2ff" : "#fff",
-                  color: bizSubTab === key ? "#4338ca" : "#475569",
-                }}>{label}</button>
-            ))}
-          </div>
-
-          {bizConfigLoading ? (
-            <div className={styles.loadingBox} style={{ minHeight: 120 }}><div className={styles.spinner} /></div>
-          ) : !bizConfig ? (
-            <p style={{ textAlign: "center", color: "#94a3b8", padding: "30px 0" }}>Configuration non initialisée — exécutez le script server/scripts/migrate-currency-config.mjs.</p>
-          ) : (
-            <>
-              {bizSubTab === "commissions" && commissionsForm && foundingForm && serviceFeeForm && (
-                <>
-                  <div className={styles.chartCard}>
-                    <h3 className={styles.chartTitle}>💰 Commissions — Standard vs. Abonné premium</h3>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 10 }}>
-                      {["standard", "premium"].map((tier) => (
-                        <div key={tier}>
-                          <div style={{ fontWeight: 800, fontSize: ".82rem", color: tier === "standard" ? "#64748b" : "#6366f1", marginBottom: 8, textTransform: "uppercase" }}>
-                            {tier === "standard" ? "Standard" : "Abonné premium"}
-                          </div>
-                          {[["vente", "Vente"], ["location", "Location"], ["chauffeur", "Chauffeur"], ["import_export", "Import/Export"], ["leasing", "Leasing"]].map(([key, label]) => (
-                            <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-                              <label style={{ fontSize: ".82rem", color: "#334155" }}>{label}</label>
-                              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                <input type="number" step="0.1" min="0" max="100" style={{ width: 70, padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".82rem", textAlign: "right" }}
-                                  value={Math.round((commissionsForm[tier][key] ?? 0) * 1000) / 10}
-                                  onChange={(e) => setCommissionsForm((p) => ({ ...p, [tier]: { ...p[tier], [key]: Number(e.target.value) / 100 } }))} />
-                                <span style={{ fontSize: ".8rem", color: "#94a3b8" }}>%</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                    <button className={styles.btnApprove} style={{ marginTop: 8 }} disabled={bizSaving === "commissions"}
-                      onClick={() => savePricingSection("commissions", commissionsForm)}>
-                      {bizSaving === "commissions" ? "…" : "📅 Programmer la modification"}
-                    </button>
-                    <p style={{ fontSize: ".76rem", color: "#64748b", margin: "6px 0 0" }}>
-                      Préavis : la nouvelle grille est notifiée aux partenaires et s'applique dans 30 jours, aux transactions créées à partir de cette date. Les transactions existantes gardent leur taux.
-                    </p>
-                  </div>
-
-                  <div className={styles.chartCard}>
-                    <h3 className={styles.chartTitle}>👑 Partenaire Fondateur</h3>
-                    <div style={{ marginBottom: 12 }}>
-                      <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Durée de l'offre (mois)</label>
-                      <input type="number" min="1" style={{ width: 100, padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
-                        value={foundingForm.durationMonths}
-                        onChange={(e) => setFoundingForm((p) => ({ ...p, durationMonths: Number(e.target.value) }))} />
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                      {["entreprise", "particulier"].map((profile) => (
-                        <div key={profile}>
-                          <div style={{ fontWeight: 800, fontSize: ".82rem", color: "#b45309", marginBottom: 8, textTransform: "uppercase" }}>{profile}</div>
-                          {["location", "vente", "import_export"].map((key) => (
-                            (profile === "particulier" && key === "import_export") ? null : (
-                              <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-                                <label style={{ fontSize: ".82rem", color: "#334155" }}>{key === "import_export" ? "Import/Export" : key === "location" ? "Location" : "Vente"}</label>
-                                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                  <input type="number" step="0.1" min="0" max="100" style={{ width: 70, padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".82rem", textAlign: "right" }}
-                                    value={Math.round((foundingForm[profile][key] ?? 0) * 1000) / 10}
-                                    onChange={(e) => setFoundingForm((p) => ({ ...p, [profile]: { ...p[profile], [key]: Number(e.target.value) / 100 } }))} />
-                                  <span style={{ fontSize: ".8rem", color: "#94a3b8" }}>%</span>
-                                </div>
-                              </div>
-                            )
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                    <button className={styles.btnApprove} style={{ marginTop: 8 }} disabled={bizSaving === "foundingPartner"}
-                      onClick={() => savePricingSection("foundingPartner", foundingForm)}>
-                      {bizSaving === "foundingPartner" ? "…" : "📅 Programmer la modification (préavis 30 j)"}
-                    </button>
-                  </div>
-
-                  <div className={styles.chartCard}>
-                    <h3 className={styles.chartTitle}>🧾 Frais de service client — suspendus</h3>
-                    <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#64748b" }}>Suspendus depuis le 30/10/2026 (nature, payeur et montant à valider) : aucun frais n'est appliqué, quel que soit le barème ci-dessous, conservé pour mémoire.</p>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, maxWidth: 460 }}>
-                      <div>
-                        <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Minimum ($)</label>
-                        <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
-                          value={serviceFeeForm.minUSD} onChange={(e) => setServiceFeeForm((p) => ({ ...p, minUSD: Number(e.target.value) }))} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Pourcentage (%)</label>
-                        <input type="number" min="0" max="100" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
-                          value={Math.round(serviceFeeForm.percent * 1000) / 10}
-                          onChange={(e) => setServiceFeeForm((p) => ({ ...p, percent: Number(e.target.value) / 100 }))} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Maximum ($)</label>
-                        <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
-                          value={serviceFeeForm.maxUSD} onChange={(e) => setServiceFeeForm((p) => ({ ...p, maxUSD: Number(e.target.value) }))} />
-                      </div>
-                    </div>
-                    <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "serviceFee"}
-                      onClick={() => savePricingSection("serviceFee", serviceFeeForm)}>
-                      {bizSaving === "serviceFee" ? "…" : "💾 Enregistrer les frais de service"}
-                    </button>
-                  </div>
-
-                  {importFeeForm && (
-                    <div className={styles.chartCard}>
-                      <h3 className={styles.chartTitle}>🌍 Frais de l'estimateur d'import — suspendus</h3>
-                      <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#64748b" }}>Suspendus depuis le 30/10/2026 : ils s'ajoutaient au total de l'acheteur en plus de la commission exportateur. Aucun frais n'est appliqué ; barème conservé pour mémoire.</p>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, maxWidth: 460 }}>
-                        <div>
-                          <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Minimum ($)</label>
-                          <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
-                            value={importFeeForm.minUSD} onChange={(e) => setImportFeeForm((p) => ({ ...p, minUSD: Number(e.target.value) }))} />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Pourcentage (%)</label>
-                          <input type="number" min="0" max="100" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
-                            value={Math.round(importFeeForm.percent * 1000) / 10}
-                            onChange={(e) => setImportFeeForm((p) => ({ ...p, percent: Number(e.target.value) / 100 }))} />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Maximum ($)</label>
-                          <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
-                            value={importFeeForm.maxUSD} onChange={(e) => setImportFeeForm((p) => ({ ...p, maxUSD: Number(e.target.value) }))} />
-                        </div>
-                      </div>
-                      <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "importEstimateFee"}
-                        onClick={() => savePricingSection("importEstimateFee", importFeeForm)}>
-                        {bizSaving === "importEstimateFee" ? "…" : "💾 Enregistrer les frais d'estimation import"}
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {bizSubTab === "subs_boosts" && subscriptionsForm && boostsForm && (
-                <>
-                  <div className={styles.chartCard}>
-                    <h3 className={styles.chartTitle}>⭐ Abonnements (mensuel, USD)</h3>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, maxWidth: 560, marginTop: 10 }}>
-                      {[["individuel_plus", "Individuel Plus"], ["business", "Business"], ["exportateur", "Exportateur"]].map(([key, label]) => (
-                        <div key={key}>
-                          <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label} ($/mois)</label>
-                          <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
-                            value={subscriptionsForm[key]?.priceUSD ?? 0}
-                            onChange={(e) => setSubscriptionsForm((p) => ({ ...p, [key]: { priceUSD: Number(e.target.value) } }))} />
-                        </div>
-                      ))}
-                    </div>
-                    <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "subscriptions"}
-                      onClick={() => savePricingSection("subscriptions", subscriptionsForm)}>
-                      {bizSaving === "subscriptions" ? "…" : "💾 Enregistrer les abonnements"}
-                    </button>
-                  </div>
-
-                  <div className={styles.chartCard}>
-                    <h3 className={styles.chartTitle}>🚀 Boosts (mise en avant, USD)</h3>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, maxWidth: 700, marginTop: 10 }}>
-                      {[["24h", "24 heures"], ["7d", "7 jours"], ["30d", "30 jours"], ["international", "Internationale"]].map(([key, label]) => (
-                        <div key={key}>
-                          <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label} ($)</label>
-                          <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
-                            value={boostsForm[key] ?? 0}
-                            onChange={(e) => setBoostsForm((p) => ({ ...p, [key]: Number(e.target.value) }))} />
-                        </div>
-                      ))}
-                    </div>
-                    <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "boosts"}
-                      onClick={() => savePricingSection("boosts", boostsForm)}>
-                      {bizSaving === "boosts" ? "…" : "💾 Enregistrer les boosts"}
-                    </button>
-                  </div>
-
-                  {rentalOptsForm && (
-                    <div className={styles.chartCard}>
-                      <h3 className={styles.chartTitle}>🚗 Options de location (par jour, USD)</h3>
-                      <p style={{ fontSize: ".78rem", color: "#64748b", margin: "4px 0 0" }}>
-                        Tarif plateforme, appliqué quand le partenaire n'a pas fixé le sien. Les suppléments d'agence
-                        (conducteur additionnel, km illimité, remise gare/aéroport) restent à 0 : proposés seulement par
-                        les partenaires qui les tarifent — un montant ici les rendrait payants chez tous les loueurs.
-                      </p>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, maxWidth: 700, marginTop: 10 }}>
-                        {[["gps", "GPS"], ["babySeat", "Siège bébé"], ["insurance", "Assurance"], ["driver", "Chauffeur"], ["additionalDriver", "Conducteur additionnel"], ["unlimitedMileage", "Km illimité"], ["airportDelivery", "Remise gare/aéroport (forfait)"]].map(([key, label]) => (
-                          <div key={key}>
-                            <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label} ($)</label>
-                            <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
-                              value={rentalOptsForm[key] ?? 0}
-                              onChange={(e) => setRentalOptsForm((p) => ({ ...p, [key]: Number(e.target.value) }))} />
-                          </div>
-                        ))}
-                      </div>
-                      <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "rentalOptions"}
-                        onClick={() => savePricingSection("rentalOptions", rentalOptsForm)}>
-                        {bizSaving === "rentalOptions" ? "…" : "💾 Enregistrer les options de location"}
-                      </button>
-                    </div>
-                  )}
-
-                  {fournisseurForm && (
-                    <div className={styles.chartCard}>
-                      <h3 className={styles.chartTitle}>🧾 Fournisseur des options — assiette de la commission</h3>
-                      <p style={{ fontSize: ".78rem", color: "#64748b", margin: "4px 0 0" }}>
-                        Seules les options <strong>fournies par VIT AUTO</strong> entrent dans la base de la commission
-                        (location, chauffeur, loisirs) ; une option fournie par le partenaire — son assurance, son GPS —
-                        en est exclue, comme la livraison. Ne basculer sur « VIT AUTO » que si VIT AUTO fournit
-                        réellement le service. S'applique aux réservations créées après l'enregistrement.
-                      </p>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, maxWidth: 760, marginTop: 10 }}>
-                        {[["gps", "GPS"], ["babySeat", "Siège bébé"], ["insurance", "Assurance"], ["driver", "Chauffeur"], ["additionalDriver", "Conducteur additionnel"], ["unlimitedMileage", "Km illimité"], ["airportDelivery", "Remise gare/aéroport"]].map(([key, label]) => (
-                          <div key={key}>
-                            <label htmlFor={`fournisseur-${key}`} style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label}</label>
-                            <select id={`fournisseur-${key}`} style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem", minHeight: 44 }}
-                              value={fournisseurForm[key] === "vitauto" ? "vitauto" : "partenaire"}
-                              onChange={(e) => setFournisseurForm((p) => ({ ...p, [key]: e.target.value }))}>
-                              <option value="partenaire">Partenaire (hors commission)</option>
-                              <option value="vitauto">VIT AUTO (soumis à commission)</option>
-                            </select>
-                          </div>
-                        ))}
-                      </div>
-                      <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "rentalOptionsFournisseur"}
-                        onClick={() => savePricingSection("rentalOptionsFournisseur", fournisseurForm)}>
-                        {bizSaving === "rentalOptionsFournisseur" ? "…" : "💾 Enregistrer les fournisseurs"}
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {bizSubTab === "currencies" && (
-                <>
-                  <div className={styles.chartCard}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                      <h3 className={styles.chartTitle} style={{ margin: 0 }}>💱 Devises</h3>
-                      <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
-                        onClick={() => setRateForm({ code: "", name: "", symbol: "", rateFromUSD: "", active: true })}>+ Nouvelle devise</button>
-                    </div>
-                    {exchangeRates.length === 0 ? (
-                      <p style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>Aucune devise configurée.</p>
-                    ) : (
-                      <div className={styles.tableWrap}>
-                        <table className={styles.table}>
-                          <thead><tr><th>Code</th><th>Nom</th><th>Symbole</th><th>Taux depuis 1 USD</th><th>Statut</th><th>Actions</th></tr></thead>
-                          <tbody>
-                            {exchangeRates.map((r) => (
-                              <tr key={r._id} className={styles.tr}>
-                                <td style={{ fontWeight: 700 }}>{r.code}</td>
-                                <td>{r.name}</td>
-                                <td>{r.symbol}</td>
-                                <td>{r.rateFromUSD}</td>
-                                <td><Badge label={r.active ? "Actif" : "Inactif"} color={r.active ? "#10b981" : "#94a3b8"} bg={r.active ? "#ecfdf5" : "#f1f5f9"} /></td>
-                                <td>
-                                  <div className={styles.actionBtns}>
-                                    <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setRateForm(r)}>✏️</button>
-                                    <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteExchangeRateFn(r._id)}>🗑️</button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={styles.chartCard}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                      <h3 className={styles.chartTitle} style={{ margin: 0 }}>🌍 Pays</h3>
-                      <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
-                        onClick={() => setCountryForm({ code: "", name: "", flag: "🌍", defaultCurrency: "", locale: "fr-FR", phone: "", languages: ["fr"], paymentMethods: [], deliveryRatePerKm: 200, deliveryBaseRate: 1000, deliveryMaxKm: 100, taxPercent: 0, active: true })}>+ Nouveau pays</button>
-                    </div>
-                    {countryConfigs.length === 0 ? (
-                      <p style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>Aucun pays configuré.</p>
-                    ) : (
-                      <div className={styles.tableWrap}>
-                        <table className={styles.table}>
-                          <thead><tr><th>Pays</th><th>Code</th><th>Devise</th><th>Livraison (base/km)</th><th>Taxe</th><th>Statut</th><th>Actions</th></tr></thead>
-                          <tbody>
-                            {countryConfigs.map((c) => (
-                              <tr key={c._id} className={styles.tr}>
-                                <td style={{ fontWeight: 700 }}>{c.flag} {c.name}</td>
-                                <td>{c.code}</td>
-                                <td>{c.defaultCurrency}</td>
-                                <td>{c.deliveryBaseRate}/{c.deliveryRatePerKm}</td>
-                                <td>{c.taxPercent}%</td>
-                                <td><Badge label={c.active ? "Actif" : "Inactif"} color={c.active ? "#10b981" : "#94a3b8"} bg={c.active ? "#ecfdf5" : "#f1f5f9"} /></td>
-                                <td>
-                                  <div className={styles.actionBtns}>
-                                    <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setCountryForm(c)}>✏️</button>
-                                    <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteCountryConfigFn(c._id)}>🗑️</button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-
-              {bizSubTab === "services_ads" && servicesForm && adsConfigForm && (
-                <>
-                  <div className={styles.chartCard}>
-                    <h3 className={styles.chartTitle}>🛠️ Plateforme de services</h3>
-                    <div className={styles.tableWrap}>
-                      <table className={styles.table}>
-                        <thead><tr><th>Service</th><th>Activé</th><th>Commission (%)</th><th>Frais fixe ($)</th></tr></thead>
-                        <tbody>
-                          {[
-                            ["inspection", "Inspection"], ["assurance", "Assurance"], ["transport", "Transport"], ["transit", "Transit"],
-                            ["douanes", "Douanes"], ["immatriculation", "Immatriculation"], ["garantie", "Garantie"],
-                            ["financement", "Financement"], ["sequestre", "Séquestre"], ["change_devises", "Change de devises"],
-                          ].map(([key, label]) => (
-                            <tr key={key} className={styles.tr}>
-                              <td style={{ fontWeight: 700 }}>{label}</td>
-                              <td>
-                                <input type="checkbox" checked={!!servicesForm[key]?.enabled}
-                                  onChange={(e) => setServicesForm((p) => ({ ...p, [key]: { ...p[key], enabled: e.target.checked } }))} />
-                              </td>
-                              <td>
-                                <input type="number" min="0" max="100" step="0.1" style={{ width: 80, padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".82rem" }}
-                                  value={Math.round((servicesForm[key]?.commissionRate ?? 0) * 1000) / 10}
-                                  onChange={(e) => setServicesForm((p) => ({ ...p, [key]: { ...p[key], commissionRate: Number(e.target.value) / 100 } }))} />
-                              </td>
-                              <td>
-                                <input type="number" min="0" step="0.01" style={{ width: 90, padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".82rem" }}
-                                  value={servicesForm[key]?.fixedFeeUSD ?? 0}
-                                  onChange={(e) => setServicesForm((p) => ({ ...p, [key]: { ...p[key], fixedFeeUSD: Number(e.target.value) } }))} />
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "services"}
-                      onClick={() => savePricingSection("services", servicesForm)}>
-                      {bizSaving === "services" ? "…" : "💾 Enregistrer les services"}
-                    </button>
-                  </div>
-
-                  <div className={styles.chartCard}>
-                    <h3 className={styles.chartTitle}>📢 Publicités</h3>
-                    <div className={styles.tableWrap}>
-                      <table className={styles.table}>
-                        <thead><tr><th>Emplacement</th><th>Prix ($)</th><th>Durée (jours)</th></tr></thead>
-                        <tbody>
-                          {[
-                            ["banner", "Bannière"], ["homepage_feature", "Mise en avant page d'accueil"],
-                            ["category_promo", "Promotion catégorie"], ["seo", "SEO"],
-                          ].map(([key, label]) => (
-                            <tr key={key} className={styles.tr}>
-                              <td style={{ fontWeight: 700 }}>{label}</td>
-                              <td>
-                                <input type="number" min="0" step="0.01" style={{ width: 90, padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".82rem" }}
-                                  value={adsConfigForm[key]?.priceUSD ?? 0}
-                                  onChange={(e) => setAdsConfigForm((p) => ({ ...p, [key]: { ...p[key], priceUSD: Number(e.target.value) } }))} />
-                              </td>
-                              <td>
-                                <input type="number" min="1" style={{ width: 80, padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".82rem" }}
-                                  value={adsConfigForm[key]?.durationDays ?? 7}
-                                  onChange={(e) => setAdsConfigForm((p) => ({ ...p, [key]: { ...p[key], durationDays: Number(e.target.value) } }))} />
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "ads"}
-                      onClick={() => savePricingSection("ads", adsConfigForm)}>
-                      {bizSaving === "ads" ? "…" : "💾 Enregistrer les publicités"}
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {bizSubTab === "discounts" && (
-                <div className={styles.chartCard}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                    <h3 className={styles.chartTitle} style={{ margin: 0 }}>🎟️ Campagnes de réduction</h3>
-                    <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
-                      onClick={() => setDiscountForm({ code: "", label: "", discountPercent: 10, appliesTo: ["subscriptions", "boosts"], startDate: "", endDate: "", maxRedemptions: "", active: true })}>+ Nouvelle campagne</button>
-                  </div>
-                  <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#64748b" }}>Codes promo appliqués par le partenaire à l'activation d'un abonnement ou d'un boost (champ "Code promo" optionnel).</p>
-                  {discountCampaigns.length === 0 ? (
-                    <p style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>Aucune campagne configurée.</p>
-                  ) : (
-                    <div className={styles.tableWrap}>
-                      <table className={styles.table}>
-                        <thead><tr><th>Code</th><th>Réduction</th><th>Applicable à</th><th>Période</th><th>Utilisations</th><th>Statut</th><th>Actions</th></tr></thead>
-                        <tbody>
-                          {discountCampaigns.map((c) => (
-                            <tr key={c._id} className={styles.tr}>
-                              <td style={{ fontWeight: 700 }}>{c.code}{c.label ? ` — ${c.label}` : ""}</td>
-                              <td>{c.discountPercent}%</td>
-                              <td>{(c.appliesTo || []).join(", ")}</td>
-                              <td style={{ fontSize: ".78rem" }}>
-                                {c.startDate ? new Date(c.startDate).toLocaleDateString("fr-FR") : "—"} → {c.endDate ? new Date(c.endDate).toLocaleDateString("fr-FR") : "—"}
-                              </td>
-                              <td>{c.redemptionCount}{c.maxRedemptions != null ? ` / ${c.maxRedemptions}` : ""}</td>
-                              <td><Badge label={c.active ? "Active" : "Inactive"} color={c.active ? "#10b981" : "#94a3b8"} bg={c.active ? "#ecfdf5" : "#f1f5f9"} /></td>
-                              <td>
-                                <div className={styles.actionBtns}>
-                                  <button className={styles.btnGhost} style={{ fontSize: ".75rem" }}
-                                    onClick={() => setDiscountForm({ ...c, startDate: c.startDate ? c.startDate.slice(0, 10) : "", endDate: c.endDate ? c.endDate.slice(0, 10) : "", maxRedemptions: c.maxRedemptions ?? "" })}>✏️</button>
-                                  <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteDiscountCampaignFn(c._id)}>🗑️</button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
+        <BusinessConfigSection
+          adsConfigForm={adsConfigForm}
+          bizConfig={bizConfig}
+          bizConfigLoading={bizConfigLoading}
+          bizSaving={bizSaving}
+          bizSubTab={bizSubTab}
+          boostsForm={boostsForm}
+          commissionsForm={commissionsForm}
+          countryConfigs={countryConfigs}
+          deleteCountryConfigFn={deleteCountryConfigFn}
+          deleteDiscountCampaignFn={deleteDiscountCampaignFn}
+          deleteExchangeRateFn={deleteExchangeRateFn}
+          discountCampaigns={discountCampaigns}
+          exchangeRates={exchangeRates}
+          foundingForm={foundingForm}
+          fournisseurForm={fournisseurForm}
+          importFeeForm={importFeeForm}
+          loadBusinessConfig={loadBusinessConfig}
+          rentalOptsForm={rentalOptsForm}
+          savePricingSection={savePricingSection}
+          serviceFeeForm={serviceFeeForm}
+          servicesForm={servicesForm}
+          setAdsConfigForm={setAdsConfigForm}
+          setBizSubTab={setBizSubTab}
+          setBoostsForm={setBoostsForm}
+          setCommissionsForm={setCommissionsForm}
+          setCountryForm={setCountryForm}
+          setDiscountForm={setDiscountForm}
+          setFoundingForm={setFoundingForm}
+          setFournisseurForm={setFournisseurForm}
+          setImportFeeForm={setImportFeeForm}
+          setRateForm={setRateForm}
+          setRentalOptsForm={setRentalOptsForm}
+          setServiceFeeForm={setServiceFeeForm}
+          setServicesForm={setServicesForm}
+          setSubscriptionsForm={setSubscriptionsForm}
+          subscriptionsForm={subscriptionsForm}
+        />
       )}
 
       {/* ── Modal devise (ExchangeRate) ── */}
