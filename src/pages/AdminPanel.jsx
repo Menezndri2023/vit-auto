@@ -99,6 +99,8 @@ export default function AdminPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 900);
+  // Filtre du menu latéral (50 onglets) : saisie libre, accents ignorés.
+  const [filtreMenu, setFiltreMenu] = useState("");
   const isMobile = useRef(window.innerWidth <= 900);
 
   // Détecter le passage mobile/desktop et adapter la sidebar
@@ -3018,9 +3020,12 @@ export default function AdminPanel() {
     return Array.isArray(scope) ? scope.some((x) => scopes.includes(x)) : scopes.includes(scope);
   };
 
+  // Menu regroupé par domaine métier (2026-11-02) : mêmes onglets, mêmes
+  // droits (TAB_SCOPES) — seul l'ordre et les rubriques changent. Les files
+  // à traiter restent résumées en tête de la Vue d'ensemble (« À traiter »).
   const NAV_GROUPS_ALL = [
     {
-      label: "TABLEAU DE BORD",
+      label: "PILOTAGE",
       items: [
         { key: "dashboard",  icon: "📊", label: "Vue d'ensemble" },
         { key: "analytics",  icon: "📈", label: "Analytics" },
@@ -3028,7 +3033,7 @@ export default function AdminPanel() {
       ],
     },
     {
-      label: "UTILISATEURS & CONFORMITÉ",
+      label: "COMPTES & CONFORMITÉ",
       items: [
         { key: "users",         icon: "👥", label: `Comptes (${users.length})` },
         { key: "kyc",           icon: "🛡️", label: "KYC / Identités",         badge: pendingKyc },
@@ -3036,72 +3041,82 @@ export default function AdminPanel() {
       ],
     },
     {
-      label: "CATALOGUE",
-      items: [
-        { key: "catalogue", icon: "🚗", label: "Annonces & Validations", badge: pendingVeh + pendingDrivers + liveNewListings },
-      ],
-    },
-    {
-      label: "MARKETING & CMS",
-      items: [
-        { key: "marketing", icon: "🎨", label: "Contenu & Mise en avant" },
-      ],
-    },
-    {
-      label: "SERVICES",
-      items: [
-        { key: "pending_validation", icon: "🕐", label: "Demandes à valider", badge: pendingValidationTotal || undefined },
-        { key: "bookings",      icon: "📋", label: "Réservations",          badge: pendingBk },
-        { key: "sales_leads",   icon: "🎯", label: "Leads vente (essais)" },
-        { key: "litiges",       icon: "⚖️",  label: "Litiges",              badge: disputedBk + liveDisputes },
-        { key: "contrats",      icon: "📑", label: "Contrats" },
-        { key: "chauffeurs",    icon: "👨‍✈️", label: "Chauffeurs",           badge: pendingDrivers },
-        { key: "activites",     icon: "🎈", label: "Activités et Loisirs",     badge: pendingActivities },
-        { key: "pieces",        icon: "🔩", label: "Pièces détachées" },
-        { key: "dossiers_import", icon: "🚢", label: "Dossiers d'import" },
-        { key: "zone_transit",    icon: "⚓", label: "Zone Transit" },
-        { key: "logistique",      icon: "📦", label: "Logistique (gratuit)" },
-        { key: "import_export", icon: "🌍", label: "Transactions I/E",      badge: pendingIe },
-        { key: "exportateurs",  icon: "📦", label: "Partenaires Export",    badge: pendingImp },
-        { key: "transport",     icon: "🚢", label: "Transport Intl." },
-        { key: "import_cost",   icon: "🧮", label: "Coûts Import" },
-        { key: "financement",   icon: "🏦", label: "Financement" },
-        { key: "assurance",     icon: "🔒", label: "Assurance" },
-        { key: "reversements",  icon: "💸", label: "Reversements", badge: payoutsPendingCount || undefined },
-        { key: "service_requests", icon: "🧰", label: "Autres services", badge: pendingSvcReq || undefined },
-      ],
-    },
-    {
       label: "PARTENAIRES",
       items: [
         { key: "partner_verif",    icon: "🔍", label: "Vérification Partenaires", badge: pendingPv },
         { key: "secteurs",         icon: "🧭", label: "Secteurs d'activité",     badge: secteursPending || undefined },
-        { key: "pms_partners",     icon: "🏪", label: "Partner Hub PMS",          badge: pmsShowrooms.filter(s => !s.isPublished).length || undefined },
         { key: "founding_partners",icon: "🌟", label: "Founding Partners",        badge: foundingPending || undefined },
         { key: "partner_crm",      icon: "🎯", label: "CRM Partenaires" },
+        { key: "pms_partners",     icon: "🏪", label: "Partner Hub PMS",          badge: pmsShowrooms.filter(s => !s.isPublished).length || undefined },
+      ],
+    },
+    {
+      label: "ANNONCES & CONTENU",
+      items: [
+        { key: "catalogue", icon: "🚗", label: "Annonces & Validations", badge: pendingVeh + pendingDrivers + liveNewListings },
+        { key: "marketing", icon: "🎨", label: "Contenu & Mise en avant" },
+        { key: "ads",           icon: "📢", label: "Publicités & Campagnes" },
+      ],
+    },
+    {
+      label: "LOCATION & SERVICES",
+      items: [
+        { key: "bookings",      icon: "📋", label: "Réservations",          badge: pendingBk },
+        { key: "pending_validation", icon: "🕐", label: "Demandes à valider", badge: pendingValidationTotal || undefined },
+        { key: "contrats",      icon: "📑", label: "Contrats" },
+        { key: "chauffeurs",    icon: "👨‍✈️", label: "Chauffeurs",           badge: pendingDrivers },
+        { key: "activites",     icon: "🎈", label: "Activités et Loisirs",     badge: pendingActivities },
         { key: "rental_policies",  icon: "🚚", label: "Politiques de location" },
+        { key: "financement",   icon: "🏦", label: "Financement" },
+        { key: "assurance",     icon: "🔒", label: "Assurance" },
+        { key: "service_requests", icon: "🧰", label: "Autres services", badge: pendingSvcReq || undefined },
+      ],
+    },
+    {
+      label: "VENTE & PIÈCES",
+      items: [
+        { key: "sales_leads",   icon: "🎯", label: "Leads vente (essais)" },
+        { key: "pieces",        icon: "🔩", label: "Pièces détachées" },
+      ],
+    },
+    {
+      label: "IMPORT-EXPORT & LOGISTIQUE",
+      items: [
+        { key: "import_export", icon: "🌍", label: "Transactions I/E",      badge: pendingIe },
+        { key: "exportateurs",  icon: "📦", label: "Partenaires Export",    badge: pendingImp },
+        { key: "dossiers_import", icon: "🚢", label: "Dossiers d'import" },
+        { key: "zone_transit",    icon: "⚓", label: "Zone Transit" },
+        { key: "logistique",      icon: "📦", label: "Logistique" },
+        { key: "transport",     icon: "🚢", label: "Transport Intl." },
+        { key: "import_cost",   icon: "🧮", label: "Coûts Import" },
+      ],
+    },
+    {
+      label: "RÉCLAMATIONS & SUPPORT",
+      items: [
+        { key: "litiges",       icon: "⚖️",  label: "Litiges",              badge: disputedBk + liveDisputes },
+        { key: "support",       icon: "🎧", label: "Support Client",           badge: pendingSupport || undefined },
+        { key: "assistance",    icon: "🎫", label: "Demandes d'assistance",    badge: ticketsEnRetard || undefined },
+        { key: "chat_supervision", icon: "👁️", label: "Chats Client↔Partenaire" },
+        { key: "reports",       icon: "🚩", label: "Signalements",             badge: pendingReports || undefined },
+        { key: "reviews",       icon: "⭐", label: "Avis clients" },
       ],
     },
     {
       label: "FINANCE",
       items: [
         { key: "commissions",     icon: "💰", label: "Commissions" },
+        { key: "reversements",  icon: "💸", label: "Reversements", badge: payoutsPendingCount || undefined },
         { key: "factures",        icon: "📄", label: "Factures",          badge: pendingInv },
         { key: "paiements",       icon: "💳", label: "Paiements",         badge: pendingSub || undefined },
-        { key: "escrow",          icon: "🔐", label: "Séquestre (suspendu)" },
         { key: "business_config", icon: "⚙️", label: "Configuration métier" },
+        { key: "escrow",          icon: "🔐", label: "Séquestre (suspendu)" },
       ],
     },
     {
       label: "COMMUNICATION",
       items: [
         { key: "notifications", icon: "🔔", label: "Notifications & Broadcast" },
-        { key: "reviews",       icon: "⭐", label: "Avis clients" },
-        { key: "ads",           icon: "📢", label: "Publicités & Campagnes" },
-        { key: "support",       icon: "🎧", label: "Support Client",           badge: pendingSupport || undefined },
-        { key: "assistance",    icon: "🎫", label: "Demandes d'assistance",    badge: ticketsEnRetard || undefined },
-        { key: "chat_supervision", icon: "👁️", label: "Chats Client↔Partenaire" },
-        { key: "reports",       icon: "🚩", label: "Signalements",             badge: pendingReports || undefined },
         { key: "whatsapp",      icon: "💬", label: "Bot WhatsApp partenaires", badge: pendingWa || undefined },
         { key: "email_delivery",icon: "📧", label: "Emails & Livraison",       badge: emailFailures.length || undefined },
       ],
@@ -3118,6 +3133,12 @@ export default function AdminPanel() {
 
   const NAV_GROUPS = NAV_GROUPS_ALL
     .map((group) => ({ ...group, items: group.items.filter((i) => canSeeTab(i.key)) }))
+    .filter((group) => group.items.length > 0);
+
+  const sansAccents = (x) => String(x).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const filtre = sansAccents(filtreMenu.trim());
+  const NAV_GROUPS_AFFICHES = !filtre ? NAV_GROUPS : NAV_GROUPS
+    .map((group) => ({ ...group, items: sansAccents(group.label).includes(filtre) ? group.items : group.items.filter((i) => sansAccents(i.label).includes(filtre)) }))
     .filter((group) => group.items.length > 0);
 
   // Titre de l'onglet actif
@@ -3346,8 +3367,16 @@ export default function AdminPanel() {
           <span className={styles.sidebarLogoText}>VIT-AUTO ERP</span>
         </div>
 
+        {sidebarOpen && (
+          <div className={styles.navFiltre}>
+            <input type="search" value={filtreMenu} onChange={(e) => setFiltreMenu(e.target.value)}
+              placeholder="Filtrer le menu…" aria-label="Filtrer le menu d'administration" />
+          </div>
+        )}
+
         {/* Navigation groupée */}
-        {NAV_GROUPS.map((group) => (
+        {NAV_GROUPS_AFFICHES.length === 0 && <p className={styles.navVide}>Aucune rubrique ne correspond.</p>}
+        {NAV_GROUPS_AFFICHES.map((group) => (
           <div key={group.label}>
             <span className={styles.navGroup}>{group.label}</span>
             {group.items.map((item) => (
@@ -3356,6 +3385,7 @@ export default function AdminPanel() {
                 className={`${styles.navItem} ${activeTab === item.key ? styles.navActive : ""}`}
                 onClick={() => {
                   setActiveTab(item.key);
+                  setFiltreMenu("");
                   if (isMobile.current) setSidebarOpen(false);
                 }}
                 title={!sidebarOpen ? item.label : undefined}
@@ -3389,7 +3419,7 @@ export default function AdminPanel() {
 
           {/* Recherche globale — cherche véhicules/chauffeurs/annonces Import-Export
               en une fois, classés par entité, quel que soit l'onglet actif. */}
-          <div style={{ position: "relative", flex: "1 1 260px", maxWidth: 360, margin: "0 12px" }}>
+          <div className={styles.rechercheGlobale}>
             <input
               type="text"
               value={globalSearch}

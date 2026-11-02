@@ -504,7 +504,7 @@ const Register = () => {
                 autoComplete="tel"
                 value={form.phone}
                 onChange={handleChange}
-                placeholder="+225 07 00 00 00 00"
+                placeholder={t("reg.phonePlaceholder")}
               />
             </div>
           </fieldset>

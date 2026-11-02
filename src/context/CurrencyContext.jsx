@@ -27,6 +27,18 @@ export const COUNTRY_INTERNATIONAL = "INTL";
 
 const INTL_CODES = ["EUR", "USD", "CAD", "CHF", "GBP"];
 
+// Devises hors Intl (MAD, XOF…) : jamais de décimale isolée (« 188.430,6 DH ») —
+// pas de centimes au-delà de 1 000, sinon 0 ou 2 décimales.
+export function formaterMontant(montant, locale) {
+  const n = Number(montant);
+  const grand = Math.abs(n) >= 1000;
+  const entier = Number.isInteger(Math.round(n * 100) / 100);
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: grand || entier ? 0 : 2,
+    maximumFractionDigits: grand ? 0 : 2,
+  }).format(n);
+}
+
 export function CurrencyProvider({ children }) {
   const { user } = useAuth();
   const saved = localStorage.getItem("vit_currency");
@@ -258,7 +270,7 @@ export function CurrencyProvider({ children }) {
       if (INTL_CODES.includes(code)) {
         return new Intl.NumberFormat(locale, { style: "currency", currency: code, maximumFractionDigits: 2 }).format(converted);
       }
-      return `${Number(Math.round(converted * 100) / 100).toLocaleString(locale)} ${symbol}`;
+      return `${formaterMontant(converted, locale)} ${symbol}`;
     },
     [currentCurrency, rateFromUSD]
   );
@@ -289,13 +301,14 @@ export function CurrencyProvider({ children }) {
 
   // Formate un montant déjà exprimé dans une devise arbitraire (annonces
   // Import/Export : le partenaire choisit librement la devise de son annonce,
-  // ex. EUR/USD/AED — jamais XOF) dans la devise active du visiteur (détectée
-  // par IP). Repasse par XOF comme pivot, comme fmt().
+  // ex. EUR/USD/AED) dans la devise active du visiteur (détectée par IP).
+  // Repasse par l'USD, pivot de fmt() depuis la Phase 2. Jusqu'au 2026-11-02 le
+  // pivot était encore XOF : chaque prix était multiplié par le taux XOF
+  // (≈ 600 — 18 000 € affichés « 120.000.000 DH », voir PriceTag.devise.test.jsx).
   const fmtFromCurrency = useCallback(
     (amount, sourceCode) => {
       if (amount == null || isNaN(amount)) return "—";
-      const sourceRateXOF = rateFromUSD("XOF") / (rateFromUSD(sourceCode) || 1); // XOF pour 1 unité de sourceCode
-      return fmt(amount * sourceRateXOF);
+      return fmt(amount / (rateFromUSD(sourceCode) || 1));
     },
     [fmt, rateFromUSD]
   );
@@ -313,7 +326,7 @@ export function CurrencyProvider({ children }) {
       if (INTL_CODES.includes(code)) {
         return new Intl.NumberFormat(locale, { style: "currency", currency: code, maximumFractionDigits: 2 }).format(amount);
       }
-      return `${Number(Math.round(amount * 100) / 100).toLocaleString(locale)} ${symbol}`;
+      return `${formaterMontant(amount, locale)} ${symbol}`;
     },
     [CURRENCIES]
   );

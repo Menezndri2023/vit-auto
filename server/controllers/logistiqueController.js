@@ -1256,6 +1256,6 @@ export const exporterIndicateurs = async (req, res) => {
     const csv = lignes.map(csvRow).join("\n");
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", 'attachment; filename="vit-auto-logistique-indicateurs.csv"');
-    res.send(`﻿${csv}`);
+    res.send(`\uFEFF${csv}`);
   } catch (err) { echec(res, "exporterIndicateurs")(err); }
 };

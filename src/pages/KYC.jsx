@@ -179,7 +179,10 @@ export default function KYC() {
         if (typeof d.hasEmail === "boolean") setHasEmail(d.hasEmail);
         if (typeof d.hasPhone === "boolean") setHasPhone(d.hasPhone);
         if (d.driverLicenseOcr) setExistingLicense(d.driverLicenseOcr);
-        if (d.kycStatus && d.kycStatus !== "EN_ATTENTE" && d.kycSubmittedAt) {
+        // Un compte VERIFIE sans date de soumission existe (partenaire approuvé
+        // par le programme Founding, partnerOnboardingController) : il voit son
+        // résultat, jamais un formulaire à refaire.
+        if (d.kycStatus && d.kycStatus !== "EN_ATTENTE" && (d.kycSubmittedAt || d.kycStatus === "VERIFIE")) {
           setKycResult(d); setSubmitted(true); setStep(4);
         }
       })

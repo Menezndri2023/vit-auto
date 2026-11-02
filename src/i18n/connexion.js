@@ -73,6 +73,7 @@ export default {
   "reg.codeSentToast":{ fr: "Compte créé ! Un code de confirmation a été envoyé à {email}.", en: "Account created! A confirmation code has been sent to {email}.", ar: "تم إنشاء الحساب! أُرسل رمز تأكيد إلى {email}.", es: "¡Cuenta creada! Se ha enviado un código de confirmación a {email}.", zh: "账户已创建！确认码已发送至 {email}。" },
   "reg.codeValid":    { fr: "— valable 10 minutes", en: "— valid for 10 minutes", ar: "— صالح لمدة ١٠ دقائق", es: "— válido 10 minutos", zh: "— 10 分钟内有效" },
   "reg.optional":     { fr: "(facultatif)", en: "(optional)", ar: "(اختياري)", es: "(opcional)", zh: "（可选）" },
+  "reg.phonePlaceholder": { fr: "Avec l'indicatif : +212…, +225…, +33…", en: "With country code: +212…, +225…, +33…", ar: "مع رمز الدولة: ‎+212…، ‎+225…، ‎+33…", es: "Con el prefijo: +212…, +225…, +33…", zh: "含国家区号：+212…、+225…、+33…" },
   "reg.roleClient":   { fr: "🧑 Client", en: "🧑 Customer", ar: "🧑 عميل", es: "🧑 Cliente", zh: "🧑 客户" },
   "reg.roleClientDesc": { fr: "Louer, acheter, importer", en: "Rent, buy, import", ar: "استئجار، شراء، استيراد", es: "Alquilar, comprar, importar", zh: "租车、购车、进口" },
   "reg.rolePartner":  { fr: "🤝 Partenaire", en: "🤝 Partner", ar: "🤝 شريك", es: "🤝 Socio", zh: "🤝 合作伙伴" },

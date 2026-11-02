@@ -1016,14 +1016,7 @@ const Dashboard = () => {
         <div className={styles.emptyCard}>
           <div className={styles.emptyIcon}>📭</div>
           <h3>{t("dash.noBookings")}</h3>
-          <p>
-            {activeTab === "active"
-              ? t("dash.noBookings")
-              : activeTab === "done"
-              ? t("dash.noBookings")
-              : t("dash.noBookings")}
-          </p>
-          <Link to="/catalogue" className={styles.primaryBtn}>{t("vehicle.details")}</Link>
+          <Link to="/catalogue" className={styles.primaryBtn}>{t("dash.book")}</Link>
         </div>
       ) : (
         <div className={styles.bookingList}>
