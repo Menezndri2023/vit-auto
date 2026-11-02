@@ -72,8 +72,31 @@ function relayerUpgrade(req, socket, head) {
   socket.on("error", () => distant.destroy());
 }
 
+// Réécritures conditionnées par l'user-agent (aperçus de partage : vercel.json
+// envoie les robots de WhatsApp, Facebook… vers l'API). Lues dans vercel.json
+// lui-même — aucune copie à tenir à jour — et appliquées comme Vercel :
+// source « /:nom » ou « /:nom(a|b) », destination sur l'API, $nom substitué.
+const REECRITURES_ROBOTS = (vercel.rewrites || [])
+  .filter((r) => r.has?.some((h) => h.type === "header" && h.key === "user-agent") && r.destination.startsWith("https://vit-auto-api.onrender.com/"))
+  .map((r) => {
+    const noms = [];
+    const motif = new RegExp("^" + r.source.replace(/:(\w+)(\([^)]*\))?/g, (_, nom, alt) => { noms.push(nom); return alt || "([^/]+)"; }) + "$");
+    const ua = new RegExp(r.has.find((h) => h.key === "user-agent").value);
+    return { motif, noms, ua, destination: r.destination.replace("https://vit-auto-api.onrender.com", "") };
+  });
+function reecritureRobot(req) {
+  const chemin = req.url.split("?")[0];
+  for (const r of REECRITURES_ROBOTS) {
+    const m = r.ua.test(req.headers["user-agent"] || "") && chemin.match(r.motif);
+    if (m) return r.noms.reduce((d, nom, i) => d.replace(":" + nom, m[i + 1]), r.destination);
+  }
+  return null;
+}
+
 const serveur = http.createServer((req, res) => {
   if (req.url.startsWith("/api/") || req.url.startsWith("/socket.io/")) return relayerApi(req, res);
+  const versApi = reecritureRobot(req);
+  if (versApi) { req.url = versApi; return relayerApi(req, res); }
   let p = decodeURIComponent(req.url.split("?")[0]);
   let f = path.join(RACINE, p);
   if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(RACINE, "index.html");

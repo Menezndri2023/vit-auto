@@ -84,6 +84,7 @@ import apiKeyRoutes from "./routes/apiKeys.js";
 import publicApiRoutes from "./routes/publicApi.js";
 import vitrinePartenaireRoutes from "./routes/vitrinePartenaire.js";
 import { servirSitemap } from "./controllers/sitemapController.js";
+import { apercuVehicule, apercuAnnonceIE, apercuVitrine } from "./controllers/partageController.js";
 import spotlightRoutes from "./routes/spotlight.js";
 import salesLeadRoutes from "./routes/salesLeads.js";
 import { authenticate, authorizeAdmin } from "./middleware/auth.js";
@@ -460,6 +461,11 @@ app.get("/api/health", async (req, res) => {
 // robot d'indexation n'est pas un client, et le faire tomber sur un 429
 // reviendrait à se retirer des moteurs.
 app.get(["/sitemap.xml", "/api/sitemap.xml"], servirSitemap);
+// Aperçus de partage (WhatsApp, Facebook…) : vercel.json n'y envoie que les
+// robots d'aperçu, d'après leur user-agent (voir controllers/partageController.js).
+app.get("/partage/vehicle/:id",          catalogueLimiter, apercuVehicule);
+app.get("/partage/import-export/:id",    catalogueLimiter, apercuAnnonceIE);
+app.get("/partage/p/:slug",              catalogueLimiter, apercuVitrine);
 
 app.use("/api/auth",           authLimiter,      authRoutes);
 app.use("/api/vehicles/import", apiLimiter,      vehicleImportRoutes); // AVANT /api/vehicles (routes statiques d'abord)

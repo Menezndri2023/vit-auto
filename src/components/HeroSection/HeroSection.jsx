@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useSpotlight } from "../../hooks/useSpotlight";
 import { useCurrency } from "../../context/CurrencyContext";
 import { useI18n } from "../../context/I18nContext";
-import { IMPORT_ORIGINS } from "../../constants/importOrigins";
+import { ORIGINES_EN_AVANT } from "../../constants/importOrigins";
 // Les pastilles pointaient vers une vue filtrée du catalogue — une URL que les
 // moteurs ne peuvent pas distinguer de la page principale. Elles mènent
 // désormais à la page indexable du corridor.
@@ -324,7 +324,7 @@ export default function HeroSection() {
       <div className={styles.originsRow}>
         <span className={styles.originsLabel}>{t("hero.importFrom")}</span>
         <div className={styles.originsScroll}>
-          {IMPORT_ORIGINS.map((o) => (
+          {ORIGINES_EN_AVANT.map((o) => (
             <Link
               key={o.code}
               to={`/import-voiture/${slugifyCity(o.name)}`}

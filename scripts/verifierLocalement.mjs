@@ -253,6 +253,23 @@ async function analyserSurPage(page, e) {
   return p;
 }
 
+// Aperçus de partage (2026-11-02) : un robot WhatsApp reçoit l'aperçu de
+// l'annonce (titre, photo), un navigateur reçoit l'application. Les deux sens
+// comptent : un aperçu servi aux visiteurs leur couperait le site.
+{
+  const p = [];
+  const veh = ((await (await fetch(BASE + "/api/vehicles?limit=1")).json().catch(() => ({}))).vehicles || [])[0];
+  if (!veh) p.push("aucune annonce pour tester l'aperçu de partage");
+  else {
+    const robot = await (await fetch(`${BASE}/vehicle/${veh._id}`, { headers: { "User-Agent": "WhatsApp/2.24.1.6 A" } })).text();
+    const titre = (robot.match(/<meta property="og:title" content="([^"]*)"/) || [])[1] || "";
+    if (!/sur VIT AUTO$/.test(titre) || !titre.includes((veh.title || "").slice(0, 10).replace(/[<>&"']/g, ""))) p.push(`robot WhatsApp : aperçu inattendu (« ${titre.slice(0, 80)} »)`);
+    const humain = await (await fetch(`${BASE}/vehicle/${veh._id}`, { headers: { "User-Agent": "Mozilla/5.0 (iPhone) Safari" } })).text();
+    if (!/<div id="root">/.test(humain)) p.push("navigateur : l'application n'est pas servie sur /vehicle/:id");
+  }
+  signaler("partage", "/vehicle/:id (robot / humain)", p);
+}
+
 const nav = await chromium.launch({ executablePath: EXE, headless: true });
 
 for (const ecran of ECRANS) {

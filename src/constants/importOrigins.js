@@ -35,6 +35,16 @@ export const IMPORT_ORIGINS = [
   { code: "US", flag: "🇺🇸", name: "États-Unis" },
 ];
 
+// Origines MISES EN AVANT (décision de l'exploitant, 2026-11-02) : la Chine
+// d'abord, puis la France et les Émirats — les exportateurs partenaires
+// réellement actifs. Les autres origines restent ci-dessus (reconnaissance du
+// pays saisi librement, pages /import-voiture/<pays> déjà indexées) mais ne
+// sont plus proposées tant qu'aucun exportateur n'y est actif : ajouter un
+// code ici suffit à la remettre en avant.
+export const ORIGINES_EN_AVANT = ["CN", "FR", "AE"]
+  .map((code) => IMPORT_ORIGINS.find((o) => o.code === code))
+  .filter(Boolean);
+
 // Résout une valeur libre de `ImportExportListing.sourceCountry` vers une
 // origine connue. Indispensable : ce champ est une CHAÎNE LIBRE, et la base
 // contient aujourd'hui « CHINA », « China », « china », « chi'na » et « 中国 »

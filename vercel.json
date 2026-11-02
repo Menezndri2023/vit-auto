@@ -16,6 +16,72 @@
       "destination": "https://vit-auto-api.onrender.com/socket.io/$1"
     },
     {
+      "source": "/vehicle/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(.*)(WhatsApp|facebookexternalhit|Facebot|meta-externalagent|Twitterbot|LinkedInBot|Slackbot|TelegramBot|Discordbot|SkypeUriPreview|Pinterest|Snapchat)(.*)"
+        }
+      ],
+      "destination": "https://vit-auto-api.onrender.com/partage/vehicle/:id"
+    },
+    {
+      "source": "/import-export/listings/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(.*)(WhatsApp|facebookexternalhit|Facebot|meta-externalagent|Twitterbot|LinkedInBot|Slackbot|TelegramBot|Discordbot|SkypeUriPreview|Pinterest|Snapchat)(.*)"
+        }
+      ],
+      "destination": "https://vit-auto-api.onrender.com/partage/import-export/:id"
+    },
+    {
+      "source": "/p/:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(.*)(WhatsApp|facebookexternalhit|Facebot|meta-externalagent|Twitterbot|LinkedInBot|Slackbot|TelegramBot|Discordbot|SkypeUriPreview|Pinterest|Snapchat)(.*)"
+        }
+      ],
+      "destination": "https://vit-auto-api.onrender.com/partage/p/:slug"
+    },
+    {
+      "source": "/:lang(en|ar|es|zh)/vehicle/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(.*)(WhatsApp|facebookexternalhit|Facebot|meta-externalagent|Twitterbot|LinkedInBot|Slackbot|TelegramBot|Discordbot|SkypeUriPreview|Pinterest|Snapchat)(.*)"
+        }
+      ],
+      "destination": "https://vit-auto-api.onrender.com/partage/vehicle/:id"
+    },
+    {
+      "source": "/:lang(en|ar|es|zh)/import-export/listings/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(.*)(WhatsApp|facebookexternalhit|Facebot|meta-externalagent|Twitterbot|LinkedInBot|Slackbot|TelegramBot|Discordbot|SkypeUriPreview|Pinterest|Snapchat)(.*)"
+        }
+      ],
+      "destination": "https://vit-auto-api.onrender.com/partage/import-export/:id"
+    },
+    {
+      "source": "/:lang(en|ar|es|zh)/p/:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(.*)(WhatsApp|facebookexternalhit|Facebot|meta-externalagent|Twitterbot|LinkedInBot|Slackbot|TelegramBot|Discordbot|SkypeUriPreview|Pinterest|Snapchat)(.*)"
+        }
+      ],
+      "destination": "https://vit-auto-api.onrender.com/partage/p/:slug"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useCurrency } from "../context/CurrencyContext";
 import { useDocumentMeta } from "../hooks/useDocumentMeta";
 import { slugifyCity } from "../constants/citySlug";
-import { IMPORT_ORIGINS } from "../constants/importOrigins";
+import { IMPORT_ORIGINS, ORIGINES_EN_AVANT } from "../constants/importOrigins";
 import { useI18n } from "../context/I18nContext";
 
 // Page d'entrée par PAYS D'ORIGINE — pendant international des pages de ville.
@@ -88,7 +88,7 @@ export default function ImportOriginLanding() {
       : null,
   });
 
-  const autres = IMPORT_ORIGINS.filter((o) => slugifyCity(o.name) !== slug);
+  const autres = ORIGINES_EN_AVANT.filter((o) => slugifyCity(o.name) !== slug);
 
   return (
     <div style={{ maxWidth: 1180, margin: "0 auto", padding: "2rem 1.25rem 3rem" }}>
