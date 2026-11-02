@@ -21,6 +21,8 @@ describe("Page KYC", () => {
     renderPage(<KYC />, { route: "/kyc" });
     expect(await screen.findByText(/Votre identité a été vérifiée/)).toBeTruthy();
     expect(screen.queryByText("Coordonnées de contact")).toBeNull();
+    expect(screen.getByText(/toutes les réservations vous sont ouvertes/)).toBeTruthy();
+    expect(screen.queryByText(/Complétez votre dossier/)).toBeNull();
   });
 
   it("à l'ouverture, aucun modèle OCR n'est téléchargé", async () => {

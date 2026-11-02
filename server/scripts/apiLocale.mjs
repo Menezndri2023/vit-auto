@@ -199,6 +199,11 @@ async function semer(uri) {
     password: await bcrypt.hash(MOT_DE_PASSE_SEME, 10), firstName: "Client", lastName: "Démo", country: "CI", kycStatus: "VERIFIE",
     identity: { type: "cni", number: "CI-DEMO-1", status: "pending", submittedAt: new Date(), frontImage: PHOTOS[0], selfie: PHOTOS[1] } });
 
+  // Compte jamais vérifié : la garde y fait une vraie analyse OCR du KYC (les
+  // autres comptes semés sont VERIFIE et voient leur résultat, pas le formulaire).
+  await createUser({ role: "client", email: "kyc@vitauto-fixtures.fr", emailVerified: true, country: "MA",
+    password: await bcrypt.hash(MOT_DE_PASSE_SEME, 10), firstName: "Kyc", lastName: "Àvérifier", kycStatus: "EN_ATTENTE" });
+
   // Configuration tarifaire : document singleton (key "global") que la
   // production possède et que le panneau lit — sans lui, 404 sur l'onglet
   // Configuration métier. Semée depuis la configuration par défaut du dépôt.
@@ -250,7 +255,7 @@ if (await attendre(`http://localhost:${PORT}/api/health`)) {
   // Ligne lisible par la garde (.githooks/pre-push) : les identifiants de
   // l'administrateur SEMÉ, sans valeur hors de cette base jetable.
   console.log(`VERIF_ADMIN_ID=${ADMIN.email} VERIF_ADMIN_PWD=${ADMIN.password}`);
-  console.log(`VERIF_PARTNER_ID=partenaire1@vitauto-fixtures.fr VERIF_CLIENT_ID=client@vitauto-fixtures.fr VERIF_SEME_PWD=${MOT_DE_PASSE_SEME}`);
+  console.log(`VERIF_PARTNER_ID=partenaire1@vitauto-fixtures.fr VERIF_CLIENT_ID=client@vitauto-fixtures.fr VERIF_KYC_ID=kyc@vitauto-fixtures.fr VERIF_SEME_PWD=${MOT_DE_PASSE_SEME}`);
 } else {
   console.error("API locale : /api/health ne répond pas après 30 s");
   await arret();

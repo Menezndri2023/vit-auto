@@ -189,12 +189,38 @@ function problemesDe(m, e, { exigerSw = true } = {}) {
 // seulement) : une vraie photo de document est donc analysée ici, sinon la CSP
 // de l'OCR ne serait plus vérifiée du tout. Rien n'est envoyé au serveur
 // avant la soumission finale, que ce balayage ne fait jamais.
+// Un compte déjà VERIFIE voit son résultat, jamais le formulaire : l'analyse
+// se fait alors avec VERIF_KYC_ID (compte jamais vérifié, semé par apiLocale).
+// Sans lui (vérification manuelle de la production), c'est une anomalie
+// signalée — jamais un vert par défaut.
 async function analyserDocumentKyc(page, e) {
-  const p = [];
   const continuer = page.getByRole("button", { name: "Continuer →" });
   if (await continuer.isVisible().catch(() => false)) await continuer.click();
+  if (await page.locator("input[type=file]").count()) return analyserSurPage(page, e);
+  if (!process.env.VERIF_KYC_ID) return ["compte déjà vérifié et VERIF_KYC_ID absent — l'analyse OCR n'a pas pu être vérifiée"];
+  const ctx = await page.context().browser().newContext({ viewport: page.viewportSize(), locale: "fr-FR" });
+  const autre = await ctx.newPage();
+  const e2 = ecouter(autre);
+  try {
+    await autre.goto(BASE + "/login", { waitUntil: "domcontentloaded", timeout: 60000 });
+    await autre.fill("#login-identifier", process.env.VERIF_KYC_ID); await autre.fill("#login-password", process.env.VERIF_SEME_PWD || "");
+    await autre.click("form button[type=submit]");
+    await autre.waitForFunction(() => !!localStorage.getItem("vit-auto-token"), null, { timeout: 30000 });
+    await autre.goto(BASE + "/kyc", { waitUntil: "domcontentloaded", timeout: 60000 });
+    await autre.waitForTimeout(4000);
+    const suite = autre.getByRole("button", { name: "Continuer →" });
+    if (await suite.isVisible().catch(() => false)) await suite.click();
+    if (!(await autre.locator("input[type=file]").count())) return ["étape document introuvable pour VERIF_KYC_ID — l'analyse OCR n'a pas pu être vérifiée"];
+    e2.vider();
+    return await analyserSurPage(autre, e2);
+  } catch (x) {
+    return ["analyse OCR avec VERIF_KYC_ID impossible : " + x.message.split("\n")[0].slice(0, 120)];
+  } finally { await ctx.close(); }
+}
+
+async function analyserSurPage(page, e) {
+  const p = [];
   const recto = page.locator("input[type=file]").first();
-  if (!(await recto.count())) return ["étape document introuvable — l'analyse OCR n'a pas pu être vérifiée"];
   // Document fictif dessiné dans la page : fond gris, bloc photo sombre, texte
   // lisible — assez contrasté pour passer checkDocumentQuality.
   const base64 = await page.evaluate(() => {

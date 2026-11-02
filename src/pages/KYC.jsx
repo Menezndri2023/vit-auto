@@ -482,7 +482,10 @@ export default function KYC() {
   // section "Téléphone" plus haut) — exclue du décompte pour que le dossier
   // puisse honnêtement atteindre 100% sans elle.
   const TOTAL_STEPS = 3;
-  const completedCount = [emailVerified, docImageOk, selfieOk].filter(Boolean).length;
+  // Dossier déjà tranché (VERIFIE) : progression pleine — et non « 1/3 » parce
+  // que document et selfie n'ont pas été refaits dans cette visite.
+  const dejaVerifie = submitted && kycResult?.kycStatus === "VERIFIE";
+  const completedCount = dejaVerifie ? TOTAL_STEPS : [emailVerified, docImageOk, selfieOk].filter(Boolean).length;
 
   return (
     <div className={styles.page}>
@@ -491,7 +494,9 @@ export default function KYC() {
       <div className={styles.hero}>
         <div>
           <h1 className={styles.heroTitle}>Vérification d'identité KYC</h1>
-          <p className={styles.heroSub}>Complétez votre dossier pour accéder aux réservations VIT AUTO.</p>
+          <p className={styles.heroSub}>{dejaVerifie
+            ? "Votre identité est vérifiée : toutes les réservations vous sont ouvertes."
+            : "Complétez votre dossier pour accéder aux réservations VIT AUTO."}</p>
         </div>
         <div className={styles.heroProgress}>
           <svg viewBox="0 0 44 44" className={styles.heroProgressCircle}>
@@ -910,7 +915,7 @@ export default function KYC() {
                   {kycResult?.kycStatus === "A_REVOIR_MANUELLEMENT" && "Votre dossier est en cours d'examen approfondi. Résultat attendu sous 24h."}
                   {kycResult?.kycStatus === "REFUSE"                && (kycResult.kycRejectionReason || "Dossier refusé. Contactez notre support.")}
                 </div>
-                {kycResult?.kycScore !== undefined && (
+                {kycResult?.kycScore > 0 && (
                   <div className={styles.finalScore}>Score : {kycResult.kycScore} / 100</div>
                 )}
               </div>
