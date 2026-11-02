@@ -6,33 +6,49 @@
 
 import { createWorker } from "tesseract.js";
 
-// ── Instance worker partagée (initialisée une seule fois) ─────────────────────
+// ── Instance worker partagée (une par jeu de langues) ─────────────────────────
 let _worker = null;
-let _workerReady = false;
+let _workerLangs = null;
+let _onProgress = null;
 
-// "fra+eng" seul laissait les documents en écriture non-latine (ex. carte
-// d'identité chinoise, sans MRZ) totalement illisibles pour Tesseract — OCR à
-// 0%, aucun champ auto-rempli. Un passeport reste lu correctement quel que
-// soit le pays d'émission via sa zone MRZ (A-Z0-9< normalisés, voir
-// parseDocumentText ci-dessous), mais une pièce d'identité NATIONALE
-// (sans MRZ) a besoin du modèle de langue correspondant. "chi_sim" (chinois
-// simplifié) et "ara" (arabe — Maroc/Algérie/Tunisie/Émirats, déjà langues
-// d'interface supportées) couvrent les pays du catalogue CountryConfig dont
-// les pièces ne sont pas nécessairement bilingues français/anglais. Ne
-// bloque jamais la suite : un échec/faible confiance reste géré en amont
+// Langues lues selon le pays du compte (2026-11-01). Les quatre modèles
+// (fra+eng+chi_sim+ara ≈ 7 Mo) étaient téléchargés dès l'ouverture de /kyc :
+// plus d'une minute sur une connexion mobile lente, avant même la première
+// photo. Un passeport reste lu quel que soit le pays d'émission via sa zone
+// MRZ (A-Z0-9<, lisible par n'importe quel modèle latin, voir parseDocumentText) ;
+// seule une pièce NATIONALE sans MRZ a besoin du modèle de sa langue :
+// arabe pour le Maghreb et le Golfe, chinois simplifié pour la Chine, anglais
+// pour les pays anglophones, français partout ailleurs (≈ 0,7 Mo).
+const PAYS_ARABE_FR = new Set(["MA", "DZ", "TN", "MR", "LB"]);
+const PAYS_ARABE_EN = new Set(["AE", "SA", "QA", "KW", "BH", "OM", "JO", "EG", "LY", "IQ"]);
+const PAYS_ANGLAIS  = new Set(["GB", "US", "IE", "AU", "NZ", "GH", "NG", "KE", "ZA", "LR", "SL", "GM", "UG", "TZ", "ZM", "ZW", "BW", "RW", "IN", "SG", "MY", "PH"]);
+
+export function languesOcrPour(pays) {
+  const p = String(pays || "").toUpperCase();
+  if (p === "CN") return "chi_sim+eng";
+  if (PAYS_ARABE_FR.has(p)) return "fra+ara";
+  if (PAYS_ARABE_EN.has(p)) return "eng+ara";
+  if (PAYS_ANGLAIS.has(p)) return "eng";
+  return "fra";
+}
+
+// Appelé à la première analyse seulement (jamais à l'ouverture de la page).
+// Ne bloque jamais la suite : un échec/faible confiance reste géré en amont
 // (voir KYC.jsx, docImageOk mis à true même à 0% de confiance).
-export async function initOcrWorker(onProgress) {
-  if (_worker && _workerReady) return _worker;
+export async function initOcrWorker(langs = "fra", onProgress) {
+  _onProgress = onProgress || null;
+  if (_worker && _workerLangs === langs) return _worker;
+  if (_worker) await terminateOcrWorker();
 
-  _worker = await createWorker("fra+eng+chi_sim+ara", 1, {
+  _worker = await createWorker(langs, 1, {
     logger: (m) => {
-      if (onProgress && m.status === "recognizing text") {
-        onProgress(Math.round(m.progress * 100));
+      if (_onProgress && m.status === "recognizing text") {
+        _onProgress(Math.round(m.progress * 100));
       }
     },
   });
 
-  _workerReady = true;
+  _workerLangs = langs;
   return _worker;
 }
 
@@ -40,7 +56,7 @@ export async function terminateOcrWorker() {
   if (_worker) {
     await _worker.terminate();
     _worker = null;
-    _workerReady = false;
+    _workerLangs = null;
   }
 }
 
@@ -77,9 +93,9 @@ function preprocessImageForOcr(dataUrl) {
 }
 
 // ── Extraction OCR complète d'un document ─────────────────────────────────────
-export async function extractDocumentOcr(dataUrl, documentType, onProgress) {
+export async function extractDocumentOcr(dataUrl, documentType, onProgress, langs = "fra") {
   try {
-    const worker = await initOcrWorker(onProgress);
+    const worker = await initOcrWorker(langs, onProgress);
 
     // Pré-traitement
     const processedUrl = await preprocessImageForOcr(dataUrl);

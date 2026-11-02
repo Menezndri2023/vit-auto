@@ -5,7 +5,7 @@ import { Camera, CameraResultType, CameraSource, CameraDirection } from "@capaci
 import { useAuth } from "../context/AuthContext";
 import { api } from "../utils/apiClient";
 import { hashDocument } from "../utils/kycEngine.js";
-import { extractDocumentOcr, checkDocumentQuality, initOcrWorker } from "../utils/ocrEngine.js";
+import { extractDocumentOcr, checkDocumentQuality, languesOcrPour } from "../utils/ocrEngine.js";
 import { checkSelfieQuality } from "../utils/selfie.js";
 import { validateExpiryDate } from "../utils/idValidation.js";
 import { requiresBusinessDocs } from "../constants/partnerTaxonomy";
@@ -164,7 +164,9 @@ export default function KYC() {
       .catch(() => setMyOnboardings([]));
   }, [token, user?.entityType]);
 
-  useEffect(() => { initOcrWorker().catch(() => {}); }, []);
+  // Modèles OCR chargés à la première analyse, pour la seule langue du pays du
+  // compte (voir ocrEngine.languesOcrPour) — plus rien à l'ouverture de la page.
+  const languesOcr = languesOcrPour(user?.country);
 
   useEffect(() => {
     if (!token) return;
@@ -231,7 +233,7 @@ export default function KYC() {
     setOcrRunning(true);
     setOcrProgress(5);
     try {
-      const extracted = await extractDocumentOcr(url, docType, (p) => setOcrProgress(Math.max(5, p)));
+      const extracted = await extractDocumentOcr(url, docType, (p) => setOcrProgress(Math.max(5, p)), languesOcr);
       if (!extracted.success || extracted.ocrConfidence < 20) {
         // OCR trop faible → accepter quand même mais signaler
         setOcrData({
@@ -255,7 +257,7 @@ export default function KYC() {
       setOcrRunning(false);
       setOcrProgress(100);
     }
-  }, [docType]);
+  }, [docType, languesOcr]);
 
   const processDocumentImage = useCallback(async (file, side) => {
     if (!file) return;
@@ -395,12 +397,12 @@ export default function KYC() {
     if (side === "back") { setLicenseBackUrl(url); return; }
     setLicenseFrontUrl(url);
     try {
-      const extracted = await extractDocumentOcr(url, "permis", () => {});
+      const extracted = await extractDocumentOcr(url, "permis", () => {}, languesOcr);
       setLicenseOcrData(extracted);
       if (extracted?.documentNumber && !licenseNumber) setLicenseNumber(extracted.documentNumber);
       if (extracted?.issuingCountry && !licenseIssuingCountry) setLicenseIssuingCountry(extracted.issuingCountry);
     } catch { /* non bloquant, voir commentaire ci-dessus */ }
-  }, [licenseNumber, licenseIssuingCountry]);
+  }, [licenseNumber, licenseIssuingCountry, languesOcr]);
 
   const processLicenseImage = useCallback(async (file, side) => {
     if (!file) return;

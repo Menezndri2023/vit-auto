@@ -182,6 +182,51 @@ function problemesDe(m, e, { exigerSw = true } = {}) {
   return p;
 }
 
+// /kyc : le worker OCR (Tesseract) charge son script, son cœur WASM et ses
+// modèles depuis un CDN — chacun soumis à la CSP ; une erreur importScripts/
+// WebAssembly = soumission KYC impossible. Depuis le 2026-11-01 la page ne
+// précharge plus rien (modèles chargés à la première analyse, langue du pays
+// seulement) : une vraie photo de document est donc analysée ici, sinon la CSP
+// de l'OCR ne serait plus vérifiée du tout. Rien n'est envoyé au serveur
+// avant la soumission finale, que ce balayage ne fait jamais.
+async function analyserDocumentKyc(page, e) {
+  const p = [];
+  const continuer = page.getByRole("button", { name: "Continuer →" });
+  if (await continuer.isVisible().catch(() => false)) await continuer.click();
+  const recto = page.locator("input[type=file]").first();
+  if (!(await recto.count())) return ["étape document introuvable — l'analyse OCR n'a pas pu être vérifiée"];
+  // Document fictif dessiné dans la page : fond gris, bloc photo sombre, texte
+  // lisible — assez contrasté pour passer checkDocumentQuality.
+  const base64 = await page.evaluate(() => {
+    const c = document.createElement("canvas"); c.width = 900; c.height = 560;
+    const g = c.getContext("2d");
+    g.fillStyle = "#c8c8c8"; g.fillRect(0, 0, 900, 560);
+    g.fillStyle = "#333"; g.fillRect(40, 120, 230, 300);
+    g.fillStyle = "#111"; g.font = "bold 34px sans-serif";
+    ["CARTE NATIONALE D'IDENTITE", "NOM : KONE", "PRENOM : AWA", "NE LE : 14/05/1992"].forEach((t, i) => g.fillText(t, i ? 310 : 40, i ? 170 + i * 70 : 80));
+    return c.toDataURL("image/png").split(",")[1];
+  });
+  // « ✓ Analysé » s'affiche aussi quand l'OCR échoue (repli « faible qualité »,
+  // voir KYC.jsx) : ce texte seul serait un faux vert. Le modèle de langue doit
+  // donc avoir été réellement servi, et aucune « OCR error » journalisée.
+  const modeles = [];
+  const surReponse = (r) => { if (/\.traineddata/.test(r.url())) modeles.push(`${r.status()} ${r.url().split("/").pop()}`); };
+  page.on("response", surReponse);
+  await recto.setInputFiles({ name: "document.png", mimeType: "image/png", buffer: Buffer.from(base64, "base64") });
+  const fini = await page.getByText("✓ Analysé").waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
+  page.off("response", surReponse);
+  if (!fini) p.push("analyse OCR non aboutie en 120 s (« ✓ Analysé » absent)");
+  if (!modeles.some((m) => m.startsWith("200 "))) p.push(`aucun modèle de langue OCR servi (${modeles.join(", ") || "aucune requête"})`);
+  else console.log(`     modèles OCR chargés : ${modeles.join(", ")}`);
+  const texte = await page.evaluate(() => document.body.innerText);
+  if (/Erreur OCR/i.test(texte)) p.push("« Erreur OCR » affichée");
+  if (e.js.some((x) => /OCR error/i.test(x))) p.push("le moteur OCR a échoué (console « OCR error »)");
+  if (e.js.length) p.push("JS : " + [...new Set(e.js)].slice(0, 2).join(" ; "));
+  if (e.echecs.length) p.push("requêtes en échec : " + [...new Set(e.echecs)].slice(0, 2).join(" ; "));
+  if (e.http.length) p.push("HTTP ≥ 400 : " + [...new Set(e.http)].slice(0, 3).join(" ; "));
+  return p;
+}
+
 const nav = await chromium.launch({ executablePath: EXE, headless: true });
 
 for (const ecran of ECRANS) {
@@ -264,10 +309,8 @@ if (ADMIN_ID && ADMIN_PWD) {
       e.vider();
       await page.goto(BASE + chemin, { waitUntil: "domcontentloaded", timeout: 60000 }).catch((x) => e.js.push("navigation : " + x.message.slice(0, 80)));
       await page.waitForTimeout(chemin === "/kyc" ? 12000 : 7000);
-      // /kyc : le worker OCR (Tesseract) charge son script, son cœur WASM et
-      // ses modèles depuis un CDN — chacun soumis à la CSP. Une erreur
-      // importScripts/WebAssembly ici = soumission KYC impossible.
       signaler("connecté", chemin, problemesDe(await mesurer(page), e));
+      if (chemin === "/kyc") { e.vider(); signaler("connecté", "/kyc › analyse OCR", await analyserDocumentKyc(page, e)); }
     }
 
     // Panneau d'administration : chaque entrée du menu, comme un vrai admin.
