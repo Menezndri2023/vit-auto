@@ -27,6 +27,7 @@ const translations = {
   "nav.home":         { fr: "Accueil",           en: "Home",             ar: "الرئيسية",          es: "Inicio",          zh: "首页"    },
   "nav.catalogue":    { fr: "Catalogue",          en: "Catalogue",        ar: "الفهرس",            es: "Catálogo",        zh: "目录"    },
   "nav.services":     { fr: "Services",           en: "Services",         ar: "الخدمات",           es: "Servicios",       zh: "服务"    },
+  "nav.publishListing": { fr: "Publier une annonce", en: "List a vehicle", ar: "انشر إعلاناً", es: "Publicar un anuncio", zh: "发布信息" },
   "nav.publish":      { fr: "Publier",            en: "Publish",          ar: "نشر",               es: "Publicar",        zh: "发布"    },
   "nav.mySpace":      { fr: "Mon espace",         en: "My Space",         ar: "فضائي",             es: "Mi espacio",      zh: "我的空间" },
   "nav.plans":        { fr: "Tarifs",             en: "Pricing",          ar: "الأسعار",           es: "Precios",         zh: "价格"    },
@@ -39,7 +40,7 @@ const translations = {
   "nav.becomePartner":{ fr: "Devenez partenaire", en: "Become a Partner", ar: "كن شريكاً",         es: "Ser socio",       zh: "成为合作伙伴" },
 
   // ─── Hero ─────────────────────────────────────────────────────────────────
-  "hero.title":     { fr: "La plateforme automobile internationale",          en: "The International Car Platform",             ar: "المنصة الدولية للسيارات",  es: "La plataforma internacional de autos",    zh: "国际汽车平台"         },
+  "hero.title":     { fr: "La plateforme automobile du Maroc", en: "Morocco's automotive platform", ar: "منصة السيارات في المغرب", es: "La plataforma automovilística de Marruecos", zh: "摩洛哥汽车平台" },
   "hero.subtitle":  { fr: "Location, vente et leasing dans plusieurs pays",   en: "Car rental, sales & leasing across countries", ar: "تأجير وبيع السيارات في عدة دول", es: "Alquiler, venta y leasing en varios países", zh: "多国租车、购车与融资" },
   "hero.cta.rent":  { fr: "Louer maintenant",    en: "Rent Now",    ar: "استأجر الآن",  es: "Alquilar ahora",  zh: "立即租车" },
   "hero.cta.buy":   { fr: "Acheter un véhicule", en: "Buy a Car",   ar: "اشترِ سيارة",  es: "Comprar un auto", zh: "购买车辆" },
@@ -738,7 +739,7 @@ const translations = {
   "plans.hero.title":    { fr: "Tarifs & Abonnements",                en: "Pricing & Plans",               ar: "الأسعار والاشتراكات",   es: "Precios y Planes",         zh: "价格与套餐"     },
   "plans.hero.sub":      { fr: "Publiez vos véhicules, gagnez en visibilité et développez votre activité. Changez de plan à tout moment.", en: "Publish your vehicles, gain visibility and grow your business. Change plan at any time.", ar: "انشر سياراتك، اكسب ظهوراً أكبر وطوّر نشاطك. غيّر خطتك في أي وقت.", es: "Publica tus vehículos, gana visibilidad y haz crecer tu negocio. Cambia de plan cuando quieras.", zh: "发布您的车辆，提升曝光，发展您的业务。随时更换套餐。" },
   "plans.hero.pill1":    { fr: "✅ Sans engagement",                  en: "✅ No commitment",              ar: "✅ بدون التزام",         es: "✅ Sin compromiso",        zh: "✅ 无需承诺"    },
-  "plans.hero.pill2":    { fr: "🌍 20+ pays couverts",                en: "🌍 20+ countries covered",      ar: "🌍 أكثر من 20 دولة",    es: "🌍 20+ países cubiertos",  zh: "🌍 覆盖20+国家" },
+  "plans.hero.pill2":    { fr: "📍 Maroc et France", en: "📍 Morocco and France", ar: "📍 المغرب وفرنسا", es: "📍 Marruecos y Francia", zh: "📍 摩洛哥与法国" },
   "plans.hero.pill3":    { fr: "💳 Paiement sécurisé",               en: "💳 Secure payment",             ar: "💳 دفع آمن",            es: "💳 Pago seguro",           zh: "💳 安全支付"    },
   "plans.founder.title": { fr: "Offre Partenaire Fondateur — Gratuit 12 mois", en: "Founding Partner Offer — Free 12 months", ar: "عرض الشريك المؤسس — مجاني 12 شهراً", es: "Oferta Socio Fundador — Gratis 12 meses", zh: "创始合作商优惠 — 免费12个月" },
   "plans.founder.sub": { fr: "Outils pro offerts · Badge Fondateur · Mise en avant permanente · Accès anticipé", en: "Free pro tools · Founder Badge · Permanent boost · Early access", ar: "أدوات احترافية مجانية · شارة المؤسس · تمييز دائم · وصول مبكر", es: "Herramientas pro gratis · Insignia Fundador · Destacado permanente · Acceso anticipado", zh: "免费专业工具 · 创始人徽章 · 永久推广 · 抢先体验" },
@@ -760,11 +761,11 @@ const translations = {
   "plans.how.title":     { fr: "Comment ça marche ?",                 en: "How does it work?",             ar: "كيف يعمل؟",             es: "¿Cómo funciona?",          zh: "如何运作？"     },
   "plans.cta.tag":       { fr: "🤝 DEVENEZ PARTENAIRE",               en: "🤝 BECOME A PARTNER",           ar: "🤝 كن شريكاً",          es: "🤝 SÉ SOCIO",             zh: "🤝 成为合作商"  },
   "plans.cta.title":     { fr: "Prêt à publier votre première annonce ?", en: "Ready to publish your first listing?", ar: "مستعد لنشر إعلانك الأول؟", es: "¿Listo para publicar tu primer anuncio?", zh: "准备好发布第一个车辆了吗？" },
-  "plans.cta.sub":       { fr: "Rejoignez les partenaires VIT AUTO sur 20+ pays — Afrique, Maghreb, Moyen-Orient, Europe et Asie.", en: "Join the VIT AUTO partners across 20+ countries — Africa, the Maghreb, the Middle East, Europe and Asia.", ar: "انضم إلى شركاء VIT AUTO في أكثر من ٢٠ دولة — أفريقيا والمغرب العربي والشرق الأوسط وأوروبا وآسيا.", es: "Únete a los socios de VIT AUTO en más de 20 países — África, Magreb, Oriente Medio, Europa y Asia.", zh: "加入 VIT AUTO 遍布 20 多个国家的合作伙伴 — 非洲、马格里布、中东、欧洲与亚洲。" },
+  "plans.cta.sub":       { fr: "Rejoignez les partenaires VIT AUTO au Maroc et en France, et les exportateurs de Chine et des Émirats.", en: "Join VIT AUTO partners in Morocco and France, and exporters from China and the UAE.", ar: "انضم إلى شركاء VIT AUTO في المغرب وفرنسا، وإلى مصدّري الصين والإمارات.", es: "Únete a los socios de VIT AUTO en Marruecos y Francia, y a los exportadores de China y los Emiratos.", zh: "加入 VIT AUTO 在摩洛哥和法国的合作方，以及来自中国和阿联酋的出口商。" },
   "plans.cta.publish":   { fr: "Publier une annonce",                 en: "Publish a listing",             ar: "انشر إعلاناً",          es: "Publicar un anuncio",      zh: "发布车辆"       },
   "plans.cta.faq":       { fr: "Lire la FAQ",                         en: "Read the FAQ",                  ar: "اقرأ الأسئلة الشائعة",  es: "Leer la FAQ",              zh: "查看常见问题"   },
   "plans.currency":      { fr: "Devise :",                            en: "Currency:",                     ar: "العملة:",               es: "Divisa:",                  zh: "货币："         },
-  "plans.limited":       { fr: "ÉTAPE OBLIGATOIRE",      en: "MANDATORY STEP",   ar: "خطوة إلزامية", es: "PASO OBLIGATORIO", zh: "必须步骤" },
+  "plans.limited":       { fr: "1ʳᵉ ÉTAPE · OFFERTE", en: "STEP 1 · FREE", ar: "الخطوة الأولى · مجانية", es: "PASO 1 · GRATIS", zh: "第一步 · 免费" },
   "plans.perMonth":      { fr: "mois",                                en: "month",                         ar: "شهر",                   es: "mes",                      zh: "月"             },
 
   // ─── Dashboard client ─────────────────────────────────────────────────────

@@ -117,6 +117,23 @@
   min-height: 36px;
 }
 
+.publishBtn {
+  background: var(--c-primary, #ff4d2d);
+  color: #fff;
+  padding: 7px 16px;
+  border-radius: var(--r-sm, 10px);
+  font-size: 0.88rem;
+  font-weight: 700;
+  white-space: nowrap;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  transition: filter var(--t-base);
+}
+.publishBtn:hover { filter: brightness(1.08); }
+a.linkBtn { display: inline-flex; align-items: center; text-decoration: none; }
+
 .linkBtn:hover {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.45);

@@ -115,17 +115,10 @@ const STEPS = [
 // réellement appliqué par pricingEngine.js / Subscription.js.
 
 /* ── Pays de couverture ── */
+// Pays des exportateurs partenaires réellement présents (2026-11-02) — la
+// liste de 20 pays « couverture mondiale » ne reflétait aucune annonce.
 const COUNTRIES = [
   { flag: "🇨🇳", key: "country.cn" }, { flag: "🇦🇪", key: "country.ae" },
-  { flag: "🇩🇪", key: "country.de" }, { flag: "🇫🇷", key: "country.fr" },
-  { flag: "🇧🇪", key: "country.be" }, { flag: "🇳🇱", key: "country.nl" },
-  { flag: "🇪🇸", key: "country.es" }, { flag: "🇮🇹", key: "country.it" },
-  { flag: "🇲🇦", key: "country.ma" }, { flag: "🇩🇿", key: "country.dz" },
-  { flag: "🇹🇳", key: "country.tn" }, { flag: "🇲🇷", key: "country.mr" },
-  { flag: "🇨🇮", key: "country.ci" }, { flag: "🇸🇳", key: "country.sn" },
-  { flag: "🇬🇭", key: "country.gh" }, { flag: "🇳🇬", key: "country.ng" },
-  { flag: "🇧🇯", key: "country.bj" }, { flag: "🇹🇬", key: "country.tg" },
-  { flag: "🇲🇱", key: "country.ml" }, { flag: "🇬🇳", key: "country.gn" },
 ];
 
 /* ── Partenaires stratégiques ── */

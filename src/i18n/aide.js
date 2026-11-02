@@ -101,10 +101,10 @@ export default {
   },
   "aide.q8": { fr: "VIT AUTO opère dans combien de pays ?", en: "How many countries does VIT AUTO operate in?", ar: "في كم دولة تعمل VIT AUTO؟", es: "¿En cuántos países opera VIT AUTO?", zh: "VIT AUTO 在多少个国家运营？" },
   "aide.a8": {
-    fr: "VIT AUTO est présent dans 28 pays : Afrique de l'Ouest, Maghreb, Europe, Émirats arabes unis et Chine. Le service Import/Export couvre l'ensemble de ces marchés.",
-    en: "VIT AUTO is present in 28 countries: West Africa, the Maghreb, Europe, the United Arab Emirates and China. The import/export service covers all of these markets.",
-    ar: "تتواجد VIT AUTO في ٢٨ دولة: غرب إفريقيا والمغرب العربي وأوروبا والإمارات العربية المتحدة والصين. وتغطي خدمة الاستيراد والتصدير كل هذه الأسواق.",
-    es: "VIT AUTO está presente en 28 países: África Occidental, el Magreb, Europa, los Emiratos Árabes Unidos y China. El servicio de importación/exportación cubre todos estos mercados.",
-    zh: "VIT AUTO 覆盖 28 个国家：西非、马格里布、欧洲、阿联酋与中国。进出口服务覆盖上述全部市场。",
+    fr: "VIT AUTO est d'abord présent au Maroc, ainsi qu'en France. Le service Import/Export relie le Maroc aux exportateurs de Chine, des Émirats arabes unis et d'Europe.",
+    en: "VIT AUTO operates first in Morocco, and also in France. The Import/Export service connects Morocco with exporters in China, the UAE and Europe.",
+    ar: "تتواجد VIT AUTO أولاً في المغرب، وكذلك في فرنسا. وتربط خدمة الاستيراد والتصدير المغرب بمصدّرين في الصين والإمارات وأوروبا.",
+    es: "VIT AUTO está presente ante todo en Marruecos, y también en Francia. El servicio de Importación/Exportación conecta Marruecos con exportadores de China, los Emiratos y Europa.",
+    zh: "VIT AUTO 主要服务摩洛哥，同时覆盖法国。进出口服务将摩洛哥与中国、阿联酋和欧洲的出口商相连。",
   },
 };

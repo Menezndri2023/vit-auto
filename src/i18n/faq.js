@@ -135,11 +135,11 @@ export default {
   },
   "faq.delivery.4.q": { fr: "Dans quelles villes livrez-vous ?", en: "Which cities do you deliver to?", ar: "في أي مدن تقومون بالتوصيل؟", es: "¿En qué ciudades entregáis?", zh: "配送覆盖哪些城市？" },
   "faq.delivery.4.a": {
-    fr: "VIT AUTO opère dans 28 pays : Côte d'Ivoire, Sénégal, Ghana, Nigeria, Maroc, Algérie, Tunisie, Mali, Burkina Faso, Guinée, France, Belgique, Espagne, Suisse, et d'autres. La couverture d'une ville dépend des partenaires qui y publient : les pages par ville en donnent la liste réelle.",
-    en: "VIT AUTO operates in 28 countries: Côte d'Ivoire, Senegal, Ghana, Nigeria, Morocco, Algeria, Tunisia, Mali, Burkina Faso, Guinea, France, Belgium, Spain, Switzerland and more. Coverage of a given city depends on the partners publishing there: the city pages show the real list.",
-    ar: "تعمل VIT AUTO في ٢٨ دولة: كوت ديفوار والسنغال وغانا ونيجيريا والمغرب والجزائر وتونس ومالي وبوركينا فاسو وغينيا وفرنسا وبلجيكا وإسبانيا وسويسرا وغيرها. تعتمد تغطية أي مدينة على الشركاء الناشرين فيها: صفحات المدن تعرض القائمة الحقيقية.",
-    es: "VIT AUTO opera en 28 países: Costa de Marfil, Senegal, Ghana, Nigeria, Marruecos, Argelia, Túnez, Malí, Burkina Faso, Guinea, Francia, Bélgica, España, Suiza y más. La cobertura de una ciudad depende de los socios que publican allí: las páginas por ciudad muestran la lista real.",
-    zh: "VIT AUTO 在 28 个国家运营：科特迪瓦、塞内加尔、加纳、尼日利亚、摩洛哥、阿尔及利亚、突尼斯、马里、布基纳法索、几内亚、法国、比利时、西班牙、瑞士等。具体城市的覆盖取决于当地发布车源的商家：城市页面会显示真实清单。",
+    fr: "VIT AUTO est d'abord présent au Maroc, et aussi en France. La couverture d'une ville dépend des partenaires qui y publient : les pages par ville en donnent la liste réelle.",
+    en: "VIT AUTO operates first and foremost in Morocco, and also in France. Coverage of a city depends on the partners listing there: the city pages show the actual list.",
+    ar: "تتواجد VIT AUTO أولاً في المغرب، وكذلك في فرنسا. تتوقف تغطية أي مدينة على الشركاء الذين ينشرون فيها: صفحات المدن تعرض القائمة الفعلية.",
+    es: "VIT AUTO está presente ante todo en Marruecos, y también en Francia. La cobertura de una ciudad depende de los socios que publican en ella: las páginas por ciudad muestran la lista real.",
+    zh: "VIT AUTO 主要服务摩洛哥，同时覆盖法国。某个城市能否提供服务取决于当地发布车辆的合作方：各城市页面列出实际情况。",
   },
 
   // ─── Partenaires ──────────────────────────────────────────────────────────
@@ -171,11 +171,11 @@ export default {
   },
   "faq.partners.4.q": { fr: "Puis-je publier depuis l'étranger ?", en: "Can I publish from abroad?", ar: "هل يمكنني النشر من الخارج؟", es: "¿Puedo publicar desde el extranjero?", zh: "可以从国外发布吗？" },
   "faq.partners.4.a": {
-    fr: "Oui. VIT AUTO est une plateforme mondiale : publiez depuis l'un des 28 pays couverts — Maroc, France, Sénégal, Côte d'Ivoire, Dubaï, Allemagne, Chine et les autres.",
-    en: "Yes. VIT AUTO is a global platform: publish from any of the 28 countries covered — Morocco, France, Senegal, Côte d'Ivoire, Dubai, Germany, China and the rest.",
-    ar: "نعم. VIT AUTO منصة عالمية: انشر من أي من الدول الـ٢٨ المغطاة — المغرب وفرنسا والسنغال وكوت ديفوار ودبي وألمانيا والصين وغيرها.",
-    es: "Sí. VIT AUTO es una plataforma global: publica desde cualquiera de los 28 países cubiertos — Marruecos, Francia, Senegal, Costa de Marfil, Dubái, Alemania, China y los demás.",
-    zh: "可以。VIT AUTO 是全球平台：您可从覆盖的 28 个国家中任一国家发布——摩洛哥、法国、塞内加尔、科特迪瓦、迪拜、德国、中国等。",
+    fr: "Oui. VIT AUTO se concentre sur le Maroc, mais vous pouvez publier depuis la France ; les exportateurs (Chine, Émirats arabes unis, Europe…) publient leurs véhicules dans l'espace Import/Export.",
+    en: "Yes. VIT AUTO focuses on Morocco, but you can list from France; exporters (China, the UAE, Europe…) list their vehicles in the Import/Export area.",
+    ar: "نعم. تركّز VIT AUTO على المغرب، لكن يمكنك النشر من فرنسا؛ وينشر المصدّرون (الصين، الإمارات، أوروبا…) سياراتهم في قسم الاستيراد والتصدير.",
+    es: "Sí. VIT AUTO se centra en Marruecos, pero puedes publicar desde Francia; los exportadores (China, Emiratos Árabes Unidos, Europa…) publican sus vehículos en el espacio de Importación/Exportación.",
+    zh: "可以。VIT AUTO 以摩洛哥为重点，但您也可以从法国发布；出口商（中国、阿联酋、欧洲等）在「进出口」专区发布车辆。",
   },
 
   // ─── Import / Export ──────────────────────────────────────────────────────

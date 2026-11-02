@@ -42,19 +42,14 @@ const STEPS = [
 
 // Drapeau et clés — le nom du pays comme celui de la ville se traduisent
 // (« Allemagne » / « Germany » / « ألمانيا » / « 德国 »).
+// Le Maroc d'abord (2026-11-02) : présence réelle (annonces au Maroc et en
+// France) puis pays des exportateurs partenaires — plus de liste de 12 pays
+// où VIT AUTO n'a pas d'annonces.
 const COUNTRIES = [
+  { flag: "🇲🇦", pays: "country.ma", ville: "city.casablanca" },
+  { flag: "🇫🇷", pays: "country.fr", ville: "city.paris"      },
   { flag: "🇨🇳", pays: "country.cn", ville: "city.shanghai"   },
   { flag: "🇦🇪", pays: "country.ae", ville: "city.dubai"      },
-  { flag: "🇩🇪", pays: "country.de", ville: "city.munich"     },
-  { flag: "🇫🇷", pays: "country.fr", ville: "city.paris"      },
-  { flag: "🇲🇦", pays: "country.ma", ville: "city.casablanca" },
-  { flag: "🇩🇿", pays: "country.dz", ville: "city.alger"      },
-  { flag: "🇨🇮", pays: "country.ci", ville: "city.abidjan"    },
-  { flag: "🇸🇳", pays: "country.sn", ville: "city.dakar"      },
-  { flag: "🇬🇭", pays: "country.gh", ville: "city.accra"      },
-  { flag: "🇳🇬", pays: "country.ng", ville: "city.lagos"      },
-  { flag: "🇧🇯", pays: "country.bj", ville: "city.cotonou"    },
-  { flag: "🇹🇬", pays: "country.tg", ville: "city.lome"       },
 ];
 
 const Services = () => {

@@ -40,27 +40,27 @@ export default {
 
   // ─── /import-export ───────────────────────────────────────────────────────
   "ie.metaDesc": {
-    fr: "Importez ou exportez un véhicule entre l'Afrique, l'Europe, la Chine et le Moyen-Orient. Inspection, transport, dédouanement et livraison gérés de bout en bout.",
-    en: "Import or export a vehicle between Africa, Europe, China and the Middle East. Inspection, transport, customs clearance and delivery handled end to end.",
-    ar: "استورد أو صدّر مركبة بين إفريقيا وأوروبا والصين والشرق الأوسط. الفحص والنقل والتخليص الجمركي والتسليم تُدار بالكامل.",
-    es: "Importa o exporta un vehículo entre África, Europa, China y Oriente Medio. Inspección, transporte, despacho aduanero y entrega gestionados de principio a fin.",
-    zh: "在非洲、欧洲、中国与中东之间进出口车辆。验车、运输、清关与交付全程包办。",
+    fr: "Importez votre véhicule au Maroc depuis la Chine, Dubaï ou l'Europe : exportateurs, inspecteurs, transporteurs et transitaires vérifiés, dossier suivi par VIT AUTO.",
+    en: "Import your vehicle to Morocco from China, Dubai or Europe: verified exporters, inspectors, carriers and forwarders, with your file tracked by VIT AUTO.",
+    ar: "استورد سيارتك إلى المغرب من الصين أو دبي أو أوروبا: مصدّرون ومفتشون وناقلون ووكلاء عبور موثّقون، وملف تتابعه VIT AUTO.",
+    es: "Importa tu vehículo a Marruecos desde China, Dubái o Europa: exportadores, inspectores, transportistas y transitarios verificados, expediente supervisado por VIT AUTO.",
+    zh: "从中国、迪拜或欧洲将车辆进口到摩洛哥：出口商、验车机构、承运商与货代均经核验，VIT AUTO 全程跟进。",
   },
   "ie.h1a":     { fr: "La passerelle automobile", en: "The automotive gateway", ar: "الجسر الدولي للسيارات", es: "La pasarela automotriz", zh: "汽车桥梁" },
   "ie.h1b":     { fr: "entre l'Afrique, l'Europe,", en: "between Africa, Europe,", ar: "بين إفريقيا وأوروبا", es: "entre África, Europa,", zh: "连接非洲、欧洲、" },
   "ie.h1c":     { fr: "l'Asie & le Moyen-Orient", en: "Asia & the Middle East", ar: "وآسيا والشرق الأوسط", es: "Asia y Oriente Medio", zh: "亚洲与中东" },
   "ie.heroDesc": {
-    fr: "Achetez, vendez, importez ou exportez un véhicule partout dans le monde. VIT AUTO gère tout : recherche, inspection, transport, dédouanement et livraison.",
-    en: "Buy, sell, import or export a vehicle anywhere in the world. VIT AUTO handles it all: sourcing, inspection, transport, customs clearance and delivery.",
-    ar: "اشترِ أو بِع أو استورد أو صدّر مركبة في أي مكان في العالم. تتولى VIT AUTO كل شيء: البحث والفحص والنقل والتخليص الجمركي والتسليم.",
-    es: "Compra, vende, importa o exporta un vehículo en cualquier parte del mundo. VIT AUTO se encarga de todo: búsqueda, inspección, transporte, despacho aduanero y entrega.",
-    zh: "在世界任何地方买车、卖车、进口或出口。VIT AUTO 全程负责：寻源、验车、运输、清关与交付。",
+    fr: "Importez au Maroc un véhicule de Chine, de Dubaï ou d'Europe, ou exportez depuis votre pays. VIT AUTO vous met en relation avec des professionnels vérifiés — recherche, inspection, transport, dédouanement — et suit chaque étape.",
+    en: "Import a vehicle to Morocco from China, Dubai or Europe, or export from your country. VIT AUTO connects you with verified professionals — sourcing, inspection, transport, customs — and tracks every step.",
+    ar: "استورد إلى المغرب سيارة من الصين أو دبي أو أوروبا، أو صدّر من بلدك. تضعك VIT AUTO على تواصل مع محترفين موثّقين — البحث والفحص والنقل والتخليص الجمركي — وتتابع كل مرحلة.",
+    es: "Importa a Marruecos un vehículo de China, Dubái o Europa, o exporta desde tu país. VIT AUTO te pone en contacto con profesionales verificados — búsqueda, inspección, transporte, aduanas — y sigue cada etapa.",
+    zh: "从中国、迪拜或欧洲向摩洛哥进口车辆，或从您所在国家出口。VIT AUTO 为您对接已核验的专业方——寻车、验车、运输、清关——并跟进每一步。",
   },
   "ie.seeListings": { fr: "Voir les annonces disponibles →", en: "See available listings →", ar: "← عرض الإعلانات المتاحة", es: "Ver los anuncios disponibles →", zh: "查看可选车源 →" },
   "ie.zonesTag":    { fr: "🌐 ZONES STRATÉGIQUES", en: "🌐 STRATEGIC ZONES", ar: "🌐 مناطق استراتيجية", es: "🌐 ZONAS ESTRATÉGICAS", zh: "🌐 战略区域" },
   "ie.zonesTitle":  { fr: "Des marchés clés, un seul service", en: "Key markets, one single service", ar: "أسواق رئيسية وخدمة واحدة", es: "Mercados clave, un solo servicio", zh: "多个关键市场，同一项服务" },
   "ie.stepsTitle":  { fr: "De la recherche à la livraison", en: "From sourcing to delivery", ar: "من البحث إلى التسليم", es: "De la búsqueda a la entrega", zh: "从寻源到交付" },
-  "ie.stepsSub":    { fr: "Un accompagnement clé en main en 7 étapes pour votre importation ou exportation.", en: "Turnkey support in 7 steps for your import or export.", ar: "مرافقة متكاملة في ٧ خطوات لعملية الاستيراد أو التصدير.", es: "Un acompañamiento llave en mano en 7 pasos para tu importación o exportación.", zh: "为您的进口或出口提供七步一站式陪跑服务。" },
+  "ie.stepsSub":    { fr: "Un accompagnement en 7 étapes, suivi par VIT AUTO, pour votre importation ou exportation.", en: "A 7-step process, tracked by VIT AUTO, for your import or export.", ar: "مرافقة من 7 مراحل تتابعها VIT AUTO لاستيرادك أو تصديرك.", es: "Un acompañamiento en 7 etapas, supervisado por VIT AUTO, para tu importación o exportación.", zh: "进出口 7 步流程，VIT AUTO 全程跟进。" },
   "ie.packsTitle":  { fr: "Choisissez votre niveau d'accompagnement", en: "Choose your level of support", ar: "اختر مستوى المرافقة الذي يناسبك", es: "Elige tu nivel de acompañamiento", zh: "选择您需要的服务级别" },
   "ie.packsSub":    { fr: "Des packs conciergerie automobile adaptés à chaque besoin, du simple achat à la gestion complète.", en: "Automotive concierge packages for every need, from a simple purchase to full handling.", ar: "باقات خدمة سيارات متكاملة تناسب كل حاجة، من الشراء البسيط إلى الإدارة الكاملة.", es: "Paquetes de conserjería automotriz adaptados a cada necesidad, de la compra simple a la gestión completa.", zh: "汽车管家套餐，覆盖从单纯购车到全程代办的各种需求。" },
   "ie.mostPopular": { fr: "⭐ Plus populaire", en: "⭐ Most popular", ar: "⭐ الأكثر اختياراً", es: "⭐ Más popular", zh: "⭐ 最受欢迎" },
@@ -72,8 +72,8 @@ export default {
   "ie.ecoTag":      { fr: "🤝 ÉCOSYSTÈME", en: "🤝 ECOSYSTEM", ar: "🤝 المنظومة", es: "🤝 ECOSISTEMA", zh: "🤝 生态体系" },
   "ie.ecoTitle":    { fr: "Nos partenaires stratégiques", en: "Our strategic partners", ar: "شركاؤنا الاستراتيجيون", es: "Nuestros socios estratégicos", zh: "我们的战略伙伴" },
   "ie.ecoSub":      { fr: "Un réseau solide pour garantir chaque étape de votre transaction internationale.", en: "A solid network securing every step of your international transaction.", ar: "شبكة متينة تضمن كل خطوة في معاملتك الدولية.", es: "Una red sólida para garantizar cada etapa de tu transacción internacional.", zh: "稳固的网络，为您跨境交易的每一步保驾护航。" },
-  "ie.finalTitle":  { fr: "Votre prochain véhicule, de n'importe où dans le monde", en: "Your next vehicle, from anywhere in the world", ar: "مركبتك القادمة من أي مكان في العالم", es: "Tu próximo vehículo, desde cualquier parte del mundo", zh: "您的下一辆车，来自世界任何角落" },
-  "ie.finalDesc":   { fr: "Contactez notre équipe pour un devis personnalisé. Import depuis la Chine, Dubaï, l'Europe — livraison en Afrique ou partout ailleurs.", en: "Contact our team for a tailored quote. Import from China, Dubai, Europe — delivery in Africa or anywhere else.", ar: "تواصل مع فريقنا للحصول على عرض سعر مخصص. استيراد من الصين ودبي وأوروبا — تسليم في إفريقيا أو في أي مكان آخر.", es: "Contacta con nuestro equipo para un presupuesto personalizado. Importación desde China, Dubái, Europa — entrega en África o en cualquier otro lugar.", zh: "联系我们的团队获取定制报价。自中国、迪拜、欧洲进口——交付至非洲或世界其他地区。" },
+  "ie.finalTitle":  { fr: "Votre prochain véhicule, importé au Maroc", en: "Your next vehicle, imported to Morocco", ar: "سيارتك القادمة، مستوردة إلى المغرب", es: "Tu próximo vehículo, importado a Marruecos", zh: "您的下一辆车，进口到摩洛哥" },
+  "ie.finalDesc":   { fr: "Contactez notre équipe pour un devis personnalisé. Import depuis la Chine, Dubaï ou l'Europe, livraison au Maroc.", en: "Contact our team for a tailored quote. Imports from China, Dubai or Europe, delivered to Morocco.", ar: "تواصل مع فريقنا للحصول على عرض سعر مخصص. استيراد من الصين أو دبي أو أوروبا، والتسليم في المغرب.", es: "Contacta con nuestro equipo para un presupuesto personalizado. Importación desde China, Dubái o Europa, entrega en Marruecos.", zh: "联系我们的团队获取定制报价。从中国、迪拜或欧洲进口，交付至摩洛哥。" },
 
   // ─── Zones ────────────────────────────────────────────────────────────────
   "ie.zone.cn.desc": { fr: "Premier exportateur mondial de véhicules. BYD, Geely, Chery, Great Wall Motor, SAIC. VE, utilitaires, pièces détachées.", en: "The world's largest vehicle exporter. BYD, Geely, Chery, Great Wall Motor, SAIC. EVs, vans, spare parts.", ar: "أكبر مصدّر للمركبات في العالم. BYD وGeely وChery وGreat Wall Motor وSAIC. مركبات كهربائية ونفعية وقطع غيار.", es: "Primer exportador mundial de vehículos. BYD, Geely, Chery, Great Wall Motor, SAIC. VE, furgonetas, repuestos.", zh: "全球第一大汽车出口国。比亚迪、吉利、奇瑞、长城、上汽。电动车、商用车、零配件。" },
@@ -169,7 +169,7 @@ export default {
   // ─── Hero et bandeau pays ─────────────────────────────────────────────────
   "ie.heroBadge":   { fr: "🌍 IMPORT / EXPORT INTERNATIONAL", en: "🌍 INTERNATIONAL IMPORT / EXPORT", ar: "🌍 الاستيراد والتصدير الدولي", es: "🌍 IMPORTACIÓN / EXPORTACIÓN INTERNACIONAL", zh: "🌍 国际进出口" },
   "ie.askQuote":    { fr: "Demander un devis gratuit", en: "Request a free quote", ar: "اطلب عرض سعر مجاني", es: "Pedir un presupuesto gratuito", zh: "申请免费报价" },
-  "ie.coverage":    { fr: "Couverture mondiale :", en: "Worldwide coverage:", ar: "تغطية عالمية:", es: "Cobertura mundial:", zh: "全球覆盖：" },
+  "ie.coverage":    { fr: "Exportateurs partenaires :", en: "Partner exporters:", ar: "المصدّرون الشركاء:", es: "Exportadores socios:", zh: "合作出口方：" },
 
   // ─── Zones stratégiques ───────────────────────────────────────────────────
   "ie.zonesSub":    { fr: "VIT AUTO opère sur les 5 grands bassins du commerce automobile international.", en: "VIT AUTO operates across the five major basins of international vehicle trade.", ar: "تعمل VIT AUTO في الأحواض الخمسة الكبرى لتجارة السيارات الدولية.", es: "VIT AUTO opera en las 5 grandes cuencas del comercio automovilístico internacional.", zh: "VIT AUTO 覆盖国际汽车贸易的五大区域。" },

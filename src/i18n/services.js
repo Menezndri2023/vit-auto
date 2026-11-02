@@ -15,28 +15,28 @@ export default {
     es: "Seguro, financiación, transporte, inspección, garantía mecánica: los servicios de VIT AUTO que acompañan tu alquiler, compra o importación.",
     zh: "保险、融资、运输、验车、机械质保：VIT AUTO 为您的租赁、购车或进口提供全程服务。",
   },
-  "svc.heroBadge": { fr: "🌍 NOS SERVICES — 20+ PAYS", en: "🌍 OUR SERVICES — 20+ COUNTRIES", ar: "🌍 خدماتنا — أكثر من ٢٠ دولة", es: "🌍 NUESTROS SERVICIOS — MÁS DE 20 PAÍSES", zh: "🌍 我们的服务——覆盖 20+ 国家" },
+  "svc.heroBadge": { fr: "🚗 NOS SERVICES AU MAROC", en: "🚗 OUR SERVICES IN MOROCCO", ar: "🚗 خدماتنا في المغرب", es: "🚗 NUESTROS SERVICIOS EN MARRUECOS", zh: "🚗 我们在摩洛哥的服务" },
   "svc.heroTitle1": { fr: "La passerelle automobile", en: "The automotive gateway", ar: "الجسر الدولي للسيارات", es: "La pasarela automotriz", zh: "汽车桥梁" },
-  "svc.heroTitle2": { fr: "entre tous les continents", en: "between every continent", ar: "بين جميع القارات", es: "entre todos los continentes", zh: "连接各大洲" },
+  "svc.heroTitle2": { fr: "au Maroc, et au-delà", en: "in Morocco, and beyond", ar: "في المغرب وما بعده", es: "en Marruecos, y más allá", zh: "立足摩洛哥，连接世界" },
   "svc.heroDesc": {
-    fr: "Location, vente, import depuis la Chine ou Dubaï, livraison GPS, chauffeur privé — VIT AUTO couvre l'intégralité de vos besoins automobile à l'échelle mondiale.",
-    en: "Rental, sales, import from China or Dubai, GPS delivery, private chauffeur — VIT AUTO covers all your automotive needs worldwide.",
-    ar: "التأجير والبيع والاستيراد من الصين أو دبي والتوصيل بنظام GPS والسائق الخاص — تغطي VIT AUTO كل احتياجاتك المتعلقة بالسيارات عالمياً.",
-    es: "Alquiler, venta, importación desde China o Dubái, entrega GPS, chófer privado — VIT AUTO cubre todas tus necesidades automotrices a escala mundial.",
-    zh: "租赁、销售、自中国或迪拜进口、GPS 配送、私人司机——VIT AUTO 全方位满足您的用车需求。",
+    fr: "Location, vente, chauffeur privé, livraison GPS et import depuis la Chine ou Dubaï : VIT AUTO réunit vos besoins automobiles au Maroc sur une seule plateforme.",
+    en: "Rental, sales, private chauffeurs, GPS delivery and imports from China or Dubai: VIT AUTO brings your automotive needs in Morocco onto one platform.",
+    ar: "تأجير وبيع وسائق خاص وتوصيل بالـGPS واستيراد من الصين أو دبي: تجمع VIT AUTO احتياجاتك من السيارات في المغرب على منصة واحدة.",
+    es: "Alquiler, venta, chófer privado, entrega GPS e importación desde China o Dubái: VIT AUTO reúne tus necesidades automovilísticas en Marruecos en una sola plataforma.",
+    zh: "租车、售车、私人司机、GPS 送车，以及从中国或迪拜进口：VIT AUTO 将您在摩洛哥的用车需求汇于一个平台。",
   },
   "svc.seeCatalogue": { fr: "Voir le catalogue", en: "See the catalogue", ar: "عرض الفهرس", es: "Ver el catálogo", zh: "查看车源" },
-  "svc.countriesLabel": { fr: "Présents dans 20+ pays :", en: "Present in 20+ countries:", ar: "حاضرون في أكثر من ٢٠ دولة:", es: "Presentes en más de 20 países:", zh: "覆盖 20 多个国家：" },
+  "svc.countriesLabel": { fr: "Au Maroc, en France, et chez nos exportateurs :", en: "In Morocco, France, and with our exporters:", ar: "في المغرب وفرنسا ولدى مصدّرينا:", es: "En Marruecos, en Francia y con nuestros exportadores:", zh: "覆盖摩洛哥、法国及我们的出口合作方：" },
 
   // ─── Grille de services ───────────────────────────────────────────────────
   "svc.sectionTag":   { fr: "🚀 NOS OFFRES", en: "🚀 OUR OFFERS", ar: "🚀 عروضنا", es: "🚀 NUESTRAS OFERTAS", zh: "🚀 我们的服务" },
-  "svc.sectionTitle": { fr: "Des services mondiaux, une seule plateforme", en: "Global services, a single platform", ar: "خدمات عالمية على منصة واحدة", es: "Servicios globales, una sola plataforma", zh: "全球服务，一个平台" },
+  "svc.sectionTitle": { fr: "Tous vos services automobiles, une seule plateforme", en: "All your automotive services, one platform", ar: "كل خدماتك للسيارات على منصة واحدة", es: "Todos tus servicios automovilísticos, una sola plataforma", zh: "所有汽车服务，一个平台" },
   "svc.sectionDesc": {
-    fr: "Location, vente, import depuis l'Asie ou le Moyen-Orient, chauffeur privé — tout en un, partout dans le monde.",
-    en: "Rental, sales, import from Asia or the Middle East, private chauffeur — all in one, anywhere in the world.",
-    ar: "التأجير والبيع والاستيراد من آسيا أو الشرق الأوسط والسائق الخاص — كل ذلك في مكان واحد وفي أي مكان في العالم.",
-    es: "Alquiler, venta, importación desde Asia u Oriente Medio, chófer privado — todo en uno, en cualquier parte del mundo.",
-    zh: "租赁、销售、自亚洲或中东进口、私人司机——一站搞定，全球通行。",
+    fr: "Location, vente, chauffeur privé et import depuis l'Asie ou le Moyen-Orient — tout en un, au Maroc.",
+    en: "Rental, sales, private chauffeurs and imports from Asia or the Middle East — all in one, in Morocco.",
+    ar: "تأجير وبيع وسائق خاص واستيراد من آسيا أو الشرق الأوسط — كل شيء في مكان واحد، في المغرب.",
+    es: "Alquiler, venta, chófer privado e importación desde Asia u Oriente Medio — todo en uno, en Marruecos.",
+    zh: "租车、售车、私人司机，以及从亚洲或中东进口——在摩洛哥一站搞定。",
   },
   "svc.ctaRequest": { fr: "Faire une demande", en: "Submit a request", ar: "تقديم طلب", es: "Hacer una solicitud", zh: "提交申请" },
 
@@ -227,20 +227,20 @@ export default {
   "svc.step1.desc": { fr: "Filtrez par ville, type, état (neuf/occasion) et budget depuis la barre de recherche.", en: "Filter by city, type, condition (new/used) and budget from the search bar.", ar: "صفِّ حسب المدينة والنوع والحالة (جديدة/مستعملة) والميزانية من شريط البحث.", es: "Filtra por ciudad, tipo, estado (nuevo/usado) y presupuesto desde la barra de búsqueda.", zh: "在搜索栏按城市、类型、车况（全新/二手）和预算筛选。" },
   "svc.step2.desc": { fr: "3 étapes : informations, vérification d'identité, paiement sécurisé.", en: "3 steps: details, identity verification, secure payment.", ar: "٣ خطوات: المعلومات، التحقق من الهوية، الدفع الآمن.", es: "3 pasos: información, verificación de identidad, pago seguro.", zh: "三步：填写信息、身份验证、安全支付。" },
   "svc.step3.desc": { fr: "Livraison GPS à domicile par le partenaire ou retrait en agence, à votre choix.", en: "GPS delivery to your door by the partner, or agency pickup — your choice.", ar: "توصيل بـ GPS إلى المنزل من الشريك أو استلام من الوكالة، حسب اختيارك.", es: "Entrega GPS a domicilio por el socio o recogida en agencia, a tu elección.", zh: "由商家 GPS 送车上门，或到店自取，由您选择。" },
-  "svc.step4.desc": { fr: "Contrat digital signé, support 7j/7, véhicule assuré et vérifié.", en: "Signed digital contract, support 7 days a week, insured and verified vehicle.", ar: "عقد رقمي موقّع ودعم طوال الأسبوع ومركبة مؤمَّنة وموثّقة.", es: "Contrato digital firmado, soporte los 7 días, vehículo asegurado y verificado.", zh: "已签电子合同、全周客服、车辆已投保并通过验证。" },
+  "svc.step4.desc": { fr: "Contrat digital signé, support 7j/7, partenaire identifié.", en: "Signed digital contract, 7-day support, identified partner.", ar: "عقد رقمي موقّع، دعم طوال الأسبوع، شريك معروف الهوية.", es: "Contrato digital firmado, soporte los 7 días, socio identificado.", zh: "电子合同已签署，全周客服，商家身份明确。" },
 
   // ─── Appel à l'action final ───────────────────────────────────────────────
-  "svc.ctaTitle": { fr: "Votre véhicule, depuis n'importe où dans le monde", en: "Your vehicle, from anywhere in the world", ar: "مركبتك من أي مكان في العالم", es: "Tu vehículo, desde cualquier parte del mundo", zh: "您的座驾，来自世界任何角落" },
+  "svc.ctaTitle": { fr: "Votre véhicule au Maroc, en quelques clics", en: "Your vehicle in Morocco, in a few clicks", ar: "سيارتك في المغرب ببضع نقرات", es: "Tu vehículo en Marruecos, en pocos clics", zh: "在摩洛哥，轻点几下即可搞定用车" },
   // La phrase d'origine promettait « 50 000+ utilisateurs satisfaits sur 5
   // continents ». Ce chiffre est inventé — le même avait déjà été retiré de
   // RouteCTA (voir son commentaire) mais avait survécu ici. Remplacé par ce
   // que la plateforme fait réellement.
   "svc.ctaDesc": {
-    fr: "Location locale, achat, import depuis la Chine ou Dubaï — inspection, transport et dédouanement gérés de bout en bout.",
-    en: "Local rental, purchase, import from China or Dubai — inspection, transport and customs clearance handled end to end.",
-    ar: "تأجير محلي وشراء واستيراد من الصين أو دبي — الفحص والنقل والتخليص الجمركي تُدار بالكامل.",
-    es: "Alquiler local, compra, importación desde China o Dubái — inspección, transporte y despacho aduanero gestionados de principio a fin.",
-    zh: "本地租车、购车、自中国或迪拜进口——验车、运输与清关全程包办。",
+    fr: "Location, achat, import depuis la Chine ou Dubaï — avec des professionnels vérifiés et un dossier suivi par VIT AUTO.",
+    en: "Rental, purchase, imports from China or Dubai — with verified professionals and a file tracked by VIT AUTO.",
+    ar: "تأجير وشراء واستيراد من الصين أو دبي — مع محترفين موثّقين وملف تتابعه VIT AUTO.",
+    es: "Alquiler, compra, importación desde China o Dubái — con profesionales verificados y un expediente supervisado por VIT AUTO.",
+    zh: "租车、购车、从中国或迪拜进口——由已核验的专业方提供，VIT AUTO 全程跟进。",
   },
 
   // ─── Pays couverts ────────────────────────────────────────────────────────

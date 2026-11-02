@@ -11,11 +11,11 @@ export default {
   // ─── Catalogue ────────────────────────────────────────────────────────────
   "catalogue.metaTitle": { fr: "Catalogue de véhicules", en: "Vehicle catalogue", ar: "فهرس المركبات", es: "Catálogo de vehículos", zh: "车辆目录" },
   "catalogue.metaDesc": {
-    fr: "Louez ou achetez un véhicule parmi les annonces vérifiées de VIT AUTO : voitures, SUV, utilitaires, chauffeurs privés et activités, dans 28 pays.",
-    en: "Rent or buy a vehicle from VIT AUTO's verified listings: cars, SUVs, vans, private chauffeurs and activities, across 28 countries.",
-    ar: "استأجر أو اشترِ مركبة من إعلانات VIT AUTO الموثّقة: سيارات ودفع رباعي ومركبات نفعية وسائقون خاصون وأنشطة، في ٢٨ دولة.",
-    es: "Alquila o compra un vehículo entre los anuncios verificados de VIT AUTO: coches, SUV, furgonetas, chóferes privados y actividades, en 28 países.",
-    zh: "在 VIT AUTO 的认证车源中租车或购车：轿车、SUV、厢式车、私人司机与活动，覆盖 28 个国家。",
+    fr: "Louez ou achetez un véhicule au Maroc sur VIT AUTO : voitures, SUV, utilitaires, chauffeurs privés et activités.",
+    en: "Rent or buy a vehicle in Morocco on VIT AUTO: cars, SUVs, vans, private chauffeurs and activities.",
+    ar: "استأجر أو اشترِ سيارة في المغرب على VIT AUTO: سيارات، دفع رباعي، مركبات نفعية، سائقون خاصون وأنشطة.",
+    es: "Alquila o compra un vehículo en Marruecos en VIT AUTO: coches, SUV, utilitarios, chóferes privados y actividades.",
+    zh: "在 VIT AUTO 租车或购车（摩洛哥）：轿车、SUV、商用车、私人司机及休闲活动。",
   },
   "catalogue.weatherDependent": { fr: "· 🌤️ selon météo", en: "· 🌤️ weather permitting", ar: "· 🌤️ حسب الطقس", es: "· 🌤️ según el tiempo", zh: "· 🌤️ 视天气而定" },
   "catalogue.leisureByCity":    { fr: "Activités & loisirs par ville", en: "Activities & leisure by city", ar: "الأنشطة والترفيه حسب المدينة", es: "Actividades y ocio por ciudad", zh: "按城市浏览活动与休闲" },

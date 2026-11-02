@@ -21,17 +21,17 @@ export default {
   "nav.mainNav":      { fr: "Navigation principale", en: "Main navigation", ar: "التنقل الرئيسي", es: "Navegación principal", zh: "主导航" },
 
   // ─── Héros de la page d'accueil ───────────────────────────────────────────
-  "hero.fromAnywhere": { fr: "depuis n'importe où", en: "from anywhere", ar: "من أي مكان", es: "desde cualquier lugar", zh: "来自世界各地" },
+  "hero.fromAnywhere": { fr: "partout au Maroc", en: "anywhere in Morocco", ar: "في كل أنحاء المغرب", es: "en todo Marruecos", zh: "遍及摩洛哥" },
   "hero.desc": {
-    fr: "Afrique, Europe, Chine, Dubaï — VIT AUTO connecte acheteurs et vendeurs à travers le monde. Livraison GPS, contrat digital, paiement sécurisé.",
-    en: "Africa, Europe, China, Dubai — VIT AUTO connects buyers and sellers worldwide. GPS delivery, digital contract, secure payment.",
-    ar: "إفريقيا وأوروبا والصين ودبي — تربط VIT AUTO بين المشترين والبائعين حول العالم. توصيل بـ GPS وعقد رقمي ودفع آمن.",
-    es: "África, Europa, China, Dubái — VIT AUTO conecta compradores y vendedores en todo el mundo. Entrega GPS, contrato digital, pago seguro.",
-    zh: "非洲、欧洲、中国、迪拜——VIT AUTO 连接全球买家与卖家。GPS 配送、电子合同、安全支付。",
+    fr: "Location, vente, chauffeur et import depuis la Chine, Dubaï ou l'Europe — VIT AUTO réunit loueurs, vendeurs et acheteurs partout au Maroc. Livraison GPS, contrat digital, paiement sécurisé.",
+    en: "Rental, sales, chauffeurs and imports from China, Dubai or Europe — VIT AUTO brings renters, sellers and buyers together across Morocco. GPS delivery, digital contract, secure payment.",
+    ar: "تأجير وبيع وسائق واستيراد من الصين أو دبي أو أوروبا — تجمع VIT AUTO المؤجّرين والبائعين والمشترين في كل أنحاء المغرب. توصيل بالـGPS، عقد رقمي، دفع آمن.",
+    es: "Alquiler, venta, chófer e importación desde China, Dubái o Europa — VIT AUTO reúne a arrendadores, vendedores y compradores en todo Marruecos. Entrega GPS, contrato digital, pago seguro.",
+    zh: "租车、售车、司机服务，以及从中国、迪拜或欧洲进口——VIT AUTO 汇聚摩洛哥各地的租车方、卖家与买家。GPS 送车、电子合同、安全支付。",
   },
   "hero.badgeIdentity": { fr: "✅ Identité vérifiée", en: "✅ Verified identity", ar: "✅ هوية موثّقة", es: "✅ Identidad verificada", zh: "✅ 身份已认证" },
   "hero.badgePayment":  { fr: "🛡️ Paiement sécurisé", en: "🛡️ Secure payment", ar: "🛡️ دفع آمن", es: "🛡️ Pago seguro", zh: "🛡️ 安全支付" },
-  "hero.badgeImport":   { fr: "🚢 Import clé en main", en: "🚢 Turnkey import", ar: "🚢 استيراد متكامل", es: "🚢 Importación llave en mano", zh: "🚢 一站式进口" },
+  "hero.badgeImport":   { fr: "🚢 Import accompagné", en: "🚢 Guided import", ar: "🚢 استيراد بمرافقة", es: "🚢 Importación acompañada", zh: "🚢 进口全程协助" },
   "hero.publishedBy":   { fr: "Publié par", en: "Published by", ar: "نشره", es: "Publicado por", zh: "发布者" },
   "hero.importFrom":    { fr: "🚢 Import depuis :", en: "🚢 Import from:", ar: "🚢 استيراد من:", es: "🚢 Importación desde:", zh: "🚢 进口自：" },
   "hero.previous":      { fr: "Précédent", en: "Previous", ar: "السابق", es: "Anterior", zh: "上一个" },
@@ -41,7 +41,7 @@ export default {
   "hero.intlSelection": { fr: "🌍 Sélection internationale", en: "🌍 International selection", ar: "🌍 اختيارات دولية", es: "🌍 Selección internacional", zh: "🌍 国际精选" },
   "hero.nowSelection":  { fr: "🟢 Sélection du moment", en: "🟢 Picked right now", ar: "🟢 اختيار اللحظة", es: "🟢 Selección del momento", zh: "🟢 当下精选" },
 
-  "hero.intlBadge":  { fr: "🌍 Plateforme automobile internationale • 28 pays", en: "🌍 International car platform • 28 countries", ar: "🌍 منصة سيارات دولية • ٢٨ دولة", es: "🌍 Plataforma automotriz internacional • 28 países", zh: "🌍 国际汽车平台 • 28 个国家" },
+  "hero.intlBadge":  { fr: "🚗 La plateforme automobile du Maroc", en: "🚗 Morocco's automotive platform", ar: "🚗 منصة السيارات في المغرب", es: "🚗 La plataforma automovilística de Marruecos", zh: "🚗 摩洛哥汽车平台" },
   "hero.h1a":        { fr: "Achetez, louez, importez", en: "Buy, rent, import", ar: "اشترِ، استأجر، استورد", es: "Compra, alquila, importa", zh: "购车、租车、进口" },
   "hero.partnerFallback": { fr: "Partenaire VIT AUTO", en: "VIT AUTO partner", ar: "شريك VIT AUTO", es: "Socio VIT AUTO", zh: "VIT AUTO 合作伙伴" },
   // ─── Pays des contenus (2026-10-09) ────────────────────────────────────────

@@ -25,7 +25,8 @@ import { optimizedImageUrl } from "../../utils/imageOptim";
 // quinze réellement ouvertes, dont la Chine — première origine du stock. La
 // bande de pays affichée juste en dessous les porte toutes
 // (constants/importOrigins.js).
-const STAT_IMPORT = { icon: "🚢", value: "Import", label: "Depuis 15 pays" };
+// Le Maroc d'abord (2026-11-02) : les origines des exportateurs partenaires.
+const STAT_IMPORT = { icon: "🚢", value: "Import", label: "Chine · Dubaï · Europe" };
 
 function buildStats(stats, t) {
   if (!stats) return [STAT_IMPORT];

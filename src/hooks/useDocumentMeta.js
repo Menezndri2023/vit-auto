@@ -11,7 +11,9 @@ const SITE = "https://vit-auto.com";
 const DEFAULTS = {
   title:       "VIT AUTO — Location, vente et import de véhicules à l'international",
   description: "Louez, achetez, importez ou exportez un véhicule dans 28 pays. Inspection, transport, dédouanement et livraison gérés de bout en bout, avec paiement sécurisé.",
-  image:       "https://vit-auto.com/icons/icon-512x512.png",
+  // Visuel de partage 1200×630 (WhatsApp, Facebook, LinkedIn) — 2026-11-02 ;
+  // l'icône 512×512 s'y affichait en vignette carrée.
+  image:       "https://vit-auto.com/og-vit-auto.jpg",
 };
 
 function setMeta(name, content, attr = "name") {

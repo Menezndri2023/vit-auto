@@ -246,7 +246,14 @@ const Navbar = () => {
             <button className={styles.linkBtn} onClick={logout}>{t("nav.logout")}</button>
           </>
         ) : (
-          /* Dropdown burger (desktop uniquement) */
+          <>
+          {/* Les deux actions d'une place de marché, visibles sans ouvrir le
+              menu (2026-11-02) : elles n'étaient accessibles que derrière
+              « Menu » sur ordinateur. Sur mobile, le menu et la barre du bas
+              les portent déjà. */}
+          <NavLink to="/login" className={`${styles.linkBtn} ${styles.desktopOnly}`}>{t("nav.login")}</NavLink>
+          <NavLink to="/partenaires" className={`${styles.publishBtn} ${styles.desktopOnly}`}>{t("nav.publishListing")}</NavLink>
+          {/* Dropdown burger (desktop uniquement) */}
           <div className={styles.burgerDropdownWrapper} ref={dropdownRef}>
             <button
               className={`${styles.dropdownTrigger} ${dropdownOpen ? styles.dropdownTriggerOpen : ""}`}
@@ -282,6 +289,7 @@ const Navbar = () => {
               </div>
             )}
           </div>
+          </>
         )}
 
         {/* Burger mobile (toggle des navLinks) */}
