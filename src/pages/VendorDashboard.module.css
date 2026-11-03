@@ -4,8 +4,10 @@
    ══════════════════════════════════════════════════════════════ */
 
 :root {
-  --vd-primary:   #6366f1;
-  --vd-primary-d: #4f46e5;
+  /* Couleur d'action = orange de la marque (2026-11-02), comme le reste du
+     site : l'indigo propre à cet espace donnait deux couleurs d'accent. */
+  --vd-primary:   var(--c-primary, #ff4d2d);
+  --vd-primary-d: var(--c-primary-dark, #e03519);
   --vd-success:   #059669;
   --vd-warning:   #d97706;
   --vd-danger:    #dc2626;
@@ -41,7 +43,7 @@
 .headerAvatarImg { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
 .headerAvatar { overflow: hidden; }
 .headerLink {
-  display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 0 18px;
   color: #fff; border-radius: 10px; font-weight: 700; text-decoration: none; font-size: .88rem; white-space: nowrap;
 }
 /* Liens secondaires de l'en-tête (2026-11-02) : contour discret — seul
@@ -85,6 +87,7 @@
   padding: 0 24px; display: flex; gap: 0; overflow-x: auto;
 }
 .navTab {
+  display: inline-flex; align-items: center; gap: 7px;
   background: transparent; border: none; padding: 14px 20px;
   font-size: .88rem; font-weight: 600; color: var(--vd-sub);
   cursor: pointer; white-space: nowrap; border-bottom: 3px solid transparent;

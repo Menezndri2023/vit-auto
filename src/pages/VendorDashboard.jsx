@@ -1,4 +1,5 @@
 import BandeauValidation from "../components/BandeauValidation/BandeauValidation";
+import { FileSpreadsheet, Star, RefreshCw, LayoutDashboard, ClipboardList, Target, Sailboat, Wrench, CarFront, Building2, CalendarDays, Users, Wallet, Ticket, Hourglass, Rocket, Flag, Banknote } from "lucide-react";
 import BandeauActivation from "../components/BandeauActivation/BandeauActivation";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useOngletVisible } from "../hooks/useOngletVisible";
@@ -3363,11 +3364,11 @@ export default function VendorDashboard() {
             </button>
           )}
           <button className={styles.refreshBtn} onClick={handleRefresh} disabled={refreshing}>
-            <span style={{ display: "inline-block", animation: refreshing ? "spin .8s linear infinite" : "none" }}>↻</span>
+            <RefreshCw size={16} aria-hidden="true" style={{ animation: refreshing ? "spin .8s linear infinite" : "none" }} />
           </button>
           {!isIndividualSeller && (
             <Link to="/partner-fleet-import" className={`${styles.headerLink} ${styles.headerLinkImport}`}>
-              📦 Importer ma flotte
+              <FileSpreadsheet size={16} aria-hidden="true" /> Importer ma flotte
             </Link>
           )}
           {/* Espace Pro — statistiques, équipe, clés d'API et assistance. Visible
@@ -3375,7 +3376,7 @@ export default function VendorDashboard() {
               montre ce qu'il contient et ce qui l'ouvre. Le cacher aux non-abonnés
               reviendrait à ne jamais leur donner de raison de s'abonner. */}
           <Link to="/vendor/pro" className={`${styles.headerLink} ${styles.headerLinkPro}`}>
-            ⭐ Espace Pro
+            <Star size={16} aria-hidden="true" /> Espace Pro
           </Link>
           <Link to="/vendor" className={styles.btnPrimary}>+ Nouvelle annonce</Link>
         </div>
@@ -3414,26 +3415,26 @@ export default function VendorDashboard() {
       {/* ══ NAVIGATION ════════════════════════════════════════════════════ */}
       <nav className={styles.nav} ref={barreOnglets}>
         {[
-          { id: "dashboard",    icon: "📊", label: "Dashboard" },
-          { id: "commandes",    icon: "📋", label: "Commandes",       count: stats.totalOrders,    alert: newOrdersCount },
+          { id: "dashboard",    Icone: LayoutDashboard, label: "Dashboard" },
+          { id: "commandes",    Icone: ClipboardList, label: "Commandes",       count: stats.totalOrders,    alert: newOrdersCount },
           // Vente par demande d'essai — leads apportés par VIT AUTO (docs/vente-demande-essai.md §15)
-          { id: "opportunites", icon: "🎯", label: "Mes opportunités", count: opportunitesEnAttente || null, alert: opportunitesEnAttente || null },
-          { id: "annonces",     icon: estUniquementLoisirs(user) ? "🎈" : estUniquementPieces(user) ? "🔩" : "🚗", label: "Annonces", count: estUniquementLoisirs(user) ? myActivities.length : estUniquementPieces(user) ? myParts.length : stats.totalVehicles },
-          !isIndividualSeller && { id: "entreprises",  icon: "🏢", label: "Mes entreprises" },
-          { id: "calendrier",   icon: "📅", label: "Calendrier" },
-          { id: "clients",      icon: "👥", label: "Clients",         count: analytics?.topClients?.length || null },
-          { id: "finances",     icon: "💰", label: "Finances",        count: invoices.filter((i) => i.status === "pending").length || null },
-          { id: "reservations", icon: "🎫", label: "Mes réservations", alert: myPersonalBookings.filter((b) => b.status === "waiting_client_validation").length || null },
-        ].filter(Boolean).map(({ id, icon, label, count, alert }) => (
+          { id: "opportunites", Icone: Target, label: "Mes opportunités", count: opportunitesEnAttente || null, alert: opportunitesEnAttente || null },
+          { id: "annonces",     Icone: estUniquementLoisirs(user) ? Sailboat : estUniquementPieces(user) ? Wrench : CarFront, label: "Annonces", count: estUniquementLoisirs(user) ? myActivities.length : estUniquementPieces(user) ? myParts.length : stats.totalVehicles },
+          !isIndividualSeller && { id: "entreprises",  Icone: Building2, label: "Mes entreprises" },
+          { id: "calendrier",   Icone: CalendarDays, label: "Calendrier" },
+          { id: "clients",      Icone: Users, label: "Clients",         count: analytics?.topClients?.length || null },
+          { id: "finances",     Icone: Wallet, label: "Finances",        count: invoices.filter((i) => i.status === "pending").length || null },
+          { id: "reservations", Icone: Ticket, label: "Mes réservations", alert: myPersonalBookings.filter((b) => b.status === "waiting_client_validation").length || null },
+        ].filter(Boolean).map((onglet) => { const { id, Icone, label, count, alert } = onglet; return (
           <button key={id}
             className={[styles.navTab, activeTab === id ? styles.navTabActive : ""].join(" ")}
             onClick={() => setActiveTab(id)}>
-            {icon} {label}
+            <Icone size={16} aria-hidden="true" /> {label}
             {count !== null && count !== undefined && count > 0 && (
               <span className={alert > 0 ? styles.navBadgeAlert : styles.navBadge}>{alert > 0 ? alert : count}</span>
             )}
           </button>
-        ))}
+        ); })}
       </nav>
 
       {/* ══ TAB : DASHBOARD ═══════════════════════════════════════════════ */}
@@ -3446,42 +3447,42 @@ export default function VendorDashboard() {
           {/* KPIs */}
           <div className={styles.kpiGrid}>
             <div className={styles.kpiCard} style={{ borderTopColor: "#6366f1" }}>
-              <div className={styles.kpiIcon} style={{ background: "#eef2ff", color: "#6366f1" }}>📋</div>
+              <div className={styles.kpiIcon} style={{ background: "#eef2ff", color: "#6366f1" }}><ClipboardList size={20} aria-hidden="true" /></div>
               <div className={styles.kpiBody}>
                 <div className={styles.kpiValue}>{stats.totalOrders}</div>
                 <div className={styles.kpiLabel}>Total commandes</div>
               </div>
             </div>
             <div className={styles.kpiCard} style={{ borderTopColor: "#f59e0b" }}>
-              <div className={styles.kpiIcon} style={{ background: "#fffbeb", color: "#d97706" }}>⏳</div>
+              <div className={styles.kpiIcon} style={{ background: "#fffbeb", color: "#d97706" }}><Hourglass size={20} aria-hidden="true" /></div>
               <div className={styles.kpiBody}>
                 <div className={styles.kpiValue} style={{ color: "#d97706" }}>{stats.pending}</div>
                 <div className={styles.kpiLabel}>Nouvelles</div>
               </div>
             </div>
             <div className={styles.kpiCard} style={{ borderTopColor: "#2563eb" }}>
-              <div className={styles.kpiIcon} style={{ background: "#dbeafe", color: "#2563eb" }}>🚀</div>
+              <div className={styles.kpiIcon} style={{ background: "#dbeafe", color: "#2563eb" }}><Rocket size={20} aria-hidden="true" /></div>
               <div className={styles.kpiBody}>
                 <div className={styles.kpiValue} style={{ color: "#2563eb" }}>{stats.active}</div>
                 <div className={styles.kpiLabel}>En cours</div>
               </div>
             </div>
             <div className={styles.kpiCard} style={{ borderTopColor: "#059669" }}>
-              <div className={styles.kpiIcon} style={{ background: "#d1fae5", color: "#059669" }}>🏁</div>
+              <div className={styles.kpiIcon} style={{ background: "#d1fae5", color: "#059669" }}><Flag size={20} aria-hidden="true" /></div>
               <div className={styles.kpiBody}>
                 <div className={styles.kpiValue} style={{ color: "#059669" }}>{stats.completed}</div>
                 <div className={styles.kpiLabel}>Terminées</div>
               </div>
             </div>
             <div className={styles.kpiCard} style={{ borderTopColor: "#059669" }}>
-              <div className={styles.kpiIcon} style={{ background: "#d1fae5", color: "#059669" }}>💵</div>
+              <div className={styles.kpiIcon} style={{ background: "#d1fae5", color: "#059669" }}><Banknote size={20} aria-hidden="true" /></div>
               <div className={styles.kpiBody}>
                 <div className={styles.kpiValue} style={{ color: "#059669", fontSize: "1.1rem" }}>{fmtXOF(stats.netRevenue)}</div>
                 <div className={styles.kpiLabel}>Revenus nets</div>
               </div>
             </div>
             <div className={styles.kpiCard} style={{ borderTopColor: "#7c3aed" }}>
-              <div className={styles.kpiIcon} style={{ background: "#ede9fe", color: "#7c3aed" }}>🚗</div>
+              <div className={styles.kpiIcon} style={{ background: "#ede9fe", color: "#7c3aed" }}><CarFront size={20} aria-hidden="true" /></div>
               <div className={styles.kpiBody}>
                 <div className={styles.kpiValue}>{stats.approved}<span style={{ fontSize: ".8rem", color: "#9ca3af" }}>/{stats.totalVehicles}</span></div>
                 <div className={styles.kpiLabel}>Annonces actives</div>
