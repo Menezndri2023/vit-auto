@@ -24,19 +24,27 @@ export default function BandeauActivation({ token, styles, partenaire = true }) 
   }, [token, partenaire]);
 
   if (!a || a.statut === "suspendu" || a.statut === "inscrit") return null;   // inscrit : le bandeau de validation s'en charge
+
+  const offres = a.offres || {};
+  const premieresDemandes = a.premieresDemandes || {};
+  const manquants = Array.isArray(a.manquants) ? a.manquants.filter((m) => m && m.code !== "verifie") : [];
+
   if (a.statut === "active") {
-    const d = a.premieresDemandes || {};
+    const totalOffres = Number(offres.total ?? 0);
+    const demandesRecues = Number(premieresDemandes.recues ?? 0);
+    const demandesTraitees = Number(premieresDemandes.repondues ?? 0);
+    const delaiMoyen = premieresDemandes.delaiMoyenReponseMin;
     return (
       <div className={styles.freeBanner} style={{ borderColor: "#86efac" }}>
         <span className={styles.planBadge} style={{ background: "#dcfce7", color: "#15803d" }}>✅ Compte activé</span>
         <span>
-          {a.offres.total} offre(s) en ligne · {d.recues || 0} demande(s) reçue(s), {d.repondues || 0} traitée(s)
-          {d.delaiMoyenReponseMin != null ? ` · délai moyen de réponse : ${Math.round(d.delaiMoyenReponseMin)} min` : ""}.
+          {totalOffres} offre(s) en ligne · {demandesRecues} demande(s) reçue(s), {demandesTraitees} traitée(s)
+          {delaiMoyen != null ? ` · délai moyen de réponse : ${Math.round(delaiMoyen)} min` : ""}.
         </span>
       </div>
     );
   }
-  const manquants = a.manquants.filter((m) => m.code !== "verifie");
+
   if (!manquants.length) return null;
   return (
     <div className={styles.freeBanner} style={{ borderColor: "#a5b4fc" }}>

@@ -20,7 +20,14 @@ export default function BandeauValidation({ token, styles, publicationOuverte })
       </div>
     );
   }
-  const premier = v.manquants[0];
+
+  const manquants = Array.isArray(v.manquants)
+    ? v.manquants.filter((m) => m && typeof m === "object")
+    : [];
+
+  if (!manquants.length) return null;
+
+  const premier = manquants[0];
   return (
     <div className={styles.freeBanner} style={{ borderColor: publicationOuverte ? "#a5b4fc" : "#fde68a" }}>
       <span className={styles.planBadge} style={publicationOuverte ? { background: "#e0e7ff", color: "#4338ca" } : { background: "#fef3c7", color: "#d97706" }}>
@@ -28,11 +35,11 @@ export default function BandeauValidation({ token, styles, publicationOuverte })
       </span>
       <span>
         {publicationOuverte ? "Vos annonces sont en ligne. Pour finaliser votre compte, il reste : " : "Pour valider votre compte, il reste à fournir : "}
-        {v.manquants.map((m, i) => (
-          <span key={m.code}>{i ? ", " : ""}<Link to={m.lien}>{m.libelle}</Link></span>
+        {manquants.map((m, i) => (
+          <span key={m.code || `${m.libelle || "document"}-${i}`}>{i ? ", " : ""}<Link to={m.lien || "/vendor/dashboard"}>{m.libelle}</Link></span>
         ))}.
       </span>
-      {premier && <Link to={premier.lien} className={styles.upgradeLink}>Compléter →</Link>}
+      {premier && premier.lien && <Link to={premier.lien} className={styles.upgradeLink}>Compléter →</Link>}
     </div>
   );
 }

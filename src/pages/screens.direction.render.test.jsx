@@ -44,6 +44,19 @@ describe("Direction et activation", () => {
     expect(screen.getByRole("link", { name: /au moins une offre approuvée/ }).getAttribute("href")).toBe("/vendor/publish");
   });
 
+  it("un compte activé reste affiché même si le backend renvoie des champs absents", async () => {
+    const p = utilisateurTest("partenaire");
+    connecter(p);
+    simulerApi({ user: p, routes: { "/api/users/me/activation": { activation: {
+      statut: "active",
+      premieresDemandes: {},
+      manquants: undefined,
+    } } } });
+    renderPage(<BandeauActivation token="t" styles={{}} />, { route: "/vendor/dashboard" });
+    expect(await screen.findByText(/Compte activé/)).toBeTruthy();
+    expect(screen.getByText(/0 offre\(s\) en ligne/i)).toBeTruthy();
+  });
+
   it("un compte non partenaire (admin sur le tableau de bord) n'interroge pas l'activation", async () => {
     const a = utilisateurTest("admin");
     connecter(a);

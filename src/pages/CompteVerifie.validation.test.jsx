@@ -3,6 +3,7 @@ import { screen, waitFor } from "@testing-library/react";
 import { renderPage, connecter, simulerApi, utilisateurTest } from "../test/renderPage";
 import PartnerCertification from "./PartnerCertification";
 import PartnerPMSDashboard from "./PartnerPMSDashboard";
+import BandeauValidation from "../components/BandeauValidation/BandeauValidation";
 
 // Plainte du 2026-10-10 : un loueur VALIDÉ (documents complets) voyait encore
 // la certification « non commencée », des critères « En attente » et le badge
@@ -41,5 +42,12 @@ describe("Partenaire validé : plus aucune démarche affichée comme due", () =>
     ouvrir(<PartnerPMSDashboard />, "/partner-pms?section=company", "/partner-pms", A_COMPLETER);
     await waitFor(() => expect(screen.getByText(/Certification VIT AUTO en 8 étapes/)).toBeInTheDocument(), ATTENTE);
     expect(screen.queryByText(/Votre compte partenaire est vérifié/)).toBeNull();
+  });
+
+  it("bandeau de validation ne plante pas si le backend renvoie un statut incomplet", async () => {
+    connecter(partenaire);
+    simulerApi({ user: partenaire, routes: { "/api/users/me/validation": { validation: { statut: "a_completer", exiges: [], manquants: undefined } } } });
+    renderPage(<BandeauValidation token="t" styles={{}} />, { route: "/vendor/dashboard" });
+    expect(screen.queryByText(/Compte à valider|Publication ouverte|Dossier suspendu/i)).toBeNull();
   });
 });
