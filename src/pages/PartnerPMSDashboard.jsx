@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { AlertTriangle, BarChart3, Building2, Car, CheckCircle2, ClipboardList, CreditCard, Crown, Eye, FilePen, FileText, Globe, Handshake, House, Landmark, Link2, Lock, MapPin, Medal, Menu, MessageCircle, MousePointerClick, Package, PenLine, Plus, Rocket, Save, ScrollText, Search, Send, ShieldCheck, Star, Store, Target, Trash2, TrendingUp, Trophy, Upload, UserRound, XCircle, Zap, LifeBuoy } from "lucide-react";
 import styles from "./PartnerPMSDashboard.module.css";
 import VerrouOutil from "../components/VerrouOutil/VerrouOutil.jsx";
 import { useOutils } from "../hooks/useOutils";
@@ -76,10 +77,10 @@ function HomeSection({ token, user, onNav, businessId }) {
   }, [token, businessId]);
 
   const kpiCards = data ? [
-    { icon:"🎯", label:"Leads totaux",    value:data.leadsStats?.total || 0,  sub:`${data.leadsStats?.nouveau || 0} nouveaux`, color:"#3b82f6" },
-    { icon:"✅", label:"Leads gagnés",    value:data.leadsStats?.gagne || 0,  sub:`Taux ${data.leadsStats?.conversionRate || 0}%`, color:"#059669" },
-    { icon:"📄", label:"Devis envoyés",   value:data.quotesStats?.envoye || 0,sub:`${data.quotesStats?.accepte || 0} acceptés`, color:"#8b5cf6" },
-    { icon:"🚗", label:"Véhicules",       value:data.vehicles?.total || 0,    sub:`${data.vehicles?.available || 0} disponibles`, color:"#f59e0b" },
+    { icon:<Target size={18} aria-hidden="true" />, label:"Leads totaux",    value:data.leadsStats?.total || 0,  sub:`${data.leadsStats?.nouveau || 0} nouveaux`, color:"#3b82f6" },
+    { icon:<CheckCircle2 size={18} aria-hidden="true" />, label:"Leads gagnés",    value:data.leadsStats?.gagne || 0,  sub:`Taux ${data.leadsStats?.conversionRate || 0}%`, color:"#059669" },
+    { icon:<FileText size={18} aria-hidden="true" />, label:"Devis envoyés",   value:data.quotesStats?.envoye || 0,sub:`${data.quotesStats?.accepte || 0} acceptés`, color:"#8b5cf6" },
+    { icon:<Car size={18} aria-hidden="true" />, label:"Véhicules",       value:data.vehicles?.total || 0,    sub:`${data.vehicles?.available || 0} disponibles`, color:"#f59e0b" },
   ] : [];
 
   if (loading) return <div className={styles.loader}>Chargement…</div>;
@@ -90,7 +91,7 @@ function HomeSection({ token, user, onNav, businessId }) {
       {/* ── Bienvenue ── */}
       <div className={styles.welcomeBanner}>
         <div>
-          <h2 className={styles.welcomeTitle}>Bienvenue, {user?.firstName} 👋</h2>
+          <h2 className={styles.welcomeTitle}>Bienvenue, {user?.firstName}</h2>
           <p className={styles.welcomeSub}>
             {data?.showroom?.isPublished
               ? `Votre showroom est en ligne · ${fmtNum(data.showroom.viewCount)} vues`
@@ -136,7 +137,7 @@ function HomeSection({ token, user, onNav, businessId }) {
             <h3 className={styles.pipelineTitle}>Leads par pays</h3>
             {Object.entries(data.leadsByCountry || {}).slice(0, 6).map(([country, count]) => (
               <div key={country} className={styles.pipelineItem}>
-                <span className={styles.pipelineName}>🌍 {country}</span>
+                <span className={styles.pipelineName}><Globe size={18} aria-hidden="true" /> {country}</span>
                 <span className={styles.pipelineCount}>{count}</span>
               </div>
             ))}
@@ -165,12 +166,12 @@ function HomeSection({ token, user, onNav, businessId }) {
       {/* ── Liens rapides ── */}
       <div className={styles.quickLinks}>
         {[
-          { icon:"🏢", label:"Mon Entreprise",    sub:"Profil & certification",         nav:"company"      },
-          { icon:"🏪", label:"Mon Showroom",       sub:"Vitrine publique",               nav:"showroom"     },
-          { icon:"🚗", label:"Ma Flotte",          sub:"Gérer mes véhicules",            nav:"fleet"        },
-          { icon:"📊", label:"Analytics",          sub:"Statistiques complètes",         nav:"analytics"    },
-          { icon:"⭐", label:"Score de confiance", sub:"Trust Center VIT AUTO",          nav:"performance"  },
-          { icon:"📦", label:"Commandes",          to:"/vendor/dashboard"                                   },
+          { icon:<Building2 size={18} aria-hidden="true" />, label:"Mon Entreprise",    sub:"Profil & certification",         nav:"company"      },
+          { icon:<Store size={18} aria-hidden="true" />, label:"Mon Showroom",       sub:"Vitrine publique",               nav:"showroom"     },
+          { icon:<Car size={18} aria-hidden="true" />, label:"Ma Flotte",          sub:"Gérer mes véhicules",            nav:"fleet"        },
+          { icon:<BarChart3 size={18} aria-hidden="true" />, label:"Analytics",          sub:"Statistiques complètes",         nav:"analytics"    },
+          { icon:<Star size={18} aria-hidden="true" />, label:"Score de confiance", sub:"Trust Center VIT AUTO",          nav:"performance"  },
+          { icon:<Package size={18} aria-hidden="true" />, label:"Commandes",          to:"/vendor/dashboard"                                   },
         ].map((q) => (
           <div
             key={q.label}
@@ -298,7 +299,7 @@ function LeadsSection({ token, showToast, businessId, businesses = [] }) {
     <div className={styles.section}>
       <div className={styles.sectionHeader}>
         <div>
-          <h2 className={styles.sectionTitle}>🎯 Gestion des Leads</h2>
+          <h2 className={styles.sectionTitle}><Target size={18} aria-hidden="true" /> Gestion des Leads</h2>
           <p className={styles.sectionSub}>{fmtNum(total)} prospect{total > 1 ? "s" : ""}</p>
         </div>
         <button className={styles.btnPrimary} onClick={() => openNewLeadForm()} disabled={crmFerme}>+ Nouveau lead</button>
@@ -327,7 +328,7 @@ function LeadsSection({ token, showToast, businessId, businesses = [] }) {
             <div className={styles.loader}>Chargement…</div>
           ) : leads.length === 0 ? (
             <div className={styles.emptyState}>
-              <span>🎯</span>
+              <span><Target size={18} aria-hidden="true" /></span>
               <p>Aucun lead</p>
               <button className={styles.btnPrimary} onClick={() => openNewLeadForm()} disabled={crmFerme}>Créer le premier lead</button>
             </div>
@@ -342,8 +343,8 @@ function LeadsSection({ token, showToast, businessId, businesses = [] }) {
                 <StatusBadge cfg={LEAD_STATUS} val={l.status} />
               </div>
               <div className={styles.leadCardMeta}>
-                <span>🌍 {l.buyer?.country || "—"}</span>
-                <span>🚗 {l.vehicle?.make} {l.vehicle?.model}</span>
+                <span><Globe size={18} aria-hidden="true" /> {l.buyer?.country || "—"}</span>
+                <span><Car size={18} aria-hidden="true" /> {l.vehicle?.make} {l.vehicle?.model}</span>
                 {l.urgency && <span style={{ color: URGENCY[l.urgency]?.color, fontWeight:700 }}>{URGENCY[l.urgency]?.label}</span>}
               </div>
               <div className={styles.leadCardDate}>{fmtDate(l.createdAt)}</div>
@@ -363,7 +364,7 @@ function LeadsSection({ token, showToast, businessId, businesses = [] }) {
             <div className={styles.leadDetailHeader}>
               <h3>{selected.buyer?.name || selected.buyer?.email}</h3>
               <div style={{ display:"flex", gap:8 }}>
-                <button className={styles.btnDanger} onClick={() => deleteLead(selected._id)}>🗑</button>
+                <button className={styles.btnDanger} onClick={() => deleteLead(selected._id)}><Trash2 size={18} aria-hidden="true" /></button>
                 <button className={styles.btnSecondary} onClick={() => setSelected(null)}>✕</button>
               </div>
             </div>
@@ -458,7 +459,7 @@ function LeadsSection({ token, showToast, businessId, businesses = [] }) {
           </div>
         ) : (
           <div className={styles.leadDetailEmpty}>
-            <span>👆</span>
+            <span><MousePointerClick size={18} aria-hidden="true" /></span>
             <p>Sélectionnez un lead pour voir les détails</p>
           </div>
         )}
@@ -639,7 +640,7 @@ function QuotesSection({ token, showToast, businessId, businesses = [] }) {
     <div className={styles.section}>
       <div className={styles.sectionHeader}>
         <div>
-          <h2 className={styles.sectionTitle}>📄 Générateur de Devis</h2>
+          <h2 className={styles.sectionTitle}><FileText size={18} aria-hidden="true" /> Générateur de Devis</h2>
           <p className={styles.sectionSub}>{quotesTotal || quotes.length} devis créés</p>
         </div>
         <button className={styles.btnPrimary} onClick={openBuilder} disabled={crmFerme}>+ Nouveau devis</button>
@@ -652,7 +653,7 @@ function QuotesSection({ token, showToast, businessId, businesses = [] }) {
         <div className={styles.loader}>Chargement…</div>
       ) : quotes.length === 0 ? (
         <div className={styles.emptyState}>
-          <span>📄</span>
+          <span><FileText size={18} aria-hidden="true" /></span>
           <p>Aucun devis créé</p>
           <button className={styles.btnPrimary} onClick={openBuilder} disabled={crmFerme}>Créer mon premier devis</button>
         </div>
@@ -670,11 +671,11 @@ function QuotesSection({ token, showToast, businessId, businesses = [] }) {
               <div className={styles.quoteCardActions}>
                 {q.status === "brouillon" && (
                   <button className={styles.btnSmPrimary} disabled={crmFerme} onClick={(e) => { e.stopPropagation(); sendQuote(q._id); }}>
-                    📨 Envoyer
+                    <Send size={18} aria-hidden="true" /> Envoyer
                   </button>
                 )}
                 <button className={styles.btnSmDanger} onClick={(e) => { e.stopPropagation(); deleteQuote(q._id); }}>
-                  🗑
+                  <Trash2 size={18} aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -693,7 +694,7 @@ function QuotesSection({ token, showToast, businessId, businesses = [] }) {
         <div className={styles.overlay} onClick={() => setShowBuilder(false)}>
           <div className={`${styles.modal} ${styles.modalLarge}`} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h3>📄 Créer un devis professionnel</h3>
+              <h3><FileText size={18} aria-hidden="true" /> Créer un devis professionnel</h3>
               <button onClick={() => setShowBuilder(false)}>✕</button>
             </div>
             <div className={styles.modalBody}>
@@ -780,9 +781,9 @@ function QuotesSection({ token, showToast, businessId, businesses = [] }) {
 
               <div className={styles.modalFooter}>
                 <button className={styles.btnSecondary} onClick={() => setShowBuilder(false)}>Annuler</button>
-                <button className={styles.btnSecondary} onClick={() => save(true)} disabled={saving}>💾 Brouillon</button>
+                <button className={styles.btnSecondary} onClick={() => save(true)} disabled={saving}><Save size={18} aria-hidden="true" /> Brouillon</button>
                 <button className={styles.btnPrimary} onClick={() => save(false)} disabled={saving}>
-                  {saving ? "Enregistrement…" : "📨 Créer & Envoyer"}
+                  {saving ? "Enregistrement…" : "Créer & Envoyer"}
                 </button>
               </div>
             </div>
@@ -831,18 +832,18 @@ function ShowroomSection({ token, showToast }) {
       const r = await API("/showroom/me/publish", token, { method: "POST" });
       if (!r.ok) throw new Error((await r.json()).message);
       setData(await r.json());
-      showToast("🎉 Showroom publié !", "success");
+      showToast("Showroom publié !", "success");
     } catch (e) { showToast(e.message, "error"); }
     finally { setSaving(false); }
   };
 
   const TABS = [
-    { id:"identite",    label:"🎨 Identité"     },
-    { id:"description", label:"📝 Description"  },
-    { id:"contact",     label:"📞 Contact"       },
-    { id:"horaires",    label:"🕐 Horaires"      },
-    { id:"equipe",      label:"👥 Équipe"        },
-    { id:"medias",      label:"📸 Médias"        },
+    { id:"identite",    label:"Identité"     },
+    { id:"description", label:"Description"  },
+    { id:"contact",     label:"Contact"       },
+    { id:"horaires",    label:"Horaires"      },
+    { id:"equipe",      label:"Équipe"        },
+    { id:"medias",      label:"Médias"        },
   ];
 
   if (loading) return <div className={styles.loader}>Chargement…</div>;
@@ -851,21 +852,21 @@ function ShowroomSection({ token, showToast }) {
     <div className={styles.section}>
       <div className={styles.sectionHeader}>
         <div>
-          <h2 className={styles.sectionTitle}>🏪 Mon Showroom</h2>
+          <h2 className={styles.sectionTitle}><Store size={18} aria-hidden="true" /> Mon Showroom</h2>
           <p className={styles.sectionSub}>
             {data?.isPublished
-              ? <span style={{ color:"#059669" }}>✅ Publié · {fmtNum(data.viewCount)} vues</span>
-              : <span style={{ color:"#f59e0b" }}>⚠️ Non publié</span>}
+              ? <span style={{ color:"#059669" }}><CheckCircle2 size={18} aria-hidden="true" /> Publié · {fmtNum(data.viewCount)} vues</span>
+              : <span style={{ color:"#f59e0b" }}><AlertTriangle size={18} aria-hidden="true" /> Non publié</span>}
           </p>
         </div>
         <div style={{ display:"flex", gap:8 }}>
-          <button className={styles.btnSecondary} onClick={save} disabled={saving || showroomFerme}>💾 Sauvegarder</button>
+          <button className={styles.btnSecondary} onClick={save} disabled={saving || showroomFerme}><Save size={18} aria-hidden="true" /> Sauvegarder</button>
           {!data?.isPublished && (
-            <button className={styles.btnPrimary} onClick={publish} disabled={saving || showroomFerme}>🚀 Publier</button>
+            <button className={styles.btnPrimary} onClick={publish} disabled={saving || showroomFerme}><Rocket size={18} aria-hidden="true" /> Publier</button>
           )}
           {data?.isPublished && (
             <Link to={`/showroom/${data.partnerId}`} target="_blank" className={styles.btnSecondary}>
-              👁 Voir
+              <Eye size={18} aria-hidden="true" /> Voir
             </Link>
           )}
         </div>
@@ -996,13 +997,13 @@ function ShowroomSection({ token, showToast }) {
 // SECTION: PERFORMANCE / TRUST CENTER
 // ══════════════════════════════════════════════════════════════════════════════
 const VERIF_CRITERIA_LABELS = {
-  businessLicense:   { icon: "🏢", label: "Licence commerciale" },
-  repIdentified:     { icon: "👤", label: "Représentant identifié" },
-  exportCapacity:    { icon: "🌍", label: "Capacité d'export" },
-  documentsReceived: { icon: "📄", label: "Documents reçus" },
-  addressVerified:   { icon: "📍", label: "Adresse vérifiée" },
-  websiteVerified:   { icon: "🌐", label: "Site web vérifié" },
-  verificationDone:  { icon: "✅", label: "Vérification finale" },
+  businessLicense:   { icon:<Building2 size={18} aria-hidden="true" />, label: "Licence commerciale" },
+  repIdentified:     { icon:<UserRound size={18} aria-hidden="true" />, label: "Représentant identifié" },
+  exportCapacity:    { icon:<Globe size={18} aria-hidden="true" />, label: "Capacité d'export" },
+  documentsReceived: { icon:<FileText size={18} aria-hidden="true" />, label: "Documents reçus" },
+  addressVerified:   { icon:<MapPin size={18} aria-hidden="true" />, label: "Adresse vérifiée" },
+  websiteVerified:   { icon:<Globe size={18} aria-hidden="true" />, label: "Site web vérifié" },
+  verificationDone:  { icon:<CheckCircle2 size={18} aria-hidden="true" />, label: "Vérification finale" },
 };
 
 function PerformanceSection({ token, user }) {
@@ -1026,17 +1027,17 @@ function PerformanceSection({ token, user }) {
   if (!data)   return <div className={styles.loader}>Erreur de chargement</div>;
 
   const meters = [
-    { label:"Taux de complétion",       val:data.completionRate,   color:"#059669", icon:"✅" },
-    { label:"Taux de conversion leads", val:data.conversionRate,   color:"#3b82f6", icon:"🎯" },
-    { label:"Taux d'acceptation devis", val:data.quoteRate,        color:"#8b5cf6", icon:"📄" },
-    { label:"Taux d'annulation (bas=bon)", val:100 - data.cancellationRate, color:"#f59e0b", icon:"⚡" },
+    { label:"Taux de complétion",       val:data.completionRate,   color:"#059669", icon:<CheckCircle2 size={18} aria-hidden="true" /> },
+    { label:"Taux de conversion leads", val:data.conversionRate,   color:"#3b82f6", icon:<Target size={18} aria-hidden="true" /> },
+    { label:"Taux d'acceptation devis", val:data.quoteRate,        color:"#8b5cf6", icon:<FileText size={18} aria-hidden="true" /> },
+    { label:"Taux d'annulation (bas=bon)", val:100 - data.cancellationRate, color:"#f59e0b", icon:<Zap size={18} aria-hidden="true" /> },
   ];
 
   return (
     <div className={styles.section}>
       <div className={styles.sectionHeader}>
         <div>
-          <h2 className={styles.sectionTitle}>⭐ Trust Center & Performance</h2>
+          <h2 className={styles.sectionTitle}><Star size={18} aria-hidden="true" /> Trust Center & Performance</h2>
           <p className={styles.sectionSub}>Score calculé en temps réel par VIT AUTO</p>
         </div>
       </div>
@@ -1059,10 +1060,10 @@ function PerformanceSection({ token, user }) {
         <div className={styles.trustScoreInfo}>
           <h3>Score de confiance VIT AUTO</h3>
           <p className={styles.trustScoreLevel}>
-            {data.score >= 85 ? "🏆 Excellent — Partenaire Premium eligible"
-             : data.score >= 70 ? "⭐ Très bon — Partenaire Vérifié"
-             : data.score >= 50 ? "✓ Bon — En progression"
-             : "⚠️ En construction"}
+            {data.score >= 85 ? "Excellent — Partenaire Premium éligible"
+             : data.score >= 70 ? "Très bon — Partenaire Vérifié"
+             : data.score >= 50 ? "Bon — En progression"
+             : "En construction"}
           </p>
           <p className={styles.trustScoreSub}>
             Basé sur {data.totalOrders} commandes · {data.leadsTotal} leads · {data.quotesTotal} devis
@@ -1105,13 +1106,13 @@ function PerformanceSection({ token, user }) {
         <h3 className={styles.badgesSectionTitle}>Badges VIT AUTO</h3>
         <div className={styles.badgesGrid}>
           {[
-            { icon:"✅", label:"VERIFIED",         desc:"Entreprise & documents vérifiés",      earned:valide, gradient:"linear-gradient(135deg,#059669,#10b981)" },
-            { icon:"⭐", label:"FOUNDING PARTNER",  desc:"Programme Founding Partner (LOI + Accord)",  earned: !!user?.isFounder, gradient:"linear-gradient(135deg,#d97706,#f59e0b)" },
-            { icon:"🏆", label:"PREMIUM EXPORTER",  desc:"Score ≥ 85 + 50 commandes finalisées", earned:data.score >= 85, gradient:"linear-gradient(135deg,#7c3aed,#a855f7)" },
+            { icon:<CheckCircle2 size={18} aria-hidden="true" />, label:"VERIFIED",         desc:"Entreprise & documents vérifiés",      earned:valide, gradient:"linear-gradient(135deg,#059669,#10b981)" },
+            { icon:<Star size={18} aria-hidden="true" />, label:"FOUNDING PARTNER",  desc:"Programme Founding Partner (LOI + Accord)",  earned: !!user?.isFounder, gradient:"linear-gradient(135deg,#d97706,#f59e0b)" },
+            { icon:<Trophy size={18} aria-hidden="true" />, label:"PREMIUM EXPORTER",  desc:"Score ≥ 85 + 50 commandes finalisées", earned:data.score >= 85, gradient:"linear-gradient(135deg,#7c3aed,#a855f7)" },
           ].map((b) => (
             <div key={b.label} className={`${styles.badgeCard} ${!b.earned ? styles.badgeLocked : ""}`}>
               {b.earned && <div style={{ background:b.gradient }} className={styles.badgeEarned} />}
-              <span className={styles.badgeIcon}>{b.earned ? b.icon : "🔒"}</span>
+              <span className={styles.badgeIcon}>{b.earned ? b.icon : <Lock size={22} aria-hidden="true" />}</span>
               <span className={styles.badgeName}>{b.label}</span>
               <span className={styles.badgeDesc}>{b.desc}</span>
             </div>
@@ -1126,14 +1127,14 @@ function PerformanceSection({ token, user }) {
           partenaire ne savait jamais précisément ce qui lui manquait. */}
       {valide && (
         <div className={styles.badgesSection}>
-          <h3 className={styles.badgesSectionTitle}>🛡️ Vérification partenaire</h3>
-          <p className={styles.sectionSub}>✅ Compte vérifié : vos documents sont complets, aucune démarche n'est requise.</p>
+          <h3 className={styles.badgesSectionTitle}><ShieldCheck size={18} aria-hidden="true" /> Vérification partenaire</h3>
+          <p className={styles.sectionSub}><CheckCircle2 size={18} aria-hidden="true" /> Compte vérifié : vos documents sont complets, aucune démarche n'est requise.</p>
         </div>
       )}
       {verif && !valide && (
         <div className={styles.badgesSection}>
           <h3 className={styles.badgesSectionTitle}>
-            🛡️ Vérification partenaire {verif.verification && `— ${verif.verification.trustScore}/100`}
+            <ShieldCheck size={18} aria-hidden="true" /> Vérification partenaire {verif.verification && `— ${verif.verification.trustScore}/100`}
           </h3>
           {!verif.verification ? (
             <p className={styles.sectionSub}>
@@ -1151,13 +1152,13 @@ function PerformanceSection({ token, user }) {
                   const ok = !!c?.verified;
                   return (
                     <div key={key} className={styles.metricCard} style={{ opacity: ok ? 1 : .7 }}>
-                      <div className={styles.metricIcon}>{ok ? "✅" : meta.icon}</div>
+                      <div className={styles.metricIcon}>{ok ? <CheckCircle2 size={18} aria-hidden="true" /> : meta.icon}</div>
                       <div className={styles.metricValue} style={{ color: ok ? "#059669" : "#94a3b8", fontSize: ".95rem" }}>
                         {ok ? "Validé" : "En attente"}
                       </div>
                       <div className={styles.metricLabel}>{meta.label} · {verif.criteriaWeights?.[key]} pts</div>
                       {!ok && c?.note && (
-                        <p style={{ margin: "6px 0 0", fontSize: ".75rem", color: "#dc2626" }}>⚠️ {c.note}</p>
+                        <p style={{ margin: "6px 0 0", fontSize: ".75rem", color: "#dc2626" }}><AlertTriangle size={18} aria-hidden="true" /> {c.note}</p>
                       )}
                     </div>
                   );
@@ -1177,14 +1178,14 @@ function PerformanceSection({ token, user }) {
 function CompanySection({ token }) {
   const valide = estValide(useValidationPartenaire(token));
   const levels = [
-    { n:1, icon:"🏢", label:"Entreprise",          route:"/partner-certification?level=1" },
-    { n:2, icon:"👤", label:"Représentant",         route:"/partner-certification?level=2" },
-    { n:3, icon:"📊", label:"Activité commerciale", route:"/partner-certification?level=3" },
-    { n:4, icon:"🏦", label:"Compte bancaire",      route:"/partner-certification?level=4" },
-    { n:5, icon:"🚗", label:"Véhicules",            route:"/partner-certification?level=5" },
-    { n:6, icon:"📦", label:"Documents export",     route:"/partner-certification?level=6" },
-    { n:7, icon:"📝", label:"Contrat & Charte",     route:"/partner-certification?level=7" },
-    { n:8, icon:"🏅", label:"Badge final",          route:"/partner-certification?level=8" },
+    { n:1, icon:<Building2 size={18} aria-hidden="true" />, label:"Entreprise",          route:"/partner-certification?level=1" },
+    { n:2, icon:<UserRound size={18} aria-hidden="true" />, label:"Représentant",         route:"/partner-certification?level=2" },
+    { n:3, icon:<BarChart3 size={18} aria-hidden="true" />, label:"Activité commerciale", route:"/partner-certification?level=3" },
+    { n:4, icon:<Landmark size={18} aria-hidden="true" />, label:"Compte bancaire",      route:"/partner-certification?level=4" },
+    { n:5, icon:<Car size={18} aria-hidden="true" />, label:"Véhicules",            route:"/partner-certification?level=5" },
+    { n:6, icon:<Package size={18} aria-hidden="true" />, label:"Documents export",     route:"/partner-certification?level=6" },
+    { n:7, icon:<FilePen size={18} aria-hidden="true" />, label:"Contrat & Charte",     route:"/partner-certification?level=7" },
+    { n:8, icon:<Medal size={18} aria-hidden="true" />, label:"Badge final",          route:"/partner-certification?level=8" },
   ];
 
   return (
@@ -1192,7 +1193,7 @@ function CompanySection({ token }) {
       {valide && <CompteVerifie suite="La certification en 8 étapes est facultative : elle ajoute des badges de confiance à votre profil public." />}
       <div className={styles.sectionHeader}>
         <div>
-          <h2 className={styles.sectionTitle}>🏢 Mon Entreprise</h2>
+          <h2 className={styles.sectionTitle}><Building2 size={18} aria-hidden="true" /> Mon Entreprise</h2>
           <p className={styles.sectionSub}>Certification VIT AUTO en 8 étapes{valide ? " — facultative" : ""}</p>
         </div>
         <Link to="/partner-certification" className={styles.btnPrimary}>Ouvrir la certification</Link>
@@ -1211,7 +1212,7 @@ function CompanySection({ token }) {
 
       <div className={styles.companyLinks}>
         <Link to="/importer-dashboard" className={styles.companyLinkCard}>
-          <span>🌍</span>
+          <span><Globe size={18} aria-hidden="true" /></span>
           <div>
             <strong>Profil exportateur</strong>
             <p>Dossier complet pour l'activité import/export internationale</p>
@@ -1219,7 +1220,7 @@ function CompanySection({ token }) {
           <span>→</span>
         </Link>
         <Link to="/importer-dashboard" className={styles.companyLinkCard}>
-          <span>📦</span>
+          <span><Package size={18} aria-hidden="true" /></span>
           <div>
             <strong>Tableau de bord Import/Export</strong>
             <p>Gérez vos annonces et transactions internationales</p>
@@ -1238,15 +1239,15 @@ function FleetSection() {
   return (
     <div className={styles.section}>
       <div className={styles.sectionHeader}>
-        <h2 className={styles.sectionTitle}>🚗 Gestion de la Flotte</h2>
+        <h2 className={styles.sectionTitle}><Car size={18} aria-hidden="true" /> Gestion de la Flotte</h2>
       </div>
       <div className={styles.fleetCards}>
         {[
-          { icon:"➕", title:"Ajouter un véhicule",        desc:"Publier une nouvelle annonce",                        to:"/vendor/publish"       },
-          { icon:"📋", title:"Mes annonces",               desc:"Gérer l'inventaire de mes véhicules",                 to:"/vendor/dashboard"     },
-          { icon:"📊", title:"Import/Export Listings",     desc:"Mes annonces pour l'export international",           to:"/importer-dashboard"   },
-          { icon:"📤", title:"Importer ma flotte",         desc:"Fichier Excel/CSV ou Google Sheet — import en masse", to:"/partner-fleet-import" },
-          { icon:"🔗", title:"Synchronisation API",        desc:"Connecter votre système externe (à venir)",           soon:true                  },
+          { icon:<Plus size={18} aria-hidden="true" />, title:"Ajouter un véhicule",        desc:"Publier une nouvelle annonce",                        to:"/vendor/publish"       },
+          { icon:<ClipboardList size={18} aria-hidden="true" />, title:"Mes annonces",               desc:"Gérer l'inventaire de mes véhicules",                 to:"/vendor/dashboard"     },
+          { icon:<BarChart3 size={18} aria-hidden="true" />, title:"Import/Export Listings",     desc:"Mes annonces pour l'export international",           to:"/importer-dashboard"   },
+          { icon:<Upload size={18} aria-hidden="true" />, title:"Importer ma flotte",         desc:"Fichier Excel/CSV ou Google Sheet — import en masse", to:"/partner-fleet-import" },
+          { icon:<Link2 size={18} aria-hidden="true" />, title:"Synchronisation API",        desc:"Connecter votre système externe (à venir)",           soon:true                  },
         ].map((c) => (
           c.soon ? (
             <div key={c.title} className={`${styles.fleetCard} ${styles.fleetCardSoon}`}>
@@ -1288,20 +1289,20 @@ function AnalyticsSection({ token }) {
   return (
     <div className={styles.section}>
       <div className={styles.sectionHeader}>
-        <h2 className={styles.sectionTitle}>📊 Analytics</h2>
+        <h2 className={styles.sectionTitle}><BarChart3 size={18} aria-hidden="true" /> Analytics</h2>
       </div>
 
       {/* KPIs détaillés */}
       <div className={styles.analyticsGrid}>
         {[
-          { label:"Leads totaux",          val:data?.leadsStats?.total || 0,       icon:"🎯", color:"#3b82f6" },
-          { label:"Leads gagnés",          val:data?.leadsStats?.gagne || 0,       icon:"✅", color:"#059669" },
-          { label:"Leads perdus",          val:data?.leadsStats?.perdu || 0,       icon:"❌", color:"#dc2626" },
-          { label:"Taux de conversion",    val:`${data?.leadsStats?.conversionRate || 0}%`, icon:"📈", color:"#059669" },
-          { label:"Devis créés",           val:data?.quotesStats?.total || 0,      icon:"📄", color:"#8b5cf6" },
-          { label:"Devis acceptés",        val:data?.quotesStats?.accepte || 0,    icon:"✅", color:"#059669" },
-          { label:"Commandes",             val:data?.bookings?.total || 0,         icon:"📦", color:"#f59e0b" },
-          { label:"Véhicules en ligne",    val:data?.vehicles?.available || 0,     icon:"🚗", color:"#0891b2" },
+          { label:"Leads totaux",          val:data?.leadsStats?.total || 0,       icon:<Target size={18} aria-hidden="true" />, color:"#3b82f6" },
+          { label:"Leads gagnés",          val:data?.leadsStats?.gagne || 0,       icon:<CheckCircle2 size={18} aria-hidden="true" />, color:"#059669" },
+          { label:"Leads perdus",          val:data?.leadsStats?.perdu || 0,       icon:<XCircle size={18} aria-hidden="true" />, color:"#dc2626" },
+          { label:"Taux de conversion",    val:`${data?.leadsStats?.conversionRate || 0}%`, icon:<TrendingUp size={18} aria-hidden="true" />, color:"#059669" },
+          { label:"Devis créés",           val:data?.quotesStats?.total || 0,      icon:<FileText size={18} aria-hidden="true" />, color:"#8b5cf6" },
+          { label:"Devis acceptés",        val:data?.quotesStats?.accepte || 0,    icon:<CheckCircle2 size={18} aria-hidden="true" />, color:"#059669" },
+          { label:"Commandes",             val:data?.bookings?.total || 0,         icon:<Package size={18} aria-hidden="true" />, color:"#f59e0b" },
+          { label:"Véhicules en ligne",    val:data?.vehicles?.available || 0,     icon:<Car size={18} aria-hidden="true" />, color:"#0891b2" },
         ].map((k) => (
           <div key={k.label} className={styles.analyticKpi}>
             <span className={styles.analyticIcon}>{k.icon}</span>
@@ -1320,7 +1321,7 @@ function AnalyticsSection({ token }) {
           const max = Math.max(...Object.values(data.leadsByCountry || {}).map(Number));
           return (
             <div key={country} className={styles.countryRow}>
-              <span className={styles.countryName}>🌍 {country}</span>
+              <span className={styles.countryName}><Globe size={18} aria-hidden="true" /> {country}</span>
               <div className={styles.countryBar}>
                 <div style={{ width:`${(count / max) * 100}%`, height:"100%", background:"#3b82f6", borderRadius:4 }} />
               </div>
@@ -1376,23 +1377,24 @@ function OnboardingSection({ token }) {
   }, [token]);
 
   const STATUS_INFO = {
-    brouillon:     { label: "Brouillon",               color: "#64748b", bg: "#f8fafc", icon: "📝" },
+    brouillon:     { label: "Brouillon",               color: "#64748b", bg: "#f8fafc", icon:<FilePen size={18} aria-hidden="true" /> },
     soumis:        { label: "Soumis — En attente",     color: "#3b82f6", bg: "#eff6ff", icon: "⏳" },
-    en_review:     { label: "En cours de revue",       color: "#f59e0b", bg: "#fffbeb", icon: "🔍" },
-    info_demandee: { label: "Infos requises",           color: "#f97316", bg: "#fff7ed", icon: "⚠️" },
-    loi_envoyee:   { label: "LOI à signer",            color: "#8b5cf6", bg: "#f5f3ff", icon: "✍️" },
-    loi_signee:    { label: "LOI signée",              color: "#0891b2", bg: "#ecfeff", icon: "✅" },
-    accord_envoye: { label: "Accord à signer",         color: "#8b5cf6", bg: "#f5f3ff", icon: "📜" },
-    accord_signe:  { label: "Accord signé — Actif",   color: "#059669", bg: "#ecfdf5", icon: "👑" },
-    actif:         { label: "Partenaire Fondateur",    color: "#059669", bg: "#ecfdf5", icon: "👑" },
-    rejete:        { label: "Rejeté",                  color: "#dc2626", bg: "#fef2f2", icon: "❌" },
+    en_review:     { label: "En cours de revue",       color: "#f59e0b", bg: "#fffbeb", icon:<Search size={18} aria-hidden="true" /> },
+    info_demandee: { label: "Infos requises",           color: "#f97316", bg: "#fff7ed", icon:<AlertTriangle size={18} aria-hidden="true" /> },
+    loi_envoyee:   { label: "LOI à signer",            color: "#8b5cf6", bg: "#f5f3ff", icon:<PenLine size={18} aria-hidden="true" /> },
+    loi_signee:    { label: "LOI signée",              color: "#0891b2", bg: "#ecfeff", icon:<CheckCircle2 size={18} aria-hidden="true" /> },
+    accord_envoye: { label: "Accord à signer",         color: "#8b5cf6", bg: "#f5f3ff", icon:<ScrollText size={18} aria-hidden="true" /> },
+    accord_signe:  { label: "Accord signé — Actif",   color: "#059669", bg: "#ecfdf5", icon:<Crown size={18} aria-hidden="true" /> },
+    actif:         { label: "Partenaire Fondateur",    color: "#059669", bg: "#ecfdf5", icon:<Crown size={18} aria-hidden="true" /> },
+    rejete:        { label: "Rejeté",                  color: "#dc2626", bg: "#fef2f2", icon:<XCircle size={18} aria-hidden="true" /> },
   };
 
   const STEPS = [
     { label: "Type & Infos",   done: (d) => !!d?.companyInfo?.legalName },
     { label: "Documents",      done: (d) => !!(d?.legalDocs?.businessRegistration || d?.legalDocs?.businessLicense) },
     { label: "Vérification",   done: (d) => d?.businessVerification?.brands?.length > 0 },
-    { label: "Soumis",         done: (d) => !["brouillon", "info_demandee"].includes(d?.status) },
+    // Sans dossier (statut absent), rien n'est soumis : l'étape restait cochée.
+    { label: "Soumis",         done: (d) => !!d?.status && !["brouillon", "info_demandee"].includes(d.status) },
     { label: "LOI signée",     done: (d) => ["loi_signee", "accord_envoye", "accord_signe", "actif"].includes(d?.status) },
     { label: "Accord signé",   done: (d) => ["accord_signe", "actif"].includes(d?.status) },
   ];
@@ -1411,7 +1413,7 @@ function OnboardingSection({ token }) {
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1.5rem", flexWrap:"wrap", gap:"1rem" }}>
         <div>
           <h2 style={{ fontSize:"1.3rem", fontWeight:700, margin:"0 0 .25rem", color:"#1e293b" }}>
-            👑 Programme Founding Partner
+            <Crown size={18} aria-hidden="true" /> Programme Founding Partner
           </h2>
           <p style={{ color:"#64748b", fontSize:".88rem", margin:0 }}>
             Gérez votre candidature et suivez l'avancement de votre onboarding fondateur.
@@ -1425,7 +1427,7 @@ function OnboardingSection({ token }) {
             fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:".5rem",
           }}
         >
-          {needsAction ? "⚡ Action requise" : "Gérer mon dossier"} →
+          {needsAction ? "Action requise" : "Gérer mon dossier"} →
         </button>
       </div>
 
@@ -1434,7 +1436,7 @@ function OnboardingSection({ token }) {
         {/* Status card */}
         <div style={{ background: si.bg, border:`1.5px solid ${si.color}20`, borderRadius:14, padding:"1.25rem" }}>
           <div style={{ display:"flex", alignItems:"center", gap:".75rem", marginBottom:".75rem" }}>
-            <span style={{ fontSize:"1.8rem" }}>{si.icon}</span>
+            <span style={{ display:"inline-flex", color:si.color }}>{si.icon}</span>
             <div>
               <div style={{ fontSize:".72rem", fontWeight:700, textTransform:"uppercase", letterSpacing:".08em", color:si.color }}>
                 STATUT DOSSIER
@@ -1509,7 +1511,7 @@ function OnboardingSection({ token }) {
               { label: "Abonnement", val: "GRATUIT", sub: "12 mois" },
               { label: "Commission Location", val: `${data?.commissions?.location || 10}%`, sub: "grille unique" },
               { label: "Commission Vente", val: `${data?.commissions?.vente || 2}%`, sub: "grille unique" },
-              { label: "Badge", val: "👑 Fondateur", sub: "Exclusif" },
+              { label: "Badge", val: "Fondateur", sub: "Exclusif" },
             ].map((item, i) => (
               <div key={i} style={{ textAlign:"center" }}>
                 <div style={{ fontSize:"1.2rem", fontWeight:800, color: i === 0 ? "#4ade80" : i === 3 ? "#f5a623" : "#67e8f9" }}>
@@ -1531,7 +1533,7 @@ function OnboardingSection({ token }) {
               { label: "Abonnement", val: "12 mois", sub: "GRATUIT" },
               { label: "Location", val: "10%", sub: "grille unique" },
               { label: "Vente", val: "2%", sub: "grille unique" },
-              { label: "Badge", val: "👑", sub: "Founding Partner" },
+              { label: "Badge", val: <Crown size={26} aria-hidden="true" />, sub: "Founding Partner" },
             ].map((item, i) => (
               <div key={i} style={{ textAlign:"center" }}>
                 <div style={{ fontSize:"1.4rem", fontWeight:800, color:"#0369a1" }}>{item.val}</div>
@@ -1552,7 +1554,7 @@ function OnboardingSection({ token }) {
         }}>
           <div>
             <strong style={{ fontSize:"1rem" }}>
-              {status === "loi_envoyee" ? "📄 Votre LOI est prête à signer !" : "📜 L'Accord de Partenariat est prêt !"}
+              {status === "loi_envoyee" ? "Votre LOI est prête à signer !" : "L'Accord de Partenariat est prêt !"}
             </strong>
             <p style={{ fontSize:".85rem", opacity:.85, margin:".25rem 0 0" }}>
               {status === "loi_envoyee"
@@ -1564,7 +1566,7 @@ function OnboardingSection({ token }) {
             onClick={() => navigate("/partner-onboarding")}
             style={{ padding:".7rem 1.4rem", background:"white", color:"#7c3aed", border:"none", borderRadius:10, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap", fontSize:".88rem" }}
           >
-            ✍️ Signer maintenant →
+            <PenLine size={18} aria-hidden="true" /> Signer maintenant →
           </button>
         </div>
       )}
@@ -1576,21 +1578,21 @@ function OnboardingSection({ token }) {
 // COMPOSANT PRINCIPAL PMS DASHBOARD
 // ══════════════════════════════════════════════════════════════════════════════
 const NAV_ITEMS = [
-  { id:"home",        icon:"🏠", label:"Accueil"           },
-  { id:"onboarding",  icon:"👑", label:"Founding Partner"  },
-  { id:"company",     icon:"🏢", label:"Mon Entreprise"    },
-  { id:"showroom",    icon:"🏪", label:"Mon Showroom"      },
-  { id:"fleet",       icon:"🚗", label:"Flotte"            },
-  { id:"leads",       icon:"🎯", label:"Leads"             },
-  { id:"quotes",      icon:"📄", label:"Devis"             },
-  { id:"analytics",   icon:"📊", label:"Analytics"         },
-  { id:"performance", icon:"⭐", label:"Score & Trust"     },
+  { id:"home",        icon:<House size={18} aria-hidden="true" />, label:"Accueil"           },
+  { id:"onboarding",  icon:<Crown size={18} aria-hidden="true" />, label:"Founding Partner"  },
+  { id:"company",     icon:<Building2 size={18} aria-hidden="true" />, label:"Mon Entreprise"    },
+  { id:"showroom",    icon:<Store size={18} aria-hidden="true" />, label:"Mon Showroom"      },
+  { id:"fleet",       icon:<Car size={18} aria-hidden="true" />, label:"Flotte"            },
+  { id:"leads",       icon:<Target size={18} aria-hidden="true" />, label:"Leads"             },
+  { id:"quotes",      icon:<FileText size={18} aria-hidden="true" />, label:"Devis"             },
+  { id:"analytics",   icon:<BarChart3 size={18} aria-hidden="true" />, label:"Analytics"         },
+  { id:"performance", icon:<Star size={18} aria-hidden="true" />, label:"Score & Trust"     },
   null, // separator
-  { id:"orders",      icon:"📦", label:"Commandes",    to:"/vendor/dashboard"         },
-  { id:"messages",    icon:"💬", label:"Messages",     to:"/dashboard"                },
-  { id:"kyc",         icon:"🔐", label:"KYC",          to:"/kyc"                      },
-  { id:"plans",       icon:"💳", label:"Abonnement",   to:"/plans"                    },
-  { id:"support",     icon:"🆘", label:"Support",      to:"/help"                     },
+  { id:"orders",      icon:<Package size={18} aria-hidden="true" />, label:"Commandes",    to:"/vendor/dashboard"         },
+  { id:"messages",    icon:<MessageCircle size={18} aria-hidden="true" />, label:"Messages",     to:"/dashboard"                },
+  { id:"kyc",         icon:<Lock size={18} aria-hidden="true" />, label:"KYC",          to:"/kyc"                      },
+  { id:"plans",       icon:<CreditCard size={18} aria-hidden="true" />, label:"Abonnement",   to:"/plans"                    },
+  { id:"support",     icon:<LifeBuoy size={18} aria-hidden="true" />, label:"Support",      to:"/help"                     },
 ];
 
 export default function PartnerPMSDashboard() {
@@ -1652,7 +1654,7 @@ export default function PartnerPMSDashboard() {
       <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ""}`}>
         <div className={styles.sidebarHeader}>
           <div className={styles.sidebarLogo}>
-            <span className={styles.sidebarLogoIcon}>🤝</span>
+            <span className={styles.sidebarLogoIcon}><Handshake size={18} aria-hidden="true" /></span>
             <span className={styles.sidebarLogoText}>Partner Hub</span>
           </div>
           <button className={styles.sidebarClose} onClick={() => setSidebarOpen(false)}>✕</button>
@@ -1694,7 +1696,7 @@ export default function PartnerPMSDashboard() {
         </nav>
 
         <div className={styles.sidebarFooter}>
-          <Link to={`/showroom/${user?._id || user?.id || ""}`} className={styles.sidebarFooterLink}>👁 Mon showroom public</Link>
+          <Link to={`/showroom/${user?._id || user?.id || ""}`} className={styles.sidebarFooterLink}><Eye size={18} aria-hidden="true" /> Mon showroom public</Link>
           <Link to="/" className={styles.sidebarFooterLink}>← Retour au site</Link>
         </div>
       </aside>
@@ -1706,7 +1708,7 @@ export default function PartnerPMSDashboard() {
       <main className={styles.main}>
         {/* Top bar mobile */}
         <div className={styles.topBar}>
-          <button className={styles.menuBtn} onClick={() => setSidebarOpen(true)}>☰</button>
+          <button className={styles.menuBtn} onClick={() => setSidebarOpen(true)} aria-label="Ouvrir le menu"><Menu size={22} aria-hidden="true" /></button>
           <span className={styles.topBarTitle}>{activeLabel}</span>
           <div className={styles.topBarRight}>
             {businesses.length > 1 && (

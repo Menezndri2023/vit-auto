@@ -1122,3 +1122,16 @@
   .menuBtn, .sidebarClose { min-width: 44px; min-height: 44px; }
 }
 .miniBarLabel { font-size: 0.7rem; }
+
+/* ── Icônes vectorielles (2026-11-06) : à la place des émojis ── */
+.navIcon { display: inline-flex; justify-content: center; }
+.quickIcon, .metricIcon, .fleetCardIcon, .analyticIcon, .certLevelIcon { display: inline-flex; color: var(--c-primary, #ff4d2d); }
+.quickIcon svg, .fleetCardIcon svg { width: 24px; height: 24px; }
+.metricIcon svg { width: 22px; height: 22px; }
+.badgeIcon { display: flex; justify-content: center; }
+.badgeIcon svg { width: 30px; height: 30px; }
+.sidebarLogoIcon { display: inline-flex; color: var(--c-primary, #ff4d2d); }
+.sectionTitle { display: flex; align-items: center; gap: 10px; }
+.sectionTitle svg { color: var(--c-primary, #ff4d2d); flex-shrink: 0; }
+.btnDanger { display: inline-flex; align-items: center; justify-content: center; }
+.pipelineName, .countryName { display: inline-flex; align-items: center; gap: 6px; }
