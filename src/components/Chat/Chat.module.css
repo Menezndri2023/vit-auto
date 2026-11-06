@@ -470,3 +470,6 @@
     display: none;
   }
 }
+
+/* Icônes vectorielles (2026-11-06) : alignement sur le texte, sans toucher à display. */
+.blockedRow svg, .bubbleSender svg, .emptyMsg svg, .headerMenuItem svg { vertical-align: -3px; flex-shrink: 0; }

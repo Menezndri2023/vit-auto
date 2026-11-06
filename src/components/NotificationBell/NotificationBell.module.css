@@ -306,3 +306,8 @@
   .delBtn { opacity: 1; min-width: 44px; min-height: 44px; }
   .soundBtn { min-width: 44px; min-height: 44px; }
 }
+
+/* Icônes vectorielles (2026-11-06) : alignement sur le texte, sans toucher à display. */
+.empty svg, .soundBtn svg { vertical-align: -3px; flex-shrink: 0; }
+
+.itemIcon { display: inline-flex; color: var(--c-primary, #ff4d2d); }

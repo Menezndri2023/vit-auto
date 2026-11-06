@@ -3,6 +3,7 @@ import { api } from "../../utils/apiClient";
 import { useToast } from "../../context/ToastContext";
 import { useCurrency } from "../../context/CurrencyContext";
 import { geocodeAddress } from "../../utils/geo";
+import { Baby, Banknote, Building2, Car, Globe, IdCard, MapPin, Navigation, Phone, Plane, Route, Shield, Store, Truck, UserRound, Users } from "lucide-react";
 import styles from "./PartnerBusinessManager.module.css";
 
 // Booking Engine — Éligibilité (2026-09) — voir server/services/eligibilityEngine.js.
@@ -30,13 +31,13 @@ const EMPTY_RENTAL_POLICY = {
 // `unit` : unité par défaut de l'option ; le partenaire peut la changer
 // (siège enfant au forfait par location plutôt qu'au jour, par exemple).
 const RENTAL_OPTIONS = [
-  { id: "driver",           label: "Chauffeur privé",                          icon: "🧑‍✈️", unit: "day" },
-  { id: "babySeat",         label: "Siège bébé",                                icon: "👶",  unit: "day" },
-  { id: "insurance",        label: "Assurance complémentaire",                  icon: "🛡️", unit: "day" },
-  { id: "gps",              label: "GPS",                                       icon: "🗺️", unit: "day" },
-  { id: "additionalDriver", label: "Conducteur additionnel",                    icon: "🧑‍🤝‍🧑", unit: "day",    partnerOnly: true },
-  { id: "unlimitedMileage", label: "Kilométrage illimité",                      icon: "🛣️", unit: "day",    partnerOnly: true },
-  { id: "airportDelivery",  label: "Remise / restitution en gare ou aéroport",  icon: "✈️",  unit: "rental", partnerOnly: true },
+  { id: "driver",           label: "Chauffeur privé",                          icon: <IdCard size={15} aria-hidden="true" />, unit: "day" },
+  { id: "babySeat",         label: "Siège bébé",                                icon: <Baby size={15} aria-hidden="true" />,  unit: "day" },
+  { id: "insurance",        label: "Assurance complémentaire",                  icon: <Shield size={15} aria-hidden="true" />, unit: "day" },
+  { id: "gps",              label: "GPS",                                       icon: <Navigation size={15} aria-hidden="true" />, unit: "day" },
+  { id: "additionalDriver", label: "Conducteur additionnel",                    icon: <Users size={15} aria-hidden="true" />, unit: "day",    partnerOnly: true },
+  { id: "unlimitedMileage", label: "Kilométrage illimité",                      icon: <Route size={15} aria-hidden="true" />, unit: "day",    partnerOnly: true },
+  { id: "airportDelivery",  label: "Remise / restitution en gare ou aéroport",  icon: <Plane size={15} aria-hidden="true" />,  unit: "rental", partnerOnly: true },
 ];
 
 const UNIT_OPTIONS = [
@@ -200,7 +201,7 @@ const PartnerBusinessManager = () => {
     <div className={styles.wrap}>
       <div className={styles.header}>
         <div>
-          <h2 className={styles.title}>🏢 Mes entreprises</h2>
+          <h2 className={styles.title}><Building2 size={15} aria-hidden="true" /> Mes entreprises</h2>
           <p className={styles.hint}>
             Gérez plusieurs entreprises domiciliées à des endroits différents — choisissez celle concernée
             lorsque vous publiez un véhicule, pour que son pays/ville/adresse soient corrects automatiquement.
@@ -220,13 +221,13 @@ const PartnerBusinessManager = () => {
         {businesses.map((b) => (
           <div key={b._id} className={styles.card}>
             {b.isDefault && <span className={styles.defaultBadge}>Par défaut</span>}
-            {b.isConcessionnaire && <span className={styles.defaultBadge} style={{ background: "#eef2ff", color: "#4338ca" }}>🏬 Concessionnaire</span>}
+            {b.isConcessionnaire && <span className={styles.defaultBadge} style={{ background: "#eef2ff", color: "#4338ca" }}><Store size={15} aria-hidden="true" /> Concessionnaire</span>}
             <h3 className={styles.cardTitle}>{b.companyName}</h3>
             <p className={styles.cardLine}>{flagFor(b.country)} {nameFor(b.country)}</p>
-            <p className={styles.cardLine}>📍 {b.ville}{b.adresse ? `, ${b.adresse}` : ""}</p>
-            {b.contactNom && <p className={styles.cardLine}>👤 {b.contactNom}</p>}
-            {b.contactTel && <p className={styles.cardLine}>📞 {b.contactTel}</p>}
-            {b.rentalPolicy?.minimumAge && <p className={styles.cardLine}>🛡️ Âge min. {b.rentalPolicy.minimumAge} ans</p>}
+            <p className={styles.cardLine}><MapPin size={15} aria-hidden="true" /> {b.ville}{b.adresse ? `, ${b.adresse}` : ""}</p>
+            {b.contactNom && <p className={styles.cardLine}><UserRound size={15} aria-hidden="true" /> {b.contactNom}</p>}
+            {b.contactTel && <p className={styles.cardLine}><Phone size={15} aria-hidden="true" /> {b.contactTel}</p>}
+            {b.rentalPolicy?.minimumAge && <p className={styles.cardLine}><Shield size={15} aria-hidden="true" /> Âge min. {b.rentalPolicy.minimumAge} ans</p>}
             <div className={styles.cardActions}>
               {!b.isDefault && (
                 <button className={styles.linkBtn} onClick={() => handleSetDefault(b)}>Définir par défaut</button>
@@ -272,7 +273,7 @@ const PartnerBusinessManager = () => {
             <div className={`${styles.field} ${styles.colSpan2}`}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                 <input type="checkbox" checked={form.isConcessionnaire} onChange={(e) => setF("isConcessionnaire", e.target.checked)} />
-                🏬 Cette entité est un concessionnaire (affiché comme badge sur ses annonces)
+                <Store size={15} aria-hidden="true" /> Cette entité est un concessionnaire (affiché comme badge sur ses annonces)
               </label>
             </div>
           </div>
@@ -281,7 +282,7 @@ const PartnerBusinessManager = () => {
               défaut de cette entité, appliquée en plus des réglages propres à
               chaque véhicule (voir server/services/eligibilityEngine.js).
               Laisser un champ vide = pas de règle partenaire pour ce critère. */}
-          <h3 className={styles.cardTitle} style={{ marginTop: 24 }}>🛡️ Politique de location</h3>
+          <h3 className={styles.cardTitle} style={{ marginTop: 24 }}><Shield size={15} aria-hidden="true" /> Politique de location</h3>
           <p className={styles.hint}>
             Ces règles s'appliquent par défaut à toutes les réservations sur les véhicules de cette entité,
             en plus des réglages propres à chaque annonce. Laissez un champ vide pour ne poser aucune exigence.
@@ -303,7 +304,7 @@ const PartnerBusinessManager = () => {
                 onChange={(e) => setRP("maxDeliveryRadiusKm", e.target.value)} placeholder="Illimité" />
             </div>
             <div className={styles.field}>
-              <label>🚚 Frais de livraison — même ville</label>
+              <label><Truck size={15} aria-hidden="true" /> Frais de livraison — même ville</label>
               <input type="number" min="0" value={form.rentalPolicy.deliveryFeeSameCity}
                 onChange={(e) => setRP("deliveryFeeSameCity", e.target.value)}
                 placeholder="Suggestion : 100 à 150 (votre devise locale)" />
@@ -320,25 +321,25 @@ const PartnerBusinessManager = () => {
               </span>
             </div>
             <div className={styles.field}>
-              <label>🪪 Pièce d'identité vérifiée</label>
+              <label><IdCard size={15} aria-hidden="true" /> Pièce d'identité vérifiée</label>
               <select value={form.rentalPolicy.identityDocumentRequired} onChange={(e) => setRP("identityDocumentRequired", e.target.value)}>
                 {TRISTATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div className={styles.field}>
-              <label>🚘 Permis de conduire vérifié</label>
+              <label><Car size={15} aria-hidden="true" /> Permis de conduire vérifié</label>
               <select value={form.rentalPolicy.drivingLicenseRequired} onChange={(e) => setRP("drivingLicenseRequired", e.target.value)}>
                 {TRISTATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div className={styles.field}>
-              <label>🌍 Permis international (clients étrangers)</label>
+              <label><Globe size={15} aria-hidden="true" /> Permis international (clients étrangers)</label>
               <select value={form.rentalPolicy.internationalLicenseRequired} onChange={(e) => setRP("internationalLicenseRequired", e.target.value)}>
                 {TRISTATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div className={styles.field}>
-              <label>💰 Caution exigée par défaut</label>
+              <label><Banknote size={15} aria-hidden="true" /> Caution exigée par défaut</label>
               <select value={form.rentalPolicy.depositRequired} onChange={(e) => setRP("depositRequired", e.target.value)}>
                 {TRISTATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>

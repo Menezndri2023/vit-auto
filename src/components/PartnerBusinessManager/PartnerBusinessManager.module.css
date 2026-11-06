@@ -63,3 +63,6 @@
   .formGrid { grid-template-columns: 1fr; }
   .colSpan2 { grid-column: span 1; }
 }
+
+/* Icônes vectorielles (2026-11-06) : alignement sur le texte, sans toucher à display. */
+.cardLine svg, .cardTitle svg, .defaultBadge svg, .empty svg, .title svg { vertical-align: -3px; flex-shrink: 0; }

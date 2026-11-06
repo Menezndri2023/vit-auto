@@ -5,6 +5,7 @@ import { useChat } from "../../context/ChatContext";
 import { useToast } from "../../context/ToastContext";
 import { getAssistantResponse } from "./VirtualAssistant";
 import ReportButton from "../ReportButton/ReportButton";
+import { Ban, Bot, Handshake, Headphones, MessageCircle, SendHorizontal, X } from "lucide-react";
 import styles from "./Chat.module.css";
 
 // Routes sans chat FAB (admin ERP gère son propre support)
@@ -22,15 +23,15 @@ const timeAgo = (dateStr) => {
 };
 
 const CHANNELS = [
-  { id: "assistant", icon: "🤖", name: "Assistant VIT AUTO", desc: "Réponses instantanées 24h/24", color: "#ecfdf5", bot: true },
-  { id: "support",   icon: "🎧", name: "Service Client",     desc: "Notre équipe vous répond",   color: "#f0f6ff", type: "client_support" },
+  { id: "assistant", icon: <Bot size={16} aria-hidden="true" />, name: "Assistant VIT AUTO", desc: "Réponses instantanées 24h/24", color: "#ecfdf5", bot: true },
+  { id: "support",   icon: <Headphones size={16} aria-hidden="true" />, name: "Service Client",     desc: "Notre équipe vous répond",   color: "#f0f6ff", type: "client_support" },
 ];
 
 // Libellé et icône selon le type de conversation
 const CHAT_META = {
-  client_partner:  { icon: "🤝", label: "Partenaire",           color: "#f5f3ff" },
-  client_support:  { icon: "🎧", label: "Service Client VIT AUTO", color: "#f0f6ff" },
-  partner_support: { icon: "🎧", label: "Support Partenaires",  color: "#fff7ed" },
+  client_partner:  { icon: <Handshake size={16} aria-hidden="true" />, label: "Partenaire",           color: "#f5f3ff" },
+  client_support:  { icon: <Headphones size={16} aria-hidden="true" />, label: "Service Client VIT AUTO", color: "#f0f6ff" },
+  partner_support: { icon: <Headphones size={16} aria-hidden="true" />, label: "Support Partenaires",  color: "#fff7ed" },
 };
 
 // ── Composant message individuel ──────────────────────────────────────────
@@ -41,11 +42,11 @@ function Bubble({ msg, isMe, isBot }) {
       {!isMe && !isBot && msg.sender && (
         <div className={styles.bubbleSender}>
           {msg.sender.role === "admin"
-            ? "🎧 Service Client VIT AUTO"
+            ? <><Headphones size={13} aria-hidden="true" style={{ verticalAlign: "-2px" }} /> Service Client VIT AUTO</>
             : `${msg.sender.firstName} ${msg.sender.lastName}`}
         </div>
       )}
-      {isBot && <div className={styles.bubbleSender}>🤖 Assistant VIT AUTO</div>}
+      {isBot && <div className={styles.bubbleSender}><Bot size={16} aria-hidden="true" /> Assistant VIT AUTO</div>}
       <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span>
       {isMe
         ? <div className={styles.bubbleTime}>{timeAgo(msg.createdAt)}</div>
@@ -70,7 +71,7 @@ function ChannelList({ onSelect, onOpenChannel, user }) {
   const visibleChannels = user?.role === "partenaire"
     ? [
         CHANNELS[0], // assistant
-        { id: "partner_support", icon: "🎧", name: "Support Partenaires", desc: "Aide pour votre espace partenaire", color: "#fff7ed", type: "partner_support" },
+        { id: "partner_support", icon: <Headphones size={16} aria-hidden="true" />, name: "Support Partenaires", desc: "Aide pour votre espace partenaire", color: "#fff7ed", type: "partner_support" },
       ]
     : CHANNELS; // assistant + service client pour clients
 
@@ -184,7 +185,7 @@ function ConversationView({ channel }) {
         })}
         {!isBot && displayedMsgs.length === 0 && (
           <div className={styles.emptyMsg}>
-            <span>💬</span>
+            <span><MessageCircle size={16} aria-hidden="true" /></span>
             <p>Démarrez la conversation</p>
           </div>
         )}
@@ -192,7 +193,7 @@ function ConversationView({ channel }) {
       </div>
       {activeChat?.blockedByMe ? (
         <div className={styles.blockedRow}>
-          <span>⛔ Vous avez bloqué cet utilisateur : plus aucun message n'est échangé.</span>
+          <span><Ban size={16} aria-hidden="true" /> Vous avez bloqué cet utilisateur : plus aucun message n'est échangé.</span>
           <button
             type="button"
             className={styles.unblockBtn}
@@ -212,7 +213,7 @@ function ConversationView({ channel }) {
           onKeyDown={handleKey}
         />
         <button className={styles.sendBtn} onClick={handleSend} disabled={!text.trim() || sending}>
-          ➤
+          <SendHorizontal size={16} aria-hidden="true" />
         </button>
       </div>
       )}
@@ -313,7 +314,7 @@ export default function Chat() {
       {/* ── Bouton flottant ── */}
       <div className={styles.fab}>
         <button className={styles.fabBtn} onClick={handleFab} aria-label="Ouvrir le chat">
-          {open ? "✕" : "💬"}
+          {open ? <X size={24} aria-hidden="true" /> : <MessageCircle size={24} aria-hidden="true" />}
           {!open && unreadTotal > 0 && (
             <span className={styles.fabBadge}>{unreadTotal > 9 ? "9+" : unreadTotal}</span>
           )}
@@ -330,8 +331,8 @@ export default function Chat() {
             )}
             <div className={styles.headerAvatar}>
               {view === "convo"
-                ? (activeChannel?.icon || "💬")
-                : "💬"}
+                ? (activeChannel?.icon || <MessageCircle size={16} aria-hidden="true" />)
+                : <MessageCircle size={16} aria-hidden="true" />}
             </div>
             <div className={styles.headerInfo}>
               <div className={styles.headerName}>{view === "list" ? "VIT AUTO Chat" : channelName}</div>
@@ -370,7 +371,7 @@ export default function Chat() {
                         if (!r.ok) error(r.message);
                       }}
                     >
-                      {activeChat.blockedByMe ? "✅ Débloquer cet utilisateur" : "⛔ Bloquer cet utilisateur"}
+                      {activeChat.blockedByMe ? "Débloquer cet utilisateur" : "Bloquer cet utilisateur"}
                     </button>
                   </div>
                 )}

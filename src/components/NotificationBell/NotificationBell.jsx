@@ -1,21 +1,27 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotifications } from "../../context/NotificationContext";
+import { BadgeCheck, Ban, Banknote, Bell, BellOff, Car, CheckCircle2, Flag, IdCard, MessageCircle, Package, Star, Volume2, XCircle } from "lucide-react";
 import styles from "./NotificationBell.module.css";
 import { useFermetureExterieure } from "../../hooks/useFermetureExterieure";
 
+// Les titres enregistrés commencent souvent par un émoji (repris des e-mails et
+// des notifications push) : dans la cloche, l'icône du type le remplace déjà.
+// Affichage seulement, la donnée n'est pas modifiée.
+const sansEmojiDeTete = (t) => String(t || "").replace(/^(\p{Extended_Pictographic}|\u200d|\ufe0f)+\s*/u, "");
+
 const TYPE_ICONS = {
-  booking_confirmed: "✅",
-  booking_cancelled: "❌",
-  booking_completed: "🏁",
-  new_booking:       "📦",
-  new_review:        "⭐",
-  payment_received:  "💰",
-  listing_approved:  "✔️",
-  listing_rejected:  "🚫",
-  new_vehicle:       "🚗",
-  new_driver:        "🧑‍✈️",
-  new_message:       "💬",
+  booking_confirmed: <CheckCircle2 size={18} aria-hidden="true" />,
+  booking_cancelled: <XCircle size={18} aria-hidden="true" />,
+  booking_completed: <Flag size={18} aria-hidden="true" />,
+  new_booking: <Package size={18} aria-hidden="true" />,
+  new_review: <Star size={18} aria-hidden="true" />,
+  payment_received: <Banknote size={18} aria-hidden="true" />,
+  listing_approved: <BadgeCheck size={18} aria-hidden="true" />,
+  listing_rejected: <Ban size={18} aria-hidden="true" />,
+  new_vehicle: <Car size={18} aria-hidden="true" />,
+  new_driver: <IdCard size={18} aria-hidden="true" />,
+  new_message: <MessageCircle size={18} aria-hidden="true" />,
   system:            "ℹ️",
 };
 
@@ -103,14 +109,14 @@ export default function NotificationBell() {
                 onClick={(e) => { e.stopPropagation(); previewSound(); }}
                 title="Écouter la sonorité de notification VIT AUTO"
               >
-                🔊
+                <Volume2 size={16} aria-hidden="true" />
               </button>
               <button
                 className={`${styles.soundBtn} ${soundEnabled ? styles.soundBtnOn : styles.soundBtnOff}`}
                 onClick={(e) => { e.stopPropagation(); toggleSound(); }}
                 title={soundEnabled ? "Son activé — cliquer pour désactiver" : "Son désactivé — cliquer pour activer"}
               >
-                {soundEnabled ? "🔔" : "🔕"}
+                {soundEnabled ? <Bell size={16} aria-hidden="true" /> : <BellOff size={16} aria-hidden="true" />}
               </button>
               {unreadCount > 0 && (
                 <button className={styles.markAllBtn} onClick={markAllAsRead}>
@@ -122,7 +128,7 @@ export default function NotificationBell() {
 
           {recent.length === 0 ? (
             <div className={styles.empty}>
-              <span>🔔</span>
+              <span><Bell size={16} aria-hidden="true" /></span>
               <p>Aucune notification</p>
             </div>
           ) : (
@@ -133,9 +139,9 @@ export default function NotificationBell() {
                   className={`${styles.item} ${!n.lu ? styles.itemUnread : ""}`}
                   onClick={() => handleClick(n)}
                 >
-                  <span className={styles.itemIcon}>{TYPE_ICONS[n.type] || "🔔"}</span>
+                  <span className={styles.itemIcon}>{TYPE_ICONS[n.type] || <Bell size={16} aria-hidden="true" />}</span>
                   <div className={styles.itemContent}>
-                    <p className={styles.itemTitle}>{n.titre}</p>
+                    <p className={styles.itemTitle}>{sansEmojiDeTete(n.titre)}</p>
                     <p className={styles.itemMsg}>{n.message}</p>
                     <span className={styles.itemTime}>{timeAgo(n.createdAt)}</span>
                   </div>
