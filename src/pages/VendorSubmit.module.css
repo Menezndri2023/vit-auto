@@ -1174,3 +1174,19 @@
 .ligneRepetable > * { flex: 1 1 140px; min-width: 0; }
 /* Le bouton de retrait ne s'étire pas : il reste à sa taille, en bout de rangée. */
 .ligneRepetable > button { flex: 0 0 auto; }
+
+/* ── Icônes vectorielles (2026-11-06) : à la place des émojis ── */
+.cardTitle { display: flex; align-items: center; gap: 10px; }
+.cardTitle svg { color: var(--c-primary, #ff4d2d); flex-shrink: 0; }
+.typeBtn, .submitBtn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.adTypeIcon { color: var(--c-primary, #ff4d2d); }
+.accessIcon, .dropIcon { display: flex; justify-content: center; color: #94a3b8; }
+.resultIcon { display: flex; justify-content: center; color: inherit; }
+.summaryBlock p { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.summaryBlock p svg { color: #94a3b8; flex-shrink: 0; }
+.checkItem svg { color: #64748b; flex-shrink: 0; }
+.hint svg { vertical-align: -3px; }
+/* « Caractéristiques » débordait sur « Tarification » (mot plus large que 76 px). */
+.stepWrap { min-width: 92px; }
+.stepLbl { max-width: 92px; }
+@media (max-width: 768px) { .stepWrap { min-width: 0; } }

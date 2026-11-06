@@ -12,17 +12,18 @@ import { geocodeAddress, reverseGeocode, getCurrentPosition } from "../utils/geo
 import { CALLING_CODES } from "../data/autocomplete";
 import { api } from "../utils/apiClient";
 import { LICENSE_CATEGORIES, LICENSE_CATEGORY_LABELS } from "../constants/licenseCategories";
+import { AlertTriangle, Banknote, Building2, Camera, Car, CheckCircle2, ClipboardList, Clock, CreditCard, DoorOpen, FileText, Footprints, Fuel, Gauge, Globe, Handshake, Hourglass, IdCard, ImagePlus, Landmark, Lightbulb, Lock, Map as IconeCarte, MapPin, MessageCircle, Palette, Paperclip, Phone, Rocket, Sailboat, Settings, Shield, Snowflake, User, UserRound, Users, Wrench, XCircle, Zap } from "lucide-react";
 import styles from "./VendorSubmit.module.css";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const STEPS = [
-  { id: 1, label: "Identité",         icon: "👤" },
-  { id: 2, label: "Type d'annonce",   icon: "📋" },
-  { id: 3, label: "Informations",     icon: "🚗" },
-  { id: 4, label: "Caractéristiques", icon: "⚙️"  },
-  { id: 5, label: "Tarification",     icon: "💰" },
-  { id: 6, label: "Photos & Desc.",   icon: "📸" },
-  { id: 7, label: "Vérification",     icon: "✅" },
+  { id: 1, label: "Identité",         Icone: UserRound },
+  { id: 2, label: "Type d'annonce",   Icone: ClipboardList },
+  { id: 3, label: "Informations",     Icone: Car },
+  { id: 4, label: "Caractéristiques", Icone: Settings },
+  { id: 5, label: "Tarification",     Icone: Banknote },
+  { id: 6, label: "Photos & Desc.",   Icone: Camera },
+  { id: 7, label: "Vérification",     Icone: CheckCircle2 },
 ];
 
 const VEHICLE_TYPES  = ["SUV", "Berline", "Sportif", "Citadine", "Monospace", "Pick-up", "Cabriolet", "Utilitaire"];
@@ -384,7 +385,7 @@ const VendorSubmit = () => {
       if (d.pricePerWeekEntry !== undefined) setPricePerWeekEntry(d.pricePerWeekEntry);
       if (d.tarifMoisEntry !== undefined) setTarifMoisEntry(d.tarifMoisEntry);
       if (d.driver) setDriver((p) => ({ ...p, ...d.driver }));
-      success("📝 Brouillon restauré — pensez à réajouter vos photos.");
+      success("Brouillon restauré — pensez à réajouter vos photos.");
     } catch { /* brouillon corrompu — ignoré silencieusement */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [DRAFT_KEY, userId]);
@@ -412,7 +413,7 @@ const VendorSubmit = () => {
   useEffect(() => {
     if (!user) return;
     if (!token) {
-      error("🔐 Session expirée ou incomplète. Reconnectez-vous pour publier.");
+      error("Session expirée ou incomplète. Reconnectez-vous pour publier.");
       navigate("/login", { replace: true });
     } else if (!isPartner) {
       error("Compte partenaire requis pour publier des annonces.");
@@ -425,7 +426,7 @@ const VendorSubmit = () => {
     return (
       <div className={styles.page}>
         <div className={styles.accessCard}>
-          <div className={styles.accessIcon}>🔒</div>
+          <div className={styles.accessIcon}><Lock size={40} aria-hidden="true" /></div>
           <h2>Connexion requise</h2>
           <p>Vous devez être connecté pour publier une annonce.</p>
           <button className={styles.primaryBtn} onClick={() => navigate("/login?returnTo=/vendor")}>
@@ -441,7 +442,7 @@ const VendorSubmit = () => {
     return (
       <div className={styles.page}>
         <div className={styles.accessCard}>
-          <div className={styles.accessIcon}>🤝</div>
+          <div className={styles.accessIcon}><Handshake size={40} aria-hidden="true" /></div>
           <h2>Accès restreint</h2>
           <p>Seuls les partenaires peuvent publier des annonces.</p>
           <button className={styles.primaryBtn} onClick={() => navigate("/register?role=partenaire")}>
@@ -897,7 +898,7 @@ const VendorSubmit = () => {
       case 1:
         return (
           <div className={styles.card}>
-            <h2 className={styles.cardTitle}>👤 Votre identité</h2>
+            <h2 className={styles.cardTitle}><UserRound size={16} aria-hidden="true" /> Votre identité</h2>
             <p className={styles.cardSub}>Ces informations apparaîtront comme contact de l'annonce.</p>
 
             {businesses.length > 0 && (
@@ -925,19 +926,19 @@ const VendorSubmit = () => {
 
             <div className={styles.typeToggle}>
               {[
-                { v: "particulier",    label: "🧑 Particulier" },
-                { v: "professionnel",  label: "🏢 Professionnel" },
-                { v: "entreprise",     label: "🏛️ Entreprise" },
-              ].map(({ v, label }) => (
+                { v: "particulier",    Icone: User, label: "Particulier" },
+                { v: "professionnel",  Icone: Building2, label: "Professionnel" },
+                { v: "entreprise",     Icone: Landmark, label: "Entreprise" },
+              ].map((choix) => { const { v, Icone, label } = choix; return (
                 <button
                   key={v}
                   type="button"
                   className={`${styles.typeBtn} ${identity.typePubliant === v ? styles.typeBtnActive : ""}`}
                   onClick={() => setId("typePubliant", v)}
                 >
-                  {label}
+                  <Icone size={16} aria-hidden="true" /> {label}
                 </button>
-              ))}
+              ); })}
             </div>
 
             <div className={styles.grid2}>
@@ -977,15 +978,15 @@ const VendorSubmit = () => {
                 <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                   Adresse exacte *
                   <button type="button" onClick={useMyLocation} disabled={geoLocating}
-                    style={{ fontSize: ".76rem", fontWeight: 700, color: "#6366f1", background: "none", border: "none", cursor: geoLocating ? "not-allowed" : "pointer", padding: 0 }}>
-                    {geoLocating ? "📍 Localisation…" : "📍 Utiliser ma position"}
+                    style={{ fontSize: ".76rem", fontWeight: 700, color: "#6366f1", background: "none", border: "none", cursor: geoLocating ? "not-allowed" : "pointer", padding: 0, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <MapPin size={13} aria-hidden="true" style={{ verticalAlign: "-2px" }} /> {geoLocating ? "Localisation…" : "Utiliser ma position"}
                   </button>
                 </label>
                 <input value={identity.adresse} onChange={e => setId("adresse", e.target.value)}
                   placeholder="Ex : Rue 10, Plateau, Abidjan — utilisée pour la livraison GPS" />
                 {errors.adresse && <span className={styles.err}>{errors.adresse}</span>}
                 <small style={{ color: "#8493b0", fontSize: "0.78rem", marginTop: "3px" }}>
-                  📍 Cette adresse servira à calculer automatiquement les frais de livraison pour vos clients.
+                  <MapPin size={16} aria-hidden="true" /> Cette adresse servira à calculer automatiquement les frais de livraison pour vos clients.
                 </small>
               </div>
             </div>
@@ -996,7 +997,7 @@ const VendorSubmit = () => {
       case 2:
         return (
           <div className={styles.card}>
-            <h2 className={styles.cardTitle}>📋 Type d'annonce</h2>
+            <h2 className={styles.cardTitle}><ClipboardList size={16} aria-hidden="true" /> Type d'annonce</h2>
             <p className={styles.cardSub}>Quel service souhaitez-vous proposer ?</p>
             {errors.adType && <p className={styles.err}>{errors.adType}</p>}
             {/* Un type hors des secteurs du compte reste visible mais verrouillé :
@@ -1006,7 +1007,7 @@ const VendorSubmit = () => {
                 « Mes secteurs », où l'ajout se demande. */}
             {[["location", "loueur"], ["vente", "vendeur"], ["chauffeur", "chauffeur"]].some(([, s]) => !couvreSecteur(user, s)) && (
               <p className={styles.hint} style={{ marginBottom: 12 }}>
-                🔒 Les types grisés relèvent d'un secteur que votre compte ne couvre pas encore —
+                <Lock size={16} aria-hidden="true" /> Les types grisés relèvent d'un secteur que votre compte ne couvre pas encore —
                 <Link to="/vendor/dashboard?tab=annonces" style={{ marginLeft: 4, fontWeight: 700 }}>demander un secteur</Link>.
               </p>
             )}
@@ -1016,7 +1017,7 @@ const VendorSubmit = () => {
                 disabled={!couvreSecteur(user, "loueur")} aria-disabled={!couvreSecteur(user, "loueur")}
                 title={couvreSecteur(user, "loueur") ? undefined : `Secteur ${SECTEUR_LABELS.loueur} non couvert par votre compte`}
                 onClick={() => setAdType("location")}>
-                <div className={styles.adTypeIcon}>🚗</div>
+                <div className={styles.adTypeIcon}><Car size={26} aria-hidden="true" /></div>
                 <h3>Location de véhicule</h3>
                 <p>Mettez votre véhicule en location à la journée. Définissez vos tarifs et conditions.</p>
                 <ul className={styles.adTypeList}>
@@ -1030,7 +1031,7 @@ const VendorSubmit = () => {
                 disabled={!couvreSecteur(user, "vendeur")} aria-disabled={!couvreSecteur(user, "vendeur")}
                 title={couvreSecteur(user, "vendeur") ? undefined : `Secteur ${SECTEUR_LABELS.vendeur} non couvert par votre compte`}
                 onClick={() => setAdType("vente")}>
-                <div className={styles.adTypeIcon}>💰</div>
+                <div className={styles.adTypeIcon}><Banknote size={26} aria-hidden="true" /></div>
                 <h3>Vente de véhicule</h3>
                 <p>Publiez votre véhicule à la vente. Les acheteurs peuvent demander un essai.</p>
                 <ul className={styles.adTypeList}>
@@ -1044,7 +1045,7 @@ const VendorSubmit = () => {
                 disabled={!couvreSecteur(user, "chauffeur")} aria-disabled={!couvreSecteur(user, "chauffeur")}
                 title={couvreSecteur(user, "chauffeur") ? undefined : `Secteur ${SECTEUR_LABELS.chauffeur} non couvert par votre compte`}
                 onClick={() => setAdType("chauffeur")}>
-                <div className={styles.adTypeIcon}>👨‍✈️</div>
+                <div className={styles.adTypeIcon}><IdCard size={26} aria-hidden="true" /></div>
                 <h3>Service chauffeur</h3>
                 <p>Proposez vos services de transport avec chauffeur privé ou professionnel.</p>
                 <ul className={styles.adTypeList}>
@@ -1062,7 +1063,7 @@ const VendorSubmit = () => {
                 disabled={!couvreSecteur(user, "loisirs")} aria-disabled={!couvreSecteur(user, "loisirs")}
                 title={couvreSecteur(user, "loisirs") ? undefined : `Secteur ${SECTEUR_LABELS.loisirs} non couvert par votre compte`}
                 onClick={() => navigate("/vendor/submit-activity")}>
-                <div className={styles.adTypeIcon}>🎈</div>
+                <div className={styles.adTypeIcon}><Sailboat size={26} aria-hidden="true" /></div>
                 <h3>Activité (Activités et Loisirs)</h3>
                 <p>Quad, Surf, Montgolfière, Jetski, Jet privé, Bateau... proposez une activité réservable, avec essai en option.</p>
                 <ul className={styles.adTypeList}>
@@ -1078,7 +1079,7 @@ const VendorSubmit = () => {
                 disabled={!couvreSecteur(user, "pieces")} aria-disabled={!couvreSecteur(user, "pieces")}
                 title={couvreSecteur(user, "pieces") ? undefined : `Secteur ${SECTEUR_LABELS.pieces} non couvert par votre compte`}
                 onClick={() => navigate("/vendor/submit-part")}>
-                <div className={styles.adTypeIcon}>🔩</div>
+                <div className={styles.adTypeIcon}><Wrench size={26} aria-hidden="true" /></div>
                 <h3>Pièce détachée</h3>
                 <p>Pièce en stock ou importée à la commande, livrée au client — paiement à la réception.</p>
                 <ul className={styles.adTypeList}>
@@ -1092,7 +1093,7 @@ const VendorSubmit = () => {
             {adType === "chauffeur" && (
               <div className={styles.infoBanner} style={{ marginTop: 16 }}>
                 <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#0f1b3f" }}>
-                  📄 Deux documents seulement, à joindre à l'étape 6 de ce formulaire
+                  <FileText size={16} aria-hidden="true" /> Deux documents seulement, à joindre à l'étape 6 de ce formulaire
                 </p>
                 <ul style={{ margin: 0, paddingLeft: 20, fontSize: ".88rem", color: "#334155" }}>
                   <li>Votre permis de conduire — recto, verso si présent</li>
@@ -1110,7 +1111,7 @@ const VendorSubmit = () => {
       case 3:
         if (adType === "chauffeur") return (
           <div className={styles.card}>
-            <h2 className={styles.cardTitle}>👨‍✈️ Profil du chauffeur</h2>
+            <h2 className={styles.cardTitle}><IdCard size={16} aria-hidden="true" /> Profil du chauffeur</h2>
             <div className={styles.grid2}>
               <div className={styles.field}>
                 <label>Prénom du chauffeur *</label>
@@ -1163,7 +1164,7 @@ const VendorSubmit = () => {
 
         return (
           <div className={styles.card}>
-            <h2 className={styles.cardTitle}>🚗 Informations du véhicule</h2>
+            <h2 className={styles.cardTitle}><Car size={16} aria-hidden="true" /> Informations du véhicule</h2>
             <div className={styles.grid2}>
               <div className={`${styles.field} ${styles.colSpan2}`}>
                 <label>Titre de l'annonce *</label>
@@ -1214,7 +1215,7 @@ const VendorSubmit = () => {
       case 4:
         if (adType === "chauffeur") return (
           <div className={styles.card}>
-            <h2 className={styles.cardTitle}>⚙️ Disponibilité & Zone</h2>
+            <h2 className={styles.cardTitle}><Settings size={16} aria-hidden="true" /> Disponibilité & Zone</h2>
             <div className={styles.grid2}>
               <div className={styles.field}>
                 <label>Disponibilité *</label>
@@ -1269,7 +1270,7 @@ const VendorSubmit = () => {
 
         return (
           <div className={styles.card}>
-            <h2 className={styles.cardTitle}>⚙️ Caractéristiques techniques</h2>
+            <h2 className={styles.cardTitle}><Settings size={16} aria-hidden="true" /> Caractéristiques techniques</h2>
             <div className={styles.grid3}>
               <div className={styles.field}>
                 <label>Carburant</label>
@@ -1303,12 +1304,12 @@ const VendorSubmit = () => {
             <div className={styles.checkboxRow}>
               <label className={`${styles.checkItem} ${vehicle.climatisation ? styles.checkActive : ""}`}>
                 <input type="checkbox" name="climatisation" checked={vehicle.climatisation} onChange={handleVehChange} />
-                ❄️ Climatisation
+                <Snowflake size={16} aria-hidden="true" /> Climatisation
               </label>
               {adType === "location" && (
                 <label className={`${styles.checkItem} ${vehicle.withDriver ? styles.checkActive : ""}`}>
                   <input type="checkbox" name="withDriver" checked={vehicle.withDriver} onChange={handleVehChange} />
-                  👤 Option avec chauffeur disponible
+                  <UserRound size={16} aria-hidden="true" /> Option avec chauffeur disponible
                 </label>
               )}
             </div>
@@ -1334,12 +1335,12 @@ const VendorSubmit = () => {
 
           return (
             <div className={styles.card}>
-              <h2 className={styles.cardTitle}>💰 Tarification du service</h2>
+              <h2 className={styles.cardTitle}><Banknote size={16} aria-hidden="true" /> Tarification du service</h2>
               <p className={styles.hint}>Facultatif — fixez librement vos tarifs, ou laissez vide.</p>
               {suggestion && (
                 <div className={styles.pricePreview} style={{ marginBottom: "1rem" }}>
                   <div className={styles.priceItem}>
-                    <span>💡 Prix suggéré {suggestion.local ? `(${driver.ville})` : "(national)"} — {suggestion.n} chauffeur{suggestion.n > 1 ? "s" : ""} {driver.vehiculePersonnel ? "avec véhicule" : "sans véhicule"}</span>
+                    <span><Lightbulb size={16} aria-hidden="true" /> Prix suggéré {suggestion.local ? `(${driver.ville})` : "(national)"} — {suggestion.n} chauffeur{suggestion.n > 1 ? "s" : ""} {driver.vehiculePersonnel ? "avec véhicule" : "sans véhicule"}</span>
                     <strong>{fmt(suggestion.min)} – {fmt(suggestion.max)} <small>(moy. {fmt(suggestion.avg)})</small></strong>
                   </div>
                 </div>
@@ -1412,7 +1413,7 @@ const VendorSubmit = () => {
                 )}
               </div>
               <h3 className={styles.cardTitle} style={{ fontSize: ".95rem", marginTop: 18 }}>
-                📍 Zones tarifaires <small style={{ fontWeight: 400, color: "#6d7a95" }}>(inclus à partir d'Essentiel)</small>
+                <MapPin size={16} aria-hidden="true" /> Zones tarifaires <small style={{ fontWeight: 400, color: "#6d7a95" }}>(inclus à partir d'Essentiel)</small>
               </h3>
               <span className={styles.hint}>
                 Sans zone, un transfert aéroport est facturé comme une course intra-ville.
@@ -1440,7 +1441,7 @@ const VendorSubmit = () => {
               {driver.tarifMois > 0 && (
                 <>
                   <h3 className={styles.cardTitle} style={{ fontSize: ".95rem", marginTop: 18 }}>
-                    📄 Mise à disposition longue durée <small style={{ fontWeight: 400, color: "#6d7a95" }}>(inclus à partir de Business)</small>
+                    <FileText size={16} aria-hidden="true" /> Mise à disposition longue durée <small style={{ fontWeight: 400, color: "#6d7a95" }}>(inclus à partir de Business)</small>
                   </h3>
                   <span className={styles.hint}>
                     Sans contrat, douze mois coûtent douze fois un mois et se paient d'un bloc —
@@ -1505,7 +1506,7 @@ const VendorSubmit = () => {
 
         return (
           <div className={styles.card}>
-            <h2 className={styles.cardTitle}>💰 Tarification</h2>
+            <h2 className={styles.cardTitle}><Banknote size={16} aria-hidden="true" /> Tarification</h2>
             <div className={styles.grid2}>
               <div className={`${styles.field} ${styles.colSpan2}`}>
                 <label>Devise d'affichage de l'annonce</label>
@@ -1601,11 +1602,11 @@ const VendorSubmit = () => {
                   <div className={styles.checkboxCol}>
                     <label className={`${styles.checkItem} ${vehicle.permisRequis ? styles.checkActive : ""}`}>
                       <input type="checkbox" name="permisRequis" checked={vehicle.permisRequis} onChange={handleVehChange} />
-                      📄 Permis de conduire requis
+                      <FileText size={16} aria-hidden="true" /> Permis de conduire requis
                     </label>
                     <label className={`${styles.checkItem} ${vehicle.assuranceOptionnelle ? styles.checkActive : ""}`}>
                       <input type="checkbox" name="assuranceOptionnelle" checked={vehicle.assuranceOptionnelle} onChange={handleVehChange} />
-                      🛡️ Assurance optionnelle proposée
+                      <Shield size={16} aria-hidden="true" /> Assurance optionnelle proposée
                     </label>
                     {/* Réservation instantanée — n'existait pas du tout jusqu'ici
                         (toute demande de location attendait une confirmation
@@ -1617,11 +1618,11 @@ const VendorSubmit = () => {
                     {(user?.isFounder || (user?.certificationBadge && user.certificationBadge !== "none")) ? (
                       <label className={`${styles.checkItem} ${vehicle.instantBook ? styles.checkActive : ""}`}>
                         <input type="checkbox" name="instantBook" checked={vehicle.instantBook} onChange={handleVehChange} />
-                        ⚡ Réservation instantanée (confirmée automatiquement, sans attendre votre validation)
+                        <Zap size={16} aria-hidden="true" /> Réservation instantanée (confirmée automatiquement, sans attendre votre validation)
                       </label>
                     ) : (
                       <p className={styles.hint} style={{ margin: 0 }}>
-                        ⚡ Réservation instantanée réservée aux comptes certifiés — complétez votre <a href="/partner-certification">certification partenaire</a> pour l'activer.
+                        <Zap size={16} aria-hidden="true" /> Réservation instantanée réservée aux comptes certifiés — complétez votre <a href="/partner-certification">certification partenaire</a> pour l'activer.
                       </p>
                     )}
                   </div>
@@ -1664,7 +1665,7 @@ const VendorSubmit = () => {
                       style={{ fontSize: "0.95rem", fontWeight: 700, padding: "0.75rem 1rem", borderRadius: "0.75rem" }}>
                       <input type="checkbox" checked={leasing.disponible}
                         onChange={(e) => setLeasing(p => ({ ...p, disponible: e.target.checked }))} />
-                      🏦 Proposer l'option Leasing (paiement en mensualités)
+                      <Landmark size={16} aria-hidden="true" /> Proposer l'option Leasing (paiement en mensualités)
                     </label>
                   </div>
 
@@ -1736,7 +1737,7 @@ const VendorSubmit = () => {
                       style={{ fontSize: "0.95rem", fontWeight: 700, padding: "0.75rem 1rem", borderRadius: "0.75rem" }}>
                       <input type="checkbox" checked={credit.disponible}
                         onChange={(e) => setCredit(p => ({ ...p, disponible: e.target.checked }))} />
-                      💳 Proposer l'option Crédit classique (financement bancaire, propriété immédiate)
+                      <CreditCard size={16} aria-hidden="true" /> Proposer l'option Crédit classique (financement bancaire, propriété immédiate)
                     </label>
                   </div>
 
@@ -1827,7 +1828,7 @@ const VendorSubmit = () => {
 
         return (
           <div className={styles.card}>
-            <h2 className={styles.cardTitle}>📸 Photos & Description</h2>
+            <h2 className={styles.cardTitle}><Camera size={16} aria-hidden="true" /> Photos & Description</h2>
 
             {isDriverMode && (
               <div className={styles.field} style={{ marginBottom: "1.25rem" }}>
@@ -1836,7 +1837,7 @@ const VendorSubmit = () => {
                 <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginTop: "0.5rem" }}>
                   {driverProfilePhoto
                     ? <img src={driverProfilePhoto} alt="" style={{ width: 96, height: 96, borderRadius: "50%", objectFit: "cover" }} />
-                    : <div style={{ width: 96, height: 96, borderRadius: "50%", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>👤</div>}
+                    : <div style={{ width: 96, height: 96, borderRadius: "50%", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}><UserRound size={40} aria-hidden="true" /></div>}
                   <label className={styles.dropBtn} style={{ cursor: "pointer" }}>
                     {driverProfilePhoto ? "Changer la photo" : "Choisir une photo"}
                     <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleProfilePhotoFile} />
@@ -1850,7 +1851,7 @@ const VendorSubmit = () => {
                 <label>CV du chauffeur *</label>
                 {errors.driverCv && <span className={styles.err}>{errors.driverCv}</span>}
                 <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginTop: "0.5rem" }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.3rem", flexShrink: 0 }}>📄</div>
+                  <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.3rem", flexShrink: 0 }}><FileText size={20} aria-hidden="true" /></div>
                   <label className={styles.dropBtn} style={{ cursor: "pointer" }}>
                     {driverCv ? "Changer le CV" : "Choisir un fichier (PDF ou image)"}
                     <input type="file" accept="application/pdf,image/*" style={{ display: "none" }} onChange={handleCvFile} />
@@ -1907,7 +1908,7 @@ const VendorSubmit = () => {
 
             {(!isDriverMode || driver.vehiculePersonnel) && (
               <>
-                {isDriverMode && <p className={styles.hint}>🚗 Photos du véhicule (chauffeur avec véhicule) *</p>}
+                {isDriverMode && <p className={styles.hint}><Car size={16} aria-hidden="true" /> Photos du véhicule (chauffeur avec véhicule) *</p>}
                 {errors.photos && (
                   <p className={styles.err} style={{ marginBottom: "0.75rem" }}>{errors.photos}</p>
                 )}
@@ -1958,7 +1959,7 @@ const VendorSubmit = () => {
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <div className={styles.dropIcon}>🖼️</div>
+                  <div className={styles.dropIcon}><ImagePlus size={40} aria-hidden="true" /></div>
                   <p className={styles.dropTitle}>Glissez vos photos ici</p>
                   <p className={styles.dropSub}>ou cliquez pour sélectionner</p>
                   <span className={styles.dropBtn}>Parcourir les fichiers</span>
@@ -1974,7 +1975,7 @@ const VendorSubmit = () => {
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <span>📎</span>
+                  <span><Paperclip size={16} aria-hidden="true" /></span>
                   <span> Glisser ou cliquer pour ajouter d'autres photos</span>
                   <span className={styles.remainBadge}>
                     {`${MAX_PHOTOS - photos.length} restante${MAX_PHOTOS - photos.length > 1 ? "s" : ""}`}
@@ -2025,7 +2026,7 @@ const VendorSubmit = () => {
         const mainImg = isC ? driverProfilePhoto : (photos[0]?.preview || null);
         return (
           <div className={styles.card}>
-            <h2 className={styles.cardTitle}>✅ Vérification de l'annonce</h2>
+            <h2 className={styles.cardTitle}><CheckCircle2 size={16} aria-hidden="true" /> Vérification de l'annonce</h2>
             <p className={styles.cardSub}>Vérifiez toutes les informations avant de publier. Votre annonce sera examinée par notre équipe sous 24h.</p>
 
             <div className={styles.previewBox}>
@@ -2045,28 +2046,28 @@ const VendorSubmit = () => {
                 <div className={styles.summaryBlock}>
                   <h4>Contact</h4>
                   <p>{identity.typePubliant !== "particulier" && identity.nomEntreprise ? identity.nomEntreprise + " — " : ""}{identity.prenom} {identity.nom}</p>
-                  <p>📞 {identity.telephone}</p>
-                  <p>📍 {identity.ville}{identity.adresse ? ", " + identity.adresse : ""}</p>
+                  <p><Phone size={16} aria-hidden="true" /> {identity.telephone}</p>
+                  <p><MapPin size={16} aria-hidden="true" /> {identity.ville}{identity.adresse ? ", " + identity.adresse : ""}</p>
                 </div>
 
                 {!isC && (
                   <div className={styles.summaryBlock}>
                     <h4>Caractéristiques</h4>
-                    <p>⛽ {vehicle.carburant} · ⚙️ {vehicle.transmission}</p>
-                    <p>🧍 {vehicle.nombrePlaces} places · 🚪 {vehicle.nombrePortes} portes</p>
-                    {vehicle.kilometrage && <p>📏 {fmt(vehicle.kilometrage)} km</p>}
-                    {vehicle.couleur && <p>🎨 {vehicle.couleur}</p>}
+                    <p><Fuel size={16} aria-hidden="true" /> {vehicle.carburant} · <Settings size={16} aria-hidden="true" /> {vehicle.transmission}</p>
+                    <p><Users size={16} aria-hidden="true" /> {vehicle.nombrePlaces} places · <DoorOpen size={16} aria-hidden="true" /> {vehicle.nombrePortes} portes</p>
+                    {vehicle.kilometrage && <p><Gauge size={16} aria-hidden="true" /> {fmt(vehicle.kilometrage)} km</p>}
+                    {vehicle.couleur && <p><Palette size={16} aria-hidden="true" /> {vehicle.couleur}</p>}
                   </div>
                 )}
 
                 {isC && (
                   <div className={styles.summaryBlock}>
                     <h4>Profil</h4>
-                    <p>👤 {driver.firstName} {driver.lastName}</p>
-                    <p>🗺️ {driver.zone}</p>
-                    <p>🕐 {driver.disponibilite}</p>
-                    <p>💬 {driver.langues.join(", ")}</p>
-                    <p>{driver.vehiculePersonnel ? `🚗 Avec véhicule (${driver.typeVehicule || "type non précisé"}, ${photos.length} photo${photos.length > 1 ? "s" : ""})` : "🚶 Sans véhicule"}</p>
+                    <p><UserRound size={16} aria-hidden="true" /> {driver.firstName} {driver.lastName}</p>
+                    <p><IconeCarte size={16} aria-hidden="true" /> {driver.zone}</p>
+                    <p><Clock size={16} aria-hidden="true" /> {driver.disponibilite}</p>
+                    <p><MessageCircle size={16} aria-hidden="true" /> {driver.langues.join(", ")}</p>
+                    <p>{driver.vehiculePersonnel ? <Car size={14} aria-hidden="true" /> : <Footprints size={14} aria-hidden="true" />} {driver.vehiculePersonnel ? `Avec véhicule (${driver.typeVehicule || "type non précisé"}, ${photos.length} photo${photos.length > 1 ? "s" : ""})` : "Sans véhicule"}</p>
                   </div>
                 )}
 
@@ -2111,7 +2112,7 @@ const VendorSubmit = () => {
   if (result) {
     const cfg = {
       approved: {
-        icon:    "✅",
+        icon:    <CheckCircle2 size={56} aria-hidden="true" />,
         title:   "Annonce approuvée et publiée !",
         color:   "#10b981",
         bg:      "#ecfdf5",
@@ -2120,7 +2121,7 @@ const VendorSubmit = () => {
         cta:     "Voir mon espace partenaire",
       },
       pending: {
-        icon:    "⏳",
+        icon:    <Hourglass size={56} aria-hidden="true" />,
         title:   "Annonce en cours d'examen",
         color:   "#f59e0b",
         bg:      "#fffbeb",
@@ -2129,7 +2130,7 @@ const VendorSubmit = () => {
         cta:     "Suivre mes annonces",
       },
       rejected: {
-        icon:    "❌",
+        icon:    <XCircle size={56} aria-hidden="true" />,
         title:   "Annonce non conforme",
         color:   "#ef4444",
         bg:      "#fef2f2",
@@ -2147,7 +2148,7 @@ const VendorSubmit = () => {
       <div className={styles.page}>
         <div className={styles.resultCard} style={{ borderColor: cfg.border, background: cfg.bg }}>
           {/* Icone + titre */}
-          <div className={styles.resultIcon}>{cfg.icon}</div>
+          <div className={styles.resultIcon} style={{ color: cfg.color }}>{cfg.icon}</div>
           <h2 className={styles.resultTitle} style={{ color: cfg.color }}>{cfg.title}</h2>
           <p className={styles.resultDesc}>{cfg.desc}</p>
 
@@ -2184,7 +2185,7 @@ const VendorSubmit = () => {
               <p className={styles.resultSectionTitle}>Problèmes à corriger :</p>
               <ul>
                 {result.errors.map((e, i) => (
-                  <li key={i}>❌ {e}</li>
+                  <li key={i}><XCircle size={16} aria-hidden="true" /> {e}</li>
                 ))}
               </ul>
             </div>
@@ -2198,7 +2199,7 @@ const VendorSubmit = () => {
               </p>
               <ul>
                 {result.warnings.map((w, i) => (
-                  <li key={i}>⚠️ {w}</li>
+                  <li key={i}><AlertTriangle size={16} aria-hidden="true" /> {w}</li>
                 ))}
               </ul>
             </div>
@@ -2261,13 +2262,13 @@ const VendorSubmit = () => {
           flexWrap: "wrap",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: "1.7rem" }}>🌍</span>
+            <span style={{ color: "#ff4d2d", display: "inline-flex" }}><Globe size={28} aria-hidden="true" /></span>
             <div>
               <strong style={{ display: "block", color: "#0f1b3f", fontSize: ".91rem", marginBottom: 2 }}>
                 Vous importez ou exportez des véhicules ?
               </strong>
               <span style={{ color: "#64748b", fontSize: ".81rem" }}>
-                Chine, Dubaï, Europe → Afrique · Publiez dans la section dédiée Import/Export.
+                Chine, France, Émirats et d'autres origines · Publiez dans la section dédiée Import/Export.
               </span>
             </div>
           </div>
@@ -2295,7 +2296,7 @@ const VendorSubmit = () => {
         {STEPS.map((s, i) => (
           <div key={s.id} className={styles.stepWrap}>
             <div className={`${styles.stepDot} ${step > s.id ? styles.done : step === s.id ? styles.active : ""}`}>
-              {step > s.id ? "✓" : s.icon}
+              {step > s.id ? "✓" : <s.Icone size={17} aria-hidden="true" />}
             </div>
             <span className={`${styles.stepLbl} ${step === s.id ? styles.stepLblActive : ""}`}>{s.label}</span>
             {i < STEPS.length - 1 && <div className={`${styles.stepLine} ${step > s.id ? styles.stepLineDone : ""}`} />}
@@ -2325,7 +2326,7 @@ const VendorSubmit = () => {
           </button>
         ) : (
           <button type="button" className={styles.submitBtn} onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "Publication en cours..." : "🚀 Publier l'annonce"}
+            {submitting ? "Publication en cours..." : <><Rocket size={17} aria-hidden="true" /> Publier l'annonce</>}
           </button>
         )}
       </div>
