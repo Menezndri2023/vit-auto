@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { AlertTriangle, BarChart3, Building2, Car, CheckCircle2, ClipboardList, CreditCard, Crown, Eye, FilePen, FileText, Globe, Handshake, House, Landmark, Link2, Lock, MapPin, Medal, Menu, MessageCircle, MousePointerClick, Package, PenLine, Plus, Rocket, Save, ScrollText, Search, Send, ShieldCheck, Star, Store, Target, Trash2, TrendingUp, Trophy, Upload, UserRound, XCircle, Zap, LifeBuoy } from "lucide-react";
+import { AlertTriangle, BarChart3, Building2, Car, CheckCircle2, ClipboardList, CreditCard, Crown, Eye, FilePen, FileText, Globe, Handshake, House, Landmark, Link2, Lock, MapPin, Medal, Menu, MessageCircle, MousePointerClick, Package, PenLine, Plus, Rocket, Save, ScrollText, Search, Send, ShieldCheck, Star, Store, Target, Trash2, TrendingUp, Trophy, Upload, UserRound, XCircle, Zap, LifeBuoy, Hourglass } from "lucide-react";
 import styles from "./PartnerPMSDashboard.module.css";
 import VerrouOutil from "../components/VerrouOutil/VerrouOutil.jsx";
 import { useOutils } from "../hooks/useOutils";
@@ -1378,7 +1378,7 @@ function OnboardingSection({ token }) {
 
   const STATUS_INFO = {
     brouillon:     { label: "Brouillon",               color: "#64748b", bg: "#f8fafc", icon:<FilePen size={18} aria-hidden="true" /> },
-    soumis:        { label: "Soumis — En attente",     color: "#3b82f6", bg: "#eff6ff", icon: "⏳" },
+    soumis:        { label: "Soumis — En attente",     color: "#3b82f6", bg: "#eff6ff", icon: <Hourglass size={18} aria-hidden="true" /> },
     en_review:     { label: "En cours de revue",       color: "#f59e0b", bg: "#fffbeb", icon:<Search size={18} aria-hidden="true" /> },
     info_demandee: { label: "Infos requises",           color: "#f97316", bg: "#fff7ed", icon:<AlertTriangle size={18} aria-hidden="true" /> },
     loi_envoyee:   { label: "LOI à signer",            color: "#8b5cf6", bg: "#f5f3ff", icon:<PenLine size={18} aria-hidden="true" /> },

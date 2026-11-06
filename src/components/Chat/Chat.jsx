@@ -382,7 +382,7 @@ export default function Chat() {
 
           {/* Corps */}
           {loading ? (
-            <div className={styles.loadingMsg}>⏳ Chargement...</div>
+            <div className={styles.loadingMsg}>Chargement...</div>
           ) : view === "list" ? (
             <ChannelList
               onSelect={handleSelectChat}

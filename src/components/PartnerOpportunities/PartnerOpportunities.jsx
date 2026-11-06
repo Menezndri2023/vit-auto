@@ -5,7 +5,7 @@ import { useToast } from "../../context/ToastContext";
 import {
   SALE_LEAD_LABELS, SALE_LEAD_COLORS, PARTNER_LEAD_FILTERS, SLOT_LABELS, HISTORY_LABELS, fmtLeadDate, fmtResponseTime,
 } from "../../constants/salesLeads";
-import { Banknote, CalendarDays, CheckCircle2, Lock, MessageCircle, MessageSquare, PartyPopper, Phone, RefreshCw, Target, X, HelpCircle } from "lucide-react";
+import { Banknote, CalendarDays, CheckCircle2, Lock, MessageCircle, MessageSquare, PartyPopper, Phone, RefreshCw, Target, X, HelpCircle, Timer } from "lucide-react";
 import styles from "./PartnerOpportunities.module.css";
 
 // « Mes opportunités » — dashboard partenaire (docs/vente-demande-essai.md
@@ -160,7 +160,7 @@ export default function PartnerOpportunities({ businessId = "" }) {
                     <span title="Coordonnées transmises dès que vous acceptez la demande"><Lock size={15} aria-hidden="true" /> {lead.client?.phone} — visibles après acceptation</span>
                   )}
                   {lead.requested?.message && <span><MessageCircle size={15} aria-hidden="true" /> « {lead.requested.message} »</span>}
-                  {waitingSince != null && <span className={waitingSince > 2 * 3600000 ? styles.late : ""}>⏱ En attente depuis {fmtResponseTime(waitingSince)}</span>}
+                  {waitingSince != null && <span className={waitingSince > 2 * 3600000 ? styles.late : ""}><Timer size={15} aria-hidden="true" /> En attente depuis {fmtResponseTime(waitingSince)}</span>}
                   {lead.status === "ALTERNATIVE_PROPOSED" && lead.alternative?.date && <span><RefreshCw size={15} aria-hidden="true" /> Proposé : {fmtLeadDate(lead.alternative.date)}{lead.alternative.time ? ` à ${lead.alternative.time}` : ""} — en attente du client</span>}
                   {lead.followUp?.response && <span><MessageSquare size={15} aria-hidden="true" /> Client : {{ interested: "intéressé", offer: "souhaite faire une offre", thinking: "réfléchit encore", not_interested: "plus intéressé" }[lead.followUp.response]}</span>}
                   {lead.status === "SALE_PENDING" && <span><Banknote size={15} aria-hidden="true" /> Vente déclarée {lead.sale?.finalPrice} {lead.sale?.currency} — en attente de confirmation VIT AUTO</span>}

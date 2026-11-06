@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import useValidationPartenaire from "../../hooks/useValidationPartenaire";
+import { Ban, Check, Hourglass } from "lucide-react";
 
 // Validation du partenaire (2026-10-09) : un seul bandeau, qui liste les
 // pièces exigées pour SON métier et SON entité (permis et CV pour un
@@ -14,7 +15,7 @@ export default function BandeauValidation({ token, styles, publicationOuverte })
   if (v.statut === "suspendu") {
     return (
       <div className={styles.freeBanner} style={{ borderColor: "#fca5a5" }}>
-        <span className={styles.planBadge} style={{ background: "#fee2e2", color: "#dc2626" }}>⛔ Dossier suspendu</span>
+        <span className={styles.planBadge} style={{ background: "#fee2e2", color: "#dc2626" }}><Ban size={13} aria-hidden="true" style={{ verticalAlign: "-2px" }} /> Dossier suspendu</span>
         <span>Votre dossier partenaire est suspendu. Contactez l'assistance VIT AUTO.</span>
         <Link to="/help" className={styles.upgradeLink}>Contacter l'assistance →</Link>
       </div>
@@ -31,7 +32,7 @@ export default function BandeauValidation({ token, styles, publicationOuverte })
   return (
     <div className={styles.freeBanner} style={{ borderColor: publicationOuverte ? "#a5b4fc" : "#fde68a" }}>
       <span className={styles.planBadge} style={publicationOuverte ? { background: "#e0e7ff", color: "#4338ca" } : { background: "#fef3c7", color: "#d97706" }}>
-        {publicationOuverte ? "✓ Publication ouverte" : "⏳ Compte à valider"}
+        {publicationOuverte ? <><Check size={13} aria-hidden="true" style={{ verticalAlign: "-2px" }} /> Publication ouverte</> : <><Hourglass size={13} aria-hidden="true" style={{ verticalAlign: "-2px" }} /> Compte à valider</>}
       </span>
       <span>
         {publicationOuverte ? "Vos annonces sont en ligne. Pour finaliser votre compte, il reste : " : "Pour valider votre compte, il reste à fournir : "}

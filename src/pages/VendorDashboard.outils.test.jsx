@@ -41,13 +41,13 @@ describe("Espace partenaire — outils des cartes véhicule", () => {
     ouvrir({ tarifsSaisonniers: { ouvert: true, raison: "plan" }, promotions: { ouvert: true, raison: "plan" } });
     await waitFor(() => expect(screen.getAllByRole("button", { name: /Promo/ })).toHaveLength(2), ATTENTE);
     expect(screen.getAllByRole("button", { name: /Tarifs saisonniers/ })).toHaveLength(1);
-    expect(screen.queryByText(/🔒/)).toBeNull();
+    expect(screen.queryByLabelText("verrouillé")).toBeNull();
   });
 
   it("compte sans le palier : le cadenas est visible sur la carte, AVANT tout clic", async () => {
     ouvrir({ tarifsSaisonniers: FERME("individuel_plus"), promotions: FERME("individuel_plus"), journalVehicule: FERME("business") });
-    await waitFor(() => expect(screen.getByRole("button", { name: /Tarifs saisonniers 🔒/ })).toBeInTheDocument(), ATTENTE);
-    expect(screen.getAllByRole("button", { name: /Promo 🔒/ })).toHaveLength(2);
-    expect(screen.getAllByRole("button", { name: /Journal 🔒/ })).toHaveLength(2);
+    await waitFor(() => expect(screen.getByRole("button", { name: /Tarifs saisonniers verrouillé/ })).toBeInTheDocument(), ATTENTE);
+    expect(screen.getAllByRole("button", { name: /Promo verrouillé/ })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /Journal verrouillé/ })).toHaveLength(2);
   });
 });

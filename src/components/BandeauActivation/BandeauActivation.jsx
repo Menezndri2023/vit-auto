@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { CheckCircle2, Rocket } from "lucide-react";
 
 // Activation du partenaire (prompt maître §6, 2026-10-28) — distincte de la
 // validation des documents (BandeauValidation) : un compte vérifié n'est
@@ -36,7 +37,7 @@ export default function BandeauActivation({ token, styles, partenaire = true }) 
     const delaiMoyen = premieresDemandes.delaiMoyenReponseMin;
     return (
       <div className={styles.freeBanner} style={{ borderColor: "#86efac" }}>
-        <span className={styles.planBadge} style={{ background: "#dcfce7", color: "#15803d" }}>✅ Compte activé</span>
+        <span className={styles.planBadge} style={{ background: "#dcfce7", color: "#15803d" }}><CheckCircle2 size={13} aria-hidden="true" style={{ verticalAlign: "-2px" }} /> Compte activé</span>
         <span>
           {totalOffres} offre(s) en ligne · {demandesRecues} demande(s) reçue(s), {demandesTraitees} traitée(s)
           {delaiMoyen != null ? ` · délai moyen de réponse : ${Math.round(delaiMoyen)} min` : ""}.
@@ -48,7 +49,7 @@ export default function BandeauActivation({ token, styles, partenaire = true }) 
   if (!manquants.length) return null;
   return (
     <div className={styles.freeBanner} style={{ borderColor: "#a5b4fc" }}>
-      <span className={styles.planBadge} style={{ background: "#e0e7ff", color: "#4338ca" }}>🚀 Presque activé</span>
+      <span className={styles.planBadge} style={{ background: "#e0e7ff", color: "#4338ca" }}><Rocket size={13} aria-hidden="true" style={{ verticalAlign: "-2px" }} /> Presque activé</span>
       <span>
         Vos documents sont en règle. Pour recevoir vos premières demandes, il reste :{" "}
         {manquants.map((m, i) => <span key={m.code}>{i ? ", " : ""}<Link to={LIENS[m.code] || "/vendor/dashboard"}>{m.libelle.toLowerCase()}</Link></span>)}.

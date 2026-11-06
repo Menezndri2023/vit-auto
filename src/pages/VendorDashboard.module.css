@@ -160,6 +160,8 @@
 .filterTab:hover     { border-color: var(--vd-primary); color: var(--vd-primary); }
 .filterTab span      { background: var(--vd-border); color: var(--vd-sub); padding: 0 6px; border-radius: 99px; font-size: .7rem; }
 .filterTabActive     { background: var(--vd-primary); border-color: var(--vd-primary); color: #fff; }
+/* Survol d'une puce déjà active : le texte passait à la couleur du fond (invisible). */
+.filterTabActive:hover { color: #fff; }
 .filterTabActive span { background: rgba(255,255,255,.25); color: #fff; }
 .filterTabAlert      { border-color: #ef4444; }
 .filterTabAlert.filterTabActive { background: #ef4444; border-color: #ef4444; }
