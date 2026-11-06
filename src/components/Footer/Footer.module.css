@@ -267,3 +267,7 @@
     height: 44px;
   }
 }
+
+/* Icônes vectorielles (2026-11-06) : à la place des émojis. */
+.socials a { color: rgba(255, 255, 255, 0.82); }
+.footer li svg, .madeWith svg, .hours svg { vertical-align: -3px; margin-right: 6px; opacity: .75; flex-shrink: 0; }

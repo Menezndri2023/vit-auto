@@ -105,6 +105,7 @@ export default {
   "nav.myPurchases":{ fr: "Mes achats", en: "My purchases", ar: "مشترياتي", es: "Mis compras", zh: "我的订单" },
   "nav.transit":    { fr: "Zone Transit", en: "Transit zone", ar: "منطقة العبور", es: "Zona de tránsito", zh: "转运专区" },
   "nav.myImports":  { fr: "Mes importations", en: "My imports", ar: "وارداتي", es: "Mis importaciones", zh: "我的进口" },
+  "nav.cart":       { fr: "Panier", en: "Cart", ar: "السلة", es: "Carrito", zh: "购物车" },
   "nav.myPurchasesIE": { fr: "Mes achats Import/Export", en: "My import/export purchases", ar: "مشترياتي من الاستيراد/التصدير", es: "Mis compras de importación/exportación", zh: "我的进出口订单" },
   "nav.myProfile":  { fr: "Mon profil", en: "My profile", ar: "ملفي الشخصي", es: "Mi perfil", zh: "我的资料" },
   "nav.seeProfile": { fr: "Voir mon profil", en: "View my profile", ar: "عرض ملفي الشخصي", es: "Ver mi perfil", zh: "查看我的资料" },

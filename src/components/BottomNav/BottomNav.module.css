@@ -144,3 +144,9 @@
 @media (min-width: 901px) {
   .bar, .overlay { display: none; }
 }
+
+/* Icônes vectorielles (2026-11-06) : à la place des émojis. */
+.icon { display: inline-flex; align-items: center; justify-content: center; height: 22px; }
+.icon svg { width: 22px; height: 22px; stroke-width: 1.9; }
+.sheetItem svg { color: var(--c-text-secondary, #64748b); flex-shrink: 0; }
+.sheetPartner svg { color: inherit; }

@@ -109,3 +109,7 @@
   .cta { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; }
   .close { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; top: 0; right: 0; }
 }
+
+/* Icônes vectorielles (2026-11-06) : à la place des émojis. */
+.emoji, .tipIcon { display: inline-flex; color: var(--c-primary, #ff4d2d); }
+.tipIcon { margin-top: 1px; }

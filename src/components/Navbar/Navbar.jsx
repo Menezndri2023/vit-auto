@@ -7,6 +7,7 @@ import LanguageSelector from "../LanguageSelector/LanguageSelector";
 import VitAutoLogo from "../Logo/VitAutoLogo";
 import useIsMobile from "../../hooks/useIsMobile";
 import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_ICONS } from "../../constants/activityTypes";
+import { Handshake, LogIn, MessageCircle, Package, Sailboat, Settings, Ship, ShoppingCart, UserPlus, UserRound, LayoutDashboard, LogOut } from "lucide-react";
 import styles from "./Navbar.module.css";
 import { useFermetureExterieure } from "../../hooks/useFermetureExterieure";
 import { useI18n } from "../../context/I18nContext";
@@ -107,14 +108,14 @@ const Navbar = () => {
                 boxShadow: "0 2px 8px rgba(15,27,63,0.25)",
                 letterSpacing: "0.02em",
               })}>
-              ⚙️ Panel Admin
+              <Settings size={16} aria-hidden="true" /> Panel Admin
             </NavLink>
           </li>
         )}
 
         {/* Tableau de bord : clients uniquement */}
         {isAuthenticated && !isPartner && (
-          <li><NavLink to="/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>{t("nav.dashboard")}</NavLink></li>
+          <li><NavLink to="/dashboard" className={navLink} title={t("nav.dashboard")} onClick={() => setMenuOpen(false)}><LayoutDashboard size={16} aria-hidden="true" /> <span className={styles.lienTexte}>{t("nav.dashboard")}</span></NavLink></li>
         )}
 
         {/* Section Activités et Loisirs — ouverte à tous (pas de garde
@@ -127,8 +128,9 @@ const Navbar = () => {
             type="button"
             className={`${styles.activitiesTrigger} ${activitiesOpen ? styles.activitiesTriggerOpen : ""}`}
             onClick={() => setActivitiesOpen((o) => !o)}
+            title={t("nav.leisure")}
           >
-            🎈 {t("nav.leisure")}
+            <Sailboat size={16} aria-hidden="true" /> <span className={styles.lienTexte}>{t("nav.leisure")}</span>
           </button>
           {activitiesOpen && (
             <>
@@ -159,8 +161,8 @@ const Navbar = () => {
 
         {isAuthenticated && !isPartner && (
           <li>
-            <NavLink to="/cart" className={navLink} onClick={() => setMenuOpen(false)}>
-              🛒 Panier{cartCount > 0 ? ` (${cartCount})` : ""}
+            <NavLink to="/cart" className={navLink} title={t("nav.cart")} onClick={() => setMenuOpen(false)}>
+              <ShoppingCart size={16} aria-hidden="true" /> <span className={styles.lienTexte}>{t("nav.cart")}</span>{cartCount > 0 ? ` (${cartCount})` : ""}
             </NavLink>
           </li>
         )}
@@ -169,14 +171,14 @@ const Navbar = () => {
             accessible uniquement en tapant l'URL ou depuis une transaction déjà
             ouverte, aucun lien de menu n'y menait. */}
         {isPrestataire && (
-          <li><NavLink to="/transit" className={navLink} onClick={() => setMenuOpen(false)}>🚢 {t("nav.transit")}</NavLink></li>
+          <li><NavLink to="/transit" className={navLink} title={t("nav.transit")} onClick={() => setMenuOpen(false)}><Ship size={16} aria-hidden="true" /> <span className={styles.lienTexte}>{t("nav.transit")}</span></NavLink></li>
         )}
         {isAuthenticated && !isPartner && !isPrestataire && (
-          <li><NavLink to="/import-export/dashboard" className={navLink} onClick={() => setMenuOpen(false)}>📦 {t("nav.myPurchases")}</NavLink></li>
+          <li><NavLink to="/import-export/dashboard" className={navLink} title={t("nav.myPurchases")} onClick={() => setMenuOpen(false)}><Package size={16} aria-hidden="true" /> <span className={styles.lienTexte}>{t("nav.myPurchases")}</span></NavLink></li>
         )}
         {/* Suivi des dossiers d'import (accompagnement VIT AUTO), 2026-10-07. */}
         {isAuthenticated && !isPartner && !isPrestataire && (
-          <li><NavLink to="/mes-importations" className={navLink} onClick={() => setMenuOpen(false)}>🚢 {t("nav.myImports")}</NavLink></li>
+          <li><NavLink to="/mes-importations" className={navLink} title={t("nav.myImports")} onClick={() => setMenuOpen(false)}><Ship size={16} aria-hidden="true" /> <span className={styles.lienTexte}>{t("nav.myImports")}</span></NavLink></li>
         )}
 
         {/* ── Menu mobile, connecté : profil, aide, déconnexion — le badge
@@ -188,7 +190,7 @@ const Navbar = () => {
             <li className={styles.mobileDivider} />
             <li className={styles.mobileOnly}>
               <NavLink to="/profile" className={navLink} onClick={() => setMenuOpen(false)}>
-                {isPartner ? "🤝" : "👤"} {t("nav.myProfile")}{user?.firstName ? ` · ${user.firstName}` : ""}
+                {isPartner ? <Handshake size={16} aria-hidden="true" /> : <UserRound size={16} aria-hidden="true" />} {t("nav.myProfile")}{user?.firstName ? ` · ${user.firstName}` : ""}
               </NavLink>
             </li>
             <li className={styles.mobileOnly}>
@@ -240,10 +242,10 @@ const Navbar = () => {
               title={t("nav.seeProfile")}
               style={{ cursor: "pointer", fontFamily: "inherit" }}
             >
-              {isPartner ? "🤝 " : "👤 "}
-              {user?.firstName || user?.email}
+              {isPartner ? <Handshake size={16} aria-hidden="true" /> : <UserRound size={16} aria-hidden="true" />}{" "}
+              <span className={styles.nomCompact}>{user?.firstName || user?.email}</span>
             </button>
-            <button className={styles.linkBtn} onClick={logout}>{t("nav.logout")}</button>
+            <button className={`${styles.linkBtn} ${styles.lienAvecIcone}`} onClick={logout} title={t("nav.logout")}><LogOut size={16} aria-hidden="true" /> <span className={styles.lienTexte}>{t("nav.logout")}</span></button>
           </>
         ) : (
           <>
@@ -269,22 +271,22 @@ const Navbar = () => {
             {dropdownOpen && (
               <div className={styles.dropdownMenu}>
                 <button onClick={() => { navigate("/login");    setDropdownOpen(false); }}>
-                  <span className={styles.diIcon}>🔑</span> {t("nav.login")}
+                  <span className={styles.diIcon}><LogIn size={16} aria-hidden="true" /></span> {t("nav.login")}
                 </button>
                 <button onClick={() => { navigate("/register"); setDropdownOpen(false); }}>
-                  <span className={styles.diIcon}>✏️</span> {t("nav.register")}
+                  <span className={styles.diIcon}><UserPlus size={16} aria-hidden="true" /></span> {t("nav.register")}
                 </button>
 
                 <div className={styles.dropdownDivider} />
 
                 <button onClick={() => { navigate("/help");     setDropdownOpen(false); }}>
-                  <span className={styles.diIcon}>💬</span> {t("nav.help")}
+                  <span className={styles.diIcon}><MessageCircle size={16} aria-hidden="true" /></span> {t("nav.help")}
                 </button>
                 <button
                   className={styles.partnerItem}
                   onClick={() => { navigate("/register?role=partenaire"); setDropdownOpen(false); }}
                 >
-                  <span className={styles.diIcon}>🤝</span> Devenez partenaire
+                  <span className={styles.diIcon}><Handshake size={16} aria-hidden="true" /></span> Devenez partenaire
                 </button>
               </div>
             )}

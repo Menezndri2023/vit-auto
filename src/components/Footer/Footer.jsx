@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import VitAutoLogo from "../Logo/VitAutoLogo";
+import { Clock, Globe, Mail, MapPin, Phone, Smartphone } from "lucide-react";
 import styles from "./Footer.module.css";
 import { COMPANY } from "../../constants/company";
 import useIsMobile from "../../hooks/useIsMobile";
@@ -27,9 +28,9 @@ const Footer = () => {
           </div>
           <p className={styles.brandTagline}>{t("footer.tagline")}</p>
           <div className={styles.socials}>
-            <a href={`https://wa.me/${COMPANY.phoneMA.replace("+", "")}`} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">📱</a>
-            <a href={`mailto:${COMPANY.email}`} aria-label="Email">✉️</a>
-            <a href={`tel:${COMPANY.phoneMA}`} aria-label={t("footer.ariaPhone")}>📞</a>
+            <a href={`https://wa.me/${COMPANY.phoneMA.replace("+", "")}`} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp"><Smartphone size={16} aria-hidden="true" /></a>
+            <a href={`mailto:${COMPANY.email}`} aria-label="Email"><Mail size={16} aria-hidden="true" /></a>
+            <a href={`tel:${COMPANY.phoneMA}`} aria-label={t("footer.ariaPhone")}><Phone size={16} aria-hidden="true" /></a>
           </div>
         </div>
 
@@ -83,14 +84,14 @@ const Footer = () => {
             </ul>
             <h3 className={styles.colSubTitle}>{t("footer.contact")}</h3>
             <ul>
-              <li>📍 {COMPANY.street}, {COMPANY.city}</li>
+              <li><MapPin size={16} aria-hidden="true" /> {COMPANY.street}, {COMPANY.city}</li>
               <li>
-                <a href={`tel:${COMPANY.phoneMA}`}>📞 {COMPANY.phoneMADisplay}</a>
+                <a href={`tel:${COMPANY.phoneMA}`}><Phone size={16} aria-hidden="true" /> {COMPANY.phoneMADisplay}</a>
               </li>
               <li>
-                <a href={`mailto:${COMPANY.email}`}>✉️ {COMPANY.email}</a>
+                <a href={`mailto:${COMPANY.email}`}><Mail size={16} aria-hidden="true" /> {COMPANY.email}</a>
               </li>
-              <li className={styles.hours}>🕐 {t("footer.hours")}</li>
+              <li className={styles.hours}><Clock size={16} aria-hidden="true" /> {t("footer.hours")}</li>
             </ul>
           </Colonne>
         </div>
@@ -110,7 +111,7 @@ const Footer = () => {
           <Link to="/conditions-partenaires">{t("footer.shortPartners")}</Link>
           <Link to="/faq">{t("footer.navFaq")}</Link>
         </div>
-        <span className={styles.madeWith}>🌍 {t("footer.worldwide")}</span>
+        <span className={styles.madeWith}><Globe size={16} aria-hidden="true" /> {t("footer.worldwide")}</span>
       </div>
     </footer>
   );

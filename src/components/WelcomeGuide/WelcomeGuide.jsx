@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { CalendarDays, Car, FilePen, Hand, LayoutDashboard, Receipt, Search } from "lucide-react";
 import styles from "./WelcomeGuide.module.css";
 
 const SEEN_KEY_PREFIX = "vit-welcome-guide-seen-";
@@ -10,22 +11,22 @@ const SEEN_KEY_PREFIX = "vit-welcome-guide-seen-";
 // visible une seule fois par compte (localStorage), qui se ferme seule.
 const GUIDES = {
   partenaire: {
-    emoji: "👋",
+    emoji: <Hand size={17} aria-hidden="true" />,
     title: "Bienvenue, partenaire !",
     tips: [
-      { icon: "📝", text: "Complétez votre profil et vos documents (KYC) pour être vérifié." },
-      { icon: "🚗", text: "Publiez votre première annonce depuis votre tableau de bord." },
-      { icon: "📊", text: "Suivez vos réservations et paiements en temps réel." },
+      { icon: <FilePen size={17} aria-hidden="true" />, text: "Complétez votre profil et vos documents (KYC) pour être vérifié." },
+      { icon: <Car size={17} aria-hidden="true" />, text: "Publiez votre première annonce depuis votre tableau de bord." },
+      { icon: <LayoutDashboard size={17} aria-hidden="true" />, text: "Suivez vos réservations et paiements en temps réel." },
     ],
     cta: { label: "Mon tableau de bord", to: "/vendor/dashboard" },
   },
   client: {
-    emoji: "👋",
+    emoji: <Hand size={17} aria-hidden="true" />,
     title: "Bienvenue chez VIT AUTO !",
     tips: [
-      { icon: "🔍", text: "Parcourez le catalogue et filtrez par ville, prix ou type de véhicule." },
-      { icon: "📅", text: "Réservez en quelques clics — location, achat ou chauffeur privé." },
-      { icon: "🧾", text: "Retrouvez vos réservations depuis Mon Compte à tout moment." },
+      { icon: <Search size={17} aria-hidden="true" />, text: "Parcourez le catalogue et filtrez par ville, prix ou type de véhicule." },
+      { icon: <CalendarDays size={17} aria-hidden="true" />, text: "Réservez en quelques clics — location, achat ou chauffeur privé." },
+      { icon: <Receipt size={17} aria-hidden="true" />, text: "Retrouvez vos réservations depuis Mon Compte à tout moment." },
     ],
     cta: { label: "Voir le catalogue", to: "/catalogue" },
   },

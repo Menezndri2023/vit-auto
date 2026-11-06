@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useChat } from "../../context/ChatContext";
+import { Car, Handshake, House, LayoutDashboard, LogIn, LogOut, Megaphone, Menu, MessageCircle, Package, Sailboat, Settings, UserPlus, UserRound } from "lucide-react";
 import styles from "./BottomNav.module.css";
 import { useFermetureExterieure } from "../../hooks/useFermetureExterieure";
 import { useI18n } from "../../context/I18nContext";
@@ -36,12 +37,12 @@ export default function BottomNav() {
     <>
       <nav className={styles.bar} aria-label={t("nav.mainNav")}>
         <NavLink to="/" end className={navClass}>
-          <span className={styles.icon}>🏠</span>
+          <span className={styles.icon}><House size={18} aria-hidden="true" /></span>
           <span className={styles.label}>{t("nav.home")}</span>
         </NavLink>
 
         <NavLink to="/catalogue" className={navClass}>
-          <span className={styles.icon}>🚗</span>
+          <span className={styles.icon}><Car size={18} aria-hidden="true" /></span>
           <span className={styles.label}>{t("nav.catalogue")}</span>
         </NavLink>
 
@@ -50,7 +51,7 @@ export default function BottomNav() {
             dans le tableau de bord client, voir Dashboard.jsx). Ouvert à
             tous, parcourir le catalogue ne nécessite jamais de compte. */}
         <button className={styles.item} onClick={() => navigate("/catalogue?mode=Autres")}>
-          <span className={styles.icon}>🎈</span>
+          <span className={styles.icon}><Sailboat size={18} aria-hidden="true" /></span>
           {/* Libellé abrégé : les 5 onglets se partagent la largeur à égalité
               (voir .item flex:1) — "Activités et Loisirs" en entier y
               passait sur 2 lignes, seul onglet plus haut que les autres. */}
@@ -62,14 +63,14 @@ export default function BottomNav() {
           onClick={() => (isAuthenticated ? setChatOpen(true) : navigate("/login"))}
         >
           <span className={styles.icon}>
-            💬
+            <MessageCircle size={18} aria-hidden="true" />
             {unreadTotal > 0 && <span className={styles.badge}>{unreadTotal > 9 ? "9+" : unreadTotal}</span>}
           </span>
           <span className={styles.label}>{t("nav.chat")}</span>
         </button>
 
         <button className={styles.item} onClick={() => goAuthGated("/profile")}>
-          <span className={styles.icon}>👤</span>
+          <span className={styles.icon}><UserRound size={18} aria-hidden="true" /></span>
           <span className={styles.label}>{t("nav.profile")}</span>
         </button>
 
@@ -80,7 +81,7 @@ export default function BottomNav() {
           aria-label={t("nav.moreOptions")}
           aria-expanded={moreOpen}
         >
-          <span className={styles.icon}>☰</span>
+          <span className={styles.icon}><Menu size={18} aria-hidden="true" /></span>
           <span className={styles.label}>{t("nav.more")}</span>
         </button>
       </nav>
@@ -94,53 +95,53 @@ export default function BottomNav() {
               <>
                 {isAdmin && (
                   <button className={styles.sheetItem} onClick={() => { navigate("/admin"); setMoreOpen(false); }}>
-                    ⚙️ Panel Admin
+                    <Settings size={18} aria-hidden="true" /> Panel Admin
                   </button>
                 )}
                 {isPartner ? (
                   <>
                     <button className={styles.sheetItem} onClick={() => { navigate("/vendor"); setMoreOpen(false); }}>
-                      📢 {t("nav.publish")}
+                      <Megaphone size={18} aria-hidden="true" /> {t("nav.publish")}
                     </button>
                     <button className={styles.sheetItem} onClick={() => { navigate("/vendor/dashboard"); setMoreOpen(false); }}>
-                      🤝 {t("nav.mySpace")}
+                      <Handshake size={18} aria-hidden="true" /> {t("nav.mySpace")}
                     </button>
                   </>
                 ) : (
                   <>
                     <button className={styles.sheetItem} onClick={() => { navigate("/dashboard"); setMoreOpen(false); }}>
-                      📊 {t("nav.dashboard")}
+                      <LayoutDashboard size={18} aria-hidden="true" /> {t("nav.dashboard")}
                     </button>
                     <button className={styles.sheetItem} onClick={() => { navigate("/import-export/dashboard"); setMoreOpen(false); }}>
-                      📦 {t("nav.myPurchasesIE")}
+                      <Package size={18} aria-hidden="true" /> {t("nav.myPurchasesIE")}
                     </button>
                   </>
                 )}
                 <button className={styles.sheetItem} onClick={() => { navigate("/help"); setMoreOpen(false); }}>
-                  💬 {t("nav.help")}
+                  <MessageCircle size={18} aria-hidden="true" /> {t("nav.help")}
                 </button>
                 <div className={styles.sheetDivider} />
                 <button className={styles.sheetItem} onClick={() => { logout(); setMoreOpen(false); }}>
-                  🚪 {t("nav.logout")}
+                  <LogOut size={18} aria-hidden="true" /> {t("nav.logout")}
                 </button>
               </>
             ) : (
               <>
                 <button className={styles.sheetItem} onClick={() => { navigate("/login"); setMoreOpen(false); }}>
-                  🔑 {t("nav.login")}
+                  <LogIn size={18} aria-hidden="true" /> {t("nav.login")}
                 </button>
                 <button className={styles.sheetItem} onClick={() => { navigate("/register"); setMoreOpen(false); }}>
-                  ✏️ {t("nav.register")}
+                  <UserPlus size={18} aria-hidden="true" /> {t("nav.register")}
                 </button>
                 <button className={styles.sheetItem} onClick={() => { navigate("/help"); setMoreOpen(false); }}>
-                  💬 {t("nav.help")}
+                  <MessageCircle size={18} aria-hidden="true" /> {t("nav.help")}
                 </button>
                 <div className={styles.sheetDivider} />
                 <button
                   className={`${styles.sheetItem} ${styles.sheetPartner}`}
                   onClick={() => { navigate("/register?role=partenaire"); setMoreOpen(false); }}
                 >
-                  🤝 Devenez partenaire
+                  <Handshake size={18} aria-hidden="true" /> Devenez partenaire
                 </button>
               </>
             )}
