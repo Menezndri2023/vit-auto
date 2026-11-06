@@ -112,7 +112,7 @@
   border-left-color: #6366f1 !important;
 }
 
-.navIcon { font-size: 1rem; flex-shrink: 0; width: 22px; text-align: center; }
+.navIcon { font-size: 1rem; flex-shrink: 0; width: 22px; display: inline-flex; align-items: center; justify-content: center; }
 
 .navLabel {
   flex: 1;
@@ -191,6 +191,10 @@
 .menuBtn:hover { background: #e2e8f0; }
 
 .topbarTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   font-size: 0.92rem;
   font-weight: 800;
   color: #0f1b3f;

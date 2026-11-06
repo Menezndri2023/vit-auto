@@ -67,6 +67,7 @@ import CertificationSection from "./admin/sections/CertificationSection.jsx";
 import KycSection from "./admin/sections/KycSection.jsx";
 import BusinessConfigSection from "./admin/sections/BusinessConfigSection.jsx";
 import useConfigurationMetier from "./admin/hooks/useConfigurationMetier.js";
+import IconeMenu from "./admin/iconesMenu.jsx";
 import useImportExportAdmin from "./admin/hooks/useImportExportAdmin.js";
 import useAbonnementsAValider from "./admin/hooks/useAbonnementsAValider.js";
 import useCommissionsFactures from "./admin/hooks/useCommissionsFactures.js";
@@ -2004,7 +2005,7 @@ export default function AdminPanel() {
                 }}
                 title={!sidebarOpen ? item.label : undefined}
               >
-                <span className={styles.navIcon}>{item.icon}</span>
+                <span className={styles.navIcon}><IconeMenu cle={item.key} repli={item.icon} /></span>
                 <span className={styles.navLabel}>{item.label.replace(/ \(\d+\)$/, "")}</span>
                 {item.wip && <span className={styles.wipBadge}>Bientôt</span>}
                 {!item.wip && item.badge > 0 && (
@@ -2027,7 +2028,7 @@ export default function AdminPanel() {
             {sidebarOpen && !isMobile.current ? "◀" : "☰"}
           </button>
           <span className={styles.topbarTitle}>
-            {NAV_GROUPS.flatMap((g) => g.items).find((i) => i.key === activeTab)?.icon || "⚙️"}{" "}
+            <IconeMenu cle={activeTab} repli={NAV_GROUPS.flatMap((g) => g.items).find((i) => i.key === activeTab)?.icon || "⚙️"} taille={18} />{" "}
             {activeLabel}
           </span>
 
