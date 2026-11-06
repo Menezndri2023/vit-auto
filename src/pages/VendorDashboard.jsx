@@ -1523,6 +1523,9 @@ export default function VendorDashboard() {
   // server/utils/commissionLedger.js).
   const [payoutTotals,   setPayoutTotals]   = useState(null);
   const [payoutEntries,  setPayoutEntries]  = useState([]);
+  // Commissions DUES par le partenaire à VIT AUTO (lignes « platform_fee » du
+  // registre) — jamais additionnées aux reversements à recevoir.
+  const [creanceTotals,  setCreanceTotals]  = useState(null);
   const [payoutLoading,  setPayoutLoading]  = useState(false);
   const [contracts,      setContracts]      = useState([]);
   const [contractsLoading, setContractsLoading] = useState(false);
@@ -2998,7 +3001,7 @@ export default function VendorDashboard() {
     setPayoutLoading(true);
     try {
       const r = await fetch("/api/commission-ledger/mine", { headers: { Authorization: `Bearer ${token}` } });
-      if (r.ok) { const d = await r.json(); setPayoutTotals(d.totals || null); setPayoutEntries(d.entries || []); }
+      if (r.ok) { const d = await r.json(); setPayoutTotals(d.totals || null); setCreanceTotals(d.creances || null); setPayoutEntries(d.entries || []); }
     } catch { /* ignore */ }
     setPayoutLoading(false);
   }, [token]);
@@ -4360,39 +4363,53 @@ export default function VendorDashboard() {
             </div>
           </div>
 
-          {/* Reversements — dû vs déjà versé (voir commissionLedger.js). Aucune
-              intégration bancaire n'existe : le virement reste initié
-              manuellement par la finance VIT AUTO, ceci n'affiche que le suivi. */}
-          {payoutTotals && (payoutTotals.pending > 0 || payoutTotals.paid > 0) && (
-            <div className={styles.dashSection} style={{ marginBottom: 20 }}>
-              <div className={styles.dashSectionHeader}><h3><HandCoins size={16} aria-hidden="true" /> Reversements</h3></div>
-              <div className={styles.finSummary}>
-                <div className={styles.finSummaryCard} style={{ borderColor: "#d97706" }}>
-                  <span className={styles.finSummaryLabel}>En attente de virement</span>
-                  <span className={styles.finSummaryValue} style={{ color: "#d97706" }}>{fmtXOF(payoutTotals.pending)}</span>
+          {/* Registre des commissions (voir commissionLedger.js), DEUX sens
+              séparés (audit du 2026-11-06) : les reversements que VIT AUTO
+              devrait au partenaire, et les commissions que le partenaire doit
+              à VIT AUTO (vente via demande d'essai, vente export en règlement
+              direct). Aucune intégration bancaire : ceci n'affiche que le suivi. */}
+          {[
+            { sens: "reversement", totaux: payoutTotals, Icone: HandCoins, titre: "Reversements",
+              attente: "En attente de virement", fait: "Déjà versé", ligneFaite: "Versé", ligneAttente: "En attente" },
+            { sens: "creance", totaux: creanceTotals, Icone: Receipt, titre: "Commissions dues à VIT AUTO",
+              attente: "À régler", fait: "Déjà réglé", ligneFaite: "Réglée", ligneAttente: "À régler" },
+          ].map((bloc) => {
+            const t = bloc.totaux;
+            const aRegler = t ? (t.pending || 0) + (t.confirmed || 0) : 0;
+            if (!t || (aRegler <= 0 && !(t.paid > 0))) return null;
+            const lignes = payoutEntries.filter((p) => (p.sens || (p.type === "platform_fee" ? "creance" : "reversement")) === bloc.sens);
+            const { Icone } = bloc;
+            return (
+              <div key={bloc.sens} className={styles.dashSection} style={{ marginBottom: 20 }}>
+                <div className={styles.dashSectionHeader}><h3><Icone size={16} aria-hidden="true" /> {bloc.titre}</h3></div>
+                <div className={styles.finSummary}>
+                  <div className={styles.finSummaryCard} style={{ borderColor: "#d97706" }}>
+                    <span className={styles.finSummaryLabel}>{bloc.attente}</span>
+                    <span className={styles.finSummaryValue} style={{ color: "#d97706" }}>{fmtXOF(aRegler)}</span>
+                  </div>
+                  <div className={styles.finSummaryCard} style={{ borderColor: "#059669" }}>
+                    <span className={styles.finSummaryLabel}>{bloc.fait}</span>
+                    <span className={styles.finSummaryValue} style={{ color: "#059669" }}>{fmtXOF(t.paid || 0)}</span>
+                  </div>
                 </div>
-                <div className={styles.finSummaryCard} style={{ borderColor: "#059669" }}>
-                  <span className={styles.finSummaryLabel}>Déjà versé</span>
-                  <span className={styles.finSummaryValue} style={{ color: "#059669" }}>{fmtXOF(payoutTotals.paid)}</span>
-                </div>
-              </div>
-              {!payoutLoading && payoutEntries.length > 0 && (
-                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-                  {payoutEntries.slice(0, 10).map((p) => (
-                    <div key={p._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: ".82rem", padding: "6px 10px", background: "#f8fafc", borderRadius: 8 }}>
-                      <span style={{ color: "#64748b" }}>{p.notes || p.transactionId} · {fmtDate(p.createdAt)}</span>
-                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <strong>{fmtXOF(p.commissionAmount)}</strong>
-                        <span style={{ fontSize: ".72rem", fontWeight: 700, color: p.status === "paid" ? "#059669" : "#d97706" }}>
-                          {p.status === "paid" ? "Versé" : "En attente"}
+                {!payoutLoading && lignes.length > 0 && (
+                  <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                    {lignes.slice(0, 10).map((p) => (
+                      <div key={p._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: ".82rem", padding: "6px 10px", background: "#f8fafc", borderRadius: 8 }}>
+                        <span style={{ color: "#64748b" }}>{p.notes || p.transactionId} · {fmtDate(p.createdAt)}</span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <strong>{fmtXOF(p.commissionAmount)}</strong>
+                          <span style={{ fontSize: ".72rem", fontWeight: 700, color: p.status === "paid" ? "#059669" : "#d97706" }}>
+                            {p.status === "paid" ? bloc.ligneFaite : bloc.ligneAttente}
+                          </span>
                         </span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
           {/* Export comptable — jusqu'ici réservé à l'admin, aucun moyen pour un
               partenaire de télécharger l'historique de ses commandes. */}

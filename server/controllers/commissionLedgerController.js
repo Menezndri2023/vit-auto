@@ -9,9 +9,17 @@ import CommissionLedger from "../models/CommissionLedger.js";
 // distinguer un virement réellement exécuté d'un montant encore en attente.
 export const getMyPayouts = async (req, res) => {
   try {
-    const { status, page = 1, limit = 30 } = req.query;
+    const { status, sens, page = 1, limit = 30 } = req.query;
     const filter = { partnerId: req.user._id };
     if (status) filter.status = status;
+    // Deux sens d'argent dans le même registre (audit du 2026-11-06) : les
+    // lignes « platform_fee » sont des commissions DUES PAR le partenaire à
+    // VIT AUTO (vente via demande d'essai, vente export en règlement direct),
+    // les autres des reversements que VIT AUTO lui devrait. Tout était sommé
+    // dans « En attente de virement » : une commission de 350 USD à payer se
+    // lisait comme 350 USD à recevoir. Même séparation que adminListPayouts.
+    if (sens === "reversements") filter.type = { $ne: "platform_fee" };
+    else if (sens === "creances") filter.type = "platform_fee";
 
     const skip = (Number(page) - 1) * Number(limit);
     const [entries, total, sums] = await Promise.all([
@@ -23,14 +31,22 @@ export const getMyPayouts = async (req, res) => {
       CommissionLedger.countDocuments(filter),
       CommissionLedger.aggregate([
         { $match: { partnerId: req.user._id } },
-        { $group: { _id: "$status", total: { $sum: "$commissionAmount" } } },
+        { $group: { _id: { status: "$status", creance: { $eq: ["$type", "platform_fee"] } }, total: { $sum: "$commissionAmount" } } },
       ]),
     ]);
 
-    const totals = { pending: 0, confirmed: 0, paid: 0, disputed: 0, cancelled: 0 };
-    for (const s of sums) if (s._id in totals) totals[s._id] = s.total;
+    const vide = () => ({ pending: 0, confirmed: 0, paid: 0, disputed: 0, cancelled: 0 });
+    const totals = vide();     // reversements : ce que VIT AUTO doit au partenaire
+    const creances = vide();   // commissions dues par le partenaire à VIT AUTO
+    for (const s of sums) {
+      const cible = s._id.creance ? creances : totals;
+      if (s._id.status in cible) cible[s._id.status] = s.total;
+    }
 
-    res.json({ entries, total, page: Number(page), limit: Number(limit), totals });
+    res.json({
+      entries: entries.map((e) => ({ ...e, sens: e.type === "platform_fee" ? "creance" : "reversement" })),
+      total, page: Number(page), limit: Number(limit), totals, creances,
+    });
   } catch (err) {
     logger.error("getMyPayouts:", err);
     res.status(500).json({ message: "Erreur serveur." });

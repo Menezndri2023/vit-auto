@@ -209,6 +209,25 @@ describe("Reversements et créances séparés (audit 2026-10-05)", () => {
     expect(ids).not.toContain(creance._id.toString());
   });
 
+  // Audit du 2026-11-06 : côté partenaire, une commission de vente DUE à
+  // VIT AUTO était additionnée aux reversements « en attente de virement ».
+  it("partenaire : une commission due n'est jamais comptée comme un virement à recevoir", async () => {
+    const { reversement, creance } = await lignes();
+    const partner = { _id: reversement.partnerId };
+    const { req, res } = mockReqRes({ user: partner, query: {} });
+    await getMyPayouts(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.totals.pending).toBe(85);
+    expect(res.body.creances.pending).toBe(300);
+    const parId = Object.fromEntries(res.body.entries.map((e) => [e._id.toString(), e.sens]));
+    expect(parId[reversement._id.toString()]).toBe("reversement");
+    expect(parId[creance._id.toString()]).toBe("creance");
+
+    const filtre = mockReqRes({ user: partner, query: { sens: "reversements" } });
+    await getMyPayouts(filtre.req, filtre.res);
+    expect(filtre.res.body.entries.map((e) => e._id.toString())).toEqual([reversement._id.toString()]);
+  });
+
   it("une créance ne peut pas être « marquée payée » comme un reversement", async () => {
     const { creance } = await lignes();
     const admin = await createUser({ role: "admin" });
