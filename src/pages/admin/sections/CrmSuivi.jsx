@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AlertTriangle, AlarmClock } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CRM partenaires — blocs de suivi commercial (2026-10-28)
@@ -45,7 +46,7 @@ export function ProchaineAction({ libelle, echeance }) {
   const retard = enRetard(echeance);
   return (
     <span style={{ color: retard ? "#b91c1c" : "#334155", fontWeight: retard ? 700 : 400 }}>
-      {libelle || "Suivi"}{echeance ? ` · ${fmtJour(echeance)}` : ""}{retard ? " ⏰" : ""}
+      {libelle || "Suivi"}{echeance ? ` · ${fmtJour(echeance)}` : ""}{retard && <> <AlarmClock size={14} role="img" aria-label="en retard" style={{ verticalAlign: "-2px", color: "#dc2626" }} /></>}
     </span>
   );
 }
@@ -69,7 +70,7 @@ export function BlocDoublons({ doublons, titre: t = "Correspondances possibles" 
   const MOTIF = { contactEmail: "même e-mail", email: "même e-mail", contactTel: "même téléphone", phone: "même téléphone", entreprise: "même nom" };
   return (
     <div style={{ ...boite, background: "#fffbeb", borderColor: "#fde68a" }}>
-      <p style={titre}>⚠️ {t}</p>
+      <p style={titre}><AlertTriangle size={16} aria-hidden="true" /> {t}</p>
       <ul style={{ margin: 0, paddingLeft: 18, fontSize: ".76rem", color: "#78350f" }}>
         {doublons.map((x) => (
           <li key={`${x.type}-${x._id}`}>

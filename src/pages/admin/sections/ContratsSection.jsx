@@ -1,4 +1,5 @@
 import styles from "../../AdminPanel.module.css";
+import { CheckCircle2, Files } from "lucide-react";
 
 // Onglet « Contrats » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -7,8 +8,8 @@ export default function ContratsSection({
 }) {
   return (
     <div className={styles.tabContent}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>📑 Contrats de réservation</h2>
+      <div className={styles.uiEnteteSection}>
+        <h2 className={styles.uiTitre}><Files size={16} aria-hidden="true" /> Contrats de réservation</h2>
         <button className={styles.btnRefresh} onClick={loadContracts}>↻ Actualiser</button>
       </div>
 
@@ -53,7 +54,7 @@ export default function ContratsSection({
                   </td>
                   <td style={{ fontSize: ".8rem", whiteSpace: "nowrap" }}>
                     {ct.isSigned
-                      ? <span style={{ color: "#10b981", fontWeight: 700 }}>✅ {ct.signedAt ? new Date(ct.signedAt).toLocaleDateString("fr-FR") : ""}</span>
+                      ? <span style={{ color: "#10b981", fontWeight: 700 }}><CheckCircle2 size={16} aria-hidden="true" /> {ct.signedAt ? new Date(ct.signedAt).toLocaleDateString("fr-FR") : ""}</span>
                       : <span style={{ color: "#94a3b8" }}>Non signé</span>}
                   </td>
                   <td><span className={styles.badge}>{ct.status || "—"}</span></td>

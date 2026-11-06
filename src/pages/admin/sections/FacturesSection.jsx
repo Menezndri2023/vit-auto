@@ -1,6 +1,7 @@
 import { Badge, MOIS, StatCard } from "../shared.jsx";
 import { downloadAuthFile } from "../../../utils/downloadAuthFile";
 import styles from "../../AdminPanel.module.css";
+import { Building2, CheckCircle2, FileText, Receipt, Wrench, Download, Banknote, Clock, Hourglass } from "lucide-react";
 
 // Onglet « Factures » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -11,16 +12,16 @@ export default function FacturesSection({
 }) {
   return (
     <div className={styles.tabContent}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>
-          📄 Gestion des factures partenaires
+      <div className={styles.uiEnteteSection}>
+        <h2 className={styles.uiTitre}>
+          <FileText size={16} aria-hidden="true" /> Gestion des factures partenaires
         </h2>
         <button className={styles.btnRefresh} onClick={loadInvoices}>↻ Actualiser</button>
       </div>
 
       {/* Génération facture */}
       <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
-        <h3 className={styles.chartTitle}>🔧 Générer les factures du mois</h3>
+        <h3 className={styles.chartTitle}><Wrench size={16} aria-hidden="true" /> Générer les factures du mois</h3>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div>
             <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#64748b", marginBottom: 4 }}>Mois</label>
@@ -62,7 +63,7 @@ export default function FacturesSection({
               setGenerating(false);
             }}
           >
-            {generating ? "Génération…" : "📄 Générer toutes les factures"}
+            {generating ? "Génération…" : "Générer toutes les factures"}
           </button>
         </div>
       </div>
@@ -70,11 +71,11 @@ export default function FacturesSection({
       {/* KPIs factures */}
       {invoicesStats && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
-          <StatCard icon="📄" label="Total factures" value={invoices.length} color="#6366f1" />
-          <StatCard icon="🕐" label="En attente de paiement" value={invoices.filter(i => i.status === "pending").length} color="#f59e0b" />
-          <StatCard icon="✅" label="Payées" value={invoices.filter(i => i.status === "paid").length} color="#10b981" />
-          <StatCard icon="💰" label="Total encaissé" value={fmtUSD(invoicesStats.totalPaid || 0)} color="#10b981" />
-          <StatCard icon="⏳" label="En attente" value={fmtUSD(invoicesStats.totalPending || 0)} color="#f59e0b" />
+          <StatCard icon={<FileText size={20} aria-hidden="true" />} label="Total factures" value={invoices.length} color="#6366f1" />
+          <StatCard icon={<Clock size={20} aria-hidden="true" />} label="En attente de paiement" value={invoices.filter(i => i.status === "pending").length} color="#f59e0b" />
+          <StatCard icon={<CheckCircle2 size={20} aria-hidden="true" />} label="Payées" value={invoices.filter(i => i.status === "paid").length} color="#10b981" />
+          <StatCard icon={<Banknote size={20} aria-hidden="true" />} label="Total encaissé" value={fmtUSD(invoicesStats.totalPaid || 0)} color="#10b981" />
+          <StatCard icon={<Hourglass size={20} aria-hidden="true" />} label="En attente" value={fmtUSD(invoicesStats.totalPending || 0)} color="#f59e0b" />
         </div>
       )}
 
@@ -82,7 +83,7 @@ export default function FacturesSection({
         <div className={styles.loadingBox}><div className={styles.spinner} /><p>Chargement…</p></div>
       ) : invoices.length === 0 ? (
         <div style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>
-          <div style={{ fontSize: "3rem", marginBottom: 12 }}>📄</div>
+          <div className={styles.uiVideIcone}><FileText size={16} aria-hidden="true" /></div>
           <p>Aucune facture générée pour le moment.</p>
         </div>
       ) : (
@@ -117,7 +118,7 @@ export default function FacturesSection({
                           Invoice.businessId) — sans ce libellé, deux factures du même mois
                           pour le même partenaire seraient indiscernables dans ce tableau. */}
                       {inv.businessId?.companyName && (
-                        <div style={{ fontSize: "0.72rem", color: "#8b5cf6", fontWeight: 600 }}>🏢 {inv.businessId.companyName}</div>
+                        <div style={{ fontSize: "0.72rem", color: "#8b5cf6", fontWeight: 600 }}><Building2 size={16} aria-hidden="true" /> {inv.businessId.companyName}</div>
                       )}
                     </td>
                     <td style={{ fontSize: "0.85rem" }}>
@@ -143,11 +144,11 @@ export default function FacturesSection({
                               method: "PATCH", headers,
                               body: JSON.stringify({ paymentMethod: "virement" }),
                             });
-                            if (r.ok) { showToast("Facture marquée payée ✅"); loadInvoices(); }
+                            if (r.ok) { showToast("Facture marquée payée"); loadInvoices(); }
                             else showToast("Erreur", "error");
                           }}
                         >
-                          ✅ Marquer payée
+                          <CheckCircle2 size={16} aria-hidden="true" /> Marquer payée
                         </button>
                       )}
                       {isPaid && <span style={{ color: "#10b981", fontSize: "0.82rem", fontWeight: 600 }}>
@@ -166,8 +167,8 @@ export default function FacturesSection({
           partenaire (voir issueServiceInvoice, distinct des factures de
           commission ci-dessus) */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "2rem 0 1rem", flexWrap: "wrap", gap: 12 }}>
-        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>
-          🧾 Factures de prestation ({serviceInvoicesAdmin.length})
+        <h2 className={styles.uiTitre}>
+          <Receipt size={16} aria-hidden="true" /> Factures de prestation ({serviceInvoicesAdmin.length})
         </h2>
         <button className={styles.btnRefresh} onClick={loadServiceInvoicesAdmin}>↻ Actualiser</button>
       </div>
@@ -195,7 +196,7 @@ export default function FacturesSection({
                     <button type="button" onClick={async () => {
                         const r = await downloadAuthFile(`/api/service-invoices/${inv._id}/pdf`, `facture-${inv.reference || inv._id}.pdf`, token);
                         if (!r.ok) showToast(r.message, "error");
-                      }} style={{ color: "#2563eb", fontSize: "0.82rem", background: "none", border: "none", cursor: "pointer", padding: 0 }}>⬇️ Voir</button>
+                      }} style={{ color: "#2563eb", fontSize: "0.82rem", background: "none", border: "none", cursor: "pointer", padding: 0 }}><Download size={16} aria-hidden="true" /> Voir</button>
                   </td>
                 </tr>
               ))}

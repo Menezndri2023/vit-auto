@@ -1,5 +1,6 @@
 import { Badge, StatCard, fmtDate } from "../shared.jsx";
 import styles from "../../AdminPanel.module.css";
+import { AlertTriangle, Mail, Ban, CheckCircle2, Upload } from "lucide-react";
 
 // Onglet « Emails & Livraison » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -8,10 +9,10 @@ export default function EmailsSection({
 }) {
   return (
     <div className={styles.tabContent}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+      <div className={styles.uiEnteteSection}>
         <div>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>📧 Emails & Livraison</h2>
-          <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>
+          <h2 className={styles.uiTitreSection}><Mail size={16} aria-hidden="true" /> Emails & Livraison</h2>
+          <p className={styles.uiSousTitre}>
             Suivi réel des envois (Resend) — LOI, Accords, factures, confirmations... Un email "envoyé" n'est confirmé "livré" que via le webhook Resend
             (ou l'ouverture du message) ; "Rejeté/Signalé spam" signifie que le serveur destinataire a explicitement refusé l'email.
           </p>
@@ -24,17 +25,17 @@ export default function EmailsSection({
       ) : (
         <>
           <div style={{ background: "#fffbeb", border: "1.5px solid #fcd34d", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: ".82rem", color: "#92400e" }}>
-            ⚠️ Si "Rejetés/Signalés spam" reste élevé : vérifiez dans le dashboard Resend (Domains) que <code>vit-auto.com</code> est bien "Verified"
+            <AlertTriangle size={16} aria-hidden="true" /> Si "Rejetés/Signalés spam" reste élevé : vérifiez dans le dashboard Resend (Domains) que <code>vit-auto.com</code> est bien "Verified"
             (SPF/DKIM/DMARC) — un domaine non vérifié fait rejeter une grande partie des emails par Gmail/Outlook. Le webhook Resend doit aussi être
             configuré (Webhooks → email.delivered/bounced/complained/delivery_delayed → <code>RESEND_WEBHOOK_SECRET</code> côté serveur) pour que ce
             tableau reflète la réalité plutôt que de rester bloqué sur "Envoyé".
           </div>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
-            <StatCard icon="📤" label="Envoyés (email)" value={emailStats?.email?.totalSent || 0} color="#6366f1" />
-            <StatCard icon="✅" label="Livrés/Ouverts" value={emailStats?.email?.totalOpened || 0} sub={`${emailStats?.email?.openRate || 0}% de taux d'ouverture`} color="#10b981" />
-            <StatCard icon="🚫" label="Rejetés / Signalés spam" value={(emailStats?.byStatus?.bounced || 0) + (emailStats?.byStatus?.complained || 0)} color="#ef4444" />
-            <StatCard icon="⚠️" label="Échecs immédiats" value={emailStats?.byStatus?.failed || 0} color="#f59e0b" />
+            <StatCard icon={<Upload size={20} aria-hidden="true" />} label="Envoyés (email)" value={emailStats?.email?.totalSent || 0} color="#6366f1" />
+            <StatCard icon={<CheckCircle2 size={20} aria-hidden="true" />} label="Livrés/Ouverts" value={emailStats?.email?.totalOpened || 0} sub={`${emailStats?.email?.openRate || 0}% de taux d'ouverture`} color="#10b981" />
+            <StatCard icon={<Ban size={20} aria-hidden="true" />} label="Rejetés / Signalés spam" value={(emailStats?.byStatus?.bounced || 0) + (emailStats?.byStatus?.complained || 0)} color="#ef4444" />
+            <StatCard icon={<AlertTriangle size={20} aria-hidden="true" />} label="Échecs immédiats" value={emailStats?.byStatus?.failed || 0} color="#f59e0b" />
           </div>
 
           <h3 style={{ fontSize: ".95rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 10px" }}>Envois en échec récents</h3>

@@ -1,6 +1,7 @@
 import { Badge, CountryFlag, safeImgHref } from "../shared.jsx";
 import { PendingIdentitiesSection } from "./PendingIdentitiesSection.jsx";
 import styles from "../../AdminPanel.module.css";
+import { AlertTriangle, Building2, Car, CheckCircle2, ClipboardList, FileText, Hourglass, IdCard, RefreshCw, Search, Shield, UserRound, XCircle, FilePen } from "lucide-react";
 
 // Onglet « KYC / Identités » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -13,16 +14,16 @@ export default function KycSection({
   return (
     <div className={styles.tabContent}>
       {/* En-tête KYC */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+      <div className={styles.uiEnteteSection}>
         <div>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🛡️ Gestion des dossiers KYC</h2>
-          <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Examinez et validez les dossiers d'identité soumis par les utilisateurs.</p>
+          <h2 className={styles.uiTitreSection}><Shield size={16} aria-hidden="true" /> Gestion des dossiers KYC</h2>
+          <p className={styles.uiSousTitre}>Examinez et validez les dossiers d'identité soumis par les utilisateurs.</p>
         </div>
         <button
           style={{ padding: "8px 16px", borderRadius: 10, background: "#6366f1", color: "#fff", border: "none", fontWeight: 700, fontSize: ".85rem", cursor: "pointer" }}
           onClick={() => loadKycList(kycFilter)}
         >
-          🔄 Actualiser
+          <RefreshCw size={16} aria-hidden="true" /> Actualiser
         </button>
       </div>
 
@@ -30,7 +31,7 @@ export default function KycSection({
           du parcours KYC complet, et jusqu'ici sans aucun écran (voir
           PendingIdentitiesSection). */}
       <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
-        <h3 className={styles.chartTitle}>🪪 Pièces d'identité soumises depuis le profil</h3>
+        <h3 className={styles.chartTitle}><IdCard size={16} aria-hidden="true" /> Pièces d'identité soumises depuis le profil</h3>
         <p style={{ margin: "0 0 12px", fontSize: ".8rem", color: "#64748b" }}>
           Envoyées par un client depuis sa page Profil, hors parcours KYC complet.
         </p>
@@ -40,11 +41,11 @@ export default function KycSection({
       {/* Filtres par statut */}
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap" }}>
         {[
-          { v: "ALL",                   l: "Tous",       ic: "📋" },
-          { v: "EN_ATTENTE",            l: "En attente", ic: "⏳" },
-          { v: "A_REVOIR_MANUELLEMENT", l: "En révision", ic: "🔍" },
-          { v: "VERIFIE",               l: "Vérifiés",   ic: "✅" },
-          { v: "REFUSE",                l: "Refusés",    ic: "❌" },
+          { v: "ALL",                   l: "Tous",       ic: <ClipboardList size={16} aria-hidden="true" /> },
+          { v: "EN_ATTENTE",            l: "En attente", ic: <Hourglass size={16} aria-hidden="true" /> },
+          { v: "A_REVOIR_MANUELLEMENT", l: "En révision", ic: <Search size={16} aria-hidden="true" /> },
+          { v: "VERIFIE",               l: "Vérifiés",   ic: <CheckCircle2 size={16} aria-hidden="true" /> },
+          { v: "REFUSE",                l: "Refusés",    ic: <XCircle size={16} aria-hidden="true" /> },
         ].map(({ v, l, ic }) => (
           <button key={v}
             style={{
@@ -83,7 +84,7 @@ export default function KycSection({
         );
         if (filteredKycList.length === 0) return (
           <div className={styles.emptyBox} style={{ textAlign: "center", padding: "40px 20px" }}>
-            <div style={{ fontSize: "2.5rem", marginBottom: 8 }}>✅</div>
+            <div style={{ fontSize: "2.5rem", marginBottom: 8 }}><CheckCircle2 size={16} aria-hidden="true" /></div>
             <p style={{ margin: 0, fontWeight: 600, color: "#475569" }}>
               {q
                 ? "Aucun résultat pour cette recherche."
@@ -98,10 +99,10 @@ export default function KycSection({
         <div style={{ display: "grid", gap: 10 }}>
           {filteredKycList.map((u) => {
             const KC = {
-              VERIFIE:               { c: "#059669", bg: "#d1fae5", border: "#6ee7b7", emoji: "✅" },
-              EN_ATTENTE:            { c: "#d97706", bg: "#fef3c7", border: "#fde68a", emoji: "⏳" },
-              A_REVOIR_MANUELLEMENT: { c: "#2563eb", bg: "#dbeafe", border: "#93c5fd", emoji: "🔍" },
-              REFUSE:                { c: "#dc2626", bg: "#fee2e2", border: "#fca5a5", emoji: "❌" },
+              VERIFIE:               { c: "#059669", bg: "#d1fae5", border: "#6ee7b7", emoji: <CheckCircle2 size={16} aria-hidden="true" /> },
+              EN_ATTENTE:            { c: "#d97706", bg: "#fef3c7", border: "#fde68a", emoji: <Hourglass size={16} aria-hidden="true" /> },
+              A_REVOIR_MANUELLEMENT: { c: "#2563eb", bg: "#dbeafe", border: "#93c5fd", emoji: <Search size={16} aria-hidden="true" /> },
+              REFUSE:                { c: "#dc2626", bg: "#fee2e2", border: "#fca5a5", emoji: <XCircle size={16} aria-hidden="true" /> },
             };
             const kc = KC[u.kycStatus] || KC["EN_ATTENTE"];
             return (
@@ -143,7 +144,7 @@ export default function KycSection({
                     style={{ padding: "8px 12px", borderRadius: 10, background: "#f1f5f9", color: "#0f1b3f", border: "none", fontWeight: 700, fontSize: ".85rem", cursor: "pointer", whiteSpace: "nowrap" }}
                     onClick={() => openTrustOverview(u)}
                   >
-                    🛡️
+                    <Shield size={16} aria-hidden="true" />
                   </button>
                   <button
                     style={{ padding: "8px 18px", borderRadius: 10, background: "#6366f1", color: "#fff", border: "none", fontWeight: 700, fontSize: ".85rem", cursor: "pointer", whiteSpace: "nowrap" }}
@@ -191,7 +192,7 @@ export default function KycSection({
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                   {kycDetailUser.profilePhoto
                     ? <img src={kycDetailUser.profilePhoto} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "3px solid rgba(255,255,255,.4)" }} />
-                    : <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(255,255,255,.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}>👤</div>
+                    : <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(255,255,255,.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}><UserRound size={16} aria-hidden="true" /></div>
                   }
                   <div>
                     <div style={{ fontSize: "1.1rem", fontWeight: 900 }}>{kycDetailUser.firstName} {kycDetailUser.lastName}</div>
@@ -223,8 +224,8 @@ export default function KycSection({
 
               {/* Infos contact */}
               <div style={{ background: "#f8fafc", borderRadius: 10, padding: "12px 16px", marginBottom: 14, fontSize: ".86rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 20px", color: "#334155" }}>
-                <div><span style={{ color: "#94a3b8" }}>Email </span>{kycDetailUser.email ? <>{kycDetailUser.email} {kycDetailUser.emailVerified ? "✅" : "❌"}</> : "—"}</div>
-                <div><span style={{ color: "#94a3b8" }}>Tél. </span>{kycDetailUser.phone ? <>{kycDetailUser.phone} {kycDetailUser.phoneVerified ? "✅" : "❌"}</> : "—"}</div>
+                <div><span style={{ color: "#94a3b8" }}>Email </span>{kycDetailUser.email ? <>{kycDetailUser.email} {kycDetailUser.emailVerified ? <CheckCircle2 size={16} aria-hidden="true" /> : <XCircle size={16} aria-hidden="true" />}</> : "—"}</div>
+                <div><span style={{ color: "#94a3b8" }}>Tél. </span>{kycDetailUser.phone ? <>{kycDetailUser.phone} {kycDetailUser.phoneVerified ? <CheckCircle2 size={16} aria-hidden="true" /> : <XCircle size={16} aria-hidden="true" />}</> : "—"}</div>
                 <div><span style={{ color: "#94a3b8" }}>Rôle </span>{kycDetailUser.role}</div>
                 <div><span style={{ color: "#94a3b8" }}>Soumis </span>{kycDetailUser.kycSubmittedAt ? new Date(kycDetailUser.kycSubmittedAt).toLocaleDateString("fr-FR") : "—"}</div>
               </div>
@@ -240,7 +241,7 @@ export default function KycSection({
               {/* Données OCR */}
               {kycDetailUser.kycOcrData && (
                 <div style={{ background: "#f5f3ff", border: "1.5px solid #c4b5fd", borderRadius: 10, padding: "12px 16px", marginBottom: 14, fontSize: ".86rem", color: "#3730a3" }}>
-                  <strong style={{ display: "block", marginBottom: 8 }}>📄 Données OCR du document</strong>
+                  <strong style={{ display: "block", marginBottom: 8 }}><FileText size={16} aria-hidden="true" /> Données OCR du document</strong>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 16px" }}>
                     {kycDetailUser.kycOcrData.firstName      && <div><span style={{ opacity: .7 }}>Prénom </span><strong>{kycDetailUser.kycOcrData.firstName}</strong></div>}
                     {kycDetailUser.kycOcrData.lastName       && <div><span style={{ opacity: .7 }}>Nom </span><strong>{kycDetailUser.kycOcrData.lastName}</strong></div>}
@@ -256,7 +257,7 @@ export default function KycSection({
               {(kycDetailUser.identity?.frontImage || kycDetailUser.identity?.backImage || kycDetailUser.identity?.selfie) && (
                 <div style={{ marginBottom: 16 }}>
                   <strong style={{ fontSize: ".82rem", color: "#0f1b3f", display: "block", marginBottom: 10 }}>
-                    📄 Documents soumis — {kycDetailUser.identity?.type?.toUpperCase() || "PIÈCE D'IDENTITÉ"}
+                    <FileText size={16} aria-hidden="true" /> Documents soumis — {kycDetailUser.identity?.type?.toUpperCase() || "PIÈCE D'IDENTITÉ"}
                   </strong>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
                     {[
@@ -281,14 +282,14 @@ export default function KycSection({
               )}
               {!kycDetailLoading && !(kycDetailUser.identity?.frontImage || kycDetailUser.identity?.backImage || kycDetailUser.identity?.selfie) && (
                 <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: ".82rem", color: "#dc2626" }}>
-                  ⚠️ Aucune pièce d'identité soumise par cet utilisateur.
+                  <AlertTriangle size={16} aria-hidden="true" /> Aucune pièce d'identité soumise par cet utilisateur.
                 </div>
               )}
 
               {/* ── Permis de conduire (si disponible) ── */}
               {(kycDetailUser.driverLicenseOcr?.frontImage || kycDetailUser.driverLicenseOcr?.backImage) && (
                 <div style={{ marginBottom: 16 }}>
-                  <strong style={{ fontSize: ".82rem", color: "#0f1b3f", display: "block", marginBottom: 10 }}>🚗 Permis de conduire</strong>
+                  <strong style={{ fontSize: ".82rem", color: "#0f1b3f", display: "block", marginBottom: 10 }}><Car size={16} aria-hidden="true" /> Permis de conduire</strong>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                     {[
                       { label: "Recto permis", img: kycDetailUser.driverLicenseOcr?.frontImage },
@@ -304,7 +305,7 @@ export default function KycSection({
                   </div>
                   <div style={{ fontSize: ".78rem", color: "#475569", background: "#f8fafc", borderRadius: 8, padding: "8px 12px", marginTop: 8 }}>
                     N° : {kycDetailUser.driverLicenseOcr?.licenseNumber || "—"} · Catégories : {kycDetailUser.driverLicenseOcr?.categories || "—"} · Expire : {kycDetailUser.driverLicenseOcr?.expiryDate ? new Date(kycDetailUser.driverLicenseOcr.expiryDate).toLocaleDateString("fr-FR") : "—"}
-                    {kycDetailUser.driverLicenseOcr?.isExpired && <span style={{ color: "#ef4444", fontWeight: 700 }}> ⚠️ EXPIRÉ</span>}
+                    {kycDetailUser.driverLicenseOcr?.isExpired && <span style={{ color: "#ef4444", fontWeight: 700 }}> <AlertTriangle size={16} aria-hidden="true" /> EXPIRÉ</span>}
                   </div>
                 </div>
               )}
@@ -312,7 +313,7 @@ export default function KycSection({
               {/* ── Infos entreprise (si partenaire) ── */}
               {kycDetailUser.business?.companyName && (
                 <div style={{ background: "#eff6ff", border: "1.5px solid #bfdbfe", borderRadius: 10, padding: "12px 16px", marginBottom: 14 }}>
-                  <strong style={{ fontSize: ".82rem", color: "#1e40af", display: "block", marginBottom: 6 }}>🏢 Entreprise partenaire</strong>
+                  <strong style={{ fontSize: ".82rem", color: "#1e40af", display: "block", marginBottom: 6 }}><Building2 size={16} aria-hidden="true" /> Entreprise partenaire</strong>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px 16px", fontSize: ".82rem", color: "#1e3a8a" }}>
                     <div><span style={{ opacity: .7 }}>Société </span><strong>{kycDetailUser.business.companyName}</strong></div>
                     <div><span style={{ opacity: .7 }}>RCCM </span>{kycDetailUser.business.rccm || "—"}</div>
@@ -325,19 +326,19 @@ export default function KycSection({
               {/* Raison du rejet précédent */}
               {kycDetailUser.kycRejectionReason && (
                 <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: ".82rem", color: "#dc2626" }}>
-                  <strong>⚠️ Dernier motif de refus :</strong> {kycDetailUser.kycRejectionReason}
+                  <strong><AlertTriangle size={16} aria-hidden="true" /> Dernier motif de refus :</strong> {kycDetailUser.kycRejectionReason}
                 </div>
               )}
               {kycDetailUser.kycReviewNote && (
                 <div style={{ background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: ".82rem", color: "#92400e" }}>
-                  <strong>📝 Note de révision :</strong> {kycDetailUser.kycReviewNote}
+                  <strong><FilePen size={16} aria-hidden="true" /> Note de révision :</strong> {kycDetailUser.kycReviewNote}
                 </div>
               )}
 
               {/* Journal d'audit */}
               {kycDetailUser.kycAuditLog?.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
-                  <strong style={{ fontSize: ".82rem", color: "#475569", display: "block", marginBottom: 8 }}>📋 Historique des actions</strong>
+                  <strong style={{ fontSize: ".82rem", color: "#475569", display: "block", marginBottom: 8 }}><ClipboardList size={16} aria-hidden="true" /> Historique des actions</strong>
                   <div style={{ maxHeight: 110, overflowY: "auto", border: "1.5px solid #e2e8f0", borderRadius: 8 }}>
                     {kycDetailUser.kycAuditLog.slice().reverse().map((log, i) => (
                       <div key={i} style={{ fontSize: ".77rem", color: "#64748b", padding: "7px 12px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", gap: 8 }}>
@@ -354,10 +355,10 @@ export default function KycSection({
                 <strong style={{ fontSize: ".88rem", color: "#0f1b3f", display: "block", marginBottom: 12 }}>Décision administrative</strong>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
                   {[
-                    { v: "VERIFIE",               l: "✅ Approuver",    col: "#059669", bg: kycReviewForm.decision === "VERIFIE" ? "#d1fae5" : "#f8fafc" },
-                    { v: "REFUSE",                l: "❌ Refuser",      col: "#dc2626", bg: kycReviewForm.decision === "REFUSE" ? "#fee2e2" : "#f8fafc" },
-                    { v: "A_REVOIR_MANUELLEMENT", l: "🔍 En révision",  col: "#2563eb", bg: kycReviewForm.decision === "A_REVOIR_MANUELLEMENT" ? "#dbeafe" : "#f8fafc" },
-                    { v: "EN_ATTENTE",            l: "⏳ Remettre en attente", col: "#d97706", bg: kycReviewForm.decision === "EN_ATTENTE" ? "#fef3c7" : "#f8fafc" },
+                    { v: "VERIFIE",               l: "Approuver",    col: "#059669", bg: kycReviewForm.decision === "VERIFIE" ? "#d1fae5" : "#f8fafc" },
+                    { v: "REFUSE",                l: "Refuser",      col: "#dc2626", bg: kycReviewForm.decision === "REFUSE" ? "#fee2e2" : "#f8fafc" },
+                    { v: "A_REVOIR_MANUELLEMENT", l: "En révision",  col: "#2563eb", bg: kycReviewForm.decision === "A_REVOIR_MANUELLEMENT" ? "#dbeafe" : "#f8fafc" },
+                    { v: "EN_ATTENTE",            l: "Remettre en attente", col: "#d97706", bg: kycReviewForm.decision === "EN_ATTENTE" ? "#fef3c7" : "#f8fafc" },
                   ].map(({ v, l, col, bg }) => (
                     <button key={v}
                       style={{ padding: "10px 8px", borderRadius: 9, border: `2px solid ${kycReviewForm.decision === v ? col : "#e2e8f0"}`, fontSize: ".82rem", fontWeight: 700, cursor: "pointer", background: bg, color: kycReviewForm.decision === v ? col : "#64748b", fontFamily: "inherit" }}
@@ -374,7 +375,7 @@ export default function KycSection({
                   style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem", fontFamily: "inherit", resize: "vertical", minHeight: 68, marginBottom: 12, boxSizing: "border-box" }}
                 />
                 {kycReviewMsg && (
-                  <p style={{ fontSize: ".85rem", color: kycReviewMsg.startsWith("✅") ? "#059669" : "#dc2626", fontWeight: 600, marginBottom: 10 }}>{kycReviewMsg}</p>
+                  <p style={{ fontSize: ".85rem", color: kycReviewMsg.startsWith("") ? "#059669" : "#dc2626", fontWeight: 600, marginBottom: 10 }}>{kycReviewMsg}</p>
                 )}
                 <button
                   style={{ width: "100%", padding: "12px", borderRadius: 10, background: kycReviewLoading ? "#94a3b8" : "#6366f1", color: "#fff", border: "none", fontWeight: 800, fontSize: ".95rem", cursor: kycReviewLoading ? "not-allowed" : "pointer", fontFamily: "inherit" }}

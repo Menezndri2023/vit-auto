@@ -1,5 +1,6 @@
 import styles from "../../AdminPanel.module.css";
 import { timeAgo } from "../shared.jsx";
+import { MessageCircle, Handshake, Headphones } from "lucide-react";
 
 // Onglet « Support Client » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -9,10 +10,10 @@ export default function SupportSection({
 }) {
   return (
     <div className={styles.tabContent}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+      <div className={styles.uiEnteteSection}>
         <div>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🎧 Support Client</h2>
-          <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Conversations client_support / partner_support — file partagée entre tous les admins actifs.</p>
+          <h2 className={styles.uiTitreSection}><Headphones size={16} aria-hidden="true" /> Support Client</h2>
+          <p className={styles.uiSousTitre}>Conversations client_support / partner_support — file partagée entre tous les admins actifs.</p>
         </div>
         <button style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 700, fontSize: ".8rem" }}
           onClick={loadSupportChats}>↻ Actualiser</button>
@@ -32,7 +33,7 @@ export default function SupportSection({
               <div style={{ padding: 24, textAlign: "center", color: "#94a3b8", fontSize: ".85rem" }}>Chargement…</div>
             ) : supportChats.length === 0 ? (
               <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>
-                <div style={{ fontSize: "2rem", marginBottom: 8 }}>💬</div>
+                <div style={{ fontSize: "2rem", marginBottom: 8 }}><MessageCircle size={16} aria-hidden="true" /></div>
                 <p style={{ fontSize: ".85rem", fontWeight: 600 }}>Aucune conversation support.</p>
               </div>
             ) : supportChats.map((c) => {
@@ -59,7 +60,7 @@ export default function SupportSection({
                       <span style={{ fontSize: ".7rem", color: "#94a3b8", flexShrink: 0 }}>{timeAgo(c.lastMessageAt)}</span>
                     </div>
                     <div style={{ fontSize: ".76rem", color: c.needsReply ? "#92400e" : "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: c.needsReply ? 700 : 400 }}>
-                      {c.type === "partner_support" ? "🤝 " : ""}{c.lastMessage || "Conversation ouverte"}
+                      {c.type === "partner_support" && <Handshake size={13} aria-hidden="true" style={{ verticalAlign: "-2px", marginRight: 4 }} />}{c.lastMessage || "Conversation ouverte"}
                     </div>
                   </div>
                   {c.unread > 0 && (
@@ -75,7 +76,7 @@ export default function SupportSection({
         <div style={{ border: "1.5px solid #e2e8f0", borderRadius: 12, display: "flex", flexDirection: "column", background: "#fff", overflow: "hidden" }}>
           {!supportActive ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", flexDirection: "column", gap: 8 }}>
-              <div style={{ fontSize: "2.4rem" }}>🎧</div>
+              <div style={{ fontSize: "2.4rem" }}><Headphones size={16} aria-hidden="true" /></div>
               <p style={{ fontSize: ".85rem", fontWeight: 600 }}>Sélectionnez une conversation pour répondre.</p>
             </div>
           ) : (

@@ -4,6 +4,7 @@
 // (paymentController.adminListPayments), paginée. Les paiements Import/Export
 // (séquestre) restent dans l'onglet Escrow.
 import { useCallback, useEffect, useState } from "react";
+import { CreditCard } from "lucide-react";
 import styles from "../../AdminPanel.module.css";
 import { fmtDate } from "../shared.jsx";
 
@@ -52,7 +53,7 @@ export function PaymentsSection({ headers }) {
     <div style={{ marginBottom: "2.5rem" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>💳 Tous les paiements ({total})</h2>
+          <h2 className={styles.uiTitre}><CreditCard size={16} aria-hidden="true" /> Tous les paiements ({total})</h2>
           <p style={{ margin: 0, fontSize: ".82rem", color: "#64748b" }}>
             Réservations, devis de service et assurances. Import/Export : onglet Escrow.
             {encaisse.length > 0 && <> Encaissé : {encaisse.map((x) => `${Math.round(x.montant).toLocaleString("fr-FR")} ${x._id.devise}`).join(" · ")}.</>}

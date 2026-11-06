@@ -1,5 +1,6 @@
 // Extrait d'AdminPanel.jsx (découpe par onglet, 2026-09-12) — logique inchangée.
 import { useEffect, useState } from "react";
+import { AlertTriangle, Banknote, Car, IdCard, Truck } from "lucide-react";
 import styles from "../../AdminPanel.module.css";
 
 // ── Politiques de location partenaire (restructuration 2026-09) ────────────
@@ -160,7 +161,7 @@ export function RentalPolicySection({ token }) {
               <label style={{ fontSize: ".8rem" }}>Ancienneté permis (ans)
                 <input type="number" value={form.minimumLicenseYears} onChange={(e) => setF("minimumLicenseYears", e.target.value)} style={{ width: "100%", padding: 6, marginTop: 4 }} />
               </label>
-              <label style={{ fontSize: ".8rem" }}>🚚 Frais livraison même ville
+              <label style={{ fontSize: ".8rem" }}><Truck size={16} aria-hidden="true" /> Frais livraison même ville
                 <input type="number" value={form.deliveryFeeSameCity} onChange={(e) => setF("deliveryFeeSameCity", e.target.value)} placeholder="100-150" style={{ width: "100%", padding: 6, marginTop: 4 }} />
               </label>
               <label style={{ fontSize: ".8rem" }}>Rayon "même ville" (km)
@@ -169,17 +170,17 @@ export function RentalPolicySection({ token }) {
               <label style={{ fontSize: ".8rem" }}>Rayon livraison max (km)
                 <input type="number" value={form.maxDeliveryRadiusKm} onChange={(e) => setF("maxDeliveryRadiusKm", e.target.value)} placeholder="Illimité" style={{ width: "100%", padding: 6, marginTop: 4 }} />
               </label>
-              <label style={{ fontSize: ".8rem" }}>🪪 Identité vérifiée
+              <label style={{ fontSize: ".8rem" }}><IdCard size={16} aria-hidden="true" /> Identité vérifiée
                 <select value={form.identityDocumentRequired} onChange={(e) => setF("identityDocumentRequired", e.target.value)} style={{ width: "100%", padding: 6, marginTop: 4 }}>
                   {RP_TRISTATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </label>
-              <label style={{ fontSize: ".8rem" }}>🚘 Permis vérifié
+              <label style={{ fontSize: ".8rem" }}><Car size={16} aria-hidden="true" /> Permis vérifié
                 <select value={form.drivingLicenseRequired} onChange={(e) => setF("drivingLicenseRequired", e.target.value)} style={{ width: "100%", padding: 6, marginTop: 4 }}>
                   {RP_TRISTATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </label>
-              <label style={{ fontSize: ".8rem" }}>💰 Caution exigée
+              <label style={{ fontSize: ".8rem" }}><Banknote size={16} aria-hidden="true" /> Caution exigée
                 <select value={form.depositRequired} onChange={(e) => setF("depositRequired", e.target.value)} style={{ width: "100%", padding: 6, marginTop: 4 }}>
                   {RP_TRISTATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
@@ -190,7 +191,7 @@ export function RentalPolicySection({ token }) {
             </label>
             {saveError && (
               <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", borderRadius: 8, padding: "8px 10px", fontSize: ".8rem", marginBottom: 10 }}>
-                ⚠️ {saveError}
+                <AlertTriangle size={16} aria-hidden="true" /> {saveError}
               </div>
             )}
             <div className={styles.confirmActions}>

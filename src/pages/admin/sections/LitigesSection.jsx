@@ -1,6 +1,7 @@
 import { ReclamationsIESection } from "./ReclamationsIESection.jsx";
 import { StatCard, fmtDate } from "../shared.jsx";
 import styles from "../../AdminPanel.module.css";
+import { Banknote, CheckCircle2, Scale } from "lucide-react";
 
 // Onglet « Litiges » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -10,10 +11,10 @@ export default function LitigesSection({
 }) {
   return (
     <div className={styles.tabContent}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+      <div className={styles.uiEnteteSection}>
         <div>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>⚖️ Gestion des litiges</h2>
-          <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Toutes les commandes en dispute requérant une décision administrative.</p>
+          <h2 className={styles.uiTitreSection}><Scale size={16} aria-hidden="true" /> Gestion des litiges</h2>
+          <p className={styles.uiSousTitre}>Toutes les commandes en dispute requérant une décision administrative.</p>
         </div>
         <button className={styles.btnRefresh} style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px" }} onClick={loadAll}>↻ Actualiser</button>
       </div>
@@ -24,14 +25,14 @@ export default function LitigesSection({
       {/* KPIs litiges */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 12, marginBottom: "1.5rem" }}>
         {[
-          { icon: "⚖️", label: "Litiges ouverts",  value: bookings.filter(b => b.status === "disputed").length, color: "#dc2626" },
-          { icon: "✅", label: "Résolus ce mois",   value: bookings.filter(b => {
+          { icon: <Scale size={16} aria-hidden="true" />, label: "Litiges ouverts",  value: bookings.filter(b => b.status === "disputed").length, color: "#dc2626" },
+          { icon: <CheckCircle2 size={16} aria-hidden="true" />, label: "Résolus ce mois",   value: bookings.filter(b => {
             const d = b.disputeResolution?.resolvedAt;
             if (!d) return false;
             const now = new Date(); const rd = new Date(d);
             return rd.getMonth() === now.getMonth() && rd.getFullYear() === now.getFullYear();
           }).length, color: "#10b981" },
-          { icon: "💰", label: "Montant en jeu",    value: fmtUSD(bookings.filter(b=>b.status==="disputed").reduce((s,b)=>s+(b.montantTotal||0),0)), color: "#f59e0b" },
+          { icon: <Banknote size={16} aria-hidden="true" />, label: "Montant en jeu",    value: fmtUSD(bookings.filter(b=>b.status==="disputed").reduce((s,b)=>s+(b.montantTotal||0),0)), color: "#f59e0b" },
         ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
       </div>
 
@@ -75,7 +76,7 @@ export default function LitigesSection({
 
       {bookings.filter(b => b.status === "disputed").length === 0 ? (
         <div style={{ textAlign: "center", padding: "60px 0", color: "#94a3b8" }}>
-          <div style={{ fontSize: "3rem", marginBottom: 12 }}>⚖️</div>
+          <div className={styles.uiVideIcone}><Scale size={16} aria-hidden="true" /></div>
           <p style={{ fontWeight: 700, color: "#64748b" }}>Aucun litige en cours.</p>
         </div>
       ) : (
@@ -99,7 +100,7 @@ export default function LitigesSection({
                     <td>
                       <button style={{ padding:"5px 12px", background:"#fee2e2", color:"#dc2626", border:"1px solid #fca5a5", borderRadius:8, cursor:"pointer", fontWeight:700, fontSize:"0.78rem" }}
                         onClick={() => { setDisputeModal({ booking:b }); setDisputeNote(""); setDisputeResol("completed"); }}>
-                        ⚖️ Résoudre
+                        <Scale size={16} aria-hidden="true" /> Résoudre
                       </button>
                     </td>
                   </tr>

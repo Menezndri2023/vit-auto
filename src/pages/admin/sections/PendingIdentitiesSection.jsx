@@ -1,6 +1,7 @@
 // Extrait d'AdminPanel.jsx (découpe par onglet, 2026-09-12) — logique inchangée.
 import { useCallback, useEffect, useState } from "react";
 import { ClientDocuments } from "./ClientDocuments.jsx";
+import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 
 // ── Pièces d'identité soumises depuis le profil client ────────────────────
 // Manque réel : les endpoints existaient des deux côtés (getPendingIdentities,
@@ -57,7 +58,7 @@ export function PendingIdentitiesSection({ token, showToast }) {
       });
       const d = await r.json().catch(() => null);
       if (!r.ok) { showToast(d?.message || "Décision refusée par le serveur.", "error"); return; }
-      showToast(status === "verified" ? "✅ Pièce d'identité validée." : "🚫 Pièce d'identité refusée — client notifié.");
+      showToast(status === "verified" ? "Pièce d'identité validée." : "Pièce d'identité refusée — client notifié.");
       setRejectFor(null); setReason("");
       load();
     } catch { showToast("Erreur réseau — décision non enregistrée.", "error"); }
@@ -65,7 +66,7 @@ export function PendingIdentitiesSection({ token, showToast }) {
   };
 
   if (loading) return <div style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>Chargement…</div>;
-  if (error) return <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", borderRadius: 10, padding: "10px 12px", fontSize: ".84rem" }}>⚠️ {error}</div>;
+  if (error) return <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", borderRadius: 10, padding: "10px 12px", fontSize: ".84rem" }}><AlertTriangle size={16} aria-hidden="true" /> {error}</div>;
   if (!list.length) {
     return <p style={{ color: "#94a3b8", fontSize: ".85rem", margin: 0 }}>Aucune pièce d'identité en attente d'examen.</p>;
   }
@@ -89,11 +90,11 @@ export function PendingIdentitiesSection({ token, showToast }) {
             <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
               <button disabled={acting === u._id} onClick={() => decide(u._id, "verified")}
                 style={{ background: "#16a34a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                ✅ Valider
+                <CheckCircle2 size={16} aria-hidden="true" /> Valider
               </button>
               <button disabled={acting === u._id} onClick={() => { setRejectFor(u._id); setReason(""); }}
                 style={{ background: "#fef2f2", color: "#dc2626", border: "1.5px solid #fecaca", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                ❌ Refuser
+                <XCircle size={16} aria-hidden="true" /> Refuser
               </button>
             </div>
           </div>
@@ -110,7 +111,7 @@ export function PendingIdentitiesSection({ token, showToast }) {
                        padding: "9px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
               {pieces[u._id] === "chargement" ? "Chargement des pièces…"
                 : pieces[u._id] === "erreur" ? "↻ Réessayer — chargement des pièces impossible"
-                : "📄 Afficher les pièces justificatives"}
+                : "Afficher les pièces justificatives"}
             </button>
           )}
 

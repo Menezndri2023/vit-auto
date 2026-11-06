@@ -1,5 +1,6 @@
 import { Badge } from "../shared.jsx";
 import styles from "../../AdminPanel.module.css";
+import { Globe, Pencil, Ship, Trash2, Calculator } from "lucide-react";
 
 // Onglet « Coûts Import » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -9,10 +10,10 @@ export default function CoutsImportSection({
 }) {
   return (
     <div className={styles.tabContent}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+      <div className={styles.uiEnteteSection}>
         <div>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🧮 Coûts Import — Barèmes</h2>
-          <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Configure le moteur de calcul du coût total d'importation (devis instantané côté acheteur). Montants en USD.</p>
+          <h2 className={styles.uiTitreSection}><Calculator size={16} aria-hidden="true" /> Coûts Import — Barèmes</h2>
+          <p className={styles.uiSousTitre}>Configure le moteur de calcul du coût total d'importation (devis instantané côté acheteur). Montants en USD.</p>
         </div>
         <button className={styles.btnRefresh} onClick={loadImportCostData}>↻ Actualiser</button>
       </div>
@@ -20,7 +21,7 @@ export default function CoutsImportSection({
       {/* ── Barèmes pays de destination ── */}
       <div className={styles.chartCard}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 className={styles.chartTitle} style={{ margin: 0 }}>🌍 Barèmes par pays de destination</h3>
+          <h3 className={styles.chartTitle} style={{ margin: 0 }}><Globe size={16} aria-hidden="true" /> Barèmes par pays de destination</h3>
           <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
             onClick={() => setCostConfigForm({
               country: "", customsDutyPercent: 20, vatPercent: 18, transitFixedFeeUSD: 150,
@@ -54,8 +55,8 @@ export default function CoutsImportSection({
                     <td><Badge label={c.active ? "Actif" : "Inactif"} color={c.active ? "#10b981" : "#94a3b8"} bg={c.active ? "#ecfdf5" : "#f1f5f9"} /></td>
                     <td>
                       <div className={styles.actionBtns}>
-                        <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setCostConfigForm(c)}>✏️</button>
-                        <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteCostConfig(c._id)}>🗑️</button>
+                        <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setCostConfigForm(c)} aria-label="Modifier"><Pencil size={16} aria-hidden="true" /></button>
+                        <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteCostConfig(c._id)} aria-label="Supprimer"><Trash2 size={16} aria-hidden="true" /></button>
                       </div>
                     </td>
                   </tr>
@@ -69,7 +70,7 @@ export default function CoutsImportSection({
       {/* ── Liaisons de fret ── */}
       <div className={styles.chartCard}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <h3 className={styles.chartTitle} style={{ margin: 0 }}>🚢 Liaisons de fret (origine → destination)</h3>
+          <h3 className={styles.chartTitle} style={{ margin: 0 }}><Ship size={16} aria-hidden="true" /> Liaisons de fret (origine → destination)</h3>
           <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
             onClick={() => setLaneForm({ sourceCountry: "", destCountry: "", seaFreightUSD: "", inlandTransportUSD: 150, carrier: "", estimatedDelayDays: "" })}>
             + Nouvelle liaison</button>
@@ -94,8 +95,8 @@ export default function CoutsImportSection({
                     <td><Badge label={l.active ? "Actif" : "Inactif"} color={l.active ? "#10b981" : "#94a3b8"} bg={l.active ? "#ecfdf5" : "#f1f5f9"} /></td>
                     <td>
                       <div className={styles.actionBtns}>
-                        <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setLaneForm(l)}>✏️</button>
-                        <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteLaneRate(l._id)}>🗑️</button>
+                        <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setLaneForm(l)} aria-label="Modifier"><Pencil size={16} aria-hidden="true" /></button>
+                        <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteLaneRate(l._id)} aria-label="Supprimer"><Trash2 size={16} aria-hidden="true" /></button>
                       </div>
                     </td>
                   </tr>

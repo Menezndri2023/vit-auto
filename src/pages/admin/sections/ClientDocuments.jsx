@@ -1,5 +1,6 @@
 // Extrait d'AdminPanel.jsx (découpe par onglet, 2026-09-12) — logique inchangée.
 import { useEffect, useState } from "react";
+import { AlertTriangle, FileText, Save } from "lucide-react";
 import styles from "../../AdminPanel.module.css";
 
 // ── Assignation logistique (restructuration Import/Export, 2026-09) ────────
@@ -36,7 +37,7 @@ export function ClientDocuments({ docs, reference }) {
             <img src={i.url} alt={i.label} style={{ maxHeight: 110, borderRadius: 8, border: "1px solid #e2e8f0" }} />
           </a>
           <div style={{ fontSize: ".7rem", color: "#64748b", marginTop: 3 }}>{i.label}</div>
-          <a href={i.url} download={`${i.key}-${reference || "reservation"}.jpg`} style={{ fontSize: ".7rem", color: "#2563eb" }}>💾 Télécharger</a>
+          <a href={i.url} download={`${i.key}-${reference || "reservation"}.jpg`} style={{ fontSize: ".7rem", color: "#2563eb" }}><Save size={16} aria-hidden="true" /> Télécharger</a>
         </div>
       ))}
     </div>
@@ -69,7 +70,7 @@ export function ClientDocumentsModal({ booking, token, onClose }) {
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.confirmBox} style={{ maxWidth: 660, width: "95%" }} onClick={(e) => e.stopPropagation()}>
-        <p className={styles.confirmMsg}>📄 Documents client — {booking.reference || booking._id?.slice(-6)}</p>
+        <p className={styles.confirmMsg}><FileText size={16} aria-hidden="true" /> Documents client — {booking.reference || booking._id?.slice(-6)}</p>
         <p style={{ fontSize: ".83rem", color: "#64748b", margin: "0 0 12px" }}>
           {ci.firstName} {ci.lastName}{ci.email ? ` · ${ci.email}` : ""}
           {docs?.idType ? ` · ${String(docs.idType).toUpperCase()}${docs.idNumber ? ` ${docs.idNumber}` : ""}` : ""}
@@ -77,7 +78,7 @@ export function ClientDocumentsModal({ booking, token, onClose }) {
         {loading
           ? <p style={{ color: "#94a3b8", fontSize: ".85rem" }}>Chargement…</p>
           : error
-            ? <p style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", borderRadius: 8, padding: "8px 10px", fontSize: ".83rem" }}>⚠️ {error}</p>
+            ? <p style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", borderRadius: 8, padding: "8px 10px", fontSize: ".83rem" }}><AlertTriangle size={16} aria-hidden="true" /> {error}</p>
             : <ClientDocuments docs={docs} reference={booking.reference} />}
         <div className={styles.confirmActions} style={{ marginTop: 14 }}>
           <button className={styles.btnGhost} onClick={onClose}>Fermer</button>

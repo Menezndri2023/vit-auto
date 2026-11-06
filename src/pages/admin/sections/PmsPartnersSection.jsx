@@ -1,5 +1,6 @@
 import { Badge, StatCard } from "../shared.jsx";
 import styles from "../../AdminPanel.module.css";
+import { CheckCircle2, FileText, Shield, Trophy, Globe, Store, Target } from "lucide-react";
 
 // Onglet « Partner Hub PMS » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -11,8 +12,8 @@ export default function PmsPartnersSection({
     <div className={styles.tabContent}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1.2rem", flexWrap:"wrap", gap:12 }}>
         <div>
-          <h2 style={{ fontSize:"1.1rem", fontWeight:800, color:"#0f1b3f", margin:"0 0 3px" }}>🏪 Partner Hub PMS</h2>
-          <p style={{ margin:0, fontSize:".83rem", color:"#64748b" }}>Showrooms, leads et devis de tous les partenaires.</p>
+          <h2 className={styles.uiTitreSection}><Store size={16} aria-hidden="true" /> Partner Hub PMS</h2>
+          <p className={styles.uiSousTitre}>Showrooms, leads et devis de tous les partenaires.</p>
         </div>
         <button className={styles.btnRefresh} onClick={loadPMSAdmin}>↻ Actualiser</button>
       </div>
@@ -20,12 +21,12 @@ export default function PmsPartnersSection({
       {/* KPIs */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12, marginBottom:"1.5rem" }}>
         {[
-          { icon:"🏪", label:"Showrooms total",  value: pmsStats?.totalShowrooms  || 0, color:"#6366f1" },
-          { icon:"🌐", label:"Publiés",           value: pmsStats?.publishedShowrooms || 0, color:"#10b981" },
-          { icon:"🎯", label:"Leads total",       value: pmsStats?.totalLeads      || 0, color:"#3b82f6" },
-          { icon:"🏆", label:"Leads gagnés",      value: pmsStats?.wonLeads        || 0, color:"#059669" },
-          { icon:"📄", label:"Devis total",       value: pmsStats?.totalQuotes     || 0, color:"#8b5cf6" },
-          { icon:"✅", label:"Devis acceptés",    value: pmsStats?.acceptedQuotes  || 0, color:"#d97706" },
+          { icon:<Store size={16} aria-hidden="true" />, label:"Showrooms total",  value: pmsStats?.totalShowrooms  || 0, color:"#6366f1" },
+          { icon:<Globe size={16} aria-hidden="true" />, label:"Publiés",           value: pmsStats?.publishedShowrooms || 0, color:"#10b981" },
+          { icon:<Target size={16} aria-hidden="true" />, label:"Leads total",       value: pmsStats?.totalLeads      || 0, color:"#3b82f6" },
+          { icon:<Trophy size={16} aria-hidden="true" />, label:"Leads gagnés",      value: pmsStats?.wonLeads        || 0, color:"#059669" },
+          { icon:<FileText size={16} aria-hidden="true" />, label:"Devis total",       value: pmsStats?.totalQuotes     || 0, color:"#8b5cf6" },
+          { icon:<CheckCircle2 size={16} aria-hidden="true" />, label:"Devis acceptés",    value: pmsStats?.acceptedQuotes  || 0, color:"#d97706" },
         ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
       </div>
 
@@ -33,8 +34,8 @@ export default function PmsPartnersSection({
       <div className={styles.filterBar}>
         {[
           { v:"all",       l:"Tous les showrooms" },
-          { v:"published", l:"✅ Publiés" },
-          { v:"hidden",    l:"👁 Non publiés" },
+          { v:"published", l:"Publiés" },
+          { v:"hidden",    l:"Non publiés" },
         ].map(f => (
           <button key={f.v} onClick={() => { setPmsFilter(f.v); }}
             style={{ padding:"6px 14px", borderRadius:8, border:`2px solid ${pmsFilter===f.v?"#6366f1":"#e2e8f0"}`,
@@ -47,10 +48,10 @@ export default function PmsPartnersSection({
 
       {/* Table showrooms */}
       {pmsLoading ? (
-        <div style={{ textAlign:"center", padding:"3rem", color:"#94a3b8" }}>Chargement…</div>
+        <div className={styles.uiVide}>Chargement…</div>
       ) : pmsShowrooms.length === 0 ? (
-        <div style={{ textAlign:"center", padding:"3rem", color:"#94a3b8" }}>
-          <div style={{ fontSize:"3rem", marginBottom:12 }}>🏪</div>
+        <div className={styles.uiVide}>
+          <div className={styles.uiVideIcone}><Store size={16} aria-hidden="true" /></div>
           <p style={{ fontWeight:600 }}>Aucun showroom partenaire pour le moment.</p>
         </div>
       ) : (
@@ -84,7 +85,7 @@ export default function PmsPartnersSection({
                       <div style={{ fontSize:".73rem", color:"#64748b" }}>{p.email}</div>
                       <div style={{ fontSize:".72rem", marginTop:2 }}>
                         <span style={{ color: kycColor, fontWeight:700 }}>
-                          {p.kycStatus === "VERIFIE" ? "✅ KYC" : p.kycStatus === "REFUSE" ? "❌ KYC" : "⏳ KYC"}
+                          {p.kycStatus === "VERIFIE" ? "KYC" : p.kycStatus === "REFUSE" ? "KYC" : "KYC"}
                         </span>
                         {!p.isActive && <span style={{ marginLeft:6, color:"#ef4444", fontWeight:700 }}>● Bloqué</span>}
                       </div>
@@ -100,15 +101,15 @@ export default function PmsPartnersSection({
                     </td>
                     <td style={{ fontSize:".82rem", color:"#64748b" }}>{s.viewCount || 0}</td>
                     <td>
-                      {p.certificationBadge === "premium"   && <Badge label="⭐ Premium"   color="#7c3aed" bg="#ede9fe" />}
-                      {p.certificationBadge === "fondateur" && <Badge label="🏆 Fondateur" color="#d97706" bg="#fef3c7" />}
+                      {p.certificationBadge === "premium"   && <Badge label="Premium"   color="#7c3aed" bg="#ede9fe" />}
+                      {p.certificationBadge === "fondateur" && <Badge label="Fondateur" color="#d97706" bg="#fef3c7" />}
                       {p.certificationBadge === "verifie"   && <Badge label="🟢 Vérifié"  color="#16a34a" bg="#dcfce7" />}
                       {!p.certificationBadge && <span style={{ color:"#cbd5e1", fontSize:".75rem" }}>—</span>}
                     </td>
                     <td>
                       {s.isPublished
-                        ? <Badge label="🌐 En ligne"   color="#16a34a" bg="#dcfce7" />
-                        : <Badge label="👁 Brouillon"  color="#d97706" bg="#fef3c7" />}
+                        ? <Badge label="En ligne"   color="#16a34a" bg="#dcfce7" />
+                        : <Badge label="Brouillon"  color="#d97706" bg="#fef3c7" />}
                     </td>
                     <td>
                       <div className={styles.actionBtns}>
@@ -137,7 +138,7 @@ export default function PmsPartnersSection({
                             onClick={() => openTrustOverview(p)}
                             style={{ padding:"4px 10px", borderRadius:6, border:"1.5px solid #e2e8f0",
                               background:"#f8fafc", color:"#0f1b3f", fontWeight:700, fontSize:".75rem", cursor:"pointer" }}>
-                            🛡️
+                            <Shield size={16} aria-hidden="true" />
                           </button>
                         )}
                       </div>

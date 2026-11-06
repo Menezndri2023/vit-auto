@@ -1,4 +1,5 @@
 import { Badge, fmtDate } from "../shared.jsx";
+import { HandCoins } from "lucide-react";
 import styles from "../../AdminPanel.module.css";
 
 // Onglet « Reversements » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
@@ -9,10 +10,10 @@ export default function ReversementsSection({
 }) {
   return (
     <div className={styles.tabContent}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+      <div className={styles.uiEnteteSection}>
         <div>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>💸 Reversements partenaire ({payoutsTotal})</h2>
-          <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>
+          <h2 className={styles.uiTitreSection}><HandCoins size={16} aria-hidden="true" /> Reversements partenaire ({payoutsTotal})</h2>
+          <p className={styles.uiSousTitre}>
             Ce que VIT AUTO doit à chaque partenaire (généré automatiquement à la complétion d'une commande) — aucun virement n'est exécuté automatiquement, "Marquer payé" trace seulement qu'il a été fait manuellement (banque/mobile money).
           </p>
         </div>
@@ -30,9 +31,9 @@ export default function ReversementsSection({
       </div>
 
       {payoutsLoading ? (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>
+        <div className={styles.uiVide}>Chargement…</div>
       ) : payoutsList.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Aucun reversement pour ce filtre.</div>
+        <div className={styles.uiVide}>Aucun reversement pour ce filtre.</div>
       ) : (
         <div className={styles.tableWrap}>
           <table className={styles.table}>
@@ -48,8 +49,8 @@ export default function ReversementsSection({
                   <td className={styles.tdPrice}>{fmtUSD(p.commissionAmount)}</td>
                   <td>
                     {p.status === "paid"
-                      ? <Badge label="✅ Payé" color="#16a34a" bg="#dcfce7" />
-                      : <Badge label="🕐 En attente" color="#d97706" bg="#fef3c7" />}
+                      ? <Badge label="Payé" color="#16a34a" bg="#dcfce7" />
+                      : <Badge label="En attente" color="#d97706" bg="#fef3c7" />}
                     {p.status === "paid" && p.paidViaTxId && (
                       <div style={{ fontSize: ".72rem", color: "#94a3b8", marginTop: 2 }}>Réf : {p.paidViaTxId}</div>
                     )}
@@ -59,7 +60,7 @@ export default function ReversementsSection({
                     {p.status !== "paid" && (
                       <button disabled={payoutMarkingId === p._id} onClick={() => markPayoutPaid(p._id)}
                         style={{ padding: "5px 12px", borderRadius: 8, border: "none", background: "#16a34a", color: "#fff", fontWeight: 700, fontSize: ".78rem", cursor: payoutMarkingId === p._id ? "not-allowed" : "pointer", opacity: payoutMarkingId === p._id ? 0.6 : 1 }}>
-                        {payoutMarkingId === p._id ? "…" : "✅ Marquer payé"}
+                        {payoutMarkingId === p._id ? "…" : "Marquer payé"}
                       </button>
                     )}
                   </td>

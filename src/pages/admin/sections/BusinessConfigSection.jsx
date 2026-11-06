@@ -1,5 +1,6 @@
 import { Badge } from "../shared.jsx";
 import styles from "../../AdminPanel.module.css";
+import { Banknote, Car, Globe, Pencil, Receipt, Rocket, Settings, Star, Ticket, Trash2, Wrench, ArrowLeftRight, Crown, Megaphone } from "lucide-react";
 
 // Onglet « Configuration métier » (Finance) — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -15,19 +16,19 @@ export default function BusinessConfigSection({
     <div className={styles.tabContent}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>⚙️ Configuration métier</h2>
-          <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Commissions, abonnements, boosts, devises, pays, services et publicités — modifiables sans redéploiement. Tous les montants en USD.</p>
+          <h2 className={styles.uiTitreSection}><Settings size={16} aria-hidden="true" /> Configuration métier</h2>
+          <p className={styles.uiSousTitre}>Commissions, abonnements, boosts, devises, pays, services et publicités — modifiables sans redéploiement. Tous les montants en USD.</p>
         </div>
         <button className={styles.btnRefresh} onClick={loadBusinessConfig}>↻ Actualiser</button>
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: "1.25rem", flexWrap: "wrap" }}>
         {[
-          ["commissions", "💰 Commissions"],
-          ["subs_boosts", "⭐ Abonnements & Boosts"],
-          ["currencies", "🌍 Devises & Pays"],
-          ["services_ads", "🛠️ Services & Publicités"],
-          ["discounts", "🎟️ Codes promo"],
+          ["commissions", "Commissions"],
+          ["subs_boosts", "Abonnements & Boosts"],
+          ["currencies", "Devises & Pays"],
+          ["services_ads", "Services & Publicités"],
+          ["discounts", "Codes promo"],
         ].map(([key, label]) => (
           <button key={key} onClick={() => setBizSubTab(key)}
             style={{
@@ -48,7 +49,7 @@ export default function BusinessConfigSection({
           {bizSubTab === "commissions" && commissionsForm && foundingForm && serviceFeeForm && (
             <>
               <div className={styles.chartCard}>
-                <h3 className={styles.chartTitle}>💰 Commissions — Standard vs. Abonné premium</h3>
+                <h3 className={styles.chartTitle}><Banknote size={16} aria-hidden="true" /> Commissions — Standard vs. Abonné premium</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 10 }}>
                   {["standard", "premium"].map((tier) => (
                     <div key={tier}>
@@ -71,7 +72,7 @@ export default function BusinessConfigSection({
                 </div>
                 <button className={styles.btnApprove} style={{ marginTop: 8 }} disabled={bizSaving === "commissions"}
                   onClick={() => savePricingSection("commissions", commissionsForm)}>
-                  {bizSaving === "commissions" ? "…" : "📅 Programmer la modification"}
+                  {bizSaving === "commissions" ? "…" : "Programmer la modification"}
                 </button>
                 <p style={{ fontSize: ".76rem", color: "#64748b", margin: "6px 0 0" }}>
                   Préavis : la nouvelle grille est notifiée aux partenaires et s'applique dans 30 jours, aux transactions créées à partir de cette date. Les transactions existantes gardent leur taux.
@@ -79,9 +80,9 @@ export default function BusinessConfigSection({
               </div>
 
               <div className={styles.chartCard}>
-                <h3 className={styles.chartTitle}>👑 Partenaire Fondateur</h3>
+                <h3 className={styles.chartTitle}><Crown size={16} aria-hidden="true" /> Partenaire Fondateur</h3>
                 <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Durée de l'offre (mois)</label>
+                  <label className={styles.uiLibelle}>Durée de l'offre (mois)</label>
                   <input type="number" min="1" style={{ width: 100, padding: "6px 8px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
                     value={foundingForm.durationMonths}
                     onChange={(e) => setFoundingForm((p) => ({ ...p, durationMonths: Number(e.target.value) }))} />
@@ -108,62 +109,62 @@ export default function BusinessConfigSection({
                 </div>
                 <button className={styles.btnApprove} style={{ marginTop: 8 }} disabled={bizSaving === "foundingPartner"}
                   onClick={() => savePricingSection("foundingPartner", foundingForm)}>
-                  {bizSaving === "foundingPartner" ? "…" : "📅 Programmer la modification (préavis 30 j)"}
+                  {bizSaving === "foundingPartner" ? "…" : "Programmer la modification (préavis 30 j)"}
                 </button>
               </div>
 
               <div className={styles.chartCard}>
-                <h3 className={styles.chartTitle}>🧾 Frais de service client — suspendus</h3>
+                <h3 className={styles.chartTitle}><Receipt size={16} aria-hidden="true" /> Frais de service client — suspendus</h3>
                 <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#64748b" }}>Suspendus depuis le 30/10/2026 (nature, payeur et montant à valider) : aucun frais n'est appliqué, quel que soit le barème ci-dessous, conservé pour mémoire.</p>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, maxWidth: 460 }}>
                   <div>
-                    <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Minimum ($)</label>
+                    <label className={styles.uiLibelle}>Minimum ($)</label>
                     <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
                       value={serviceFeeForm.minUSD} onChange={(e) => setServiceFeeForm((p) => ({ ...p, minUSD: Number(e.target.value) }))} />
                   </div>
                   <div>
-                    <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Pourcentage (%)</label>
+                    <label className={styles.uiLibelle}>Pourcentage (%)</label>
                     <input type="number" min="0" max="100" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
                       value={Math.round(serviceFeeForm.percent * 1000) / 10}
                       onChange={(e) => setServiceFeeForm((p) => ({ ...p, percent: Number(e.target.value) / 100 }))} />
                   </div>
                   <div>
-                    <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Maximum ($)</label>
+                    <label className={styles.uiLibelle}>Maximum ($)</label>
                     <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
                       value={serviceFeeForm.maxUSD} onChange={(e) => setServiceFeeForm((p) => ({ ...p, maxUSD: Number(e.target.value) }))} />
                   </div>
                 </div>
                 <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "serviceFee"}
                   onClick={() => savePricingSection("serviceFee", serviceFeeForm)}>
-                  {bizSaving === "serviceFee" ? "…" : "💾 Enregistrer les frais de service"}
+                  {bizSaving === "serviceFee" ? "…" : "Enregistrer les frais de service"}
                 </button>
               </div>
 
               {importFeeForm && (
                 <div className={styles.chartCard}>
-                  <h3 className={styles.chartTitle}>🌍 Frais de l'estimateur d'import — suspendus</h3>
+                  <h3 className={styles.chartTitle}><Globe size={16} aria-hidden="true" /> Frais de l'estimateur d'import — suspendus</h3>
                   <p style={{ margin: "0 0 10px", fontSize: ".8rem", color: "#64748b" }}>Suspendus depuis le 30/10/2026 : ils s'ajoutaient au total de l'acheteur en plus de la commission exportateur. Aucun frais n'est appliqué ; barème conservé pour mémoire.</p>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, maxWidth: 460 }}>
                     <div>
-                      <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Minimum ($)</label>
+                      <label className={styles.uiLibelle}>Minimum ($)</label>
                       <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
                         value={importFeeForm.minUSD} onChange={(e) => setImportFeeForm((p) => ({ ...p, minUSD: Number(e.target.value) }))} />
                     </div>
                     <div>
-                      <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Pourcentage (%)</label>
+                      <label className={styles.uiLibelle}>Pourcentage (%)</label>
                       <input type="number" min="0" max="100" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
                         value={Math.round(importFeeForm.percent * 1000) / 10}
                         onChange={(e) => setImportFeeForm((p) => ({ ...p, percent: Number(e.target.value) / 100 }))} />
                     </div>
                     <div>
-                      <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Maximum ($)</label>
+                      <label className={styles.uiLibelle}>Maximum ($)</label>
                       <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
                         value={importFeeForm.maxUSD} onChange={(e) => setImportFeeForm((p) => ({ ...p, maxUSD: Number(e.target.value) }))} />
                     </div>
                   </div>
                   <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "importEstimateFee"}
                     onClick={() => savePricingSection("importEstimateFee", importFeeForm)}>
-                    {bizSaving === "importEstimateFee" ? "…" : "💾 Enregistrer les frais d'estimation import"}
+                    {bizSaving === "importEstimateFee" ? "…" : "Enregistrer les frais d'estimation import"}
                   </button>
                 </div>
               )}
@@ -173,11 +174,11 @@ export default function BusinessConfigSection({
           {bizSubTab === "subs_boosts" && subscriptionsForm && boostsForm && (
             <>
               <div className={styles.chartCard}>
-                <h3 className={styles.chartTitle}>⭐ Abonnements (mensuel, USD)</h3>
+                <h3 className={styles.chartTitle}><Star size={16} aria-hidden="true" /> Abonnements (mensuel, USD)</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, maxWidth: 560, marginTop: 10 }}>
                   {[["individuel_plus", "Individuel Plus"], ["business", "Business"], ["exportateur", "Exportateur"]].map(([key, label]) => (
                     <div key={key}>
-                      <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label} ($/mois)</label>
+                      <label className={styles.uiLibelle}>{label} ($/mois)</label>
                       <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
                         value={subscriptionsForm[key]?.priceUSD ?? 0}
                         onChange={(e) => setSubscriptionsForm((p) => ({ ...p, [key]: { priceUSD: Number(e.target.value) } }))} />
@@ -186,16 +187,16 @@ export default function BusinessConfigSection({
                 </div>
                 <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "subscriptions"}
                   onClick={() => savePricingSection("subscriptions", subscriptionsForm)}>
-                  {bizSaving === "subscriptions" ? "…" : "💾 Enregistrer les abonnements"}
+                  {bizSaving === "subscriptions" ? "…" : "Enregistrer les abonnements"}
                 </button>
               </div>
 
               <div className={styles.chartCard}>
-                <h3 className={styles.chartTitle}>🚀 Boosts (mise en avant, USD)</h3>
+                <h3 className={styles.chartTitle}><Rocket size={16} aria-hidden="true" /> Boosts (mise en avant, USD)</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, maxWidth: 700, marginTop: 10 }}>
                   {[["24h", "24 heures"], ["7d", "7 jours"], ["30d", "30 jours"], ["international", "Internationale"]].map(([key, label]) => (
                     <div key={key}>
-                      <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label} ($)</label>
+                      <label className={styles.uiLibelle}>{label} ($)</label>
                       <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
                         value={boostsForm[key] ?? 0}
                         onChange={(e) => setBoostsForm((p) => ({ ...p, [key]: Number(e.target.value) }))} />
@@ -204,13 +205,13 @@ export default function BusinessConfigSection({
                 </div>
                 <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "boosts"}
                   onClick={() => savePricingSection("boosts", boostsForm)}>
-                  {bizSaving === "boosts" ? "…" : "💾 Enregistrer les boosts"}
+                  {bizSaving === "boosts" ? "…" : "Enregistrer les boosts"}
                 </button>
               </div>
 
               {rentalOptsForm && (
                 <div className={styles.chartCard}>
-                  <h3 className={styles.chartTitle}>🚗 Options de location (par jour, USD)</h3>
+                  <h3 className={styles.chartTitle}><Car size={16} aria-hidden="true" /> Options de location (par jour, USD)</h3>
                   <p style={{ fontSize: ".78rem", color: "#64748b", margin: "4px 0 0" }}>
                     Tarif plateforme, appliqué quand le partenaire n'a pas fixé le sien. Les suppléments d'agence
                     (conducteur additionnel, km illimité, remise gare/aéroport) restent à 0 : proposés seulement par
@@ -219,7 +220,7 @@ export default function BusinessConfigSection({
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, maxWidth: 700, marginTop: 10 }}>
                     {[["gps", "GPS"], ["babySeat", "Siège bébé"], ["insurance", "Assurance"], ["driver", "Chauffeur"], ["additionalDriver", "Conducteur additionnel"], ["unlimitedMileage", "Km illimité"], ["airportDelivery", "Remise gare/aéroport (forfait)"]].map(([key, label]) => (
                       <div key={key}>
-                        <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label} ($)</label>
+                        <label className={styles.uiLibelle}>{label} ($)</label>
                         <input type="number" min="0" step="0.01" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 7, fontSize: ".85rem" }}
                           value={rentalOptsForm[key] ?? 0}
                           onChange={(e) => setRentalOptsForm((p) => ({ ...p, [key]: Number(e.target.value) }))} />
@@ -228,14 +229,14 @@ export default function BusinessConfigSection({
                   </div>
                   <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "rentalOptions"}
                     onClick={() => savePricingSection("rentalOptions", rentalOptsForm)}>
-                    {bizSaving === "rentalOptions" ? "…" : "💾 Enregistrer les options de location"}
+                    {bizSaving === "rentalOptions" ? "…" : "Enregistrer les options de location"}
                   </button>
                 </div>
               )}
 
               {fournisseurForm && (
                 <div className={styles.chartCard}>
-                  <h3 className={styles.chartTitle}>🧾 Fournisseur des options — assiette de la commission</h3>
+                  <h3 className={styles.chartTitle}><Receipt size={16} aria-hidden="true" /> Fournisseur des options — assiette de la commission</h3>
                   <p style={{ fontSize: ".78rem", color: "#64748b", margin: "4px 0 0" }}>
                     Seules les options <strong>fournies par VIT AUTO</strong> entrent dans la base de la commission
                     (location, chauffeur, loisirs) ; une option fournie par le partenaire — son assurance, son GPS —
@@ -257,7 +258,7 @@ export default function BusinessConfigSection({
                   </div>
                   <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "rentalOptionsFournisseur"}
                     onClick={() => savePricingSection("rentalOptionsFournisseur", fournisseurForm)}>
-                    {bizSaving === "rentalOptionsFournisseur" ? "…" : "💾 Enregistrer les fournisseurs"}
+                    {bizSaving === "rentalOptionsFournisseur" ? "…" : "Enregistrer les fournisseurs"}
                   </button>
                 </div>
               )}
@@ -268,7 +269,7 @@ export default function BusinessConfigSection({
             <>
               <div className={styles.chartCard}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                  <h3 className={styles.chartTitle} style={{ margin: 0 }}>💱 Devises</h3>
+                  <h3 className={styles.chartTitle} style={{ margin: 0 }}><ArrowLeftRight size={16} aria-hidden="true" /> Devises</h3>
                   <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
                     onClick={() => setRateForm({ code: "", name: "", symbol: "", rateFromUSD: "", active: true })}>+ Nouvelle devise</button>
                 </div>
@@ -288,8 +289,8 @@ export default function BusinessConfigSection({
                             <td><Badge label={r.active ? "Actif" : "Inactif"} color={r.active ? "#10b981" : "#94a3b8"} bg={r.active ? "#ecfdf5" : "#f1f5f9"} /></td>
                             <td>
                               <div className={styles.actionBtns}>
-                                <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setRateForm(r)}>✏️</button>
-                                <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteExchangeRateFn(r._id)}>🗑️</button>
+                                <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setRateForm(r)} aria-label="Modifier"><Pencil size={16} aria-hidden="true" /></button>
+                                <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteExchangeRateFn(r._id)} aria-label="Supprimer"><Trash2 size={16} aria-hidden="true" /></button>
                               </div>
                             </td>
                           </tr>
@@ -302,9 +303,9 @@ export default function BusinessConfigSection({
 
               <div className={styles.chartCard}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                  <h3 className={styles.chartTitle} style={{ margin: 0 }}>🌍 Pays</h3>
+                  <h3 className={styles.chartTitle} style={{ margin: 0 }}><Globe size={16} aria-hidden="true" /> Pays</h3>
                   <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
-                    onClick={() => setCountryForm({ code: "", name: "", flag: "🌍", defaultCurrency: "", locale: "fr-FR", phone: "", languages: ["fr"], paymentMethods: [], deliveryRatePerKm: 200, deliveryBaseRate: 1000, deliveryMaxKm: 100, taxPercent: 0, active: true })}>+ Nouveau pays</button>
+                    onClick={() => setCountryForm({ code: "", name: "", flag: "", defaultCurrency: "", locale: "fr-FR", phone: "", languages: ["fr"], paymentMethods: [], deliveryRatePerKm: 200, deliveryBaseRate: 1000, deliveryMaxKm: 100, taxPercent: 0, active: true })}>+ Nouveau pays</button>
                 </div>
                 {countryConfigs.length === 0 ? (
                   <p style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>Aucun pays configuré.</p>
@@ -323,8 +324,8 @@ export default function BusinessConfigSection({
                             <td><Badge label={c.active ? "Actif" : "Inactif"} color={c.active ? "#10b981" : "#94a3b8"} bg={c.active ? "#ecfdf5" : "#f1f5f9"} /></td>
                             <td>
                               <div className={styles.actionBtns}>
-                                <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setCountryForm(c)}>✏️</button>
-                                <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteCountryConfigFn(c._id)}>🗑️</button>
+                                <button className={styles.btnGhost} style={{ fontSize: ".75rem" }} onClick={() => setCountryForm(c)} aria-label="Modifier"><Pencil size={16} aria-hidden="true" /></button>
+                                <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteCountryConfigFn(c._id)} aria-label="Supprimer"><Trash2 size={16} aria-hidden="true" /></button>
                               </div>
                             </td>
                           </tr>
@@ -340,7 +341,7 @@ export default function BusinessConfigSection({
           {bizSubTab === "services_ads" && servicesForm && adsConfigForm && (
             <>
               <div className={styles.chartCard}>
-                <h3 className={styles.chartTitle}>🛠️ Plateforme de services</h3>
+                <h3 className={styles.chartTitle}><Wrench size={16} aria-hidden="true" /> Plateforme de services</h3>
                 <div className={styles.tableWrap}>
                   <table className={styles.table}>
                     <thead><tr><th>Service</th><th>Activé</th><th>Commission (%)</th><th>Frais fixe ($)</th></tr></thead>
@@ -373,12 +374,12 @@ export default function BusinessConfigSection({
                 </div>
                 <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "services"}
                   onClick={() => savePricingSection("services", servicesForm)}>
-                  {bizSaving === "services" ? "…" : "💾 Enregistrer les services"}
+                  {bizSaving === "services" ? "…" : "Enregistrer les services"}
                 </button>
               </div>
 
               <div className={styles.chartCard}>
-                <h3 className={styles.chartTitle}>📢 Publicités</h3>
+                <h3 className={styles.chartTitle}><Megaphone size={16} aria-hidden="true" /> Publicités</h3>
                 <div className={styles.tableWrap}>
                   <table className={styles.table}>
                     <thead><tr><th>Emplacement</th><th>Prix ($)</th><th>Durée (jours)</th></tr></thead>
@@ -406,7 +407,7 @@ export default function BusinessConfigSection({
                 </div>
                 <button className={styles.btnApprove} style={{ marginTop: 12 }} disabled={bizSaving === "ads"}
                   onClick={() => savePricingSection("ads", adsConfigForm)}>
-                  {bizSaving === "ads" ? "…" : "💾 Enregistrer les publicités"}
+                  {bizSaving === "ads" ? "…" : "Enregistrer les publicités"}
                 </button>
               </div>
             </>
@@ -415,7 +416,7 @@ export default function BusinessConfigSection({
           {bizSubTab === "discounts" && (
             <div className={styles.chartCard}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                <h3 className={styles.chartTitle} style={{ margin: 0 }}>🎟️ Campagnes de réduction</h3>
+                <h3 className={styles.chartTitle} style={{ margin: 0 }}><Ticket size={16} aria-hidden="true" /> Campagnes de réduction</h3>
                 <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
                   onClick={() => setDiscountForm({ code: "", label: "", discountPercent: 10, appliesTo: ["subscriptions", "boosts"], startDate: "", endDate: "", maxRedemptions: "", active: true })}>+ Nouvelle campagne</button>
               </div>
@@ -440,8 +441,8 @@ export default function BusinessConfigSection({
                           <td>
                             <div className={styles.actionBtns}>
                               <button className={styles.btnGhost} style={{ fontSize: ".75rem" }}
-                                onClick={() => setDiscountForm({ ...c, startDate: c.startDate ? c.startDate.slice(0, 10) : "", endDate: c.endDate ? c.endDate.slice(0, 10) : "", maxRedemptions: c.maxRedemptions ?? "" })}>✏️</button>
-                              <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteDiscountCampaignFn(c._id)}>🗑️</button>
+                                onClick={() => setDiscountForm({ ...c, startDate: c.startDate ? c.startDate.slice(0, 10) : "", endDate: c.endDate ? c.endDate.slice(0, 10) : "", maxRedemptions: c.maxRedemptions ?? "" })}><Pencil size={16} aria-hidden="true" /></button>
+                              <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }} onClick={() => deleteDiscountCampaignFn(c._id)} aria-label="Supprimer"><Trash2 size={16} aria-hidden="true" /></button>
                             </div>
                           </td>
                         </tr>

@@ -1,6 +1,7 @@
 import { PLAN_TIER_LABELS } from "../shared.jsx";
 import { PaymentsSection } from "./PaymentsSection.jsx";
 import styles from "../../AdminPanel.module.css";
+import { CheckCircle2, CreditCard, Ticket, XCircle, Gift } from "lucide-react";
 
 // Onglet « Paiements » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -12,9 +13,9 @@ export default function PaiementsSection({
   return (
     <div className={styles.tabContent}>
       <PaymentsSection headers={headers} />
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>
-          💳 Abonnements Pro & Mises en avant — confirmation de paiement
+      <div className={styles.uiEnteteSection}>
+        <h2 className={styles.uiTitre}>
+          <CreditCard size={16} aria-hidden="true" /> Abonnements Pro & Mises en avant — confirmation de paiement
         </h2>
         <button className={styles.btnRefresh} onClick={loadSubRequests}>↻ Actualiser</button>
       </div>
@@ -24,7 +25,7 @@ export default function PaiementsSection({
           L'essai n'exige aucune plomberie de paiement : l'activation passe
           déjà par une confirmation manuelle. */}
       <div className={styles.chartCard} style={{ marginBottom: 20 }}>
-        <h3 className={styles.chartTitle}>🎁 Accorder un essai gratuit de 30 jours</h3>
+        <h3 className={styles.chartTitle}><Gift size={16} aria-hidden="true" /> Accorder un essai gratuit de 30 jours</h3>
         <p style={{ margin: "0 0 12px", fontSize: ".83rem", color: "#64748b" }}>
           Un seul essai par compte, pour toujours. Refusé si le partenaire a déjà un abonnement actif.
         </p>
@@ -87,19 +88,19 @@ export default function PaiementsSection({
                   <div key={p._id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderTop: "1px solid #f1f5f9", flexWrap: "wrap" }}>
                     <div style={{ fontSize: ".88rem" }}>
                       <strong>{PLAN_TIER_LABELS[p.planTier] || p.planTier}</strong> — {fmtUSD(p.amount)} · {p.method} · période {p.period}
-                      {p.promoCode && <span style={{ marginLeft: 8, fontSize: ".72rem", fontWeight: 700, color: "#7c3aed", background: "#ede9fe", padding: "2px 8px", borderRadius: 6 }}>🎟️ {p.promoCode}</span>}
+                      {p.promoCode && <span style={{ marginLeft: 8, fontSize: ".72rem", fontWeight: 700, color: "#7c3aed", background: "#ede9fe", padding: "2px 8px", borderRadius: 6 }}><Ticket size={16} aria-hidden="true" /> {p.promoCode}</span>}
                     </div>
                     <div style={{ display: "flex", gap: 8 }}>
                       <button
                         className={styles.btnPrimary}
                         disabled={subActioning === `${sub._id}:${p._id}`}
                         onClick={() => subAction(`plan/${p._id}/approve`, sub._id, p._id)}
-                      >✅ Confirmer le paiement</button>
+                      ><CheckCircle2 size={16} aria-hidden="true" /> Confirmer le paiement</button>
                       <button
                         className={styles.btnDanger}
                         disabled={subActioning === `${sub._id}:${p._id}`}
                         onClick={() => subAction(`plan/${p._id}/reject`, sub._id, p._id)}
-                      >❌ Rejeter</button>
+                      ><XCircle size={16} aria-hidden="true" /> Rejeter</button>
                     </div>
                   </div>
                 ))}
@@ -107,13 +108,13 @@ export default function PaiementsSection({
                   <div key={b._id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderTop: "1px solid #f1f5f9", flexWrap: "wrap" }}>
                     <div style={{ fontSize: ".88rem" }}>
                       <strong>Mise en avant ({b.tier})</strong> — véhicule #{String(b.vehicle).slice(-6)} · {fmtUSD(b.priceUSD)}
-                      {b.promoCode && <span style={{ marginLeft: 8, fontSize: ".72rem", fontWeight: 700, color: "#7c3aed", background: "#ede9fe", padding: "2px 8px", borderRadius: 6 }}>🎟️ {b.promoCode}</span>}
+                      {b.promoCode && <span style={{ marginLeft: 8, fontSize: ".72rem", fontWeight: 700, color: "#7c3aed", background: "#ede9fe", padding: "2px 8px", borderRadius: 6 }}><Ticket size={16} aria-hidden="true" /> {b.promoCode}</span>}
                     </div>
                     <button
                       className={styles.btnPrimary}
                       disabled={subActioning === `${sub._id}:${b._id}`}
                       onClick={() => subAction(`boost/${b._id}/approve`, sub._id, b._id)}
-                    >✅ Confirmer le paiement</button>
+                    ><CheckCircle2 size={16} aria-hidden="true" /> Confirmer le paiement</button>
                   </div>
                 ))}
               </div>

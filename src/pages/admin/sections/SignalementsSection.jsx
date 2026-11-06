@@ -1,5 +1,6 @@
 import { Badge, fmtDate } from "../shared.jsx";
 import styles from "../../AdminPanel.module.css";
+import { Flag } from "lucide-react";
 
 // Onglet « Signalements » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -8,10 +9,10 @@ export default function SignalementsSection({
 }) {
   return (
     <div className={styles.tabContent}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+      <div className={styles.uiEnteteSection}>
         <div>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🚩 Signalements</h2>
-          <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Signalements envoyés par les utilisateurs sur des annonces, avis ou profils.</p>
+          <h2 className={styles.uiTitreSection}><Flag size={16} aria-hidden="true" /> Signalements</h2>
+          <p className={styles.uiSousTitre}>Signalements envoyés par les utilisateurs sur des annonces, avis ou profils.</p>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <select value={reportFilter} onChange={(e) => setReportFilter(e.target.value)}
@@ -41,8 +42,8 @@ export default function SignalementsSection({
           harcelement: "Harcèlement", autre: "Autre",
         };
         return filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
-            <div style={{ fontSize: "3rem", marginBottom: 12 }}>🚩</div>
+          <div className={styles.uiVide}>
+            <div className={styles.uiVideIcone}><Flag size={16} aria-hidden="true" /></div>
             <p style={{ fontWeight: 600 }}>Aucun signalement pour ce filtre.</p>
           </div>
         ) : (

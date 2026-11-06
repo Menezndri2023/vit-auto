@@ -24,8 +24,8 @@ describe("Configuration métier — suppression d'une devise", () => {
 
     const menu = [...container.querySelectorAll("button")].find((b) => /Configuration métier/.test(b.textContent));
     await act(async () => { fireEvent.click(menu); });
-    await act(async () => { fireEvent.click(await screen.findByText("🌍 Devises & Pays")); });
-    const corbeille = await screen.findByText("🗑️");
+    await act(async () => { fireEvent.click(await screen.findByText("Devises & Pays")); });
+    const corbeille = (await screen.findAllByRole("button", { name: "Supprimer" }))[0];
     await act(async () => { fireEvent.click(corbeille); });
 
     expect(await screen.findByText("Supprimer cette devise ?")).toBeTruthy();

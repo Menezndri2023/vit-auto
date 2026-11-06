@@ -102,6 +102,7 @@ const CRM_PAR_PAGE = 50;
 import { lienPublic } from "../utils/origineApi.js";
 import VitrinePartage from "../components/VitrinePartage/VitrinePartage.jsx";
 import { avecStatutAffiche } from "../utils/contestation";
+import { AlarmClock, AlertTriangle, Ban, Banknote, BarChart3, Bell, Briefcase, Building2, Car, CheckCircle2, ClipboardList, Clock, Compass, CreditCard, FileText, Globe, HandCoins, Hourglass, IdCard, KeyRound, Landmark, Lock, Mail, MessageCircle, Package, PenLine, Pencil, RefreshCw, Sailboat, Save, Search, Settings, Shield, Ship, Star, TrendingUp, Trophy, Truck, UserRound, Users, Wrench, XCircle, Zap, Anchor, Calculator, Crown, Eye, FilePen, Files, Flag, Folder, FolderOpen, Gift, Headphones, Link2, Megaphone, Menu, Palette, Pause, Scale, ScrollText, Smartphone, Stethoscope, Store, Target, Ticket, User, Handshake } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPOSANT PRINCIPAL
@@ -350,7 +351,7 @@ export default function AdminPanel() {
       const r = await fetch(`/api/activities/${activityTransferModal.id}/transfer`, { method: "PATCH", headers, body: JSON.stringify(body) });
       const d = await r.json().catch(() => null);
       if (r.ok) {
-        showToast("✅ Annonce transférée.");
+        showToast("Annonce transférée.");
         setActivityTransferModal(null);
         setActiveActivities((prev) => prev.map((a) => (a._id === activityTransferModal.id ? d.activity : a)));
       } else showToast(d?.message || "Erreur lors du transfert.", "error");
@@ -475,7 +476,7 @@ export default function AdminPanel() {
       const res = await fetch(`/api/payments/${payData.payment._id}/refund`, { method: "POST", headers, body: JSON.stringify({ preuve: { reference: preuve.reference.trim(), effectueLe: preuve.effectueLe || undefined } }) });
       const data = await res.json();
       if (!res.ok) { showToast(data.message || "Erreur.", "error"); return; }
-      showToast("💸 Remboursement enregistré.", "success");
+      showToast("Remboursement enregistré.", "success");
       setPendingManualRefunds((prev) => prev.filter((r) => r.bookingId !== bookingId));
     } catch { showToast("Erreur réseau.", "error"); }
   }, [headers, showToast]);
@@ -800,7 +801,7 @@ export default function AdminPanel() {
       // vide, plafond dépassé) : afficher SON message, pas un « erreur » générique
       // qui laisserait l'admin réessayer à l'aveugle.
       if (!r.ok) { showToast(d?.message || "Ajustement refusé.", "error"); return; }
-      showToast(`✅ Solde ajusté : ${d.points} points.`);
+      showToast(`Solde ajusté : ${d.points} points.`);
       setLoyaltyForm(VIDE_AJUST);
       await openLoyalty(loyaltyModal); // recharge solde + historique
     } catch {
@@ -1126,7 +1127,7 @@ export default function AdminPanel() {
   useEffect(() => {
     return onSocket("refund_needed", ({ bookingId, reference, reason }) => {
       const automatic = /automatiquement/.test(reason || "");
-      showToast(`💸 ${reference || ""} : ${reason || ""}`, automatic ? "success" : "error");
+      showToast(`${reference || ""} : ${reason || ""}`, automatic ? "success" : "error");
       // Cas resté manuel (Orange Money, espèces...) : gardé visible au-delà du
       // toast (3,5s) jusqu'à ce qu'un admin le marque traité — voir
       // handleMarkRefunded ci-dessous.
@@ -1148,7 +1149,7 @@ export default function AdminPanel() {
   useEffect(() => {
     return onSocket("booking_updated", (payload) => {
       refreshPendingListings();
-      if (payload?.reference) showToast(`🔄 Commande ${payload.reference} mise à jour (${payload.status || ""})`, "info");
+      if (payload?.reference) showToast(`Commande ${payload.reference} mise à jour (${payload.status || ""})`, "info");
     });
   }, [onSocket, showToast, refreshPendingListings]);
 
@@ -1159,21 +1160,21 @@ export default function AdminPanel() {
         // la liste juste après (l'admin voit l'annonce elle-même, pas
         // seulement un chiffre qui bouge — voir refreshPendingListings).
         setLiveNewListings((n) => n + 1);
-        showToast(payload.titre || "🚗 Nouvelle annonce à valider", "info");
+        showToast(payload.titre || "Nouvelle annonce à valider", "info");
         refreshPendingListings();
       } else if (payload?.type === "system" && /litige/i.test(payload?.titre || "")) {
         setLiveDisputes((n) => n + 1);
-        showToast(payload.titre || "⚖️ Nouveau litige", "info");
+        showToast(payload.titre || "Nouveau litige", "info");
         refreshPendingListings();
       } else if (payload?.type === "ie_request") {
         // Bug réel corrigé (audit) : createRequest (Import/Export) notifiait
         // déjà l'admin via Notification.insertMany, mais sans émission socket
         // — jamais de rafraîchissement temps réel de l'onglet "Demandes
         // Import/Export", même trou que vehicle/driver comblé plus tôt.
-        showToast(payload.titre || "🌍 Nouvelle demande Import/Export", "info");
+        showToast(payload.titre || "Nouvelle demande Import/Export", "info");
         loadImportExport();
       } else if (payload?.type === "ie_profile" || payload?.type === "ie_listing") {
-        showToast(payload.titre || "📦 Nouveauté Import/Export à examiner", "info");
+        showToast(payload.titre || "Nouveauté Import/Export à examiner", "info");
         loadImporters();
       }
     });
@@ -1642,106 +1643,106 @@ export default function AdminPanel() {
     {
       label: "PILOTAGE",
       items: [
-        { key: "dashboard",  icon: "📊", label: "Vue d'ensemble" },
-        { key: "analytics",  icon: "📈", label: "Analytics" },
-        { key: "direction",  icon: "🧭", label: "Direction" },
+        { key: "dashboard",  icon: <BarChart3 size={16} aria-hidden="true" />, label: "Vue d'ensemble" },
+        { key: "analytics",  icon: <TrendingUp size={16} aria-hidden="true" />, label: "Analytics" },
+        { key: "direction",  icon: <Compass size={16} aria-hidden="true" />, label: "Direction" },
       ],
     },
     {
       label: "COMPTES & CONFORMITÉ",
       items: [
-        { key: "users",         icon: "👥", label: `Comptes (${users.length})` },
-        { key: "kyc",           icon: "🛡️", label: "KYC / Identités",         badge: pendingKyc },
-        { key: "certification", icon: "🏆", label: "Certifications",           badge: pendingCert },
+        { key: "users",         icon: <Users size={16} aria-hidden="true" />, label: `Comptes (${users.length})` },
+        { key: "kyc",           icon: <Shield size={16} aria-hidden="true" />, label: "KYC / Identités",         badge: pendingKyc },
+        { key: "certification", icon: <Trophy size={16} aria-hidden="true" />, label: "Certifications",           badge: pendingCert },
       ],
     },
     {
       label: "PARTENAIRES",
       items: [
-        { key: "partner_verif",    icon: "🔍", label: "Vérification Partenaires", badge: pendingPv },
-        { key: "secteurs",         icon: "🧭", label: "Secteurs d'activité",     badge: secteursPending || undefined },
-        { key: "founding_partners",icon: "🌟", label: "Founding Partners",        badge: foundingPending || undefined },
-        { key: "partner_crm",      icon: "🎯", label: "CRM Partenaires" },
-        { key: "pms_partners",     icon: "🏪", label: "Partner Hub PMS",          badge: pmsShowrooms.filter(s => !s.isPublished).length || undefined },
+        { key: "partner_verif",    icon: <Search size={16} aria-hidden="true" />, label: "Vérification Partenaires", badge: pendingPv },
+        { key: "secteurs",         icon: <Compass size={16} aria-hidden="true" />, label: "Secteurs d'activité",     badge: secteursPending || undefined },
+        { key: "founding_partners",icon: <Star size={16} aria-hidden="true" />, label: "Founding Partners",        badge: foundingPending || undefined },
+        { key: "partner_crm",      icon: <Target size={16} aria-hidden="true" />, label: "CRM Partenaires" },
+        { key: "pms_partners",     icon: <Store size={16} aria-hidden="true" />, label: "Partner Hub PMS",          badge: pmsShowrooms.filter(s => !s.isPublished).length || undefined },
       ],
     },
     {
       label: "ANNONCES & CONTENU",
       items: [
-        { key: "catalogue", icon: "🚗", label: "Annonces & Validations", badge: pendingVeh + pendingDrivers + liveNewListings },
-        { key: "marketing", icon: "🎨", label: "Contenu & Mise en avant" },
-        { key: "ads",           icon: "📢", label: "Publicités & Campagnes" },
+        { key: "catalogue", icon: <Car size={16} aria-hidden="true" />, label: "Annonces & Validations", badge: pendingVeh + pendingDrivers + liveNewListings },
+        { key: "marketing", icon: <Palette size={16} aria-hidden="true" />, label: "Contenu & Mise en avant" },
+        { key: "ads",           icon: <Megaphone size={16} aria-hidden="true" />, label: "Publicités & Campagnes" },
       ],
     },
     {
       label: "LOCATION & SERVICES",
       items: [
-        { key: "bookings",      icon: "📋", label: "Réservations",          badge: pendingBk },
-        { key: "pending_validation", icon: "🕐", label: "Demandes à valider", badge: pendingValidationTotal || undefined },
-        { key: "contrats",      icon: "📑", label: "Contrats" },
-        { key: "chauffeurs",    icon: "👨‍✈️", label: "Chauffeurs",           badge: pendingDrivers },
-        { key: "activites",     icon: "🎈", label: "Activités et Loisirs",     badge: pendingActivities },
-        { key: "rental_policies",  icon: "🚚", label: "Politiques de location" },
-        { key: "financement",   icon: "🏦", label: "Financement" },
-        { key: "assurance",     icon: "🔒", label: "Assurance" },
-        { key: "service_requests", icon: "🧰", label: "Autres services", badge: pendingSvcReq || undefined },
+        { key: "bookings",      icon: <ClipboardList size={16} aria-hidden="true" />, label: "Réservations",          badge: pendingBk },
+        { key: "pending_validation", icon: <Clock size={16} aria-hidden="true" />, label: "Demandes à valider", badge: pendingValidationTotal || undefined },
+        { key: "contrats",      icon: <Files size={16} aria-hidden="true" />, label: "Contrats" },
+        { key: "chauffeurs",    icon: <IdCard size={16} aria-hidden="true" />, label: "Chauffeurs",           badge: pendingDrivers },
+        { key: "activites",     icon: <Sailboat size={16} aria-hidden="true" />, label: "Activités et Loisirs",     badge: pendingActivities },
+        { key: "rental_policies",  icon: <Truck size={16} aria-hidden="true" />, label: "Politiques de location" },
+        { key: "financement",   icon: <Landmark size={16} aria-hidden="true" />, label: "Financement" },
+        { key: "assurance",     icon: <Lock size={16} aria-hidden="true" />, label: "Assurance" },
+        { key: "service_requests", icon: <Wrench size={16} aria-hidden="true" />, label: "Autres services", badge: pendingSvcReq || undefined },
       ],
     },
     {
       label: "VENTE & PIÈCES",
       items: [
-        { key: "sales_leads",   icon: "🎯", label: "Leads vente (essais)" },
-        { key: "pieces",        icon: "🔩", label: "Pièces détachées" },
+        { key: "sales_leads",   icon: <Target size={16} aria-hidden="true" />, label: "Leads vente (essais)" },
+        { key: "pieces",        icon: <Wrench size={16} aria-hidden="true" />, label: "Pièces détachées" },
       ],
     },
     {
       label: "IMPORT-EXPORT & LOGISTIQUE",
       items: [
-        { key: "import_export", icon: "🌍", label: "Transactions I/E",      badge: pendingIe },
-        { key: "exportateurs",  icon: "📦", label: "Partenaires Export",    badge: pendingImp },
-        { key: "dossiers_import", icon: "🚢", label: "Dossiers d'import" },
-        { key: "zone_transit",    icon: "⚓", label: "Zone Transit" },
-        { key: "logistique",      icon: "📦", label: "Logistique" },
-        { key: "transport",     icon: "🚢", label: "Transport Intl." },
-        { key: "import_cost",   icon: "🧮", label: "Coûts Import" },
+        { key: "import_export", icon: <Globe size={16} aria-hidden="true" />, label: "Transactions I/E",      badge: pendingIe },
+        { key: "exportateurs",  icon: <Package size={16} aria-hidden="true" />, label: "Partenaires Export",    badge: pendingImp },
+        { key: "dossiers_import", icon: <Ship size={16} aria-hidden="true" />, label: "Dossiers d'import" },
+        { key: "zone_transit",    icon: <Anchor size={16} aria-hidden="true" />, label: "Zone Transit" },
+        { key: "logistique",      icon: <Package size={16} aria-hidden="true" />, label: "Logistique" },
+        { key: "transport",     icon: <Ship size={16} aria-hidden="true" />, label: "Transport Intl." },
+        { key: "import_cost",   icon: <Calculator size={16} aria-hidden="true" />, label: "Coûts Import" },
       ],
     },
     {
       label: "RÉCLAMATIONS & SUPPORT",
       items: [
-        { key: "litiges",       icon: "⚖️",  label: "Litiges",              badge: disputedBk + liveDisputes },
-        { key: "support",       icon: "🎧", label: "Support Client",           badge: pendingSupport || undefined },
-        { key: "assistance",    icon: "🎫", label: "Demandes d'assistance",    badge: ticketsEnRetard || undefined },
-        { key: "chat_supervision", icon: "👁️", label: "Chats Client↔Partenaire" },
-        { key: "reports",       icon: "🚩", label: "Signalements",             badge: pendingReports || undefined },
-        { key: "reviews",       icon: "⭐", label: "Avis clients" },
+        { key: "litiges",       icon: <Scale size={16} aria-hidden="true" />,  label: "Litiges",              badge: disputedBk + liveDisputes },
+        { key: "support",       icon: <Headphones size={16} aria-hidden="true" />, label: "Support Client",           badge: pendingSupport || undefined },
+        { key: "assistance",    icon: <Ticket size={16} aria-hidden="true" />, label: "Demandes d'assistance",    badge: ticketsEnRetard || undefined },
+        { key: "chat_supervision", icon: <Eye size={16} aria-hidden="true" />, label: "Chats Client↔Partenaire" },
+        { key: "reports",       icon: <Flag size={16} aria-hidden="true" />, label: "Signalements",             badge: pendingReports || undefined },
+        { key: "reviews",       icon: <Star size={16} aria-hidden="true" />, label: "Avis clients" },
       ],
     },
     {
       label: "FINANCE",
       items: [
-        { key: "commissions",     icon: "💰", label: "Commissions" },
-        { key: "reversements",  icon: "💸", label: "Reversements", badge: payoutsPendingCount || undefined },
-        { key: "factures",        icon: "📄", label: "Factures",          badge: pendingInv },
-        { key: "paiements",       icon: "💳", label: "Paiements",         badge: pendingSub || undefined },
-        { key: "business_config", icon: "⚙️", label: "Configuration métier" },
-        { key: "escrow",          icon: "🔐", label: "Séquestre (suspendu)" },
+        { key: "commissions",     icon: <Banknote size={16} aria-hidden="true" />, label: "Commissions" },
+        { key: "reversements",  icon: <HandCoins size={16} aria-hidden="true" />, label: "Reversements", badge: payoutsPendingCount || undefined },
+        { key: "factures",        icon: <FileText size={16} aria-hidden="true" />, label: "Factures",          badge: pendingInv },
+        { key: "paiements",       icon: <CreditCard size={16} aria-hidden="true" />, label: "Paiements",         badge: pendingSub || undefined },
+        { key: "business_config", icon: <Settings size={16} aria-hidden="true" />, label: "Configuration métier" },
+        { key: "escrow",          icon: <Lock size={16} aria-hidden="true" />, label: "Séquestre (suspendu)" },
       ],
     },
     {
       label: "COMMUNICATION",
       items: [
-        { key: "notifications", icon: "🔔", label: "Notifications & Broadcast" },
-        { key: "whatsapp",      icon: "💬", label: "Bot WhatsApp partenaires", badge: pendingWa || undefined },
-        { key: "email_delivery",icon: "📧", label: "Emails & Livraison",       badge: emailFailures.length || undefined },
+        { key: "notifications", icon: <Bell size={16} aria-hidden="true" />, label: "Notifications & Broadcast" },
+        { key: "whatsapp",      icon: <MessageCircle size={16} aria-hidden="true" />, label: "Bot WhatsApp partenaires", badge: pendingWa || undefined },
+        { key: "email_delivery",icon: <Mail size={16} aria-hidden="true" />, label: "Emails & Livraison",       badge: emailFailures.length || undefined },
       ],
     },
     {
       label: "SYSTÈME",
       items: [
-        { key: "roles", icon: "🔑", label: "Rôles & Permissions" },
-        { key: "audit", icon: "📜", label: "Audit Logs" },
-        { key: "system_health", icon: "🩺", label: "Santé système" },
+        { key: "roles", icon: <KeyRound size={16} aria-hidden="true" />, label: "Rôles & Permissions" },
+        { key: "audit", icon: <ScrollText size={16} aria-hidden="true" />, label: "Audit Logs" },
+        { key: "system_health", icon: <Stethoscope size={16} aria-hidden="true" />, label: "Santé système" },
       ],
     },
   ];
@@ -1765,7 +1766,7 @@ export default function AdminPanel() {
       {/* ── Toast ── */}
       {toast && (
         <div className={`${styles.toast} ${toast.type === "error" ? styles.toastError : styles.toastSuccess}`}>
-          {toast.type === "error" ? "❌" : "✅"} {toast.msg}
+          {toast.type === "error" ? <XCircle size={16} aria-hidden="true" /> : <CheckCircle2 size={16} aria-hidden="true" />} {toast.msg}
         </div>
       )}
 
@@ -1777,7 +1778,7 @@ export default function AdminPanel() {
         <div style={{ position: "fixed", bottom: 20, left: 20, zIndex: 9998, display: "flex", flexDirection: "column", gap: 8, maxWidth: 340 }}>
           {pendingManualRefunds.map((r) => (
             <div key={r.bookingId} style={{ background: "#fff", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "10px 14px", boxShadow: "0 4px 16px rgba(0,0,0,.12)" }}>
-              <div style={{ fontSize: ".78rem", fontWeight: 700, color: "#991b1b", marginBottom: 4 }}>💸 {r.reference}</div>
+              <div style={{ fontSize: ".78rem", fontWeight: 700, color: "#991b1b", marginBottom: 4 }}><HandCoins size={16} aria-hidden="true" /> {r.reference}</div>
               <div style={{ fontSize: ".74rem", color: "#64748b", marginBottom: 8 }}>{r.reason}</div>
               <label htmlFor={`ref-remb-${r.bookingId}`} style={{ display: "block", fontSize: ".72rem", fontWeight: 600, color: "#334155" }}>Référence de l'opération (obligatoire)</label>
               <input id={`ref-remb-${r.bookingId}`} placeholder="N° de virement, reçu mobile money…"
@@ -1793,7 +1794,7 @@ export default function AdminPanel() {
                 <button className={styles.btnApprove} style={{ fontSize: ".72rem", padding: "4px 10px" }}
                   disabled={!preuvesRemboursement[r.bookingId]?.reference?.trim()}
                   onClick={() => handleMarkRefunded(r.bookingId, preuvesRemboursement[r.bookingId])}>
-                  ✅ Enregistrer le remboursement effectué
+                  <CheckCircle2 size={16} aria-hidden="true" /> Enregistrer le remboursement effectué
                 </button>
                 <button className={styles.btnSmall} style={{ fontSize: ".72rem" }} onClick={() => setPendingManualRefunds((prev) => prev.filter((x) => x.bookingId !== r.bookingId))}>
                   Ignorer
@@ -1861,7 +1862,7 @@ export default function AdminPanel() {
       {disputeModal && (
         <div className={styles.overlay} onClick={() => setDisputeModal(null)}>
           <div className={styles.confirmBox} style={{ maxWidth:500, width:"95%" }} onClick={e => e.stopPropagation()}>
-            <p className={styles.confirmMsg}>⚖️ Résoudre le litige — {disputeModal.booking.reference}</p>
+            <p className={styles.confirmMsg}><Scale size={16} aria-hidden="true" /> Résoudre le litige — {disputeModal.booking.reference}</p>
             <p style={{ fontSize:".85rem", color:"#64748b", marginBottom:12 }}>
               Client : <strong>{disputeModal.booking.clientInfo?.firstName} {disputeModal.booking.clientInfo?.lastName}</strong><br/>
               Raison : {disputeModal.booking.clientValidation?.disputeReason || "Non précisée"}
@@ -1871,13 +1872,13 @@ export default function AdminPanel() {
                 jamais voir ses éventuels éléments de réponse. */}
             {disputeDocs && (
               <div style={{ marginBottom: 12 }}>
-                <p style={{ margin:"0 0 6px", fontSize:".78rem", fontWeight:700, color:"#0f1b3f" }}>📄 Documents joints à cette réservation :</p>
+                <p style={{ margin:"0 0 6px", fontSize:".78rem", fontWeight:700, color:"#0f1b3f" }}><FileText size={16} aria-hidden="true" /> Documents joints à cette réservation :</p>
                 <ClientDocuments docs={disputeDocs} reference={disputeModal.booking.reference} />
               </div>
             )}
             {disputeModal.booking.partnerDisputeResponse?.respondedAt && (
               <div style={{ background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:8, padding:"8px 12px", marginBottom:12 }}>
-                <p style={{ margin:0, fontSize:".78rem", fontWeight:700, color:"#0f1b3f" }}>💬 Réponse du partenaire :</p>
+                <p style={{ margin:0, fontSize:".78rem", fontWeight:700, color:"#0f1b3f" }}><MessageCircle size={16} aria-hidden="true" /> Réponse du partenaire :</p>
                 <p style={{ margin:"4px 0 0", fontSize:".83rem", color:"#334155" }}>{disputeModal.booking.partnerDisputeResponse.message}</p>
               </div>
             )}
@@ -1885,9 +1886,9 @@ export default function AdminPanel() {
               <label style={{ fontSize:".85rem", fontWeight:600 }}>Décision :</label>
               <select value={disputeResol} onChange={e=>setDisputeResol(e.target.value)}
                 style={{ padding:"0.5rem", borderRadius:8, border:"1.5px solid #e2e8f0", fontSize:".9rem" }}>
-                <option value="completed">✅ Valider — service effectué (marquer terminé)</option>
-                <option value="compensated">💰 Compensation — service partiel (terminé + remboursement partiel)</option>
-                <option value="cancelled">❌ Annuler — service non conforme</option>
+                <option value="completed">Valider — service effectué (marquer terminé)</option>
+                <option value="compensated">Compensation — service partiel (terminé + remboursement partiel)</option>
+                <option value="cancelled">Annuler — service non conforme</option>
               </select>
               <textarea rows={3} placeholder="Note administrative (visible dans les logs)..."
                 value={disputeNote} onChange={e=>setDisputeNote(e.target.value)}
@@ -1896,7 +1897,7 @@ export default function AdminPanel() {
             <div className={styles.confirmActions}>
               <button className={disputeResol==="cancelled"?styles.btnDanger:styles.btnPrimary}
                 onClick={() => { adminResolveDispute(disputeModal.booking._id, disputeResol, disputeNote, disputeResol === "compensated"); setDisputeModal(null); }}>
-                ⚖️ Confirmer la résolution
+                <Scale size={16} aria-hidden="true" /> Confirmer la résolution
               </button>
               <button className={styles.btnGhost} onClick={() => setDisputeModal(null)}>Fermer</button>
             </div>
@@ -1908,7 +1909,7 @@ export default function AdminPanel() {
       {forceModal && (
         <div className={styles.overlay} onClick={() => setForceModal(null)}>
           <div className={styles.confirmBox} style={{ maxWidth:460, width:"95%" }} onClick={e => e.stopPropagation()}>
-            <p className={styles.confirmMsg}>⚡ Forcer la complétion — {forceModal.booking.reference}</p>
+            <p className={styles.confirmMsg}><Zap size={16} aria-hidden="true" /> Forcer la complétion — {forceModal.booking.reference}</p>
             <p style={{ fontSize:".85rem", color:"#64748b", marginBottom:12 }}>
               Cette action finalise la commande sans validation client. À utiliser uniquement si la commande est bloquée.
             </p>
@@ -1925,7 +1926,7 @@ export default function AdminPanel() {
             <div className={styles.confirmActions}>
               <button className={styles.btnPrimary} disabled={!forceNote.trim()}
                 onClick={() => { adminForceComplete(forceModal.booking._id, Number(forceAmount)||forceModal.booking.montantTotal, forceNote); setForceModal(null); }}>
-                ⚡ Finaliser la commande
+                <Zap size={16} aria-hidden="true" /> Finaliser la commande
               </button>
               <button className={styles.btnGhost} onClick={() => setForceModal(null)}>Annuler</button>
             </div>
@@ -1937,7 +1938,7 @@ export default function AdminPanel() {
       {broadcastModal && (
         <div className={styles.overlay} onClick={() => setBroadcastModal(false)}>
           <div className={styles.confirmBox} style={{ maxWidth: 480, width: "95%" }} onClick={(e) => e.stopPropagation()}>
-            <p className={styles.confirmMsg}>📢 Envoyer une notification à tous les utilisateurs</p>
+            <p className={styles.confirmMsg}><Megaphone size={16} aria-hidden="true" /> Envoyer une notification à tous les utilisateurs</p>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginBottom: "0.75rem" }}>
               <input style={{ borderRadius: 8, border: "1px solid #e2e8f0", padding: "0.55rem 0.75rem", fontSize: "0.9rem" }}
                 placeholder="Titre *" value={broadcastForm.titre}
@@ -1960,7 +1961,7 @@ export default function AdminPanel() {
             </div>
             <div className={styles.confirmActions}>
               <button className={styles.btnPrimary} disabled={broadcastSending} onClick={sendBroadcast}>
-                {broadcastSending ? "Envoi..." : "📤 Envoyer"}
+                {broadcastSending ? "Envoi..." : "Envoyer"}
               </button>
               <button className={styles.btnGhost} onClick={() => setBroadcastModal(false)}>Annuler</button>
             </div>
@@ -1978,7 +1979,7 @@ export default function AdminPanel() {
       <aside className={`${styles.sidebar} ${!sidebarOpen ? styles.sidebarCollapsed : styles.sidebarOpen}`}>
         {/* Logo */}
         <div className={styles.sidebarLogo}>
-          <span className={styles.sidebarLogoIcon}>⚙️</span>
+          <span className={styles.sidebarLogoIcon}><Settings size={16} aria-hidden="true" /></span>
           <span className={styles.sidebarLogoText}>VIT-AUTO ERP</span>
         </div>
 
@@ -2025,10 +2026,10 @@ export default function AdminPanel() {
           <button className={styles.menuBtn}
             onClick={() => setSidebarOpen((v) => !v)}
             title={sidebarOpen ? "Réduire le menu" : "Ouvrir le menu"}>
-            {sidebarOpen && !isMobile.current ? "◀" : "☰"}
+            {sidebarOpen && !isMobile.current ? "◀" : <Menu size={16} aria-hidden="true" />}
           </button>
           <span className={styles.topbarTitle}>
-            <IconeMenu cle={activeTab} repli={NAV_GROUPS.flatMap((g) => g.items).find((i) => i.key === activeTab)?.icon || "⚙️"} taille={18} />{" "}
+            <IconeMenu cle={activeTab} repli={NAV_GROUPS.flatMap((g) => g.items).find((i) => i.key === activeTab)?.icon || <Settings size={16} aria-hidden="true" />} taille={18} />{" "}
             {activeLabel}
           </span>
 
@@ -2039,7 +2040,7 @@ export default function AdminPanel() {
               type="text"
               value={globalSearch}
               onChange={(e) => setGlobalSearch(e.target.value)}
-              placeholder="🔎 Rechercher une annonce (tous types)…"
+              placeholder="Rechercher une annonce (tous types)…"
               style={{ width: "100%", padding: "7px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}
             />
             {globalSearchResults && (
@@ -2054,7 +2055,7 @@ export default function AdminPanel() {
                   <>
                     {globalSearchResults.vehicles.length > 0 && (
                       <div style={{ marginBottom: 10 }}>
-                        <p style={{ margin: "0 0 4px", fontSize: ".72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>🚗 Véhicules ({globalSearchResults.vehicles.length})</p>
+                        <p style={{ margin: "0 0 4px", fontSize: ".72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}><Car size={16} aria-hidden="true" /> Véhicules ({globalSearchResults.vehicles.length})</p>
                         {globalSearchResults.vehicles.map((v) => (
                           <div key={v._id || v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 8px", borderRadius: 8, cursor: "pointer" }}
                             onClick={() => { setActiveTab("catalogue"); setGlobalSearch(""); }}>
@@ -2066,7 +2067,7 @@ export default function AdminPanel() {
                     )}
                     {globalSearchResults.drivers.length > 0 && (
                       <div style={{ marginBottom: 10 }}>
-                        <p style={{ margin: "0 0 4px", fontSize: ".72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>👨‍✈️ Chauffeurs ({globalSearchResults.drivers.length})</p>
+                        <p style={{ margin: "0 0 4px", fontSize: ".72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}><IdCard size={16} aria-hidden="true" /> Chauffeurs ({globalSearchResults.drivers.length})</p>
                         {globalSearchResults.drivers.map((d) => (
                           <div key={d._id || d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 8px", borderRadius: 8 }}>
                             <span style={{ fontSize: ".82rem" }}>{d.firstName} {d.lastName} <span style={{ color: "#94a3b8" }}>— {d.title || ""}</span></span>
@@ -2075,7 +2076,7 @@ export default function AdminPanel() {
                               {d._searchStatus === "pending" && (
                                 <button onClick={() => handleGlobalApproveDriver(d._id)}
                                   style={{ fontSize: ".72rem", fontWeight: 700, padding: "3px 8px", borderRadius: 6, border: "1.5px solid #10b981", background: "#ecfdf5", color: "#10b981", cursor: "pointer" }}>
-                                  ✅ Approuver
+                                  <CheckCircle2 size={16} aria-hidden="true" /> Approuver
                                 </button>
                               )}
                             </div>
@@ -2085,7 +2086,7 @@ export default function AdminPanel() {
                     )}
                     {globalSearchResults.listings.length > 0 && (
                       <div>
-                        <p style={{ margin: "0 0 4px", fontSize: ".72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>🌍 Import/Export ({globalSearchResults.listings.length})</p>
+                        <p style={{ margin: "0 0 4px", fontSize: ".72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}><Globe size={16} aria-hidden="true" /> Import/Export ({globalSearchResults.listings.length})</p>
                         {globalSearchResults.listings.map((l) => (
                           <div key={l._id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 8px", borderRadius: 8, cursor: "pointer" }}
                             onClick={() => { setActiveTab("exportateurs"); setGlobalSearch(""); }}>
@@ -2114,7 +2115,7 @@ export default function AdminPanel() {
                   un administrateur général d'un admin restreint, ce qui rendait
                   incompréhensible qu'un onglet soit absent ou qu'une action
                   soit refusée. */}
-              {isGeneralAdmin ? "👑" : "🔐"} {user.firstName} · {isGeneralAdmin ? "Admin général" : "Admin"}
+              {isGeneralAdmin ? <Crown size={16} aria-hidden="true" /> : <Lock size={16} aria-hidden="true" />} {user.firstName} · {isGeneralAdmin ? "Admin général" : "Admin"}
             </button>
 
             {/* Bouton "Voir le site" — retour au site public */}
@@ -2129,14 +2130,14 @@ export default function AdminPanel() {
                 cursor: "pointer", whiteSpace: "nowrap",
               }}
             >
-              🌐 Voir le site
+              <Globe size={16} aria-hidden="true" /> Voir le site
             </button>
 
             <button
               style={{ background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, padding: "7px 12px", fontWeight: 700, fontSize: "0.78rem", cursor: "pointer" }}
               onClick={() => setBroadcastModal(true)} title="Envoyer une notification groupée"
             >
-              📢 Broadcast
+              <Megaphone size={16} aria-hidden="true" /> Broadcast
             </button>
             <button
               style={{ background: "#f1f5f9", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 10px", fontWeight: 700, fontSize: "0.85rem", cursor: "pointer", color: "#0f1b3f" }}
@@ -2167,7 +2168,7 @@ export default function AdminPanel() {
       {loadErrors.length > 0 && (
         <div style={{ background: "#fef2f2", border: "1.5px solid #fecaca", borderRadius: 12, padding: "12px 16px", margin: "0 0 16px" }}>
           <div style={{ fontWeight: 800, color: "#b91c1c", fontSize: ".88rem", marginBottom: 6 }}>
-            ⚠️ {loadErrors.length} section{loadErrors.length > 1 ? "s" : ""} n'{loadErrors.length > 1 ? "ont" : "a"} pas pu être chargée{loadErrors.length > 1 ? "s" : ""}
+            <AlertTriangle size={16} aria-hidden="true" /> {loadErrors.length} section{loadErrors.length > 1 ? "s" : ""} n'{loadErrors.length > 1 ? "ont" : "a"} pas pu être chargée{loadErrors.length > 1 ? "s" : ""}
           </div>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: ".83rem", color: "#7f1d1d", lineHeight: 1.7 }}>
             {loadErrors.map((e) => (
@@ -2277,7 +2278,7 @@ export default function AdminPanel() {
           {loyaltyModal && (
             <div className={styles.overlay} onClick={() => setLoyaltyModal(null)}>
               <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
-                <h3 style={{ margin: "0 0 4px", color: "#0f1b3f", fontSize: "1rem" }}>🎁 Fidélité — {loyaltyModal.firstName} {loyaltyModal.lastName}</h3>
+                <h3 style={{ margin: "0 0 4px", color: "#0f1b3f", fontSize: "1rem" }}><Gift size={16} aria-hidden="true" /> Fidélité — {loyaltyModal.firstName} {loyaltyModal.lastName}</h3>
                 <p style={{ margin: "0 0 16px", fontSize: ".78rem", color: "#94a3b8" }}>
                   Lecture seule — 100 points valent 1 USD de remise. Aucun ajustement manuel : créditer des points revient à créditer de l'argent.
                 </p>
@@ -2285,7 +2286,7 @@ export default function AdminPanel() {
                   <div style={{ textAlign: "center", padding: "2rem 0", color: "#94a3b8" }}>Chargement…</div>
                 ) : loyaltyData ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: ".85rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                    <div className={styles.uiLigneInfo}>
                       <span>Solde dépensable</span>
                       {/* La valeur monétaire est le chiffre utile quand un client
                           conteste une remise — un solde en points seul ne dit pas
@@ -2299,10 +2300,10 @@ export default function AdminPanel() {
                         </span>
                       </strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                    <div className={styles.uiLigneInfo}>
                       <span>Cumul à vie (base du palier)</span><strong>{loyaltyData.lifetimePoints} pts</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                    <div className={styles.uiLigneInfo}>
                       <span>Palier</span>
                       <strong>
                         {loyaltyData.tier?.label || loyaltyData.tier?.key || "—"}
@@ -2310,12 +2311,12 @@ export default function AdminPanel() {
                             coïncider : un écart est précisément ce qu'un admin vient
                             chercher ici, il ne doit pas rester invisible. */}
                         {loyaltyData.storedTier && loyaltyData.tier?.key && loyaltyData.storedTier !== loyaltyData.tier.key && (
-                          <span style={{ color: "#ef4444", marginLeft: 6 }}>⚠️ compte : {loyaltyData.storedTier}</span>
+                          <span style={{ color: "#ef4444", marginLeft: 6 }}><AlertTriangle size={16} aria-hidden="true" /> compte : {loyaltyData.storedTier}</span>
                         )}
                       </strong>
                     </div>
                     {loyaltyData.nextTier && (
-                      <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                      <div className={styles.uiLigneInfo}>
                         <span>Prochain palier</span><strong>{loyaltyData.nextTier.label || loyaltyData.nextTier.key} — encore {loyaltyData.pointsToNextTier} pts</strong>
                       </div>
                     )}
@@ -2334,7 +2335,7 @@ export default function AdminPanel() {
                               <span style={{ color: "#64748b" }}>
                                 {new Date(t.createdAt).toLocaleDateString("fr-FR")} ·{" "}
                                 {t.reason?.startsWith("admin_adjust:")
-                                  ? <>✍️ Ajustement manuel — {t.reason.slice("admin_adjust:".length)}</>
+                                  ? <><PenLine size={16} aria-hidden="true" /> Ajustement manuel — {t.reason.slice("admin_adjust:".length)}</>
                                   : t.reason}
                                 {t.booking?.reference ? ` (${t.booking.reference})` : ""}
                               </span>
@@ -2422,7 +2423,7 @@ export default function AdminPanel() {
           {trustModal && (
             <div className={styles.overlay} onClick={() => setTrustModal(null)}>
               <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
-                <h3 style={{ margin: "0 0 4px", color: "#0f1b3f", fontSize: "1rem" }}>🛡️ Confiance — {trustModal.firstName} {trustModal.lastName}</h3>
+                <h3 style={{ margin: "0 0 4px", color: "#0f1b3f", fontSize: "1rem" }}><Shield size={16} aria-hidden="true" /> Confiance — {trustModal.firstName} {trustModal.lastName}</h3>
                 <p style={{ margin: "0 0 16px", fontSize: ".78rem", color: "#94a3b8" }}>
                   Vue agrégée en lecture seule des 6 systèmes existants — aucune fusion de données.
                 </p>
@@ -2430,28 +2431,28 @@ export default function AdminPanel() {
                   <div style={{ textAlign: "center", padding: "2rem 0", color: "#94a3b8" }}>Chargement…</div>
                 ) : trustOverview ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: ".85rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                    <div className={styles.uiLigneInfo}>
                       <span>Type de vendeur (sellerType)</span><strong>{trustOverview.sellerType || "—"}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                    <div className={styles.uiLigneInfo}>
                       <span>KYC identité</span><strong>{trustOverview.kyc.status || "—"} {trustOverview.kyc.badge ? `(${trustOverview.kyc.badge})` : ""}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                    <div className={styles.uiLigneInfo}>
                       <span>Badge de certification (User)</span><strong>{trustOverview.certificationBadge || "—"}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                    <div className={styles.uiLigneInfo}>
                       <span>Certification partenaire (7 niveaux)</span><strong>{trustOverview.partnerCertification ? `${trustOverview.partnerCertification.status} — ${trustOverview.partnerCertification.badge}` : "aucun dossier"}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                    <div className={styles.uiLigneInfo}>
                       <span>Vérification Partenaire (trust score)</span><strong>{trustOverview.partnerVerification ? `${trustOverview.partnerVerification.status} — ${trustOverview.partnerVerification.trustScore}/100 (${trustOverview.partnerVerification.trustLevel})` : "aucun dossier"}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                    <div className={styles.uiLigneInfo}>
                       <span>Founding Partner</span><strong>{trustOverview.foundingPartner ? `${trustOverview.foundingPartner.isFoundingPartner ? "Oui" : "Non"} — ${trustOverview.foundingPartner.legalEntityType || "—"} — ${trustOverview.foundingPartner.status}` : "aucun dossier"}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                    <div className={styles.uiLigneInfo}>
                       <span>Profil Importateur</span><strong>{trustOverview.importerProfile ? `${trustOverview.importerProfile.status} — ${trustOverview.importerProfile.badgeLevel}` : "aucun dossier"}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
+                    <div className={styles.uiLigneInfo}>
                       <span>Showroom PMS (trust score)</span><strong>{trustOverview.showroom ? `${trustOverview.showroom.trustScore ?? "—"}/100 — ${trustOverview.showroom.isPublished ? "publié" : "non publié"}` : "aucun showroom"}</strong>
                     </div>
 
@@ -2461,12 +2462,12 @@ export default function AdminPanel() {
                         propre dossier. */}
                     {trustOverview.entities?.length > 0 && (
                       <div style={{ padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
-                        <div style={{ fontWeight: 700, marginBottom: 6 }}>🏢 Entités ({trustOverview.entities.length})</div>
+                        <div style={{ fontWeight: 700, marginBottom: 6 }}><Building2 size={16} aria-hidden="true" /> Entités ({trustOverview.entities.length})</div>
                         {trustOverview.entities.map((e, i) => (
                           <div key={e.business?.id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", fontSize: ".8rem", borderTop: i > 0 ? "1px solid #e2e8f0" : "none" }}>
                             <span>{e.business?.companyName || "Entité inconnue"}</span>
                             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <strong>{e.onboarding ? `${e.onboarding.status}${e.onboarding.isFoundingPartner ? " 🌟" : ""}` : "aucun dossier"}</strong>
+                              <strong>{e.onboarding ? <>{e.onboarding.status}{e.onboarding.isFoundingPartner && <Crown size={13} role="img" aria-label="fondateur" style={{ verticalAlign: "-2px", color: "#d97706", marginLeft: 4 }} />}</> : "aucun dossier"}</strong>
                               {/* Renvoi du Founding Partner Program dédié à cette entité, sans
                                   quitter la vue de confiance (accessible depuis Comptes ET
                                   KYC/Vérification Partenaire) — évite d'aller chercher le
@@ -2477,7 +2478,7 @@ export default function AdminPanel() {
                                   disabled={foundingRowActionId === e.onboarding._id}
                                   title="Renvoyer le lien de signature en attente"
                                   style={{ padding: "2px 8px", borderRadius: 6, border: "none", background: "#7c3aed", color: "#fff", fontWeight: 700, fontSize: ".7rem", cursor: foundingRowActionId === e.onboarding._id ? "not-allowed" : "pointer", opacity: foundingRowActionId === e.onboarding._id ? 0.6 : 1 }}>
-                                  🔄 Renvoyer
+                                  <RefreshCw size={16} aria-hidden="true" /> Renvoyer
                                 </button>
                               )}
                             </span>
@@ -2492,7 +2493,7 @@ export default function AdminPanel() {
                         KYC/Founding Partner existants. */}
                     {trustOverview.documents && (
                       <div style={{ padding: "8px 12px", background: "#f8fafc", borderRadius: 8 }}>
-                        <div style={{ fontWeight: 700, marginBottom: 6 }}>📄 Documents</div>
+                        <div style={{ fontWeight: 700, marginBottom: 6 }}><FileText size={16} aria-hidden="true" /> Documents</div>
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: ".8rem", padding: "2px 0" }}>
                           <span>Pièce d'identité (recto)</span><strong>{trustOverview.documents.identityFront ? "✓ fourni" : "—"}</strong>
                         </div>
@@ -2629,7 +2630,7 @@ export default function AdminPanel() {
             <div className={styles.overlay} onClick={() => setReviewModal(null)}>
               <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
                 <h3 style={{ margin: "0 0 16px", color: "#0f1b3f", fontSize: "1rem" }}>
-                  {reviewDecision.status === "verified" ? "✅ Valider le profil importateur" : "❌ Refuser la candidature"}
+                  {reviewDecision.status === "verified" ? "Valider le profil importateur" : "Refuser la candidature"}
                 </h3>
                 <p style={{ fontSize: ".85rem", color: "#475569", margin: "0 0 14px" }}>
                   <strong>{reviewModal.companyName}</strong> — {reviewModal.userId?.firstName} {reviewModal.userId?.lastName}
@@ -2785,7 +2786,7 @@ export default function AdminPanel() {
                           style={{ width: 52, height: 52, borderRadius: 10, objectFit: "contain", border: "1.5px solid #e2e8f0", background: "#fff", padding: 4 }}
                           onError={(e) => { e.target.style.display = "none"; }} />
                       ) : (
-                        <div style={{ width: 52, height: 52, borderRadius: 10, background: "#e0e7ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.6rem" }}>📦</div>
+                        <div style={{ width: 52, height: 52, borderRadius: 10, background: "#e0e7ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.6rem" }}><Package size={16} aria-hidden="true" /></div>
                       )}
                       <div>
                         <h2 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 900, color: "#0f1b3f" }}>{p.companyName}</h2>
@@ -2808,7 +2809,7 @@ export default function AdminPanel() {
                       {p.status !== "verified" && (
                         <button className={styles.btnApprove}
                           onClick={() => { setExporterDetail(null); setReviewModal(p); setReviewDecision({ status: "verified", rejectionReason: "", badgeLevel: "silver" }); }}>
-                          ✅ Valider le dossier
+                          <CheckCircle2 size={16} aria-hidden="true" /> Valider le dossier
                         </button>
                       )}
                       {p.status !== "rejected" && (
@@ -2825,7 +2826,7 @@ export default function AdminPanel() {
                             else showToast("Erreur lors de la suspension.", "error");
                           }}
                           style={{ padding: "7px 16px", borderRadius: 8, border: "1.5px solid #fca5a5", background: "#fef2f2", color: "#dc2626", fontWeight: 700, fontSize: ".82rem", cursor: "pointer" }}>
-                          ⏸ Suspendre
+                          <Pause size={16} aria-hidden="true" /> Suspendre
                         </button>
                       )}
                     </div>
@@ -2835,7 +2836,7 @@ export default function AdminPanel() {
 
                       {/* Infos partenaire (utilisateur) */}
                       <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
-                        <h3 style={{ margin: 0, fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>👤 Informations partenaire</h3>
+                        <h3 style={{ margin: 0, fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}><UserRound size={16} aria-hidden="true" /> Informations partenaire</h3>
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                           {u.profilePhoto ? (
                             <img src={u.profilePhoto} alt="" style={{ width: 54, height: 54, borderRadius: "50%", objectFit: "cover", border: "2px solid #e2e8f0" }} onError={(e) => { e.target.style.display = "none"; }} />
@@ -2852,14 +2853,14 @@ export default function AdminPanel() {
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                           <Row label="Email" value={u.email} />
                           <Row label="Téléphone" value={u.phone} />
-                          <Row label="Statut compte" value={u.isActive === false ? "🚫 Bloqué" : "✅ Actif"} />
+                          <Row label="Statut compte" value={u.isActive === false ? "Bloqué" : "Actif"} />
                           <Row label="Dossier soumis le" value={fmtDate(p.submittedAt)} />
                         </div>
                       </div>
 
                       {/* Infos entreprise */}
                       <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
-                        <h3 style={{ margin: 0, fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>🏢 Informations entreprise</h3>
+                        <h3 style={{ margin: 0, fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}><Building2 size={16} aria-hidden="true" /> Informations entreprise</h3>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                           <Row label="Raison sociale" value={p.companyName} />
                           <Row label="RCCM" value={p.rccm} />
@@ -2875,7 +2876,7 @@ export default function AdminPanel() {
 
                     {/* Activités & portée */}
                     <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px" }}>
-                      <h3 style={{ margin: "0 0 14px", fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>🌍 Activités & portée</h3>
+                      <h3 style={{ margin: "0 0 14px", fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}><Globe size={16} aria-hidden="true" /> Activités & portée</h3>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 14 }}>
                         <div>
                           <div style={{ fontSize: ".72rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 6 }}>Types d'activité</div>
@@ -2922,7 +2923,7 @@ export default function AdminPanel() {
                     {/* Références & description */}
                     {(p.references || p.description) && (
                       <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
-                        <h3 style={{ margin: 0, fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>📝 Présentation & références</h3>
+                        <h3 style={{ margin: 0, fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}><FilePen size={16} aria-hidden="true" /> Présentation & références</h3>
                         {p.description && (
                           <div>
                             <div style={{ fontSize: ".72rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", marginBottom: 4 }}>Description</div>
@@ -2941,7 +2942,7 @@ export default function AdminPanel() {
                     {/* Documents */}
                     {hasDoc && (
                       <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px" }}>
-                        <h3 style={{ margin: "0 0 14px", fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>📁 Documents fournis</h3>
+                        <h3 style={{ margin: "0 0 14px", fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}><Folder size={16} aria-hidden="true" /> Documents fournis</h3>
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px,1fr))", gap: 12 }}>
                           {DOC_KEYS.map(({ key, label }) => p.documents?.[key] ? (
                             <div key={key} style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
@@ -2964,7 +2965,7 @@ export default function AdminPanel() {
 
                     {/* Statut de vérification */}
                     <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px" }}>
-                      <h3 style={{ margin: "0 0 14px", fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>🔍 Statut de vérification</h3>
+                      <h3 style={{ margin: "0 0 14px", fontSize: ".88rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}><Search size={16} aria-hidden="true" /> Statut de vérification</h3>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 12 }}>
                         <Row label="Statut actuel" value={<span style={{ color: stCfg.color, fontWeight: 800 }}>{stCfg.label}</span>} />
                         <Row label="Badge attribué" value={badgeCfg ? `${badgeCfg.icon} ${badgeCfg.label}` : "Aucun"} />
@@ -3112,7 +3113,7 @@ export default function AdminPanel() {
           <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
             {ieTxModal.mode === "dispute" ? (
               <>
-                <h3>⚖️ Trancher le litige</h3>
+                <h3><Scale size={16} aria-hidden="true" /> Trancher le litige</h3>
                 <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
                   Raison invoquée : {ieTxModal.tx.dispute?.reason || "—"}
                 </p>
@@ -3122,22 +3123,22 @@ export default function AdminPanel() {
                 </label>
                 <textarea className={styles.rejectTextarea} placeholder="Résolution / justification..." value={ieTxNote} onChange={(e) => setIeTxNote(e.target.value)} />
                 <div className={styles.confirmActions}>
-                  <button className={styles.btnApprove} onClick={handleResolveIeDispute} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "✅ Confirmer la décision"}</button>
+                  <button className={styles.btnApprove} onClick={handleResolveIeDispute} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "Confirmer la décision"}</button>
                   <button className={styles.btnGhost} onClick={() => setIeTxModal(null)}>Annuler</button>
                 </div>
               </>
             ) : ieTxModal.mode === "inspection" ? (
               <>
-                <h3>🔍 Compléter l'inspection indépendante</h3>
+                <h3><Search size={16} aria-hidden="true" /> Compléter l'inspection indépendante</h3>
                 <textarea className={styles.rejectTextarea} placeholder="Notes du rapport d'inspection..." value={ieTxNote} onChange={(e) => setIeTxNote(e.target.value)} />
                 <div className={styles.confirmActions}>
-                  <button className={styles.btnApprove} onClick={handleCompleteIeInspection} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "✅ Marquer complétée"}</button>
+                  <button className={styles.btnApprove} onClick={handleCompleteIeInspection} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "Marquer complétée"}</button>
                   <button className={styles.btnGhost} onClick={() => setIeTxModal(null)}>Annuler</button>
                 </div>
               </>
             ) : (
               <>
-                <h3>⏳ Vérifier le paiement déclaré</h3>
+                <h3><Hourglass size={16} aria-hidden="true" /> Vérifier le paiement déclaré</h3>
                 <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
                   Méthode : <strong>{ieTxModal.tx.payment?.method || "—"}</strong> · Montant : <strong>{Number(ieTxModal.tx.payment?.amount || 0).toLocaleString("fr-FR")} {ieTxModal.tx.payment?.currency}</strong><br />
                   Référence déclarée : {ieTxModal.tx.payment?.transactionRef || "—"}
@@ -3147,8 +3148,8 @@ export default function AdminPanel() {
                 </p>
                 <textarea className={styles.rejectTextarea} placeholder="Motif (si rejet)..." value={ieTxNote} onChange={(e) => setIeTxNote(e.target.value)} />
                 <div className={styles.confirmActions}>
-                  <button className={styles.btnApprove} onClick={() => handleVerifyIePayment(true)} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "✅ Fonds reçus — sécuriser"}</button>
-                  <button className={styles.btnReject} onClick={() => handleVerifyIePayment(false)} disabled={ieTxSaving}>❌ Rejeter</button>
+                  <button className={styles.btnApprove} onClick={() => handleVerifyIePayment(true)} disabled={ieTxSaving}>{ieTxSaving ? "Envoi…" : "Fonds reçus — sécuriser"}</button>
+                  <button className={styles.btnReject} onClick={() => handleVerifyIePayment(false)} disabled={ieTxSaving}><XCircle size={16} aria-hidden="true" /> Rejeter</button>
                   <button className={styles.btnGhost} onClick={() => setIeTxModal(null)}>Annuler</button>
                 </div>
               </>
@@ -3236,10 +3237,10 @@ export default function AdminPanel() {
       {activeTab === "direction" && <DirectionSection headers={headers} />}
       {activeTab === "analytics" && (
         <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+          <div className={styles.uiEnteteSection}>
             <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>📈 Analytics Avancé</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Chiffre d'affaires, croissance et répartition — 12 derniers mois.</p>
+              <h2 className={styles.uiTitreSection}><TrendingUp size={16} aria-hidden="true" /> Analytics Avancé</h2>
+              <p className={styles.uiSousTitre}>Chiffre d'affaires, croissance et répartition — 12 derniers mois.</p>
             </div>
             <button className={styles.btnRefresh} onClick={loadAnalytics}>↻ Actualiser</button>
           </div>
@@ -3248,16 +3249,16 @@ export default function AdminPanel() {
       )}
       {activeTab === "transport" && (
         <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+          <div className={styles.uiEnteteSection}>
             <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🚢 Transport International</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Suivi logistique des transactions Import/Export en cours d'acheminement.</p>
+              <h2 className={styles.uiTitreSection}><Ship size={16} aria-hidden="true" /> Transport International</h2>
+              <p className={styles.uiSousTitre}>Suivi logistique des transactions Import/Export en cours d'acheminement.</p>
             </div>
             <button className={styles.btnRefresh} onClick={loadIeTransactions}>↻ Actualiser</button>
           </div>
-          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#0f1b3f", margin: "0 0 10px" }}>📦 Assignation transitaire / agent</h3>
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#0f1b3f", margin: "0 0 10px" }}><Package size={16} aria-hidden="true" /> Assignation transitaire / agent</h3>
           <LogisticsAssignmentSection ieTransactions={ieTransactions} loading={ieTxLoading} token={token} onRefresh={loadIeTransactions} />
-          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#0f1b3f", margin: "1.5rem 0 10px" }}>🚢 Acheminement</h3>
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#0f1b3f", margin: "1.5rem 0 10px" }}><Ship size={16} aria-hidden="true" /> Acheminement</h3>
           <TransportSection ieTransactions={ieTransactions} loading={ieTxLoading} />
         </div>
       )}
@@ -3320,20 +3321,20 @@ export default function AdminPanel() {
         <div className={styles.overlay} onClick={() => setRateForm(null)}>
           <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
             <h3 style={{ margin: "0 0 14px", color: "#0f1b3f", fontSize: "1rem" }}>
-              {rateForm._id ? "✏️ Modifier la devise" : "+ Nouvelle devise"}
+              {rateForm._id ? "Modifier la devise" : "+ Nouvelle devise"}
             </h3>
             {[
               ["code", "Code ISO 4217 (ex. MAD)"], ["name", "Nom"], ["symbol", "Symbole"],
             ].map(([key, label]) => (
               <div key={key} style={{ marginBottom: 10 }}>
-                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>{label}</label>
+                <label className={styles.uiLibelle}>{label}</label>
                 <input value={rateForm[key] || ""} disabled={key === "code" && !!rateForm._id}
                   onChange={(e) => setRateForm((p) => ({ ...p, [key]: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
               </div>
             ))}
             <div style={{ marginBottom: 10 }}>
-              <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Taux depuis 1 USD</label>
+              <label className={styles.uiLibelle}>Taux depuis 1 USD</label>
               <input type="number" min="0" step="0.0001" value={rateForm.rateFromUSD}
                 onChange={(e) => setRateForm((p) => ({ ...p, rateFromUSD: e.target.value }))}
                 style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
@@ -3344,7 +3345,7 @@ export default function AdminPanel() {
             </label>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button className={styles.btnGhost} onClick={() => setRateForm(null)}>Annuler</button>
-              <button className={styles.btnApprove} onClick={saveExchangeRate}>💾 Enregistrer</button>
+              <button className={styles.btnApprove} onClick={saveExchangeRate}><Save size={16} aria-hidden="true" /> Enregistrer</button>
             </div>
           </div>
         </div>
@@ -3355,29 +3356,29 @@ export default function AdminPanel() {
         <div className={styles.overlay} onClick={() => setCountryForm(null)}>
           <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <h3 style={{ margin: "0 0 14px", color: "#0f1b3f", fontSize: "1rem" }}>
-              {countryForm._id ? "✏️ Modifier le pays" : "+ Nouveau pays"}
+              {countryForm._id ? "Modifier le pays" : "+ Nouveau pays"}
             </h3>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div>
-                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Code ISO-2 (ex. MA)</label>
+                <label className={styles.uiLibelle}>Code ISO-2 (ex. MA)</label>
                 <input value={countryForm.code} disabled={!!countryForm._id}
                   onChange={(e) => setCountryForm((p) => ({ ...p, code: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
               </div>
               <div>
-                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Nom du pays</label>
+                <label className={styles.uiLibelle}>Nom du pays</label>
                 <input value={countryForm.name}
                   onChange={(e) => setCountryForm((p) => ({ ...p, name: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
               </div>
               <div>
-                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Drapeau (emoji)</label>
+                <label className={styles.uiLibelle}>Drapeau (emoji)</label>
                 <input value={countryForm.flag}
                   onChange={(e) => setCountryForm((p) => ({ ...p, flag: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
               </div>
               <div>
-                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Devise par défaut</label>
+                <label className={styles.uiLibelle}>Devise par défaut</label>
                 <select value={countryForm.defaultCurrency}
                   onChange={(e) => setCountryForm((p) => ({ ...p, defaultCurrency: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }}>
@@ -3386,25 +3387,25 @@ export default function AdminPanel() {
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Locale (ex. fr-FR)</label>
+                <label className={styles.uiLibelle}>Locale (ex. fr-FR)</label>
                 <input value={countryForm.locale || ""}
                   onChange={(e) => setCountryForm((p) => ({ ...p, locale: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
               </div>
               <div>
-                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Indicatif tél. (ex. +225)</label>
+                <label className={styles.uiLibelle}>Indicatif tél. (ex. +225)</label>
                 <input value={countryForm.phone || ""}
                   onChange={(e) => setCountryForm((p) => ({ ...p, phone: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
               </div>
               <div>
-                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Langues (séparées par virgule)</label>
+                <label className={styles.uiLibelle}>Langues (séparées par virgule)</label>
                 <input value={(countryForm.languages || []).join(", ")}
                   onChange={(e) => setCountryForm((p) => ({ ...p, languages: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) }))}
                   placeholder="fr, en" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
               </div>
               <div>
-                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Moyens de paiement (séparés par virgule)</label>
+                <label className={styles.uiLibelle}>Moyens de paiement (séparés par virgule)</label>
                 <input value={(countryForm.paymentMethods || []).join(", ")}
                   onChange={(e) => setCountryForm((p) => ({ ...p, paymentMethods: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) }))}
                   placeholder="card, cash, orange_money, wave, mtn, moov, paypal" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
@@ -3420,7 +3421,7 @@ export default function AdminPanel() {
                 ["deliveryBaseRate", "Livraison base"], ["deliveryRatePerKm", "Livraison /km"], ["deliveryMaxKm", "Livraison max (km)"],
               ].map(([key, label]) => (
                 <div key={key}>
-                  <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label}</label>
+                  <label className={styles.uiLibelle}>{label}</label>
                   <input type="number" min="0" value={countryForm[key]}
                     onChange={(e) => setCountryForm((p) => ({ ...p, [key]: Number(e.target.value) }))}
                     style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
@@ -3428,7 +3429,7 @@ export default function AdminPanel() {
               ))}
             </div>
             <div style={{ marginBottom: 10, maxWidth: 160 }}>
-              <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Taxe locale (%)</label>
+              <label className={styles.uiLibelle}>Taxe locale (%)</label>
               <input type="number" min="0" max="100" step="0.1" value={countryForm.taxPercent}
                 onChange={(e) => setCountryForm((p) => ({ ...p, taxPercent: Number(e.target.value) }))}
                 style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
@@ -3439,7 +3440,7 @@ export default function AdminPanel() {
             </label>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button className={styles.btnGhost} onClick={() => setCountryForm(null)}>Annuler</button>
-              <button className={styles.btnApprove} onClick={saveCountryConfig}>💾 Enregistrer</button>
+              <button className={styles.btnApprove} onClick={saveCountryConfig}><Save size={16} aria-hidden="true" /> Enregistrer</button>
             </div>
           </div>
         </div>
@@ -3450,24 +3451,24 @@ export default function AdminPanel() {
         <div className={styles.overlay} onClick={() => setDiscountForm(null)}>
           <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
             <h3 style={{ margin: "0 0 14px", color: "#0f1b3f", fontSize: "1rem" }}>
-              {discountForm._id ? "✏️ Modifier la campagne" : "+ Nouvelle campagne"}
+              {discountForm._id ? "Modifier la campagne" : "+ Nouvelle campagne"}
             </h3>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div>
-                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Code promo</label>
+                <label className={styles.uiLibelle}>Code promo</label>
                 <input value={discountForm.code} disabled={!!discountForm._id}
                   onChange={(e) => setDiscountForm((p) => ({ ...p, code: e.target.value.toUpperCase() }))}
                   placeholder="LAUNCH50" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
               </div>
               <div>
-                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Réduction (%)</label>
+                <label className={styles.uiLibelle}>Réduction (%)</label>
                 <input type="number" min="1" max="100" value={discountForm.discountPercent}
                   onChange={(e) => setDiscountForm((p) => ({ ...p, discountPercent: Number(e.target.value) }))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
               </div>
             </div>
             <div style={{ marginBottom: 10 }}>
-              <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Libellé (optionnel)</label>
+              <label className={styles.uiLibelle}>Libellé (optionnel)</label>
               <input value={discountForm.label || ""}
                 onChange={(e) => setDiscountForm((p) => ({ ...p, label: e.target.value }))}
                 placeholder="Lancement France" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
@@ -3490,20 +3491,20 @@ export default function AdminPanel() {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div>
-                <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Début (optionnel)</label>
+                <label className={styles.uiLibelle}>Début (optionnel)</label>
                 <input type="date" value={discountForm.startDate || ""}
                   onChange={(e) => setDiscountForm((p) => ({ ...p, startDate: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
               </div>
               <div>
-                <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Fin (optionnel)</label>
+                <label className={styles.uiLibelle}>Fin (optionnel)</label>
                 <input type="date" value={discountForm.endDate || ""}
                   onChange={(e) => setDiscountForm((p) => ({ ...p, endDate: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
               </div>
             </div>
             <div style={{ marginBottom: 10, maxWidth: 220 }}>
-              <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Limite d'utilisations (vide = illimité)</label>
+              <label className={styles.uiLibelle}>Limite d'utilisations (vide = illimité)</label>
               <input type="number" min="1" value={discountForm.maxRedemptions ?? ""}
                 onChange={(e) => setDiscountForm((p) => ({ ...p, maxRedemptions: e.target.value === "" ? "" : Number(e.target.value) }))}
                 style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
@@ -3514,7 +3515,7 @@ export default function AdminPanel() {
             </label>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button className={styles.btnGhost} onClick={() => setDiscountForm(null)}>Annuler</button>
-              <button className={styles.btnApprove} onClick={saveDiscountCampaign}>💾 Enregistrer</button>
+              <button className={styles.btnApprove} onClick={saveDiscountCampaign}><Save size={16} aria-hidden="true" /> Enregistrer</button>
             </div>
           </div>
         </div>
@@ -3525,10 +3526,10 @@ export default function AdminPanel() {
         <div className={styles.overlay} onClick={() => setCostConfigForm(null)}>
           <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
             <h3 style={{ margin: "0 0 14px", color: "#0f1b3f", fontSize: "1rem" }}>
-              {costConfigForm._id ? "✏️ Modifier le barème" : "+ Nouveau barème pays"}
+              {costConfigForm._id ? "Modifier le barème" : "+ Nouveau barème pays"}
             </h3>
             <div style={{ marginBottom: 10 }}>
-              <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Pays de destination *</label>
+              <label className={styles.uiLibelle}>Pays de destination *</label>
               <input value={costConfigForm.country} disabled={!!costConfigForm._id}
                 onChange={(e) => setCostConfigForm((p) => ({ ...p, country: e.target.value }))}
                 placeholder="Côte d'Ivoire" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
@@ -3542,7 +3543,7 @@ export default function AdminPanel() {
                 ["ageSurchargeThresholdYears", "Seuil d'âge surtaxe (ans)"], ["ageSurchargePercent", "Surtaxe véhicule ancien (%)"],
               ].map(([key, label]) => (
                 <div key={key}>
-                  <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>{label}</label>
+                  <label className={styles.uiLibelle}>{label}</label>
                   <input type="number" value={costConfigForm[key]}
                     onChange={(e) => setCostConfigForm((p) => ({ ...p, [key]: e.target.value }))}
                     style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
@@ -3566,17 +3567,17 @@ export default function AdminPanel() {
         <div className={styles.overlay} onClick={() => setLaneForm(null)}>
           <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
             <h3 style={{ margin: "0 0 14px", color: "#0f1b3f", fontSize: "1rem" }}>
-              {laneForm._id ? "✏️ Modifier la liaison" : "+ Nouvelle liaison de fret"}
+              {laneForm._id ? "Modifier la liaison" : "+ Nouvelle liaison de fret"}
             </h3>
             <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Pays d'origine *</label>
+                <label className={styles.uiLibelle}>Pays d'origine *</label>
                 <input value={laneForm.sourceCountry} disabled={!!laneForm._id}
                   onChange={(e) => setLaneForm((p) => ({ ...p, sourceCountry: e.target.value }))}
                   placeholder="Chine" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
               </div>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: ".8rem", fontWeight: 700, color: "#334155", display: "block", marginBottom: 4 }}>Pays de destination *</label>
+                <label className={styles.uiLibelle}>Pays de destination *</label>
                 <input value={laneForm.destCountry} disabled={!!laneForm._id}
                   onChange={(e) => setLaneForm((p) => ({ ...p, destCountry: e.target.value }))}
                   placeholder="Côte d'Ivoire" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
@@ -3584,13 +3585,13 @@ export default function AdminPanel() {
             </div>
             <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Fret maritime ($) *</label>
+                <label className={styles.uiLibelle}>Fret maritime ($) *</label>
                 <input type="number" value={laneForm.seaFreightUSD}
                   onChange={(e) => setLaneForm((p) => ({ ...p, seaFreightUSD: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
               </div>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Transport intérieur ($)</label>
+                <label className={styles.uiLibelle}>Transport intérieur ($)</label>
                 <input type="number" value={laneForm.inlandTransportUSD}
                   onChange={(e) => setLaneForm((p) => ({ ...p, inlandTransportUSD: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
@@ -3598,12 +3599,12 @@ export default function AdminPanel() {
             </div>
             <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Compagnie (optionnel)</label>
+                <label className={styles.uiLibelle}>Compagnie (optionnel)</label>
                 <input value={laneForm.carrier || ""} onChange={(e) => setLaneForm((p) => ({ ...p, carrier: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
               </div>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: ".78rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 4 }}>Délai estimé (jours)</label>
+                <label className={styles.uiLibelle}>Délai estimé (jours)</label>
                 <input type="number" value={laneForm.estimatedDelayDays || ""} onChange={(e) => setLaneForm((p) => ({ ...p, estimatedDelayDays: e.target.value }))}
                   style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />
               </div>
@@ -3618,10 +3619,10 @@ export default function AdminPanel() {
 
       {activeTab === "financement" && (
         <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+          <div className={styles.uiEnteteSection}>
             <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🏦 Financement Automobile</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Demandes de leasing (LOA) et crédit classique — décision manuelle en attendant une intégration bancaire.</p>
+              <h2 className={styles.uiTitreSection}><Landmark size={16} aria-hidden="true" /> Financement Automobile</h2>
+              <p className={styles.uiSousTitre}>Demandes de leasing (LOA) et crédit classique — décision manuelle en attendant une intégration bancaire.</p>
             </div>
             <button className={styles.btnRefresh} onClick={loadFinancing}>↻ Actualiser</button>
           </div>
@@ -3633,7 +3634,7 @@ export default function AdminPanel() {
       {financingModal && (
         <div className={styles.overlay} onClick={() => setFinancingModal(null)}>
           <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
-            <h3>{financingModal.decision === "accepte" ? "✅ Accepter le financement" : "❌ Refuser le financement"}</h3>
+            <h3>{financingModal.decision === "accepte" ? "Accepter le financement" : "Refuser le financement"}</h3>
             <textarea className={styles.rejectTextarea} placeholder="Note pour le client (optionnel)…" value={financingNote} onChange={(e) => setFinancingNote(e.target.value)} />
             <div className={styles.confirmActions}>
               <button className={styles.btnApprove} onClick={submitFinancingDecision} disabled={financingSaving}>{financingSaving ? "Envoi…" : "Confirmer"}</button>
@@ -3644,10 +3645,10 @@ export default function AdminPanel() {
       )}
       {activeTab === "assurance" && (
         <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+          <div className={styles.uiEnteteSection}>
             <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🔒 Assurance Automobile</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Demandes auto/location/import — décision manuelle en attendant une intégration assureur.</p>
+              <h2 className={styles.uiTitreSection}><Lock size={16} aria-hidden="true" /> Assurance Automobile</h2>
+              <p className={styles.uiSousTitre}>Demandes auto/location/import — décision manuelle en attendant une intégration assureur.</p>
             </div>
             <button className={styles.btnRefresh} onClick={loadInsurance}>↻ Actualiser</button>
           </div>
@@ -3659,7 +3660,7 @@ export default function AdminPanel() {
       {insuranceModal && (
         <div className={styles.overlay} onClick={() => setInsuranceModal(null)}>
           <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
-            <h3>{insuranceModal.status === "approved" ? "✅ Approuver la demande" : "❌ Refuser la demande"}</h3>
+            <h3>{insuranceModal.status === "approved" ? "Approuver la demande" : "Refuser la demande"}</h3>
             {insuranceModal.status === "approved" && (
               <input type="number" placeholder="Prime proposée (USD)" value={insurancePremium}
                 onChange={(e) => setInsurancePremium(e.target.value)}
@@ -3690,10 +3691,10 @@ export default function AdminPanel() {
 
       {activeTab === "service_requests" && (
         <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+          <div className={styles.uiEnteteSection}>
             <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🧰 Autres services</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Transport, transit, douanes, immatriculation, garantie, financement, change de devises — décision manuelle en attendant une intégration prestataire.</p>
+              <h2 className={styles.uiTitreSection}><Wrench size={16} aria-hidden="true" /> Autres services</h2>
+              <p className={styles.uiSousTitre}>Transport, transit, douanes, immatriculation, garantie, financement, change de devises — décision manuelle en attendant une intégration prestataire.</p>
             </div>
             <button className={styles.btnRefresh} onClick={loadServiceRequests}>↻ Actualiser</button>
           </div>
@@ -3705,7 +3706,7 @@ export default function AdminPanel() {
       {svcReqModal && (
         <div className={styles.overlay} onClick={() => setSvcReqModal(null)}>
           <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()}>
-            <h3>{svcReqModal.status === "approved" ? "✅ Approuver la demande" : "❌ Refuser la demande"}</h3>
+            <h3>{svcReqModal.status === "approved" ? "Approuver la demande" : "Refuser la demande"}</h3>
             {svcReqModal.status === "approved" && (
               <input type="number" placeholder="Devis proposé (USD)" value={svcReqAmount}
                 onChange={(e) => setSvcReqAmount(e.target.value)}
@@ -3778,10 +3779,10 @@ export default function AdminPanel() {
 
       {activeTab === "escrow" && (
         <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+          <div className={styles.uiEnteteSection}>
             <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🔐 Ancien séquestre Import/Export — suspendu</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Depuis le 30/10/2026, VIT AUTO n'encaisse, ne bloque ni ne libère aucun fonds : acheteur et exportateur se règlent directement. Cette liste sert à régulariser les transactions ouvertes avant la suspension.</p>
+              <h2 className={styles.uiTitreSection}><Lock size={16} aria-hidden="true" /> Ancien séquestre Import/Export — suspendu</h2>
+              <p className={styles.uiSousTitre}>Depuis le 30/10/2026, VIT AUTO n'encaisse, ne bloque ni ne libère aucun fonds : acheteur et exportateur se règlent directement. Cette liste sert à régulariser les transactions ouvertes avant la suspension.</p>
             </div>
             <button className={styles.btnRefresh} onClick={loadIeTransactions}>↻ Actualiser</button>
           </div>
@@ -3840,28 +3841,28 @@ export default function AdminPanel() {
       {activeTab === "founding_partners" && (() => {
         const ST = {
           brouillon:    { l: "Brouillon",      c: "#94a3b8", bg: "#f8fafc" },
-          soumis:       { l: "Soumis ⏳",      c: "#d97706", bg: "#fef3c7" },
+          soumis:       { l: "Soumis",      c: "#d97706", bg: "#fef3c7" },
           en_review:    { l: "En Review",      c: "#3b82f6", bg: "#eff6ff" },
           loi_envoyee:  { l: "LOI Envoyée",    c: "#7c3aed", bg: "#f5f3ff" },
           loi_signee:   { l: "LOI Signée ✓",  c: "#059669", bg: "#d1fae5" },
           accord_envoye:{ l: "Accord Envoyé",  c: "#f59e0b", bg: "#fff7ed" },
           accord_signe: { l: "Accord Signé ✓", c: "#059669", bg: "#d1fae5" },
-          actif:        { l: "Actif 🌟",       c: "#16a34a", bg: "#dcfce7" },
+          actif:        { l: "Actif",       c: "#16a34a", bg: "#dcfce7" },
           rejete:       { l: "Rejeté",         c: "#dc2626", bg: "#fee2e2" },
           info_demandee:{ l: "Info Requise",   c: "#d97706", bg: "#fef3c7" },
-          aucun_dossier:{ l: "Sans dossier ⚠️", c: "#dc2626", bg: "#fee2e2" },
+          aucun_dossier:{ l: "Sans dossier", c: "#dc2626", bg: "#fee2e2" },
         };
         return (
           <div className={styles.tabContent}>
             {/* Header + vue toggle */}
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1rem", flexWrap:"wrap", gap:12 }}>
               <div>
-                <h2 style={{ fontSize:"1.1rem", fontWeight:800, color:"#0f1b3f", margin:"0 0 3px" }}>🌟 Founding Partners</h2>
-                <p style={{ margin:0, fontSize:".83rem", color:"#64748b" }}>Étape obligatoire de tout partenaire — aucune limite de places.</p>
+                <h2 className={styles.uiTitreSection}><Star size={16} aria-hidden="true" /> Founding Partners</h2>
+                <p className={styles.uiSousTitre}>Étape obligatoire de tout partenaire — aucune limite de places.</p>
               </div>
               <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                 <div style={{ display:"flex", background:"#f1f5f9", borderRadius:10, padding:3, gap:2 }}>
-                  {[{v:"onboarding",l:"📋 Onboarding"},{v:"crm",l:"🗂️ CRM Directory"}].map(({v,l})=>(
+                  {[{v:"onboarding",l:"Onboarding"},{v:"crm",l:"CRM Directory"}].map(({v,l})=>(
                     <button key={v} onClick={()=>setFoundingView(v)}
                       style={{ padding:"6px 14px", borderRadius:8, border:"none", fontWeight:700, fontSize:".8rem", cursor:"pointer",
                         background: foundingView===v ? "#0f1b3f" : "transparent",
@@ -3877,13 +3878,13 @@ export default function AdminPanel() {
             {/* KPIs */}
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:12, marginBottom:"1.2rem" }}>
               {[
-                { icon:"📋", label:"Total dossiers",    value: foundingStats?.total        || 0, color:"#0f1b3f" },
-                { icon:"⏳", label:"En attente",         value: foundingPending              || 0, color:"#d97706" },
-                { icon:"✍️", label:"LOI envoyées",       value: foundingStats?.byStatus?.loi_envoyee || 0, color:"#7c3aed" },
-                { icon:"📜", label:"Accords envoyés",    value: foundingStats?.byStatus?.accord_envoye || 0, color:"#f59e0b" },
-                { icon:"🌟", label:"Fondateurs actifs",  value: foundingStats?.activeFounders || 0, color:"#16a34a" },
-                { icon:"❌", label:"Rejetés",             value: foundingStats?.byStatus?.rejete || 0, color:"#dc2626" },
-                { icon:"⚠️", label:"Sans dossier",        value: foundingList.filter(o => o.noDossier).length, color:"#dc2626" },
+                { icon:<ClipboardList size={16} aria-hidden="true" />, label:"Total dossiers",    value: foundingStats?.total        || 0, color:"#0f1b3f" },
+                { icon:<Hourglass size={16} aria-hidden="true" />, label:"En attente",         value: foundingPending              || 0, color:"#d97706" },
+                { icon:<PenLine size={16} aria-hidden="true" />, label:"LOI envoyées",       value: foundingStats?.byStatus?.loi_envoyee || 0, color:"#7c3aed" },
+                { icon:<ScrollText size={16} aria-hidden="true" />, label:"Accords envoyés",    value: foundingStats?.byStatus?.accord_envoye || 0, color:"#f59e0b" },
+                { icon:<Star size={16} aria-hidden="true" />, label:"Fondateurs actifs",  value: foundingStats?.activeFounders || 0, color:"#16a34a" },
+                { icon:<XCircle size={16} aria-hidden="true" />, label:"Rejetés",             value: foundingStats?.byStatus?.rejete || 0, color:"#dc2626" },
+                { icon:<AlertTriangle size={16} aria-hidden="true" />, label:"Sans dossier",        value: foundingList.filter(o => o.noDossier).length, color:"#dc2626" },
               ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
             </div>
 
@@ -3893,7 +3894,7 @@ export default function AdminPanel() {
                 interested: { l:"Intéressé",  c:"#d97706", bg:"#fef3c7" },
                 reserved:   { l:"Réservé",    c:"#7c3aed", bg:"#f5f3ff" },
                 verified:   { l:"Vérifié ✓",  c:"#0284c7", bg:"#e0f2fe" },
-                active:     { l:"Actif 🌟",   c:"#16a34a", bg:"#dcfce7" },
+                active:     { l:"Actif",   c:"#16a34a", bg:"#dcfce7" },
                 inactive:   { l:"Inactif",    c:"#94a3b8", bg:"#f8fafc" },
               };
               const PRIORITY_ST = {
@@ -3937,7 +3938,7 @@ export default function AdminPanel() {
                     <div style={{ textAlign:"center", padding:"2rem", color:"#94a3b8" }}>Chargement…</div>
                   ) : filtered.length === 0 ? (
                     <div style={{ textAlign:"center", padding:"2rem", color:"#94a3b8" }}>
-                      <div style={{ fontSize:"2rem", marginBottom:8 }}>🗂️</div>
+                      <div style={{ fontSize:"2rem", marginBottom:8 }}><FolderOpen size={16} aria-hidden="true" /></div>
                       <p style={{ fontWeight:600 }}>Aucun partenaire dans ce filtre.</p>
                     </div>
                   ) : (
@@ -3972,9 +3973,9 @@ export default function AdminPanel() {
                                   {ci.mainContact || `${(o.userId?.firstName||"")} ${(o.userId?.lastName||"")}`}
                                   <CountryFlag code={o.userId?.country} countriesConfig={COUNTRIES_CONFIG} />
                                 </div>
-                                {ci.whatsapp && <div style={{ color:"#16a34a", marginTop:1 }}>📱 {ci.whatsapp}</div>}
-                                {ci.wechat   && <div style={{ color:"#07c160", marginTop:1 }}>💬 {ci.wechat}</div>}
-                                {ci.email    && <div style={{ color:"#3b82f6", marginTop:1 }}>✉️ {ci.email}</div>}
+                                {ci.whatsapp && <div style={{ color:"#16a34a", marginTop:1 }}><Smartphone size={16} aria-hidden="true" /> {ci.whatsapp}</div>}
+                                {ci.wechat   && <div style={{ color:"#07c160", marginTop:1 }}><MessageCircle size={16} aria-hidden="true" /> {ci.wechat}</div>}
+                                {ci.email    && <div style={{ color:"#3b82f6", marginTop:1 }}><Mail size={16} aria-hidden="true" /> {ci.email}</div>}
                               </div>
                               {/* Dernière contact / Next follow-up */}
                               <div style={{ fontSize:".78rem" }}>
@@ -3988,13 +3989,13 @@ export default function AdminPanel() {
                                   Prochain suivi : <strong style={{ color: overdue(crm.nextFollowUpDate) ? "#dc2626" : "#0f1b3f" }}>
                                     {crm.nextFollowUpDate ? new Date(crm.nextFollowUpDate).toLocaleDateString("fr-FR") : "—"}
                                   </strong>
-                                  {overdue(crm.nextFollowUpDate) && <span style={{ color:"#dc2626", fontWeight:700 }}> ⚠️ En retard</span>}
+                                  {overdue(crm.nextFollowUpDate) && <span style={{ color:"#dc2626", fontWeight:700 }}> <AlertTriangle size={16} aria-hidden="true" /> En retard</span>}
                                 </div>
                                 {crm.internalNotes && (
                                   <div style={{ marginTop:4, color:"#64748b", fontSize:".72rem", fontStyle:"italic",
                                     overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:200 }}
                                     title={crm.internalNotes}>
-                                    📝 {crm.internalNotes}
+                                    <FilePen size={16} aria-hidden="true" /> {crm.internalNotes}
                                   </div>
                                 )}
                               </div>
@@ -4019,7 +4020,7 @@ export default function AdminPanel() {
                                 }})}
                                   style={{ padding:"5px 10px", border:"1.5px solid #e2e8f0", borderRadius:8, background: isEdit ? "#0f1b3f" : "#fff",
                                     color: isEdit ? "#fff" : "#64748b", fontWeight:700, fontSize:".75rem", cursor:"pointer" }}>
-                                  {isEdit ? "✕" : "✏️"}
+                                  {isEdit ? "✕" : <Pencil size={16} aria-hidden="true" />}
                                 </button>
                                 {ci.whatsapp && (
                                   <a href={`https://wa.me/${ci.whatsapp.replace(/\D/g,"")}`} target="_blank" rel="noopener noreferrer"
@@ -4105,7 +4106,7 @@ export default function AdminPanel() {
                                   </button>
                                   <button onClick={() => foundingUpdateCRM(o._id, editData)}
                                     style={{ padding:"7px 18px", border:"none", borderRadius:8, background:"#0f1b3f", color:"#fff", fontWeight:800, fontSize:".82rem", cursor:"pointer" }}>
-                                    💾 Sauvegarder
+                                    <Save size={16} aria-hidden="true" /> Sauvegarder
                                   </button>
                                 </div>
                               </div>
@@ -4145,7 +4146,7 @@ export default function AdminPanel() {
               return (
                 <div style={{ background:"#fff", border:"2px solid #e2e8f0", borderRadius:14, padding:"18px 20px", marginBottom:"1.5rem" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
-                    <span style={{ fontSize:"1.3rem" }}>🔗</span>
+                    <span style={{ fontSize:"1.3rem" }}><Link2 size={16} aria-hidden="true" /></span>
                     <div>
                       <div style={{ fontWeight:800, fontSize:".9rem", color:"#0f1b3f" }}>Lien d'invitation universel</div>
                       <div style={{ fontSize:".76rem", color:"#64748b" }}>À envoyer à n'importe quel partenaire potentiel — fonctionne pour tout le monde, tant qu'il reste des places</div>
@@ -4157,7 +4158,7 @@ export default function AdminPanel() {
                     <button
                       onClick={() => { navigator.clipboard.writeText(inviteLink); showToast("Lien copié !", "success"); }}
                       style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#0f1b3f", color:"#fff", fontWeight:700, fontSize:".78rem", cursor:"pointer", whiteSpace:"nowrap" }}>
-                      📋 Copier
+                      <ClipboardList size={16} aria-hidden="true" /> Copier
                     </button>
                   </div>
                   {/* Boutons de partage */}
@@ -4169,11 +4170,11 @@ export default function AdminPanel() {
                     </a>
                     <a href={`mailto:?subject=${mailSubject}&body=${mailBody}`}
                       style={{ display:"inline-flex", alignItems:"center", gap:7, background:"#3b82f6", color:"#fff", textDecoration:"none", padding:"9px 16px", borderRadius:10, fontWeight:800, fontSize:".82rem" }}>
-                      ✉️ Email
+                      <Mail size={16} aria-hidden="true" /> Email
                     </a>
                     <a href={inviteLink} target="_blank" rel="noopener noreferrer"
                       style={{ display:"inline-flex", alignItems:"center", gap:7, background:"#f8fafc", color:"#0f1b3f", textDecoration:"none", padding:"9px 16px", borderRadius:10, fontWeight:700, fontSize:".82rem", border:"1.5px solid #e2e8f0" }}>
-                      👁 Aperçu
+                      <Eye size={16} aria-hidden="true" /> Aperçu
                     </a>
                   </div>
                   <p style={{ margin:"10px 0 0", fontSize:".73rem", color:"#94a3b8" }}>
@@ -4187,7 +4188,7 @@ export default function AdminPanel() {
             {foundingView === "onboarding" && foundingSignLink && (
               <div style={{ background:"linear-gradient(135deg,#0f1b3f,#1a3a6e)", borderRadius:14, padding:"20px 24px", marginBottom:"1.5rem", color:"#fff" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
-                  <span style={{ fontSize:"1.5rem" }}>🔐</span>
+                  <span style={{ fontSize:"1.5rem" }}><Lock size={16} aria-hidden="true" /></span>
                   <div>
                     <div style={{ fontWeight:800, fontSize:"1rem" }}>
                       Lien sécurisé généré — {foundingSignLink.type === "loi" ? "LOI" : "Accord de Partenariat"}
@@ -4207,7 +4208,7 @@ export default function AdminPanel() {
                   <button
                     onClick={() => { navigator.clipboard.writeText(foundingSignLink.link); showToast("Lien copié !", "success"); }}
                     style={{ background:"#ff4d2d", border:"none", color:"#fff", borderRadius:8, padding:"8px 16px", fontWeight:700, cursor:"pointer", fontSize:".82rem", whiteSpace:"nowrap" }}>
-                    📋 Copier
+                    <ClipboardList size={16} aria-hidden="true" /> Copier
                   </button>
                 </div>
                 {/* Boutons de partage */}
@@ -4230,11 +4231,11 @@ export default function AdminPanel() {
                         : `Bonjour,\n\nVotre Accord de Partenariat Fondateur VIT-AUTO est prêt.\n\nCliquez ici pour signer et activer votre statut : ${foundingSignLink.link}\n\nCe lien expire dans 7 jours.\n\nCordialement,\nVIT-AUTO — contact@vit-auto.com`
                     )}`}
                     style={{ display:"inline-flex", alignItems:"center", gap:8, background:"#3b82f6", color:"#fff", textDecoration:"none", padding:"10px 18px", borderRadius:10, fontWeight:800, fontSize:".88rem" }}>
-                    ✉️ Email manuel
+                    <Mail size={16} aria-hidden="true" /> Email manuel
                   </a>
                   <a href={foundingSignLink.link} target="_blank" rel="noopener noreferrer"
                     style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(255,255,255,.15)", color:"#fff", textDecoration:"none", padding:"10px 18px", borderRadius:10, fontWeight:700, fontSize:".88rem", border:"1.5px solid rgba(255,255,255,.25)" }}>
-                    🔗 Ouvrir le lien
+                    <Link2 size={16} aria-hidden="true" /> Ouvrir le lien
                   </a>
                 </div>
               </div>
@@ -4245,9 +4246,9 @@ export default function AdminPanel() {
               <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.5)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
                 <div style={{ background:"#fff", borderRadius:16, padding:24, maxWidth:440, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,.25)" }}>
                   <h3 style={{ margin:"0 0 12px", color:"#0f1b3f", fontSize:"1rem", fontWeight:800 }}>
-                    {foundingAction.type === "approve" ? "✅ Approuver la candidature"
-                      : foundingAction.type === "request-info" ? "🔔 Relancer le partenaire"
-                      : "❌ Rejeter le dossier"}
+                    {foundingAction.type === "approve" ? "Approuver la candidature"
+                      : foundingAction.type === "request-info" ? "Relancer le partenaire"
+                      : "Rejeter le dossier"}
                   </h3>
                   <p style={{ fontSize:".85rem", color:"#64748b", marginBottom:16 }}>
                     {foundingAction.type === "approve"
@@ -4287,11 +4288,11 @@ export default function AdminPanel() {
 
             {/* Liste des dossiers */}
             {foundingView === "onboarding" && foundingLoading && (
-              <div style={{ textAlign:"center", padding:"3rem", color:"#94a3b8" }}>Chargement…</div>
+              <div className={styles.uiVide}>Chargement…</div>
             )}
             {foundingView === "onboarding" && !foundingLoading && foundingList.length === 0 && (
-              <div style={{ textAlign:"center", padding:"3rem", color:"#94a3b8" }}>
-                <div style={{ fontSize:"3rem", marginBottom:12 }}>🌟</div>
+              <div className={styles.uiVide}>
+                <div className={styles.uiVideIcone}><Star size={16} aria-hidden="true" /></div>
                 <p style={{ fontWeight:600 }}>Aucune candidature Founding Partner pour le moment.</p>
               </div>
             )}
@@ -4313,8 +4314,8 @@ export default function AdminPanel() {
                           <div style={{ fontWeight:800, fontSize:".9rem", color:"#0f1b3f", display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                             {o.companyInfo?.legalName || "Société non renseignée"}
                             <span style={{ fontSize:".7rem", background:st.bg, color:st.c, padding:"2px 8px", borderRadius:20, fontWeight:700 }}>{st.l}</span>
-                            {o.legalEntityType === "particulier" && <span style={{ fontSize:".7rem", background:"#e0e7ff", color:"#4338ca", padding:"2px 8px", borderRadius:20, fontWeight:700 }}>🧑 Particulier</span>}
-                            {o.isFoundingPartner && <span style={{ fontSize:".7rem", background:"#fef3c7", color:"#b45309", padding:"2px 8px", borderRadius:20, fontWeight:700 }}>🌟 FP</span>}
+                            {o.legalEntityType === "particulier" && <span style={{ fontSize:".7rem", background:"#e0e7ff", color:"#4338ca", padding:"2px 8px", borderRadius:20, fontWeight:700 }}><User size={16} aria-hidden="true" /> Particulier</span>}
+                            {o.isFoundingPartner && <span style={{ fontSize:".7rem", background:"#fef3c7", color:"#b45309", padding:"2px 8px", borderRadius:20, fontWeight:700 }}><Star size={16} aria-hidden="true" /> FP</span>}
                           </div>
                           <div style={{ fontSize:".76rem", color:"#64748b", marginTop:2 }}>
                             {user.firstName} {user.lastName}<CountryFlag code={user.country} countriesConfig={COUNTRIES_CONFIG} /> · {user.email}
@@ -4322,7 +4323,7 @@ export default function AdminPanel() {
                             {/* Le Founding Partner Program est par entité (PartnerBusiness) — un même
                                 partenaire peut avoir plusieurs dossiers, un par entité. */}
                             {o.businessId?.companyName && (
-                              <span style={{ marginLeft:8, color:"#6366f1", fontWeight:700 }}>🏢 {o.businessId.companyName}</span>
+                              <span style={{ marginLeft:8, color:"#6366f1", fontWeight:700 }}><Building2 size={16} aria-hidden="true" /> {o.businessId.companyName}</span>
                             )}
                           </div>
                         </div>
@@ -4332,11 +4333,11 @@ export default function AdminPanel() {
                             <>
                               <button onClick={e => { e.stopPropagation(); setFoundingAction({ id: o._id, type:"approve" }); setFoundingNote(""); }}
                                 style={{ padding:"6px 12px", borderRadius:8, border:"none", background:"#16a34a", color:"#fff", fontWeight:700, fontSize:".76rem", cursor:"pointer" }}>
-                                ✅ Approuver
+                                <CheckCircle2 size={16} aria-hidden="true" /> Approuver
                               </button>
                               <button onClick={e => { e.stopPropagation(); setFoundingAction({ id: o._id, type:"reject" }); setFoundingNote(""); }}
                                 style={{ padding:"6px 12px", borderRadius:8, border:"none", background:"#dc2626", color:"#fff", fontWeight:700, fontSize:".76rem", cursor:"pointer" }}>
-                                ❌ Rejeter
+                                <XCircle size={16} aria-hidden="true" /> Rejeter
                               </button>
                             </>
                           )}
@@ -4344,7 +4345,7 @@ export default function AdminPanel() {
                             <button onClick={e => { e.stopPropagation(); setFoundingAction({ id: o._id, type:"request-info" }); setFoundingNote(""); }}
                               style={{ padding:"6px 12px", borderRadius:8, border:"none", background:"#f59e0b", color:"#fff", fontWeight:700, fontSize:".76rem", cursor:"pointer" }}
                               title="Dossier incomplet — notifier le partenaire pour qu'il le complète">
-                              🔔 Relancer
+                              <Bell size={16} aria-hidden="true" /> Relancer
                             </button>
                           )}
                           {/* Entité SANS AUCUN dossier — le partenaire n'a jamais cliqué
@@ -4355,21 +4356,21 @@ export default function AdminPanel() {
                               disabled={foundingRowActionId === o._id}
                               style={{ padding:"6px 12px", borderRadius:8, border:"none", background:"#dc2626", color:"#fff", fontWeight:700, fontSize:".76rem", cursor: foundingRowActionId === o._id ? "not-allowed" : "pointer", opacity: foundingRowActionId === o._id ? 0.6 : 1 }}
                               title="Aucune candidature démarrée pour cette entité — envoyer une invitation à démarrer">
-                              🔔 Relancer
+                              <Bell size={16} aria-hidden="true" /> Relancer
                             </button>
                           )}
                           {o.status === "loi_signee" && (
                             <button onClick={e => { e.stopPropagation(); foundingSendAgreement(o._id); }}
                               disabled={foundingRowActionId === o._id}
                               style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#7c3aed", color:"#fff", fontWeight:700, fontSize:".76rem", cursor: foundingRowActionId === o._id ? "not-allowed" : "pointer", opacity: foundingRowActionId === o._id ? 0.6 : 1 }}>
-                              📜 Envoyer Accord
+                              <ScrollText size={16} aria-hidden="true" /> Envoyer Accord
                             </button>
                           )}
                           {["loi_envoyee","accord_envoye"].includes(o.status) && (
-                            <span style={{ fontSize:".75rem", color:"#7c3aed", fontWeight:600 }}>⏳ En attente signature</span>
+                            <span style={{ fontSize:".75rem", color:"#7c3aed", fontWeight:600 }}><Hourglass size={16} aria-hidden="true" /> En attente signature</span>
                           )}
                           {["accord_signe","actif"].includes(o.status) && (
-                            <span style={{ fontSize:".75rem", color:"#16a34a", fontWeight:700 }}>🌟 Actif</span>
+                            <span style={{ fontSize:".75rem", color:"#16a34a", fontWeight:700 }}><Star size={16} aria-hidden="true" /> Actif</span>
                           )}
                           {/* Vue de confiance unifiée — croise ce dossier avec KYC/
                               Certification/PMS sans changer d'onglet. */}
@@ -4378,7 +4379,7 @@ export default function AdminPanel() {
                               title="Vue de confiance unifiée"
                               onClick={e => { e.stopPropagation(); openTrustOverview(user); }}
                               style={{ padding:"6px 10px", borderRadius:8, border:"none", background:"#f1f5f9", color:"#0f1b3f", fontWeight:700, fontSize:".8rem", cursor:"pointer" }}>
-                              🛡️
+                              <Shield size={16} aria-hidden="true" />
                             </button>
                           )}
                           <span style={{ color:"#94a3b8", fontSize:".9rem" }}>{isDetail ? "▲" : "▼"}</span>
@@ -4422,24 +4423,24 @@ export default function AdminPanel() {
                           {/* Regénérer le lien sécurisé */}
                           {o.status === "loi_envoyee" && (
                             <div style={{ background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:10, padding:"10px 14px", marginTop:8 }}>
-                              <p style={{ margin:"0 0 8px", fontSize:".8rem", color:"#4c1d95", fontWeight:700 }}>🔐 Partenaire n'a pas encore signé la LOI</p>
+                              <p style={{ margin:"0 0 8px", fontSize:".8rem", color:"#4c1d95", fontWeight:700 }}><Lock size={16} aria-hidden="true" /> Partenaire n'a pas encore signé la LOI</p>
                               <p style={{ margin:"0 0 10px", fontSize:".77rem", color:"#6d28d9" }}>Le lien envoyé peut avoir expiré ou ne pas s'être ouvert correctement.</p>
                               <button
                                 onClick={() => { foundingResendDocuments(o._id); }}
                                 disabled={foundingRowActionId === o._id}
                                 style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#7c3aed", color:"#fff", fontWeight:700, fontSize:".78rem", cursor: foundingRowActionId === o._id ? "not-allowed" : "pointer", opacity: foundingRowActionId === o._id ? 0.6 : 1 }}>
-                                🔄 Renvoyer la LOI
+                                <RefreshCw size={16} aria-hidden="true" /> Renvoyer la LOI
                               </button>
                             </div>
                           )}
                           {o.status === "accord_envoye" && (
                             <div style={{ background:"#fff7ed", border:"1px solid #fed7aa", borderRadius:10, padding:"10px 14px", marginTop:8 }}>
-                              <p style={{ margin:"0 0 8px", fontSize:".8rem", color:"#92400e", fontWeight:700 }}>⏳ En attente de signature de l'accord</p>
+                              <p style={{ margin:"0 0 8px", fontSize:".8rem", color:"#92400e", fontWeight:700 }}><Hourglass size={16} aria-hidden="true" /> En attente de signature de l'accord</p>
                               <button
                                 onClick={() => { foundingResendDocuments(o._id); }}
                                 disabled={foundingRowActionId === o._id}
                                 style={{ padding:"6px 14px", borderRadius:8, border:"none", background:"#f59e0b", color:"#fff", fontWeight:700, fontSize:".78rem", cursor: foundingRowActionId === o._id ? "not-allowed" : "pointer", opacity: foundingRowActionId === o._id ? 0.6 : 1 }}>
-                                🔄 Renvoyer l'accord
+                                <RefreshCw size={16} aria-hidden="true" /> Renvoyer l'accord
                               </button>
                             </div>
                           )}
@@ -4468,7 +4469,7 @@ export default function AdminPanel() {
         );
       })()}
 
-      {activeTab === "partenaires" && <WipSection icon="🤝" title="Gestion des Partenariats" subtitle="Contrats partenaires, commissions, et tableau de bord dédié par partenaire stratégique." features={["Concessionnaires, loueurs, assureurs, banques","Contrats : date, commission, statut","Tableau de bord commissions par partenaire","Catégories : BYD, Hyundai, Total, NSIA..."]} />}
+      {activeTab === "partenaires" && <WipSection icon={<Handshake size={20} aria-hidden="true" />} title="Gestion des Partenariats" subtitle="Contrats partenaires, commissions, et tableau de bord dédié par partenaire stratégique." features={["Concessionnaires, loueurs, assureurs, banques","Contrats : date, commission, statut","Tableau de bord commissions par partenaire","Catégories : BYD, Hyundai, Total, NSIA..."]} />}
 
       {activeTab === "partner_crm" && (() => {
         const CRM_ST = {
@@ -4479,8 +4480,8 @@ export default function AdminPanel() {
           NEGOCIATION:          { l: "Négociation",             c: "#7c3aed", bg: "#f5f3ff" },
           INSCRIT:              { l: "Inscrit",                 c: "#0284c7", bg: "#e0f2fe" },
           ACTIF:                { l: "Actif",                   c: "#16a34a", bg: "#dcfce7" },
-          PREMIERE_TRANSACTION: { l: "1ère transaction 🎉",     c: "#059669", bg: "#d1fae5" },
-          PARTENAIRE_FIDELE:    { l: "Partenaire fidèle 🌟",    c: "#b45309", bg: "#fef3c7" },
+          PREMIERE_TRANSACTION: { l: "1ère transaction",     c: "#059669", bg: "#d1fae5" },
+          PARTENAIRE_FIDELE:    { l: "Partenaire fidèle",    c: "#b45309", bg: "#fef3c7" },
           ABANDONNE:            { l: "Abandonné",               c: "#b91c1c", bg: "#fee2e2" },
         };
         const pages = Math.max(1, Math.ceil(crmTotal / CRM_PAR_PAGE));
@@ -4493,12 +4494,12 @@ export default function AdminPanel() {
             {/* Header + vue toggle */}
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1rem", flexWrap:"wrap", gap:12 }}>
               <div>
-                <h2 style={{ fontSize:"1.1rem", fontWeight:800, color:"#0f1b3f", margin:"0 0 3px" }}>🎯 CRM Partenaires</h2>
-                <p style={{ margin:0, fontSize:".83rem", color:"#64748b" }}>Pipeline de prospection — du premier contact au partenaire fidèle.</p>
+                <h2 className={styles.uiTitreSection}><Target size={16} aria-hidden="true" /> CRM Partenaires</h2>
+                <p className={styles.uiSousTitre}>Pipeline de prospection — du premier contact au partenaire fidèle.</p>
               </div>
               <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                 <div style={{ display:"flex", background:"#f1f5f9", borderRadius:10, padding:3, gap:2 }}>
-                  {[{v:"liste",l:"📋 Liste"},{v:"pipeline",l:"🎯 Pipeline"}].map(({v,l})=>(
+                  {[{v:"liste",l:"Liste"},{v:"pipeline",l:"Pipeline"}].map(({v,l})=>(
                     <button key={v} onClick={()=>setCrmView(v)}
                       style={{ padding:"6px 14px", borderRadius:8, border:"none", fontWeight:700, fontSize:".8rem", cursor:"pointer",
                         background: crmView===v ? "#0f1b3f" : "transparent",
@@ -4549,7 +4550,7 @@ export default function AdminPanel() {
                 <div style={{ display:"flex", justifyContent:"flex-end" }}>
                   <button disabled={crmSubmitting} onClick={() => crmCreateProspect(false)}
                     style={{ padding:"8px 20px", border:"none", borderRadius:8, background:"#16a34a", color:"#fff", fontWeight:800, fontSize:".82rem", cursor: crmSubmitting ? "not-allowed" : "pointer", opacity: crmSubmitting ? .6 : 1 }}>
-                    💾 Créer le prospect
+                    <Save size={16} aria-hidden="true" /> Créer le prospect
                   </button>
                 </div>
                 {crmDoublons && (
@@ -4567,20 +4568,20 @@ export default function AdminPanel() {
             {/* KPIs */}
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:12, marginBottom:"1.2rem" }}>
               {[
-                { icon:"📋", label:"Total pipeline",   value: crmStats?.total || 0, color:"#0f1b3f" },
-                { icon:"🎯", label:"Leads",             value: crmStats?.byStatut?.LEAD || 0, color:"#64748b" },
-                { icon:"💬", label:"En cours",          value: totalEnCours, color:"#d97706" },
-                { icon:"📝", label:"Inscrits",          value: crmStats?.byStatut?.INSCRIT || 0, color:"#0284c7" },
-                { icon:"🌟", label:"Convertis (déclarés)", value: totalConverti, color:"#16a34a" },
-                { icon:"✅", label:"Activés (réel)",    value: crmStats?.activationReelle?.active ?? 0, color:"#15803d" },
-                { icon:"⏰", label:"À relancer",        value: crmStats?.aRelancer ?? 0, color:"#b91c1c" },
-                { icon:"🚫", label:"Abandonnés",        value: crmStats?.byStatut?.ABANDONNE || 0, color:"#94a3b8" },
+                { icon:<ClipboardList size={16} aria-hidden="true" />, label:"Total pipeline",   value: crmStats?.total || 0, color:"#0f1b3f" },
+                { icon:<Target size={16} aria-hidden="true" />, label:"Leads",             value: crmStats?.byStatut?.LEAD || 0, color:"#64748b" },
+                { icon:<MessageCircle size={16} aria-hidden="true" />, label:"En cours",          value: totalEnCours, color:"#d97706" },
+                { icon:<FilePen size={16} aria-hidden="true" />, label:"Inscrits",          value: crmStats?.byStatut?.INSCRIT || 0, color:"#0284c7" },
+                { icon:<Star size={16} aria-hidden="true" />, label:"Convertis (déclarés)", value: totalConverti, color:"#16a34a" },
+                { icon:<CheckCircle2 size={16} aria-hidden="true" />, label:"Activés (réel)",    value: crmStats?.activationReelle?.active ?? 0, color:"#15803d" },
+                { icon:<AlarmClock size={16} aria-hidden="true" />, label:"À relancer",        value: crmStats?.aRelancer ?? 0, color:"#b91c1c" },
+                { icon:<Ban size={16} aria-hidden="true" />, label:"Abandonnés",        value: crmStats?.byStatut?.ABANDONNE || 0, color:"#94a3b8" },
               ].map(k => <StatCard key={k.label} icon={k.icon} label={k.label} value={k.value} color={k.color} />)}
             </div>
 
             {/* Barre de filtres */}
             <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:14, alignItems:"center" }}>
-              <input placeholder="🔍 Rechercher (entreprise, contact, email)..." value={crmSearch} onChange={e=>setCrmSearch(e.target.value)}
+              <input placeholder="Rechercher (entreprise, contact, email)..." value={crmSearch} onChange={e=>setCrmSearch(e.target.value)}
                 style={{ padding:"7px 10px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem", minWidth:220 }} />
               <select value={crmFilter.statut} onChange={e=>setCrmFilter(f=>({...f,statut:e.target.value}))}
                 style={{ padding:"7px 9px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".82rem" }}>
@@ -4615,7 +4616,7 @@ export default function AdminPanel() {
               </div>
             ) : crmList.length === 0 ? (
               <div style={{ textAlign:"center", padding:"2rem", color:"#94a3b8" }}>
-                <div style={{ fontSize:"2rem", marginBottom:8 }}>🎯</div>
+                <div style={{ fontSize:"2rem", marginBottom:8 }}><Target size={16} aria-hidden="true" /></div>
                 <p style={{ fontWeight:600 }}>Aucun prospect pour ce filtre.</p>
               </div>
             ) : crmView === "liste" ? (
@@ -4645,7 +4646,7 @@ export default function AdminPanel() {
                           <td>{c.assignedTo ? `${c.assignedTo.firstName} ${c.assignedTo.lastName}` : "—"}</td>
                           <td>{c.lastContactDate ? new Date(c.lastContactDate).toLocaleDateString("fr-FR") : "—"}</td>
                           <td>{c.statut === "ABANDONNE" ? "—" : <ProchaineAction libelle={c.prochaineAction} echeance={c.nextFollowUpDate} />}</td>
-                          <td><button onClick={(e)=>{e.stopPropagation();crmOpenDetail(c._id);}} style={{ border:"none", background:"transparent", cursor:"pointer" }}>👁️</button></td>
+                          <td><button onClick={(e)=>{e.stopPropagation();crmOpenDetail(c._id);}} style={{ border:"none", background:"transparent", cursor:"pointer" }}><Eye size={16} aria-hidden="true" /></button></td>
                         </tr>
                       );
                     })}
@@ -4718,11 +4719,11 @@ export default function AdminPanel() {
                         <BlocDoublons doublons={doublons} />
                         {crm.linkedUserId ? (
                           <div style={{ background:"#f0fdf4", border:"1px solid #dcfce7", borderRadius:8, padding:10, marginBottom:12, fontSize:".8rem" }}>
-                            🔗 Lié au compte <strong>{crm.linkedUserId.firstName} {crm.linkedUserId.lastName}</strong> ({crm.linkedUserId.email})
+                            <Link2 size={16} aria-hidden="true" /> Lié au compte <strong>{crm.linkedUserId.firstName} {crm.linkedUserId.lastName}</strong> ({crm.linkedUserId.email})
                             <div style={{ marginTop:6, display:"flex", gap:16 }}>
-                              <span>🚗 {liveStats.nombreAnnonces} annonce(s)</span>
-                              <span>💼 {liveStats.transactionsCount} transaction(s)</span>
-                              <span>💰 {Number(liveStats.chiffreAffairesGenere || 0).toLocaleString("fr-FR")} CA généré</span>
+                              <span><Car size={16} aria-hidden="true" /> {liveStats.nombreAnnonces} annonce(s)</span>
+                              <span><Briefcase size={16} aria-hidden="true" /> {liveStats.transactionsCount} transaction(s)</span>
+                              <span><Banknote size={16} aria-hidden="true" /> {Number(liveStats.chiffreAffairesGenere || 0).toLocaleString("fr-FR")} CA généré</span>
                             </div>
                           </div>
                         ) : (
@@ -4731,7 +4732,7 @@ export default function AdminPanel() {
                               style={{ flex:1, padding:"6px 8px", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:".78rem" }} />
                             <button disabled={crmSubmitting} onClick={crmLinkAccount}
                               style={{ padding:"6px 12px", border:"none", borderRadius:8, background:"#0f1b3f", color:"#fff", fontWeight:700, fontSize:".76rem", cursor:"pointer" }}>
-                              🔗 Lier
+                              <Link2 size={16} aria-hidden="true" /> Lier
                             </button>
                           </div>
                         )}
@@ -4820,7 +4821,7 @@ export default function AdminPanel() {
 
                         <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
                           <button onClick={()=>setCrmDetail(null)} className={styles.btnGhost}>Fermer</button>
-                          <button disabled={crmSubmitting} onClick={crmSaveDetail} className={styles.btnPrimary}>💾 Enregistrer</button>
+                          <button disabled={crmSubmitting} onClick={crmSaveDetail} className={styles.btnPrimary}><Save size={16} aria-hidden="true" /> Enregistrer</button>
                         </div>
                       </>
                     );
@@ -4833,10 +4834,10 @@ export default function AdminPanel() {
       })()}
       {activeTab === "rental_policies" && (
         <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+          <div className={styles.uiEnteteSection}>
             <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🚚 Politiques de location</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Âge minimum, permis, caution et frais de livraison "même ville" — réglables par le partenaire, ajustables ici si besoin.</p>
+              <h2 className={styles.uiTitreSection}><Truck size={16} aria-hidden="true" /> Politiques de location</h2>
+              <p className={styles.uiSousTitre}>Âge minimum, permis, caution et frais de livraison "même ville" — réglables par le partenaire, ajustables ici si besoin.</p>
             </div>
           </div>
           <RentalPolicySection token={token} />
@@ -4844,10 +4845,10 @@ export default function AdminPanel() {
       )}
       {activeTab === "ads" && (
         <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+          <div className={styles.uiEnteteSection}>
             <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>📢 Publicités & Sponsoring</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Bannières affichées sur le site public — accueil, catalogue, barre latérale.</p>
+              <h2 className={styles.uiTitreSection}><Megaphone size={16} aria-hidden="true" /> Publicités & Sponsoring</h2>
+              <p className={styles.uiSousTitre}>Bannières affichées sur le site public — accueil, catalogue, barre latérale.</p>
             </div>
             <button className={styles.btnRefresh} onClick={loadAds}>↻ Actualiser</button>
           </div>
@@ -4943,10 +4944,10 @@ export default function AdminPanel() {
       )}
       {activeTab === "roles" && (
         <div className={styles.tabContent}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+          <div className={styles.uiEnteteSection}>
             <div>
-              <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🔑 Rôles & Permissions</h2>
-              <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Cliquez une permission pour l'activer/désactiver pour ce compte admin. Aucune permission cochée = accès complet.</p>
+              <h2 className={styles.uiTitreSection}><KeyRound size={16} aria-hidden="true" /> Rôles & Permissions</h2>
+              <p className={styles.uiSousTitre}>Cliquez une permission pour l'activer/désactiver pour ce compte admin. Aucune permission cochée = accès complet.</p>
             </div>
             <button className={styles.btnRefresh} onClick={loadAdminAccounts}>↻ Actualiser</button>
           </div>

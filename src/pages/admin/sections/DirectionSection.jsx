@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fmtDate } from "../shared.jsx";
 import css from "./DossiersImportSection.module.css";
+import { Compass, Crown } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Tableau de bord de direction (prompt maître §13, 2026-10-28)
@@ -54,7 +55,7 @@ export function DirectionSection({ headers }) {
 
   return (
     <section className={css.section}>
-      <h2>🧭 Tableau de bord de direction</h2>
+      <h2><Compass size={16} aria-hidden="true" /> Tableau de bord de direction</h2>
       <div className={css.filtres}>
         <label>Du <input type="date" value={periode.depuis} onChange={(e) => setPeriode((p) => ({ ...p, depuis: e.target.value }))} /></label>
         <label>au <input type="date" value={periode.jusqua} onChange={(e) => setPeriode((p) => ({ ...p, jusqua: e.target.value }))} /></label>
@@ -135,7 +136,7 @@ export function DirectionSection({ headers }) {
               <tbody>
                 {liste.map((p) => (
                   <tr key={p._id}>
-                    <td>{p.nom || p.email}{p.fondateur ? " 👑" : ""}<br /><span className={css.muted}>{p.metiers?.join(", ")} {p.pays || ""}</span></td>
+                    <td>{p.nom || p.email}{p.fondateur && <Crown size={13} role="img" aria-label="fondateur" style={{ verticalAlign: "-2px", color: "#d97706", marginLeft: 4 }} />}<br /><span className={css.muted}>{p.metiers?.join(", ")} {p.pays || ""}</span></td>
                     <td>{fmtDate(p.inscritLe)}</td>
                     <td>{STATUTS[p.statut]}</td>
                     <td>{p.manquants?.length ? p.manquants.map((m) => CRITERES[m.code]).join(", ") : "—"}</td>

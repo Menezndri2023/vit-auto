@@ -364,7 +364,7 @@ function LeadsSection({ token, showToast, businessId, businesses = [] }) {
             <div className={styles.leadDetailHeader}>
               <h3>{selected.buyer?.name || selected.buyer?.email}</h3>
               <div style={{ display:"flex", gap:8 }}>
-                <button className={styles.btnDanger} onClick={() => deleteLead(selected._id)}><Trash2 size={18} aria-hidden="true" /></button>
+                <button className={styles.btnDanger} onClick={() => deleteLead(selected._id)} aria-label="Supprimer"><Trash2 size={18} aria-hidden="true" /></button>
                 <button className={styles.btnSecondary} onClick={() => setSelected(null)}>✕</button>
               </div>
             </div>

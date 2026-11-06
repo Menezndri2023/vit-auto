@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import styles from "../../AdminPanel.module.css";
 import { Badge, StatCard, fmtDate } from "../shared.jsx";
+import { AlertTriangle, Briefcase, Hourglass, Ship, Truck, Lock, Banknote, CheckCircle2, Package, Upload, Waves } from "lucide-react";
 
 export function LogisticsAssignmentSection({ ieTransactions, loading, token, onRefresh }) {
   const needsAttention = ieTransactions.filter((t) => ["in_escrow", "preparing"].includes(t.status));
@@ -45,7 +46,7 @@ export function LogisticsAssignmentSection({ ieTransactions, loading, token, onR
     }
   };
 
-  if (loading) return <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>;
+  if (loading) return <div className={styles.uiVide}>Chargement…</div>;
 
   return (
     <div style={{ marginBottom: "1.5rem" }}>
@@ -66,8 +67,8 @@ export function LogisticsAssignmentSection({ ieTransactions, loading, token, onR
                   <td><Badge label={t.status === "in_escrow" ? "Fonds sécurisés" : "Préparation"} color={t.status === "in_escrow" ? "#0891b2" : "#f59e0b"} bg={t.status === "in_escrow" ? "#ecfeff" : "#fef3c7"} /></td>
                   <td style={{ fontSize: ".82rem" }}>
                     {t.assignment?.assignedTo
-                      ? <>{t.assignment.mode === "transitaire" ? "🚚" : "🧑‍💼"} {t.assignment.assignedTo.firstName} {t.assignment.assignedTo.lastName}{t.assignment.autoAssigned ? " (auto)" : ""}</>
-                      : <span style={{ color: "#dc2626" }}>⏳ Non assigné</span>}
+                      ? <>{t.assignment.mode === "transitaire" ? <Truck size={16} aria-hidden="true" /> : <Briefcase size={16} aria-hidden="true" />} {t.assignment.assignedTo.firstName} {t.assignment.assignedTo.lastName}{t.assignment.autoAssigned ? " (auto)" : ""}</>
+                      : <span style={{ color: "#dc2626" }}><Hourglass size={16} aria-hidden="true" /> Non assigné</span>}
                   </td>
                   <td>
                     <button className={styles.btnApprove} onClick={() => openAssign(t)}>
@@ -86,8 +87,8 @@ export function LogisticsAssignmentSection({ ieTransactions, loading, token, onR
           <div className={styles.confirmBox} style={{ maxWidth: 460, width: "95%" }} onClick={(e) => e.stopPropagation()}>
             <p className={styles.confirmMsg}>Assigner la transaction {assignModal.tx.reference || assignModal.tx._id}</p>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              <button className={assignMode === "transitaire" ? styles.btnPrimary : styles.btnGhost} onClick={() => { setAssignMode("transitaire"); setAssignTo(""); }}>🚚 Transitaire partenaire</button>
-              <button className={assignMode === "agent" ? styles.btnPrimary : styles.btnGhost} onClick={() => { setAssignMode("agent"); setAssignTo(""); }}>🧑‍💼 Agent interne</button>
+              <button className={assignMode === "transitaire" ? styles.btnPrimary : styles.btnGhost} onClick={() => { setAssignMode("transitaire"); setAssignTo(""); }}><Truck size={16} aria-hidden="true" /> Transitaire partenaire</button>
+              <button className={assignMode === "agent" ? styles.btnPrimary : styles.btnGhost} onClick={() => { setAssignMode("agent"); setAssignTo(""); }}><Briefcase size={16} aria-hidden="true" /> Agent interne</button>
             </div>
             <select value={assignTo} onChange={(e) => setAssignTo(e.target.value)} style={{ width: "100%", padding: "0.5rem", borderRadius: 8, border: "1.5px solid #e2e8f0", marginBottom: 8 }}>
               <option value="">— Choisir —</option>
@@ -104,7 +105,7 @@ export function LogisticsAssignmentSection({ ieTransactions, loading, token, onR
             )}
             {assignError && (
               <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", borderRadius: 8, padding: "8px 10px", fontSize: ".8rem", marginBottom: 10 }}>
-                ⚠️ {assignError}
+                <AlertTriangle size={16} aria-hidden="true" /> {assignError}
               </div>
             )}
             <div className={styles.confirmActions}>
@@ -126,7 +127,7 @@ export function LogisticsAssignmentSection({ ieTransactions, loading, token, onR
 // aucune nouvelle donnée, uniquement une vue dédiée sur les transactions déjà
 // en logistique (aucun endpoint backend créé — réutilise ieTransactions,
 // chargé sans filtre par loadIeTransactions).
-const SHIPPING_TYPE_LABELS = { maritime: "🚢 Maritime", terrestre: "🚚 Terrestre", aerien: "✈️ Aérien" };
+const SHIPPING_TYPE_LABELS = { maritime: "Maritime", terrestre: "Terrestre", aerien: "Aérien" };
 
 export function TransportSection({ ieTransactions, loading }) {
   const inLogistics = ieTransactions.filter((t) => ["preparing", "shipped", "in_transit", "delivered"].includes(t.status));
@@ -137,20 +138,20 @@ export function TransportSection({ ieTransactions, loading }) {
     delivered: inLogistics.filter((t) => t.status === "delivered").length,
   };
 
-  if (loading) return <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>;
+  if (loading) return <div className={styles.uiVide}>Chargement…</div>;
 
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
-        <StatCard icon="📦" label="En préparation" value={counts.preparing}  color="#f59e0b" />
-        <StatCard icon="🚢" label="Expédiées"       value={counts.shipped}   color="#6366f1" />
-        <StatCard icon="🌊" label="En transit"      value={counts.in_transit} color="#0891b2" />
-        <StatCard icon="✅" label="Livrées"          value={counts.delivered} color="#10b981" />
+        <StatCard icon={<Package size={20} aria-hidden="true" />} label="En préparation" value={counts.preparing}  color="#f59e0b" />
+        <StatCard icon={<Ship size={20} aria-hidden="true" />} label="Expédiées"       value={counts.shipped}   color="#6366f1" />
+        <StatCard icon={<Waves size={20} aria-hidden="true" />} label="En transit"      value={counts.in_transit} color="#0891b2" />
+        <StatCard icon={<CheckCircle2 size={20} aria-hidden="true" />} label="Livrées"          value={counts.delivered} color="#10b981" />
       </div>
 
       {inLogistics.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
-          <div style={{ fontSize: "3rem", marginBottom: 12 }}>🚢</div>
+        <div className={styles.uiVide}>
+          <div className={styles.uiVideIcone}><Ship size={16} aria-hidden="true" /></div>
           <p style={{ fontWeight: 600 }}>Aucune cargaison en cours d'acheminement.</p>
         </div>
       ) : (
@@ -211,20 +212,20 @@ export function EscrowSection({ ieTransactions, loading }) {
     sumByCurrency(released.filter((t) => new Date(t.payment.releasedAt) >= thisMonth))
   );
 
-  if (loading) return <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>;
+  if (loading) return <div className={styles.uiVide}>Chargement…</div>;
 
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
-        <StatCard icon="🔐" label="Dossiers en séquestre" value={held.length} color="#0891b2" />
-        <StatCard icon="💰" label="Total bloqué"          value={totalHeld} color="#f59e0b" />
-        <StatCard icon="✅" label="Dossiers libérés"       value={released.length} color="#10b981" />
-        <StatCard icon="📤" label="Libéré ce mois"         value={releasedThisMonth} color="#6366f1" />
+        <StatCard icon={<Lock size={20} aria-hidden="true" />} label="Dossiers en séquestre" value={held.length} color="#0891b2" />
+        <StatCard icon={<Banknote size={20} aria-hidden="true" />} label="Total bloqué"          value={totalHeld} color="#f59e0b" />
+        <StatCard icon={<CheckCircle2 size={20} aria-hidden="true" />} label="Dossiers libérés"       value={released.length} color="#10b981" />
+        <StatCard icon={<Upload size={20} aria-hidden="true" />} label="Libéré ce mois"         value={releasedThisMonth} color="#6366f1" />
       </div>
 
       {held.length === 0 && released.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
-          <div style={{ fontSize: "3rem", marginBottom: 12 }}>🔐</div>
+        <div className={styles.uiVide}>
+          <div className={styles.uiVideIcone}><Lock size={16} aria-hidden="true" /></div>
           <p style={{ fontWeight: 600 }}>Aucun fonds en séquestre pour le moment.</p>
         </div>
       ) : (

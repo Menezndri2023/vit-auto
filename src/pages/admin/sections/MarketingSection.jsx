@@ -5,6 +5,7 @@ import styles from "../../AdminPanel.module.css";
 import { MAX_SPOTLIGHTS_M } from "../shared.jsx";
 import { AdsSection } from "./AdsSection.jsx";
 import { SpotlightRulesSection } from "./SpotlightRulesSection.jsx";
+import { Banknote, Car, Globe, KeyRound, Pencil, Star, GalleryHorizontal } from "lucide-react";
 
 // Filtre de recherche/pays/type réutilisé par les deux pickers (hero &
 // vedette) — barre compacte pensée mobile-first (colonne unique sous ~480px,
@@ -13,18 +14,18 @@ import { SpotlightRulesSection } from "./SpotlightRulesSection.jsx";
 function VehiclePickerFilters({ filter, setFilter, countriesConfig }) {
   return (
     <div className={styles.pvFilterBar}>
-      <input className={styles.pvInput} style={{ flex: "2 1 160px" }} placeholder="🔍 Titre, marque, modèle…"
+      <input className={styles.pvInput} style={{ flex: "2 1 160px" }} placeholder="Titre, marque, modèle…"
         value={filter.search} onChange={(e) => setFilter((p) => ({ ...p, search: e.target.value }))} />
       <select className={styles.pvInput} style={{ flex: "1 1 130px" }} value={filter.country}
         onChange={(e) => setFilter((p) => ({ ...p, country: e.target.value }))}>
-        <option value="">🌍 Tous pays</option>
+        <option value="">Tous pays</option>
         {countriesConfig.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
       </select>
       <select className={styles.pvInput} style={{ flex: "1 1 110px" }} value={filter.type}
         onChange={(e) => setFilter((p) => ({ ...p, type: e.target.value }))}>
         <option value="">Location + Vente</option>
-        <option value="location">🔑 Location</option>
-        <option value="vente">💰 Vente</option>
+        <option value="location">Location</option>
+        <option value="vente">Vente</option>
       </select>
     </div>
   );
@@ -112,7 +113,7 @@ export function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoadi
       flash(`Maximum ${MAX_SPOTLIGHTS_M} véhicules dans le carrousel`);
     } else {
       saveSpotlights([...spotlightIds, str]);
-      flash("Ajouté au carrousel ✅");
+      flash("Ajouté au carrousel");
     }
   };
 
@@ -150,7 +151,7 @@ export function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoadi
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ featured: !isFeatured }),
       });
-      if (r.ok) { onRefresh(); flash(!isFeatured ? "Véhicule en vedette ⭐" : "Retiré de la vedette"); }
+      if (r.ok) { onRefresh(); flash(!isFeatured ? "Véhicule en vedette" : "Retiré de la vedette"); }
       else flash("Erreur lors de la mise à jour.");
     } catch { flash("Erreur"); }
     setFeaturedLoading(null);
@@ -185,10 +186,10 @@ export function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoadi
   }, [approved, vedetteFilter]);
 
   const SUB_TABS_M = [
-    { k: "accueil",  l: "🏠 Page d'accueil",       desc: "Texte hero & carrousel" },
-    { k: "vedette",  l: "⭐ Véhicules en vedette",  desc: "Mise en avant catalogue" },
-    { k: "pays",     l: "🌍 Règles par pays",        desc: "Ce que voit chaque pays" },
-    { k: "campagnes",l: "📢 Campagnes",             desc: "Bannières & promotions (bientôt)" },
+    { k: "accueil",  l: "Page d'accueil",       desc: "Texte hero & carrousel" },
+    { k: "vedette",  l: "Véhicules en vedette",  desc: "Mise en avant catalogue" },
+    { k: "pays",     l: "Règles par pays",        desc: "Ce que voit chaque pays" },
+    { k: "campagnes",l: "Campagnes",             desc: "Bannières & promotions (bientôt)" },
   ];
 
   return (
@@ -224,7 +225,7 @@ export function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoadi
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {/* Texte hero */}
           <div className={styles.chartCard}>
-            <h3 className={styles.chartTitle}>✏️ Texte de la bannière principale</h3>
+            <h3 className={styles.chartTitle}><Pencil size={16} aria-hidden="true" /> Texte de la bannière principale</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div><label className={styles.pvLabel}>Titre principal</label>
                 <input className={styles.pvInput} value={heroText} onChange={e => setHeroText(e.target.value)} placeholder="Ex : Trouvez votre véhicule idéal en Afrique" />
@@ -241,7 +242,7 @@ export function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoadi
           {/* Carrousel hero — sélection par pays (demande explicite) */}
           <div className={styles.chartCard}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-              <h3 className={styles.chartTitle} style={{ margin: 0 }}>🎠 Carrousel Hero ({spotlightIds.length}/{MAX_SPOTLIGHTS_M})</h3>
+              <h3 className={styles.chartTitle} style={{ margin: 0 }}><GalleryHorizontal size={16} aria-hidden="true" /> Carrousel Hero ({spotlightIds.length}/{MAX_SPOTLIGHTS_M})</h3>
               <button className={styles.btnSmall} onClick={() => saveSpotlights([])}>Vider cette sélection</button>
             </div>
 
@@ -249,7 +250,7 @@ export function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoadi
               <label className={styles.pvLabel}>Pays ciblé par cette sélection</label>
               <select className={styles.pvInput} style={{ maxWidth: 280 }} value={activeCountryTab}
                 onChange={(e) => setActiveCountryTab(e.target.value)}>
-                <option value="GLOBAL">🌍 Global (par défaut, tous pays sans sélection dédiée)</option>
+                <option value="GLOBAL">Global (par défaut, tous pays sans sélection dédiée)</option>
                 {COUNTRIES_CONFIG.map((c) => {
                   const n = heroByCountry.find((h) => h.country === c.code)?.vehicles.length || 0;
                   return <option key={c.code} value={c.code}>{c.flag} {c.name}{n ? ` (${n})` : ""}</option>;
@@ -275,12 +276,12 @@ export function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoadi
                     <div key={vid} style={{ border: `2px solid ${inSpotlight ? "#6366f1" : "#e2e8f0"}`, borderRadius: 10, overflow: "hidden", transition: "border-color .2s" }}>
                       {(v.images?.[0] || v.image)
                         ? <img src={v.images?.[0] || v.image} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: 90, objectFit: "cover" }} />
-                        : <div style={{ height: 90, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.8rem" }}>🚗</div>
+                        : <div style={{ height: 90, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.8rem" }}><Car size={16} aria-hidden="true" /></div>
                       }
                       <div style={{ padding: "8px 10px" }}>
                         <div style={{ fontSize: ".78rem", fontWeight: 700, color: "#0f1b3f", marginBottom: 2 }}>{v.title || `${v.marque} ${v.modele}`}</div>
                         <div style={{ fontSize: ".7rem", color: "#94a3b8", marginBottom: 6 }}>
-                          {COUNTRIES_CONFIG.find((c) => c.code === v.country)?.flag || "🌍"} {v.type === "vente" ? "Vente" : "Location"}
+                          {COUNTRIES_CONFIG.find((c) => c.code === v.country)?.flag || <Globe size={16} aria-hidden="true" />} {v.type === "vente" ? "Vente" : "Location"}
                         </div>
                         <button onClick={() => toggleSpotlight(vid)}
                           style={{ width: "100%", padding: "4px 0", borderRadius: 6, border: "none", cursor: "pointer", fontWeight: 700, fontSize: ".74rem",
@@ -301,7 +302,7 @@ export function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoadi
       {subTab === "vedette" && (
         <div className={styles.chartCard}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
-            <h3 className={styles.chartTitle} style={{ margin: 0 }}>⭐ Véhicules en vedette ({featuredCount} actifs)</h3>
+            <h3 className={styles.chartTitle} style={{ margin: 0 }}><Star size={16} aria-hidden="true" /> Véhicules en vedette ({featuredCount} actifs)</h3>
             <span style={{ fontSize: ".78rem", color: "#94a3b8" }}>Un visiteur voit d'abord la vedette de son pays, puis la vedette globale en repli</span>
           </div>
 
@@ -311,7 +312,7 @@ export function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoadi
                 <button key={code} onClick={() => setVedetteFilter((p) => ({ ...p, country: p.country === code ? "" : code }))}
                   style={{ fontSize: ".74rem", fontWeight: 700, padding: "4px 10px", borderRadius: 999, border: "none", cursor: "pointer",
                     background: vedetteFilter.country === code ? "#f59e0b" : "#fef3c7", color: vedetteFilter.country === code ? "#fff" : "#b45309" }}>
-                  {COUNTRIES_CONFIG.find((c) => c.code === code)?.flag || "🌍"} {COUNTRIES_CONFIG.find((c) => c.code === code)?.name || code} · {n}
+                  {COUNTRIES_CONFIG.find((c) => c.code === code)?.flag || <Globe size={16} aria-hidden="true" />} {COUNTRIES_CONFIG.find((c) => c.code === code)?.name || code} · {n}
                 </button>
               ))}
             </div>
@@ -329,17 +330,17 @@ export function MarketingSection({ vehicles, token, onRefresh, adsList, adsLoadi
                   <div key={vid} style={{ border: `2px solid ${v.featured ? "#f59e0b" : "#e2e8f0"}`, borderRadius: 12, overflow: "hidden", transition: "border-color .2s" }}>
                     {(v.images?.[0] || v.image)
                       ? <img src={v.images?.[0] || v.image} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: 100, objectFit: "cover" }} />
-                      : <div style={{ height: 100, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>🚗</div>
+                      : <div style={{ height: 100, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}><Car size={16} aria-hidden="true" /></div>
                     }
                     <div style={{ padding: "10px 12px" }}>
                       <div style={{ fontSize: ".82rem", fontWeight: 700, color: "#0f1b3f", marginBottom: 2 }}>{v.title || `${v.marque} ${v.modele} ${v.annee}`}</div>
                       <div style={{ fontSize: ".72rem", color: "#94a3b8", marginBottom: 8 }}>
-                        {COUNTRIES_CONFIG.find((c) => c.code === v.country)?.flag || "🌍"} {v.type === "vente" ? "Vente" : "Location"}
+                        {COUNTRIES_CONFIG.find((c) => c.code === v.country)?.flag || <Globe size={16} aria-hidden="true" />} {v.type === "vente" ? "Vente" : "Location"}
                       </div>
                       <button onClick={() => toggleFeatured(vid, v.featured)} disabled={featuredLoading === vid}
                         style={{ width: "100%", padding: "5px 0", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: ".78rem",
                           background: v.featured ? "#fef3c7" : "#f1f5f9", color: v.featured ? "#b45309" : "#475569" }}>
-                        {featuredLoading === vid ? "…" : v.featured ? "⭐ Retirer vedette" : "+ Mettre en vedette"}
+                        {featuredLoading === vid ? "…" : v.featured ? "Retirer vedette" : "+ Mettre en vedette"}
                       </button>
                     </div>
                   </div>

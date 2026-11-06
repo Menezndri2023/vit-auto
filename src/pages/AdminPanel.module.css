@@ -822,3 +822,19 @@
    masqué. Ce modificateur rend l'intention explicite plutôt que de laisser
    une classe citée dans le JSX pointer vers le vide. */
 .contentExpanded { width: 100%; }
+
+/* ── Motifs communs de l'administration (2026-11-06) ─────────────────────
+   Remplacent les styles en ligne les plus répétés (en-têtes et titres de
+   section, états vides, libellés et champs de formulaire), avec les jetons
+   de la charte. Préfixe « ui » : ne pas confondre avec les classes d'origine. */
+.uiEnteteSection { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 12px; }
+.uiTitreSection { font-size: 1.1rem; font-weight: 800; color: var(--c-text-primary, #0f1b3f); margin: 0 0 3px; display: flex; align-items: center; gap: 8px; }
+.uiTitre { font-size: 1.1rem; font-weight: 700; color: var(--c-text-primary, #0f1b3f); margin: 0; display: flex; align-items: center; gap: 8px; }
+.uiSousTitre { margin: 0; font-size: .83rem; color: var(--c-text-secondary, #64748b); }
+.uiVide { text-align: center; padding: 3rem; color: var(--c-text-muted, #94a3b8); }
+.uiVideIcone { font-size: 3rem; margin-bottom: 12px; display: flex; justify-content: center; color: #cbd5e1; }
+.uiLibelle { display: block; font-size: .8rem; font-weight: 600; color: var(--c-text-secondary, #475569); margin-bottom: 4px; }
+.uiChamp { width: 100%; box-sizing: border-box; padding: 8px 12px; border: 1.5px solid var(--c-border, #e2e8f0); border-radius: 8px; font-size: .85rem; font-family: inherit; background: var(--c-bg-card, #fff); color: var(--c-text-primary, #0f1b3f); }
+.uiChamp:focus { outline: none; border-color: var(--c-primary, #ff4d2d); box-shadow: 0 0 0 3px var(--c-primary-soft, rgba(255,77,45,.12)); }
+.uiChampCompact { padding: 7px 9px; border: 1.5px solid var(--c-border, #e2e8f0); border-radius: 8px; font-size: .82rem; font-family: inherit; }
+.uiLigneInfo { display: flex; justify-content: space-between; padding: 8px 12px; background: #f8fafc; border-radius: 8px; }

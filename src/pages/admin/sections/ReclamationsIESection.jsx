@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fmtDate } from "../shared.jsx";
 import LitigesTransaction from "../../../components/LitigesConditions/LitigesTransaction";
+import { Scale } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Réclamations en cours (2026-10-31 ; réservations et logistique le 2026-11-01)
@@ -32,7 +33,7 @@ export function ReclamationsIESection({ headers }) {
 
   return (
     <div style={{ marginBottom: "1.5rem" }}>
-      <h3 style={{ fontSize: "1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 4px" }}>⚖️ Réclamations en cours</h3>
+      <h3 style={{ fontSize: "1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 4px" }}><Scale size={16} aria-hidden="true" /> Réclamations en cours</h3>
       <p style={{ margin: "0 0 10px", fontSize: ".83rem", color: "#64748b" }}>
         Import/Export, réservations et logistique. Une réclamation ne change pas le statut de la transaction et ne bloque aucun fonds.
       </p>

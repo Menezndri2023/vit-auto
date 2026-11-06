@@ -1,3 +1,4 @@
+import { CheckCircle2, ClipboardList, Clock, FileText, Globe, XCircle, Zap } from "lucide-react";
 import styles from "../../AdminPanel.module.css";
 import { timeAgo } from "../shared.jsx";
 
@@ -9,10 +10,10 @@ export default function DemandesAValiderSection({
 }) {
   return (
     <div className={styles.tabContent}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+      <div className={styles.uiEnteteSection}>
         <div>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🕐 Demandes à valider</h2>
-          <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>
+          <h2 className={styles.uiTitreSection}><Clock size={16} aria-hidden="true" /> Demandes à valider</h2>
+          <p className={styles.uiSousTitre}>
             Aucune réservation, demande d'essai ou achat direct n'atteint le partenaire tant qu'elle n'est pas approuvée ici.
           </p>
         </div>
@@ -20,7 +21,7 @@ export default function DemandesAValiderSection({
           onClick={loadPendingValidation}>↻ Actualiser</button>
       </div>
 
-      <h3 style={{ fontSize: ".9rem", color: "#0f1b3f", margin: "0 0 10px" }}>📋 Réservations / essais ({pendingValidationBookings.length})</h3>
+      <h3 style={{ fontSize: ".9rem", color: "#0f1b3f", margin: "0 0 10px" }}><ClipboardList size={16} aria-hidden="true" /> Réservations / essais ({pendingValidationBookings.length})</h3>
       {pendingValidationLoading && pendingValidationBookings.length === 0 ? (
         <p style={{ color: "#94a3b8", fontSize: ".85rem" }}>Chargement…</p>
       ) : pendingValidationBookings.length === 0 ? (
@@ -33,7 +34,7 @@ export default function DemandesAValiderSection({
               <div key={b._id} style={{ border: "1.5px solid #e2e8f0", borderRadius: 12, padding: 14, background: b.adminValidation?.fastTrack ? "#fff7ed" : "#fff", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: ".88rem", color: "#0f1b3f" }}>
-                    {b.adminValidation?.fastTrack && <span style={{ color: "#d97706" }}>⚡ Instantanée — </span>}
+                    {b.adminValidation?.fastTrack && <span style={{ color: "#d97706" }}><Zap size={16} aria-hidden="true" /> Instantanée — </span>}
                     {b.reference} · {b.type}
                   </div>
                   <div style={{ fontSize: ".78rem", color: "#64748b", marginTop: 2 }}>
@@ -51,15 +52,15 @@ export default function DemandesAValiderSection({
                       l'onglet Réservations, une fois la décision prise. */}
                   <button onClick={() => setDocsModal({ booking: b })} title="Documents client joints à la réservation"
                     style={{ background: "#eff6ff", color: "#1d4ed8", border: "1.5px solid #bfdbfe", borderRadius: 8, padding: "8px 12px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                    📄 Documents
+                    <FileText size={16} aria-hidden="true" /> Documents
                   </button>
                   <button onClick={() => adminValidateBookingReq(b._id, "approved")}
                     style={{ background: "#16a34a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                    ✅ Approuver
+                    <CheckCircle2 size={16} aria-hidden="true" /> Approuver
                   </button>
                   <button onClick={() => { setValidationRejectModal({ kind: "booking", item: b }); setValidationRejectReason(""); }}
                     style={{ background: "#fef2f2", color: "#dc2626", border: "1.5px solid #fecaca", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                    ❌ Refuser
+                    <XCircle size={16} aria-hidden="true" /> Refuser
                   </button>
                 </div>
               </div>
@@ -68,7 +69,7 @@ export default function DemandesAValiderSection({
         </div>
       )}
 
-      <h3 style={{ fontSize: ".9rem", color: "#0f1b3f", margin: "0 0 10px" }}>🌍 Achats directs Import/Export ({pendingValidationDirect.length})</h3>
+      <h3 style={{ fontSize: ".9rem", color: "#0f1b3f", margin: "0 0 10px" }}><Globe size={16} aria-hidden="true" /> Achats directs Import/Export ({pendingValidationDirect.length})</h3>
       {pendingValidationDirect.length === 0 ? (
         <p style={{ color: "#94a3b8", fontSize: ".85rem" }}>Aucun achat direct en attente.</p>
       ) : (
@@ -87,11 +88,11 @@ export default function DemandesAValiderSection({
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={() => adminValidateDirectReq(tx._id, "approved")}
                   style={{ background: "#16a34a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                  ✅ Approuver
+                  <CheckCircle2 size={16} aria-hidden="true" /> Approuver
                 </button>
                 <button onClick={() => { setValidationRejectModal({ kind: "direct", item: tx }); setValidationRejectReason(""); }}
                   style={{ background: "#fef2f2", color: "#dc2626", border: "1.5px solid #fecaca", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: ".8rem", cursor: "pointer" }}>
-                  ❌ Refuser
+                  <XCircle size={16} aria-hidden="true" /> Refuser
                 </button>
               </div>
             </div>

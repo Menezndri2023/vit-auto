@@ -3,6 +3,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import styles from "../AdminPanel.module.css";
 import { INCOTERMS as IE_LISTING_INCOTERMS } from "../../constants/incoterms";
+import { Banknote, Car, CheckCircle2, ClipboardList, Globe, Handshake, MapPin, MessageCircle, Rocket, Shield, Ship, UserRound, Users, Zap, Flag, Folder, Ticket } from "lucide-react";
 
 // Drapeau pays — reconnaissance rapide du pays d'un partenaire/client par
 // l'admin, à partir du code ISO stocké sur User/Vehicle/Driver (voir
@@ -59,15 +60,15 @@ export const ROLE_CONFIG = {
 };
 
 export const KYC_CFG = {
-  VERIFIE:               { label: "✅ Vérifié",    color: "#16a34a", bg: "#dcfce7" },
-  EN_ATTENTE:            { label: "⏳ Attente",    color: "#d97706", bg: "#fef3c7" },
-  REFUSE:                { label: "❌ Refusé",     color: "#dc2626", bg: "#fee2e2" },
-  A_REVOIR_MANUELLEMENT: { label: "🔍 À revoir",  color: "#7c3aed", bg: "#ede9fe" },
+  VERIFIE:               { label: "Vérifié",    color: "#16a34a", bg: "#dcfce7" },
+  EN_ATTENTE:            { label: "Attente",    color: "#d97706", bg: "#fef3c7" },
+  REFUSE:                { label: "Refusé",     color: "#dc2626", bg: "#fee2e2" },
+  A_REVOIR_MANUELLEMENT: { label: "À revoir",  color: "#7c3aed", bg: "#ede9fe" },
 };
 
 export const CERTIF_CFG = {
-  premium:   { label: "⭐ Premium",   color: "#7c3aed", bg: "#ede9fe" },
-  fondateur: { label: "🏆 Fondateur", color: "#d97706", bg: "#fef3c7" },
+  premium:   { label: "Premium",   color: "#7c3aed", bg: "#ede9fe" },
+  fondateur: { label: "Fondateur", color: "#d97706", bg: "#fef3c7" },
   verifie:   { label: "🟢 Vérifié",  color: "#16a34a", bg: "#dcfce7" },
 };
 
@@ -182,7 +183,7 @@ export const CERT_LEVEL_FIELDS = {
 
 export const fmtCertField = (f, v) => {
   if (v === null || v === undefined || v === "") return "—";
-  if (f.bool) return v ? "✅ Oui" : "❌ Non";
+  if (f.bool) return v ? "Oui" : "Non";
   if (f.date) return new Date(v).toLocaleString("fr-FR");
   if (f.list) return Array.isArray(v) && v.length ? v.join(", ") : "—";
   return String(v);
@@ -312,13 +313,13 @@ export function ConfirmModal({ message, onConfirm, onCancel, danger }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export const CRITERIA_CONFIG = [
-  { key: "businessLicense",   label: "Licence commerciale vérifiée", icon: "📋", weight: 20, desc: "RCCM, Kbis, Business License ou équivalent" },
-  { key: "repIdentified",     label: "Représentant identifié",        icon: "👤", weight: 18, desc: "Identité du représentant légal confirmée" },
-  { key: "exportCapacity",    label: "Capacité d'export confirmée",   icon: "🚢", weight: 18, desc: "Volume, pays, ports et modes de transport" },
-  { key: "documentsReceived", label: "Documents reçus",               icon: "📁", weight: 15, desc: "Tous les documents demandés ont été fournis" },
-  { key: "addressVerified",   label: "Adresse vérifiée",              icon: "📍", weight: 12, desc: "Adresse physique de l'entreprise confirmée" },
-  { key: "websiteVerified",   label: "Site web vérifié",              icon: "🌐", weight: 10, desc: "Site web actif et cohérent avec le profil" },
-  { key: "verificationDone",  label: "Vérification terminée",         icon: "✅", weight:  7, desc: "Dossier complet, revue finale effectuée" },
+  { key: "businessLicense",   label: "Licence commerciale vérifiée", icon: <ClipboardList size={16} aria-hidden="true" />, weight: 20, desc: "RCCM, Kbis, Business License ou équivalent" },
+  { key: "repIdentified",     label: "Représentant identifié",        icon: <UserRound size={16} aria-hidden="true" />, weight: 18, desc: "Identité du représentant légal confirmée" },
+  { key: "exportCapacity",    label: "Capacité d'export confirmée",   icon: <Ship size={16} aria-hidden="true" />, weight: 18, desc: "Volume, pays, ports et modes de transport" },
+  { key: "documentsReceived", label: "Documents reçus",               icon: <Folder size={16} aria-hidden="true" />, weight: 15, desc: "Tous les documents demandés ont été fournis" },
+  { key: "addressVerified",   label: "Adresse vérifiée",              icon: <MapPin size={16} aria-hidden="true" />, weight: 12, desc: "Adresse physique de l'entreprise confirmée" },
+  { key: "websiteVerified",   label: "Site web vérifié",              icon: <Globe size={16} aria-hidden="true" />, weight: 10, desc: "Site web actif et cohérent avec le profil" },
+  { key: "verificationDone",  label: "Vérification terminée",         icon: <CheckCircle2 size={16} aria-hidden="true" />, weight:  7, desc: "Dossier complet, revue finale effectuée" },
 ];
 
 export const TRUST_LEVEL_CONFIG = {
@@ -338,7 +339,7 @@ export const STATUS_PV_CONFIG = {
   // Compte partenaire sans aucun dossier de vérification (voir orphanRows,
   // partnerVerificationController.adminList) — distinct de "en_cours" pour ne
   // pas laisser croire qu'un examen est déjà en route.
-  not_started: { label: "Sans dossier ⚠️", color: "#dc2626", bg: "#fee2e2" },
+  not_started: { label: "Sans dossier", color: "#dc2626", bg: "#fee2e2" },
 };
 
 export const COMPANY_TYPES = [
@@ -370,12 +371,12 @@ export function WipSection({ icon, title, subtitle, features = [] }) {
           <p style={{ fontSize: "0.8rem", color: "#94a3b8", marginBottom: 10 }}>Fonctionnalités prévues :</p>
           <div className={styles.wipFeatures}>
             {features.map((f) => (
-              <span key={f} className={styles.wipFeature}>⚡ {f}</span>
+              <span key={f} className={styles.wipFeature}><Zap size={16} aria-hidden="true" /> {f}</span>
             ))}
           </div>
         </>
       )}
-      <div className={styles.wipBanner}>🚀 En développement — Bientôt disponible</div>
+      <div className={styles.wipBanner}><Rocket size={16} aria-hidden="true" /> En développement — Bientôt disponible</div>
     </div>
   );
 }
@@ -398,15 +399,15 @@ export function Pagination({ page, total, onChange }) {
 // Miroir EXACT de server/constants/adminScopes.js — toute permission ajoutée
 // côté serveur doit apparaître ici, sinon elle devient inattribuable.
 export const ADMIN_SCOPE_CFG = [
-  { key: "finance",       label: "Finance",         icon: "💰", desc: "Factures, commissions, reversements, paiements, séquestre, tarification." },
-  { key: "bookings",      label: "Réservations",    icon: "📋", desc: "Validation des demandes, litiges, statuts, export des commandes." },
-  { key: "users",         label: "Comptes",         icon: "👥", desc: "Comptes clients et partenaires : rôles, activation, suppression." },
-  { key: "catalogue",     label: "Catalogue",       icon: "🚗", desc: "Annonces véhicules, chauffeurs, activités et publicités." },
-  { key: "partners",      label: "Partenaires",     icon: "🤝", desc: "Onboarding, certification, vérification, CRM, showrooms." },
-  { key: "transitaire",   label: "Transit & Logistique", icon: "🚢", desc: "Assignation des dossiers export aux transitaires et agents, suivi d'expédition." },
-  { key: "kyc",           label: "KYC & Identités", icon: "🛡️", desc: "Dossiers KYC et pièces d'identité soumises." },
-  { key: "import_export", label: "Import / Export", icon: "🌍", desc: "Transactions internationales, annonces export, logistique." },
-  { key: "support",       label: "Support client",  icon: "💬", desc: "Conversations, notifications, WhatsApp." },
-  { key: "assistance",    label: "Demandes d'assistance", icon: "🎫", desc: "Billetterie partenaire — file ordonnée par échéance de réponse." },
-  { key: "moderation",    label: "Modération",      icon: "🚩", desc: "Avis clients et signalements." },
+  { key: "finance",       label: "Finance",         icon: <Banknote size={16} aria-hidden="true" />, desc: "Factures, commissions, reversements, paiements, séquestre, tarification." },
+  { key: "bookings",      label: "Réservations",    icon: <ClipboardList size={16} aria-hidden="true" />, desc: "Validation des demandes, litiges, statuts, export des commandes." },
+  { key: "users",         label: "Comptes",         icon: <Users size={16} aria-hidden="true" />, desc: "Comptes clients et partenaires : rôles, activation, suppression." },
+  { key: "catalogue",     label: "Catalogue",       icon: <Car size={16} aria-hidden="true" />, desc: "Annonces véhicules, chauffeurs, activités et publicités." },
+  { key: "partners",      label: "Partenaires",     icon: <Handshake size={16} aria-hidden="true" />, desc: "Onboarding, certification, vérification, CRM, showrooms." },
+  { key: "transitaire",   label: "Transit & Logistique", icon: <Ship size={16} aria-hidden="true" />, desc: "Assignation des dossiers export aux transitaires et agents, suivi d'expédition." },
+  { key: "kyc",           label: "KYC & Identités", icon: <Shield size={16} aria-hidden="true" />, desc: "Dossiers KYC et pièces d'identité soumises." },
+  { key: "import_export", label: "Import / Export", icon: <Globe size={16} aria-hidden="true" />, desc: "Transactions internationales, annonces export, logistique." },
+  { key: "support",       label: "Support client",  icon: <MessageCircle size={16} aria-hidden="true" />, desc: "Conversations, notifications, WhatsApp." },
+  { key: "assistance",    label: "Demandes d'assistance", icon: <Ticket size={16} aria-hidden="true" />, desc: "Billetterie partenaire — file ordonnée par échéance de réponse." },
+  { key: "moderation",    label: "Modération",      icon: <Flag size={16} aria-hidden="true" />, desc: "Avis clients et signalements." },
 ];

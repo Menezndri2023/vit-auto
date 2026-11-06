@@ -1,5 +1,6 @@
 import { MOIS, MiniBar, StatCard } from "../shared.jsx";
 import styles from "../../AdminPanel.module.css";
+import { BarChart3, Car, CheckCircle2, CreditCard, FileText, Globe, Handshake, Hourglass, IdCard, Sailboat, Shield, TrendingUp, Users, Flag, Scale, Target, Wrench, Banknote, ClipboardList } from "lucide-react";
 
 // Onglet « Vue d'ensemble » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -14,21 +15,21 @@ export default function VueEnsembleSection({
 
       {/* Statistiques globales */}
       <div className={styles.statsGrid}>
-        <StatCard icon="👥" label="Utilisateurs" value={stats?.users?.total || 0}
+        <StatCard icon={<Users size={20} aria-hidden="true" />} label="Utilisateurs" value={stats?.users?.total || 0}
           sub={`+${stats?.users?.newThisMonth || 0} ce mois`} color="#3b82f6" />
-        <StatCard icon="🤝" label="Partenaires" value={stats?.users?.partenaires || 0}
+        <StatCard icon={<Handshake size={20} aria-hidden="true" />} label="Partenaires" value={stats?.users?.partenaires || 0}
           sub={`${stats?.users?.admins || 0} admin(s)`} color="#10b981" />
-        <StatCard icon="🚗" label="Annonces publiées" value={stats?.vehicles?.approved || 0}
+        <StatCard icon={<Car size={20} aria-hidden="true" />} label="Annonces publiées" value={stats?.vehicles?.approved || 0}
           sub={`${stats?.vehicles?.pending || 0} en attente`} color="#8b5cf6" />
-        <StatCard icon="📋" label="Commandes totales" value={stats?.bookings?.total || 0}
+        <StatCard icon={<ClipboardList size={20} aria-hidden="true" />} label="Commandes totales" value={stats?.bookings?.total || 0}
           sub={`+${stats?.bookings?.newThisMonth || 0} ce mois`} color="#f59e0b" />
-        <StatCard icon="✅" label="Commandes terminées" value={stats?.bookings?.completed || 0}
+        <StatCard icon={<CheckCircle2 size={20} aria-hidden="true" />} label="Commandes terminées" value={stats?.bookings?.completed || 0}
           sub={`${stats?.bookings?.cancelled || 0} annulées`} color="#64748b" />
-        <StatCard icon="💰" label="Revenus totaux"
+        <StatCard icon={<Banknote size={20} aria-hidden="true" />} label="Revenus totaux"
           value={fmtUSD(stats?.revenue?.total || 0)}
           sub={`Ce mois : ${fmtUSD(stats?.revenue?.thisMonth || 0)}`}
           color="#ef4444" />
-        <StatCard icon="🌍" label="Import/Export"
+        <StatCard icon={<Globe size={20} aria-hidden="true" />} label="Import/Export"
           value={ieRequestsTotal || ieRequests.length || "—"}
           sub="Demandes reçues"
           color="#ff4d2d" />
@@ -44,29 +45,29 @@ export default function VueEnsembleSection({
           pas ouvrir. */}
       {(() => {
         const queue = [
-          { tab: "pending_validation", icon: "⏳", n: pendingValidationTotal, label: "demande(s) de réservation à valider", urgent: true },
-          { tab: "litiges",            icon: "⚖️", n: disputedBk,          label: "litige(s) à arbitrer", urgent: true },
-          { tab: "kyc",                icon: "🛡️", n: pendingKyc,            label: "dossier(s) KYC à examiner" },
-          { tab: "catalogue",          icon: "🚗", n: stats?.vehicles?.pending || 0, label: "annonce(s) en attente de validation" },
-          { tab: "chauffeurs",         icon: "🧑‍✈️", n: pendingDrivers,        label: "profil(s) chauffeur à valider" },
-          { tab: "activites",          icon: "🎈", n: pendingActivities,      label: "activité(s) à valider" },
+          { tab: "pending_validation", icon: <Hourglass size={16} aria-hidden="true" />, n: pendingValidationTotal, label: "demande(s) de réservation à valider", urgent: true },
+          { tab: "litiges",            icon: <Scale size={16} aria-hidden="true" />, n: disputedBk,          label: "litige(s) à arbitrer", urgent: true },
+          { tab: "kyc",                icon: <Shield size={16} aria-hidden="true" />, n: pendingKyc,            label: "dossier(s) KYC à examiner" },
+          { tab: "catalogue",          icon: <Car size={16} aria-hidden="true" />, n: stats?.vehicles?.pending || 0, label: "annonce(s) en attente de validation" },
+          { tab: "chauffeurs",         icon: <IdCard size={16} aria-hidden="true" />, n: pendingDrivers,        label: "profil(s) chauffeur à valider" },
+          { tab: "activites",          icon: <Sailboat size={16} aria-hidden="true" />, n: pendingActivities,      label: "activité(s) à valider" },
           { tab: "certification",      icon: "🏅", n: pendingCert,            label: "certification(s) partenaire à examiner" },
-          { tab: "paiements",          icon: "💳", n: pendingSub,             label: "paiement(s) d'abonnement à confirmer" },
-          { tab: "factures",           icon: "📄", n: pendingInv,             label: "facture(s) en attente" },
-          { tab: "reports",            icon: "🚩", n: pendingReports,         label: "signalement(s) à traiter" },
-          { tab: "import_export",      icon: "🌍", n: pendingIe,              label: "demande(s) Import/Export" },
-          { tab: "service_requests",   icon: "🧰", n: pendingSvcReq,          label: "demande(s) de service" },
-          { tab: "exportateurs",       icon: "🤝", n: pendingImp,             label: "profil(s) exportateur à valider" },
+          { tab: "paiements",          icon: <CreditCard size={16} aria-hidden="true" />, n: pendingSub,             label: "paiement(s) d'abonnement à confirmer" },
+          { tab: "factures",           icon: <FileText size={16} aria-hidden="true" />, n: pendingInv,             label: "facture(s) en attente" },
+          { tab: "reports",            icon: <Flag size={16} aria-hidden="true" />, n: pendingReports,         label: "signalement(s) à traiter" },
+          { tab: "import_export",      icon: <Globe size={16} aria-hidden="true" />, n: pendingIe,              label: "demande(s) Import/Export" },
+          { tab: "service_requests",   icon: <Wrench size={16} aria-hidden="true" />, n: pendingSvcReq,          label: "demande(s) de service" },
+          { tab: "exportateurs",       icon: <Handshake size={16} aria-hidden="true" />, n: pendingImp,             label: "profil(s) exportateur à valider" },
         ].filter((q) => q.n > 0 && canSeeTab(q.tab));
 
         return (
           <div className={styles.chartCard} style={{ marginBottom: "1.5rem" }}>
             <h3 className={styles.chartTitle}>
-              🎯 À traiter aujourd'hui {queue.length > 0 && <span style={{ color: "#dc2626" }}>({queue.reduce((t, q) => t + q.n, 0)})</span>}
+              <Target size={16} aria-hidden="true" /> À traiter aujourd'hui {queue.length > 0 && <span style={{ color: "#dc2626" }}>({queue.reduce((t, q) => t + q.n, 0)})</span>}
             </h3>
             {queue.length === 0 ? (
               <p style={{ margin: 0, fontSize: ".86rem", color: "#059669", fontWeight: 700 }}>
-                ✅ Rien en attente — tout est traité.
+                <CheckCircle2 size={16} aria-hidden="true" /> Rien en attente — tout est traité.
               </p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -93,7 +94,7 @@ export default function VueEnsembleSection({
       {/* Graphique revenus 6 mois */}
       {revByMonth.length > 0 && (
         <div className={styles.chartCard}>
-          <h3 className={styles.chartTitle}>📈 Revenus — 6 derniers mois</h3>
+          <h3 className={styles.chartTitle}><TrendingUp size={16} aria-hidden="true" /> Revenus — 6 derniers mois</h3>
           <div className={styles.chart}>
             {revByMonth.map((m) => (
               <div key={`${m._id.year}-${m._id.month}`} className={styles.chartCol}>
@@ -111,11 +112,11 @@ export default function VueEnsembleSection({
       {/* Répartition commandes par type */}
       {(stats?.bookings?.byType || []).length > 0 && (
         <div className={styles.chartCard}>
-          <h3 className={styles.chartTitle}>📊 Commandes par type</h3>
+          <h3 className={styles.chartTitle}><BarChart3 size={16} aria-hidden="true" /> Commandes par type</h3>
           <div className={styles.pieGrid}>
             {stats.bookings.byType.map(({ _id, count }) => {
               const colors = { location: "#3b82f6", essai: "#10b981", chauffeur: "#f59e0b", leasing: "#8b5cf6", import_export: "#ff4d2d" };
-              const labels = { location: "📅 Location", essai: "🔑 Essai", chauffeur: "🚘 Chauffeur", leasing: "🏦 Leasing", import_export: "🌍 Import/Export" };
+              const labels = { location: "Location", essai: "Essai", chauffeur: "Chauffeur", leasing: "Leasing", import_export: "Import/Export" };
               return (
                 <div key={_id} className={styles.pieItem}>
                   <div className={styles.pieDot} style={{ background: colors[_id] || "#94a3b8" }} />
@@ -131,7 +132,7 @@ export default function VueEnsembleSection({
 
       {/* Répartition utilisateurs */}
       <div className={styles.chartCard}>
-        <h3 className={styles.chartTitle}>👥 Répartition des comptes</h3>
+        <h3 className={styles.chartTitle}><Users size={16} aria-hidden="true" /> Répartition des comptes</h3>
         <div className={styles.pieGrid}>
           {[
             { key: "clients",     label: "Clients",     count: stats?.users?.clients || 0,     color: "#3b82f6" },

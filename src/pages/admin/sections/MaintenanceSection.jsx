@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import styles from "../../AdminPanel.module.css";
 import { fmtDate } from "../shared.jsx";
+import { BellRing } from "lucide-react";
 
 const NIVEAU = {
   ok:        { label: "OK",        color: "#10b981", bg: "#ecfdf5" },
@@ -43,7 +44,7 @@ export function MaintenanceSection({ headers }) {
     <div style={{ marginTop: "2rem" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", gap: 12, flexWrap: "wrap" }}>
         <div>
-          <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>🛎️ Veille de maintenance</h3>
+          <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}><BellRing size={16} aria-hidden="true" /> Veille de maintenance</h3>
           <p style={{ margin: 0, fontSize: ".8rem", color: "#64748b" }}>
             Ce qui se dégrade sans erreur visible : dossiers et annonces qui attendent, publications refusées, lecture des pièces d'identité.
             Les points non verts figurent aussi dans le digest quotidien.

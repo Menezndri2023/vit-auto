@@ -1,6 +1,7 @@
 // Extrait d'AdminPanel.jsx (découpe par onglet, 2026-09-12) — logique inchangée.
 import { useState } from "react";
 import { useCurrency } from "../../../context/CurrencyContext";
+import { AlertTriangle, FileText, Shield, Star } from "lucide-react";
 import styles from "../../AdminPanel.module.css";
 import { lireDocument } from "../../../utils/compresserDocument";
 import { COMPANY_TYPES, CRITERIA_CONFIG, STATUS_PV_CONFIG, TRUST_LEVEL_CONFIG, safeHref, safeImgHref } from "../shared.jsx";
@@ -47,7 +48,7 @@ export function PartnerVerifSection({ headers, pvList, pvStats, pvLoading, pvFil
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.message || `Erreur ${res.status}`);
       setPvDetail((prev) => ({ ...prev, ...d.verification, userId: prev.userId }));
-      showToast("✅ Document ajouté au dossier du partenaire.");
+      showToast("Document ajouté au dossier du partenaire.");
       onRefresh?.();
     } catch (err) {
       showToast(err.message || "Impossible d'ajouter le document.", "error");
@@ -219,7 +220,7 @@ export function PartnerVerifSection({ headers, pvList, pvStats, pvLoading, pvFil
           {COMPANY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
         <button className={styles.btnPrimary} onClick={onRefresh} disabled={pvLoading}>
-          {pvLoading ? "…" : "🔍 Filtrer"}
+          {pvLoading ? "…" : "Filtrer"}
         </button>
         <button className={styles.btnPrimary} style={{ background: "#6d28d9" }} onClick={() => setPvCreateModal(true)}>
           + Nouveau dossier
@@ -309,7 +310,7 @@ export function PartnerVerifSection({ headers, pvList, pvStats, pvLoading, pvFil
                           title="Vue de confiance unifiée"
                           onClick={(e) => { e.stopPropagation(); onOpenTrustOverview(typeof pv.userId === "object" ? pv.userId : { _id: pv.userId }); }}
                           style={{ padding: "4px 10px", borderRadius: 6, border: "1.5px solid #e2e8f0", background: "#f8fafc", color: "#0f1b3f", fontWeight: 700, fontSize: ".78rem", cursor: "pointer" }}>
-                          🛡️
+                          <Shield size={16} aria-hidden="true" />
                         </button>
                       )}
                     </div>
@@ -411,7 +412,7 @@ export function PartnerVerifSection({ headers, pvList, pvStats, pvLoading, pvFil
                   <div style={{ fontWeight: 900, fontSize: "1.05rem", color: "#0f1b3f" }}>{pvDetail.companyName}</div>
                   <div style={{ fontSize: "0.78rem", color: "#64748b" }}>{COMPANY_TYPES.find((t) => t.value === pvDetail.companyType)?.label} · {pvDetail.country || "—"}</div>
                   <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
-                    {(() => { const sl = STATUS_PV_CONFIG[pvDetail.status] || STATUS_PV_CONFIG.en_cours; const tl = TRUST_LEVEL_CONFIG[pvDetail.trustLevel] || TRUST_LEVEL_CONFIG.non_verifie; return (<><span className={styles.badge} style={{ color: sl.color, background: sl.bg }}>{sl.label}</span><span className={styles.badge} style={{ color: tl.color, background: tl.bg }}>⭐ {tl.label}</span></>); })()}
+                    {(() => { const sl = STATUS_PV_CONFIG[pvDetail.status] || STATUS_PV_CONFIG.en_cours; const tl = TRUST_LEVEL_CONFIG[pvDetail.trustLevel] || TRUST_LEVEL_CONFIG.non_verifie; return (<><span className={styles.badge} style={{ color: sl.color, background: sl.bg }}>{sl.label}</span><span className={styles.badge} style={{ color: tl.color, background: tl.bg }}><Star size={16} aria-hidden="true" /> {tl.label}</span></>); })()}
                   </div>
                 </div>
               </div>
@@ -423,7 +424,7 @@ export function PartnerVerifSection({ headers, pvList, pvStats, pvLoading, pvFil
 
             {/* Onglets internes */}
             <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #e2e8f0", padding: "0 20px" }}>
-              {[["dossier","📋 Dossier"],["criteres","✅ Critères"],["docs","📁 Documents"],["audit","📜 Audit"]].map(([k, lbl]) => (
+              {[["dossier","Dossier"],["criteres","Critères"],["docs","Documents"],["audit","Audit"]].map(([k, lbl]) => (
                 <button key={k} onClick={() => setDetailTab(k)}
                   style={{ padding: "10px 16px", fontSize: "0.82rem", fontWeight: 700, border: "none", cursor: "pointer", background: "none", borderBottom: detailTab === k ? "3px solid #6d28d9" : "3px solid transparent", color: detailTab === k ? "#6d28d9" : "#64748b" }}>
                   {lbl}
@@ -587,9 +588,9 @@ export function PartnerVerifSection({ headers, pvList, pvStats, pvLoading, pvFil
                     if (!missingCount || pvDetail.status === "verifie") return null;
                     return (
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10, padding: "10px 14px", marginBottom: 14 }}>
-                        <span style={{ fontSize: "0.82rem", color: "#92400e" }}>⚠️ {missingCount} document(s) manquant(s) — le partenaire n'a pas été relancé automatiquement depuis plus de 7 jours au maximum.</span>
+                        <span style={{ fontSize: "0.82rem", color: "#92400e" }}><AlertTriangle size={16} aria-hidden="true" /> {missingCount} document(s) manquant(s) — le partenaire n'a pas été relancé automatiquement depuis plus de 7 jours au maximum.</span>
                         <button className={styles.btnPrimary} style={{ whiteSpace: "nowrap", flexShrink: 0 }} onClick={handlePvRelance} disabled={pvSaving}>
-                          {pvSaving ? "…" : "🔔 Relancer"}
+                          {pvSaving ? "…" : "Relancer"}
                         </button>
                       </div>
                     );
@@ -608,7 +609,7 @@ export function PartnerVerifSection({ headers, pvList, pvStats, pvLoading, pvFil
                         {pvDetail.documents?.[key] ? (
                           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                             {/\.pdf(\?|$)|^data:application\/pdf/i.test(pvDetail.documents[key]) ? (
-                              <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontWeight: 700, fontSize: "0.82rem" }}>📄 Document PDF</div>
+                              <div style={{ height: 64, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontWeight: 700, fontSize: "0.82rem" }}><FileText size={16} aria-hidden="true" /> Document PDF</div>
                             ) : (
                               <img src={pvDetail.documents[key]} alt={label} loading="lazy" decoding="async" style={{ width: "100%", maxHeight: 100, objectFit: "cover", borderRadius: 6, border: "1px solid #e2e8f0" }} onError={(e) => { e.target.style.display = "none"; }} />
                             )}

@@ -5,6 +5,7 @@ import {
   GARANTIES_ASSURANCE, primeIndicative, STATUTS_ASSURANCE, DUREES_FINANCEMENT, SITUATIONS_PRO, STATUTS_FINANCEMENT,
 } from "../../../constants/dossierImport";
 import css from "./DossiersImportSection.module.css";
+import { Anchor } from "lucide-react";
 
 // ── Étape 3 de l'Import/Export (2026-10-09) ────────────────────────────────
 // Dans le détail d'un dossier : l'inspection indépendante (inspecteur de la
@@ -58,7 +59,7 @@ export function OptionsDossierAdmin({ d, id, appel, occupe, prestataires }) {
               </select>
               <button type="button" className={css.btn} disabled={occupe || !inspecteur} onClick={async () => { if (await patch("inspection", { inspecteur })) setInspecteur(""); }}>Affecter</button>
             </div>
-            {!inspecteurs.length && <p className={css.muted}>Aucun inspecteur actif : invitez-en un depuis l'onglet ⚓ Zone Transit (métier « Inspecteur »).</p>}
+            {!inspecteurs.length && <p className={css.muted}>Aucun inspecteur actif : invitez-en un depuis l'onglet <Anchor size={16} aria-hidden="true" /> Zone Transit (métier « Inspecteur »).</p>}
           </>
         )}
         <p className={css.muted}>L'inspecteur rend son rapport depuis son espace Zone Transit. Un verdict « non conforme » bloque le paiement et l'embarquement.</p>

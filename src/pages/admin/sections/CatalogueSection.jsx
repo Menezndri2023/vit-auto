@@ -5,6 +5,7 @@ import styles from "../../AdminPanel.module.css";
 import { COUNTRIES_ALL, CURRENCIES as IE_CURRENCIES, getCountryFlag } from "../../../data/autocomplete";
 import { downloadAuthFile } from "../../../utils/downloadAuthFile";
 import { MOIS_LONGS } from "../shared.jsx";
+import { AlertTriangle, Briefcase, CalendarDays, Car, CheckCircle2, ClipboardList, FileText, Globe, Hourglass, IdCard, Landmark, MapPin, MessageCircle, Pencil, Plus, Snowflake, Sparkles, Tag, Trash2, Trophy, UserRound, XCircle, Zap, Clock, Eye, FilePen, Shuffle } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CATALOGUE SECTION — Annonces & Validations (combiné)
@@ -104,7 +105,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
         body: JSON.stringify({ rules }),
       });
       const d = await r.json();
-      if (r.ok) { showToast(rules.length > 0 ? "🗓️ Tarifs saisonniers enregistrés." : "Tarifs saisonniers supprimés.", "success"); setSeasonalModal(null); onRefresh(); }
+      if (r.ok) { showToast(rules.length > 0 ? "Tarifs saisonniers enregistrés." : "Tarifs saisonniers supprimés.", "success"); setSeasonalModal(null); onRefresh(); }
       else showToast(d.message || "Erreur.", "error");
     } catch { showToast("Erreur réseau.", "error"); }
     finally { setSeasonalSaving(false); }
@@ -243,7 +244,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
       const r = await fetch(url, { method: "PATCH", headers, body: JSON.stringify(body) });
       const d = await r.json().catch(() => null);
       if (r.ok) {
-        showToast("✅ Annonce transférée.");
+        showToast("Annonce transférée.");
         setTransferModal(null);
         onRefresh();
       } else showToast(d?.message || "Erreur lors du transfert.", "error");
@@ -266,7 +267,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
       });
       const d = await r.json().catch(() => null);
       if (r.ok) {
-        showToast("✅ Contrat généré et envoyé au partenaire.");
+        showToast("Contrat généré et envoyé au partenaire.");
         setProcessModal(null);
         loadEmploymentAdminList();
       } else showToast(d?.message || "Erreur lors du traitement.", "error");
@@ -289,7 +290,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
         body: JSON.stringify({ action: "forward" }),
       });
       const d = await r.json().catch(() => null);
-      if (r.ok) { showToast("✅ Demande transmise au partenaire."); loadEmploymentAdminList(); }
+      if (r.ok) { showToast("Demande transmise au partenaire."); loadEmploymentAdminList(); }
       else showToast(d?.message || "Erreur lors de la transmission.", "error");
     } catch { showToast("Erreur réseau.", "error"); }
     setEmploymentReviewSaving(null);
@@ -500,7 +501,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
       const r = await fetch(`/api/vehicles/${editVehicle._id}`, { method: "PATCH", headers, body: JSON.stringify(patch) });
       const d = await r.json().catch(() => null);
       if (r.ok) {
-        showToast("✅ Annonce mise à jour");
+        showToast("Annonce mise à jour");
         setEditVehicle(null); setEditForm(null); setEditPhotos([]);
         onRefresh();
       } else showToast(d?.message || "Erreur mise à jour", "error");
@@ -529,7 +530,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
       });
       const d = await r.json().catch(() => null);
       if (r.ok) {
-        showToast("🌍 Annonce transformée en export.");
+        showToast("Annonce transformée en export.");
         setEditVehicle(null); setEditForm(null); setEditPhotos([]); setExportMode(false);
         onRefresh();
       } else showToast(d?.message || "Erreur lors de la conversion", "error");
@@ -601,12 +602,12 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
   const totalPages = Math.ceil(filtered.length / PAGE);
 
   const SUB_TABS = [
-    { k: "pending",  l: "En attente",  icon: "⏳", count: vehicles.filter(v => v.status === "pending").length, color: "#f59e0b" },
-    { k: "scheduled", l: "Programmées", icon: "🕒", count: vehicles.filter(estProgrammee).length, color: "#7c3aed" },
-    { k: "approved", l: "Publiées",    icon: "✅", count: vehicles.filter(v => v.status === "approved").length, color: "#16a34a" },
-    { k: "rejected", l: "Rejetées",    icon: "❌", count: vehicles.filter(v => v.status === "rejected").length, color: "#ef4444" },
-    { k: "drivers",  l: "Chauffeurs",  icon: "👨‍✈️", count: drivers.filter(d => d.status === "pending").length, color: "#8b5cf6" },
-    { k: "all",      l: "Toutes",      icon: "📋", count: vehicles.length, color: "#64748b" },
+    { k: "pending",  l: "En attente",  icon: <Hourglass size={16} aria-hidden="true" />, count: vehicles.filter(v => v.status === "pending").length, color: "#f59e0b" },
+    { k: "scheduled", l: "Programmées", icon: <Clock size={16} aria-hidden="true" />, count: vehicles.filter(estProgrammee).length, color: "#7c3aed" },
+    { k: "approved", l: "Publiées",    icon: <CheckCircle2 size={16} aria-hidden="true" />, count: vehicles.filter(v => v.status === "approved").length, color: "#16a34a" },
+    { k: "rejected", l: "Rejetées",    icon: <XCircle size={16} aria-hidden="true" />, count: vehicles.filter(v => v.status === "rejected").length, color: "#ef4444" },
+    { k: "drivers",  l: "Chauffeurs",  icon: <IdCard size={16} aria-hidden="true" />, count: drivers.filter(d => d.status === "pending").length, color: "#8b5cf6" },
+    { k: "all",      l: "Toutes",      icon: <ClipboardList size={16} aria-hidden="true" />, count: vehicles.length, color: "#64748b" },
   ];
 
   // Mise à jour optimiste en place (updateDriverStatusInPlace/updateVehicleStatus,
@@ -664,7 +665,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
             <select className={styles.searchInput} value={vehCountryFilter}
               onChange={(e) => { setVehCountryFilter(e.target.value); setVehPage(1); }}
               style={{ minWidth: 150 }}>
-              <option value="">🌍 Tous les pays</option>
+              <option value="">Tous les pays</option>
               {COUNTRIES_CONFIG.map((c) => (
                 <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
               ))}
@@ -672,7 +673,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
             <select className={styles.searchInput} value={vehVilleFilter}
               onChange={(e) => { setVehVilleFilter(e.target.value); setVehPage(1); }}
               style={{ minWidth: 150 }}>
-              <option value="">📍 Toutes les villes</option>
+              <option value="">Toutes les villes</option>
               {vehVilleOptions.map((ville) => (
                 <option key={ville} value={ville}>{ville}</option>
               ))}
@@ -680,7 +681,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
             <select className={styles.searchInput} value={vehTypeFilter}
               onChange={(e) => { setVehTypeFilter(e.target.value); setVehPage(1); }}
               style={{ minWidth: 130 }}>
-              <option value="">🏷️ Tous types</option>
+              <option value="">Tous types</option>
               <option value="location">Location</option>
               <option value="vente">Vente</option>
             </select>
@@ -693,7 +694,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
             <button className={styles.btnSmall} onClick={onRefresh}>↻ Actualiser</button>
             {selectedVehicleIds.size > 0 && (
               <button className={styles.btnDanger} disabled={bulkDeleting} onClick={handleBulkDeleteVehicles}>
-                🗑️ Supprimer la sélection ({selectedVehicleIds.size})
+                <Trash2 size={16} aria-hidden="true" /> Supprimer la sélection ({selectedVehicleIds.size})
               </button>
             )}
             <button className={styles.btnSmall} disabled={thumbBackfilling}
@@ -707,7 +708,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                 } catch { showToast("Erreur réseau", "error"); }
                 setThumbBackfilling(false);
               }}>
-              {thumbBackfilling ? "Génération…" : "🖼️ Générer les vignettes manquantes"}
+              {thumbBackfilling ? "Génération…" : "Générer les vignettes manquantes"}
             </button>
             <button className={styles.btnSmall} disabled={descBackfilling}
               onClick={async () => {
@@ -720,13 +721,13 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                 } catch { showToast("Erreur réseau", "error"); }
                 setDescBackfilling(false);
               }}>
-              {descBackfilling ? "Génération…" : "✨ Générer les descriptions manquantes"}
+              {descBackfilling ? "Génération…" : "Générer les descriptions manquantes"}
             </button>
           </div>
 
           {filtered.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
-              <div style={{ fontSize: "3rem", marginBottom: 12 }}>🚗</div>
+            <div className={styles.uiVide}>
+              <div className={styles.uiVideIcone}><Car size={16} aria-hidden="true" /></div>
               <p style={{ fontWeight: 600 }}>Aucune annonce dans cette catégorie</p>
             </div>
           ) : (
@@ -775,7 +776,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                             {(v.images?.[0] || v.image)
                               ? <img src={v.images?.[0] || v.image} alt="" loading="lazy" decoding="async" style={{ width: 46, height: 36, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
-                              : <div style={{ width: 46, height: 36, borderRadius: 6, background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem" }}>🚗</div>
+                              : <div style={{ width: 46, height: 36, borderRadius: 6, background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem" }}><Car size={16} aria-hidden="true" /></div>
                             }
                             <div>
                               <div style={{ fontWeight: 700, fontSize: ".87rem", color: "#0f1b3f" }}>{v.title || v.name}</div>
@@ -787,7 +788,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                           {owner?.firstName || owner?.name || "—"}
                           <div style={{ fontSize: ".73rem", color: "#94a3b8" }}>{owner?.email || "—"}</div>
                         </td>
-                        <td><span className={styles.badge} style={{ color: "#64748b", background: "#f1f5f9" }}>{v.type === "location" ? "📅 Location" : "💰 Vente"}</span></td>
+                        <td><span className={styles.badge} style={{ color: "#64748b", background: "#f1f5f9" }}>{v.type === "location" ? "Location" : "Vente"}</span></td>
                         <td style={{ fontSize: ".85rem", fontWeight: 700 }}>
                           {v.pricePerDay ? `${Number(v.pricePerDay).toLocaleString()} /j` : v.priceForSale ? `${Number(v.priceForSale).toLocaleString()}` : "—"}
                         </td>
@@ -808,29 +809,29 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                             <button title="Visualiser l'annonce complète"
                               onClick={() => openPreview(vid)}
                               style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#eff6ff", color: "#2563eb", border: "1.5px solid #bfdbfe", borderRadius: 6, cursor: "pointer" }}>
-                              👁
+                              <Eye size={16} aria-hidden="true" />
                             </button>
                             <button title="Modifier l'annonce"
                               onClick={() => openEditVehicle(vid)}
                               style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#f5f3ff", color: "#7c3aed", border: "1.5px solid #ddd6fe", borderRadius: 6, cursor: "pointer" }}>
-                              ✏️
+                              <Pencil size={16} aria-hidden="true" />
                             </button>
                             {v.type === "location" && (
                               <button title="Tarifs saisonniers"
                                 onClick={() => openSeasonalModal(v)}
                                 style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#fefce8", color: "#a16207", border: "1.5px solid #fde68a", borderRadius: 6, cursor: "pointer" }}>
-                                🗓️
+                                <CalendarDays size={16} aria-hidden="true" />
                               </button>
                             )}
                             <button title="Transférer vers un autre compte/entreprise/pays/ville"
                               onClick={() => openTransfer("vehicle", vid, v.title || v.name, v.country, v.ville)}
                               style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#fff7ed", color: "#c2410c", border: "1.5px solid #fed7aa", borderRadius: 6, cursor: "pointer" }}>
-                              🔀
+                              <Shuffle size={16} aria-hidden="true" />
                             </button>
                             {v.status !== "approved" && (
                               <button className={styles.btnApprove} style={{ fontSize: ".75rem", padding: "4px 10px" }}
                                 onClick={() => setConfirm({ message: `Approuver "${v.title || v.name}" ?`, action: () => updateVehicleStatus(vid, "approved") })}>
-                                ✅
+                                <CheckCircle2 size={16} aria-hidden="true" />
                               </button>
                             )}
                             {v.status !== "rejected" && (
@@ -846,12 +847,12 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                               <button title={`Paraîtra le ${new Date(v.publicationPlanifieeA).toLocaleString("fr-FR")} — bloquer`}
                                 onClick={() => bloquerPublication(vid, v.title || v.name)}
                                 style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#f5f3ff", color: "#6d28d9", border: "1.5px solid #ddd6fe", borderRadius: 6, cursor: "pointer" }}>
-                                🕒 Bloquer
+                                <Clock size={16} aria-hidden="true" /> Bloquer
                               </button>
                             )}
                             <button className={styles.btnDeleteSm} style={{ fontSize: ".75rem" }}
                               onClick={() => setConfirm({ message: "Supprimer cette annonce ?", danger: true, action: () => deleteVehicle(vid) })}>
-                              🗑️
+                              <Trash2 size={16} aria-hidden="true" />
                             </button>
                           </div>
                         </td>
@@ -911,14 +912,14 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
               onChange={(e) => setDriverSearch(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
             <select className={styles.searchInput} value={driverCountryFilter}
               onChange={(e) => setDriverCountryFilter(e.target.value)} style={{ minWidth: 150 }}>
-              <option value="">🌍 Tous les pays</option>
+              <option value="">Tous les pays</option>
               {COUNTRIES_CONFIG.map((c) => (
                 <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
               ))}
             </select>
             <select className={styles.searchInput} value={driverVilleFilter}
               onChange={(e) => setDriverVilleFilter(e.target.value)} style={{ minWidth: 150 }}>
-              <option value="">📍 Toutes les villes</option>
+              <option value="">Toutes les villes</option>
               {driverVilleOptions.map((ville) => (
                 <option key={ville} value={ville}>{ville}</option>
               ))}
@@ -932,8 +933,8 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
           </div>
 
           {filteredDrivers.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
-              <div style={{ fontSize: "3rem", marginBottom: 12 }}>👨‍✈️</div>
+            <div className={styles.uiVide}>
+              <div className={styles.uiVideIcone}><IdCard size={16} aria-hidden="true" /></div>
               <p style={{ fontWeight: 600 }}>Aucun profil chauffeur dans cette catégorie</p>
             </div>
           ) : (
@@ -941,7 +942,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
               {selectedDriverIds.size > 0 && (
                 <div style={{ marginBottom: 12 }}>
                   <button className={styles.btnDanger} disabled={bulkDeleting} onClick={handleBulkDeleteDrivers}>
-                    🗑️ Supprimer la sélection ({selectedDriverIds.size})
+                    <Trash2 size={16} aria-hidden="true" /> Supprimer la sélection ({selectedDriverIds.size})
                   </button>
                 </div>
               )}
@@ -973,7 +974,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                         </td>
                         <td>
                           <div style={{ display: "flex", gap: 9, alignItems: "center" }}>
-                            {d.profilePhoto ? <img src={d.profilePhoto} alt="" loading="lazy" decoding="async" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>👤</div>}
+                            {d.profilePhoto ? <img src={d.profilePhoto} alt="" loading="lazy" decoding="async" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover" }} /> : <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}><UserRound size={16} aria-hidden="true" /></div>}
                             <div>
                               <strong style={{ fontSize: ".87rem" }}>{d.firstName} {d.lastName}</strong>
                               <div style={{ fontSize: ".74rem", color: "#94a3b8" }}>Publié par {owner.firstName} {owner.lastName} · {owner.email}</div>
@@ -987,29 +988,29 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                             return <span className={styles.badge} style={{ color: sc.c, background: sc.bg }}>{sc.l}</span>;
                           })()}
                         </td>
-                        <td style={{ fontSize: ".82rem" }}>{(Array.isArray(d.permisCategorie) ? d.permisCategorie.join(", ") : d.permisCategorie) || "—"} {d.vehiculePersonnel && <span style={{ color: "#94a3b8" }}>· 🚗 avec véhicule</span>}</td>
+                        <td style={{ fontSize: ".82rem" }}>{(Array.isArray(d.permisCategorie) ? d.permisCategorie.join(", ") : d.permisCategorie) || "—"} {d.vehiculePersonnel && <span style={{ color: "#94a3b8" }}>· <Car size={16} aria-hidden="true" /> avec véhicule</span>}</td>
                         <td style={{ fontSize: ".82rem" }}>{d.experience || "—"}</td>
                         <td style={{ fontSize: ".78rem" }}>{d.langues?.join(", ") || "—"}</td>
                         <td style={{ fontSize: ".78rem" }}>
-                          {d.cv ? <a href={d.cv} target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb" }}>📄 Voir</a> : <span style={{ color: "#dc2626" }}>Manquant</span>}
+                          {d.cv ? <a href={d.cv} target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb" }}><FileText size={16} aria-hidden="true" /> Voir</a> : <span style={{ color: "#dc2626" }}>Manquant</span>}
                         </td>
                         <td style={{ fontSize: ".78rem", color: "#94a3b8" }}>{d.createdAt ? new Date(d.createdAt).toLocaleDateString("fr-FR") : "—"}</td>
                         <td>
                           <div style={{ display: "flex", gap: 5 }}>
                             {d.status === "pending" ? (
                               <>
-                                <button className={styles.btnApprove} disabled={busyDriverIds.has(d._id)} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => handleApproveDriver(d._id)}>✅ Valider</button>
+                                <button className={styles.btnApprove} disabled={busyDriverIds.has(d._id)} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => handleApproveDriver(d._id)}><CheckCircle2 size={16} aria-hidden="true" /> Valider</button>
                                 <button className={styles.btnReject} disabled={busyDriverIds.has(d._id)} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => { setDriverRejectModal({ id: d._id, name: `${d.firstName} ${d.lastName}` }); setDriverRejectReason(""); }}>✕ Refuser</button>
                               </>
                             ) : d.status === "rejected" ? (
-                              <button className={styles.btnApprove} disabled={busyDriverIds.has(d._id)} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => handleApproveDriver(d._id)}>✅ Republier</button>
+                              <button className={styles.btnApprove} disabled={busyDriverIds.has(d._id)} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => handleApproveDriver(d._id)}><CheckCircle2 size={16} aria-hidden="true" /> Republier</button>
                             ) : (
                               <button className={styles.btnReject} disabled={busyDriverIds.has(d._id)} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => { setDriverRejectModal({ id: d._id, name: `${d.firstName} ${d.lastName}` }); setDriverRejectReason(""); }}>✕ Dépublier</button>
                             )}
                             <button title="Transférer vers un autre compte/entreprise/pays/ville"
                               onClick={() => openTransfer("driver", d._id, `${d.firstName} ${d.lastName}`, d.country, d.ville)}
                               style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "4px 10px", fontSize: ".75rem", fontWeight: 700, background: "#fff7ed", color: "#c2410c", border: "1.5px solid #fed7aa", borderRadius: 6, cursor: "pointer" }}>
-                              🔀
+                              <Shuffle size={16} aria-hidden="true" />
                             </button>
                           </div>
                         </td>
@@ -1028,7 +1029,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
               puis traitement (contrat modifiable + envoi) à l'admin une fois acceptée */}
           <div className={styles.sectionToolbar} style={{ marginTop: 32 }}>
             <h2 style={{ fontSize: "1rem", fontWeight: 800, color: "#0f1b3f" }}>
-              💼 Propositions d'embauche CDD/CDI ({employmentAdminList.length})
+              <Briefcase size={16} aria-hidden="true" /> Propositions d'embauche CDD/CDI ({employmentAdminList.length})
               {employmentAdminList.some((r) => (r.adminReview?.status || "pending") === "pending") && (
                 <span style={{ marginLeft: 8, fontSize: ".75rem", fontWeight: 700, color: "#d97706", background: "#fef3c7", padding: "2px 8px", borderRadius: 999 }}>
                   {employmentAdminList.filter((r) => (r.adminReview?.status || "pending") === "pending").length} à valider
@@ -1074,7 +1075,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                         <td style={{ fontSize: ".78rem", color: "#94a3b8" }}>{reqm.createdAt ? new Date(reqm.createdAt).toLocaleDateString("fr-FR") : "—"}</td>
                         <td>
                           {reqm.status === "accepted" && !reqm.contractSentAt && (
-                            <button className={styles.btnApprove} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => openProcessModal(reqm)}>📄 Traiter</button>
+                            <button className={styles.btnApprove} style={{ fontSize: ".75rem", padding: "4px 10px" }} onClick={() => openProcessModal(reqm)}><FileText size={16} aria-hidden="true" /> Traiter</button>
                           )}
                           {reqm.contractSentAt && (
                             <button type="button" onClick={async () => {
@@ -1149,7 +1150,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
         <div className={styles.overlay} onClick={() => setTransferModal(null)}>
           <div className={styles.confirmBox} onClick={e => e.stopPropagation()} style={{ width: "min(480px, 92vw)" }}>
             <p className={styles.confirmMsg}>
-              🔀 Transférer « {transferModal.label} » ({transferModal.type === "vehicle" ? "véhicule" : "chauffeur"})
+              <Shuffle size={16} aria-hidden="true" /> Transférer « {transferModal.label} » ({transferModal.type === "vehicle" ? "véhicule" : "chauffeur"})
             </p>
 
             <div style={{ marginBottom: 12, position: "relative" }}>
@@ -1213,7 +1214,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
       {processModal && (
         <div className={styles.overlay} onClick={() => setProcessModal(null)}>
           <div className={styles.confirmBox} onClick={e => e.stopPropagation()} style={{ width: "min(560px, 92vw)" }}>
-            <p className={styles.confirmMsg}>📄 Traiter le contrat de {processModal.driverName}</p>
+            <p className={styles.confirmMsg}><FileText size={16} aria-hidden="true" /> Traiter le contrat de {processModal.driverName}</p>
             <p style={{ fontSize: ".82rem", color: "#64748b", marginBottom: 10 }}>
               Personnalisez les clauses du contrat si besoin — le texte par défaut s'applique si laissé vide. Le PDF sera
               généré et le partenaire propriétaire du chauffeur sera notifié automatiquement.
@@ -1240,7 +1241,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px 14px", borderBottom: "1.5px solid #e2e8f0", flexShrink: 0 }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 900, color: "#0f1b3f" }}>
-                  👁 Prévisualisation de l'annonce
+                  <Eye size={16} aria-hidden="true" /> Prévisualisation de l'annonce
                 </h2>
                 {previewVehicle && <p style={{ margin: "2px 0 0", fontSize: ".78rem", color: "#94a3b8" }}>ID : {previewVehicle._id}</p>}
               </div>
@@ -1251,8 +1252,8 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
             {/* Body */}
             <div style={{ overflowY: "auto", padding: "20px 24px 24px", flex: 1 }}>
               {previewLoading && !previewVehicle ? (
-                <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
-                  <div style={{ fontSize: "2rem", marginBottom: 10 }}>⏳</div>
+                <div className={styles.uiVide}>
+                  <div style={{ fontSize: "2rem", marginBottom: 10 }}><Hourglass size={16} aria-hidden="true" /></div>
                   <p>Chargement de l'annonce…</p>
                 </div>
               ) : previewVehicle ? (() => {
@@ -1270,7 +1271,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                     {/* Statut + actions rapides */}
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                       <span style={{ background: sc.bg, color: sc.c, padding: "4px 14px", borderRadius: 99, fontWeight: 800, fontSize: ".82rem" }}>{sc.l}</span>
-                      {v.autoValidated && <span style={{ background: "#ede9fe", color: "#7c3aed", padding: "4px 12px", borderRadius: 99, fontWeight: 700, fontSize: ".78rem" }}>✨ Validé automatiquement</span>}
+                      {v.autoValidated && <span style={{ background: "#ede9fe", color: "#7c3aed", padding: "4px 12px", borderRadius: 99, fontWeight: 700, fontSize: ".78rem" }}><Sparkles size={16} aria-hidden="true" /> Validé automatiquement</span>}
                       {v.validationScore != null && (
                         <span style={{ background: v.validationScore >= 65 ? "#dcfce7" : v.validationScore >= 40 ? "#fef3c7" : "#fee2e2", color: v.validationScore >= 65 ? "#059669" : v.validationScore >= 40 ? "#d97706" : "#dc2626", padding: "4px 12px", borderRadius: 99, fontWeight: 700, fontSize: ".78rem" }}>
                           Score {v.validationScore}/100
@@ -1279,7 +1280,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                       <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                         {v.status !== "approved" && (
                           <button className={styles.btnApprove} style={{ fontSize: ".8rem" }}
-                            onClick={() => { updateVehicleStatus(v._id, "approved"); setPreviewVehicle(null); }}>✅ Valider</button>
+                            onClick={() => { updateVehicleStatus(v._id, "approved"); setPreviewVehicle(null); }}><CheckCircle2 size={16} aria-hidden="true" /> Valider</button>
                         )}
                         {v.status !== "rejected" && (
                           <button className={styles.btnReject} style={{ fontSize: ".8rem" }}
@@ -1313,7 +1314,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                         )}
                       </div>
                     ) : (
-                      <div style={{ height: 160, borderRadius: 12, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "3rem", color: "#cbd5e1" }}>🚗</div>
+                      <div style={{ height: 160, borderRadius: 12, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "3rem", color: "#cbd5e1" }}><Car size={16} aria-hidden="true" /></div>
                     )}
 
                     {/* Deux colonnes : détails annonce + annonceur */}
@@ -1321,11 +1322,11 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
 
                       {/* ── Détails de l'annonce ── */}
                       <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px" }}>
-                        <h3 style={{ margin: "0 0 14px", fontSize: ".9rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>🚗 Détails de l'annonce</h3>
+                        <h3 style={{ margin: "0 0 14px", fontSize: ".9rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}><Car size={16} aria-hidden="true" /> Détails de l'annonce</h3>
                         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                           <h4 style={{ margin: "0 0 4px", fontSize: "1rem", fontWeight: 900, color: "#0f1b3f" }}>{v.title}</h4>
                           {[
-                            ["Type", v.type === "location" ? "📅 Location" : "💰 Vente"],
+                            ["Type", v.type === "location" ? "Location" : "Vente"],
                             ["Catégorie", v.vehicleType],
                             ["Marque / Modèle", [v.marque, v.modele].filter(Boolean).join(" ") || "—"],
                             ["Année", v.annee],
@@ -1336,8 +1337,8 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                             ["Transmission", v.transmission],
                             ["Places", v.nombrePlaces],
                             ["Portes", v.nombrePortes],
-                            ["Climatisation", v.climatisation ? "✅ Oui" : "❌ Non"],
-                            ["Avec chauffeur", v.withDriver ? "✅ Oui" : "Non"],
+                            ["Climatisation", v.climatisation ? "Oui" : "Non"],
+                            ["Avec chauffeur", v.withDriver ? "Oui" : "Non"],
                             v.type === "location"
                               ? ["Prix / jour", v.pricePerDay ? (v.currency ? fmtPinned(v.pricePerDay, v.currency) : fmtUSD(v.pricePerDay)) : "—"]
                               : ["Prix vente", v.priceForSale ? (v.currency ? fmtPinned(v.priceForSale, v.currency) : fmtUSD(v.priceForSale)) : "—"],
@@ -1359,7 +1360,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                         </div>
                         {v.leasing?.disponible && (
                           <div style={{ marginTop: 10, padding: "8px 12px", background: "#ede9fe", borderRadius: 8 }}>
-                            <div style={{ fontSize: ".78rem", fontWeight: 800, color: "#6d28d9", marginBottom: 4 }}>🏦 Leasing disponible</div>
+                            <div style={{ fontSize: ".78rem", fontWeight: 800, color: "#6d28d9", marginBottom: 4 }}><Landmark size={16} aria-hidden="true" /> Leasing disponible</div>
                             <div style={{ fontSize: ".78rem", color: "#4c1d95" }}>Apport : {fmtUSD(v.leasing.apportInitial)} • {v.leasing.mensualite && `${fmtUSD(v.leasing.mensualite)}/mois`} • {v.leasing.duree} mois • {v.leasing.tauxInteret}%</div>
                           </div>
                         )}
@@ -1367,15 +1368,15 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
 
                       {/* ── Détails de l'annonceur ── */}
                       <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px" }}>
-                        <h3 style={{ margin: "0 0 14px", fontSize: ".9rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}>👤 Annonceur</h3>
+                        <h3 style={{ margin: "0 0 14px", fontSize: ".9rem", fontWeight: 800, color: "#0f1b3f", borderBottom: "1.5px solid #e2e8f0", paddingBottom: 8 }}><UserRound size={16} aria-hidden="true" /> Annonceur</h3>
                         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
                           {o.profilePhoto
                             ? <img src={o.profilePhoto} alt="" loading="lazy" decoding="async" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "3px solid #e2e8f0" }} />
-                            : <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}>👤</div>}
+                            : <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}><UserRound size={16} aria-hidden="true" /></div>}
                           <div>
                             <div style={{ fontWeight: 800, fontSize: ".95rem", color: "#0f1b3f" }}>{o.firstName} {o.lastName}</div>
                             <div style={{ fontSize: ".78rem", color: "#64748b" }}>{o.role || "partenaire"}</div>
-                            {o.certificationBadge && <span style={{ fontSize: ".72rem", background: "#fef3c7", color: "#d97706", padding: "1px 8px", borderRadius: 99, fontWeight: 700 }}>🏆 {o.certificationBadge}</span>}
+                            {o.certificationBadge && <span style={{ fontSize: ".72rem", background: "#fef3c7", color: "#d97706", padding: "1px 8px", borderRadius: 99, fontWeight: 700 }}><Trophy size={16} aria-hidden="true" /> {o.certificationBadge}</span>}
                           </div>
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
@@ -1383,7 +1384,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                             ["Email", o.email],
                             ["Téléphone", o.phone],
                             ["Ville", o.ville],
-                            ["Statut compte", o.isActive === false ? "🚫 Bloqué" : "✅ Actif"],
+                            ["Statut compte", o.isActive === false ? "Bloqué" : "Actif"],
                             ["Membre depuis", o.createdAt ? new Date(o.createdAt).toLocaleDateString("fr-FR") : "—"],
                           ].filter(([, val]) => val).map(([k, val]) => (
                             <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: ".82rem", gap: 8 }}>
@@ -1394,7 +1395,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                           {o.kycStatus && (
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: ".82rem" }}>
                               <span style={{ color: "#64748b" }}>KYC</span>
-                              <span style={{ fontWeight: 700, color: kycC }}>{o.kycStatus === "VERIFIE" ? "✅ Vérifié" : o.kycStatus === "REFUSE" ? "❌ Refusé" : o.kycStatus === "EN_ATTENTE" ? "⏳ En attente" : "🔄 En révision"}</span>
+                              <span style={{ fontWeight: 700, color: kycC }}>{o.kycStatus === "VERIFIE" ? "Vérifié" : o.kycStatus === "REFUSE" ? "Refusé" : o.kycStatus === "EN_ATTENTE" ? "En attente" : "En révision"}</span>
                             </div>
                           )}
                         </div>
@@ -1404,7 +1405,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                     {/* Description */}
                     {v.description && (
                       <div style={{ background: "#f8fafc", borderRadius: 12, padding: "14px 18px" }}>
-                        <h3 style={{ margin: "0 0 8px", fontSize: ".85rem", fontWeight: 800, color: "#0f1b3f" }}>📝 Description</h3>
+                        <h3 style={{ margin: "0 0 8px", fontSize: ".85rem", fontWeight: 800, color: "#0f1b3f" }}><FilePen size={16} aria-hidden="true" /> Description</h3>
                         <p style={{ margin: 0, fontSize: ".85rem", color: "#475569", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{v.description}</p>
                       </div>
                     )}
@@ -1414,13 +1415,13 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         {v.validationErrors?.length > 0 && (
                           <div style={{ background: "#fff1f2", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "12px 16px" }}>
-                            <div style={{ fontWeight: 800, fontSize: ".82rem", color: "#dc2626", marginBottom: 6 }}>❌ Erreurs de validation</div>
+                            <div style={{ fontWeight: 800, fontSize: ".82rem", color: "#dc2626", marginBottom: 6 }}><XCircle size={16} aria-hidden="true" /> Erreurs de validation</div>
                             {v.validationErrors.map((e, i) => <div key={i} style={{ fontSize: ".8rem", color: "#b91c1c" }}>• {e}</div>)}
                           </div>
                         )}
                         {v.validationWarnings?.length > 0 && (
                           <div style={{ background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: 10, padding: "12px 16px" }}>
-                            <div style={{ fontWeight: 800, fontSize: ".82rem", color: "#d97706", marginBottom: 6 }}>⚠️ Avertissements</div>
+                            <div style={{ fontWeight: 800, fontSize: ".82rem", color: "#d97706", marginBottom: 6 }}><AlertTriangle size={16} aria-hidden="true" /> Avertissements</div>
                             {v.validationWarnings.map((w, i) => <div key={i} style={{ fontSize: ".8rem", color: "#92400e" }}>• {w}</div>)}
                           </div>
                         )}
@@ -1430,7 +1431,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                     {/* Raison de rejet */}
                     {v.rejectionReason && (
                       <div style={{ background: "#fff1f2", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "12px 16px" }}>
-                        <div style={{ fontWeight: 800, fontSize: ".82rem", color: "#dc2626", marginBottom: 4 }}>💬 Raison du rejet</div>
+                        <div style={{ fontWeight: 800, fontSize: ".82rem", color: "#dc2626", marginBottom: 4 }}><MessageCircle size={16} aria-hidden="true" /> Raison du rejet</div>
                         <p style={{ margin: 0, fontSize: ".85rem", color: "#b91c1c" }}>{v.rejectionReason}</p>
                       </div>
                     )}
@@ -1450,7 +1451,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
           <div onClick={(e) => e.stopPropagation()}
             style={{ background: "#fff", borderRadius: 16, width: "min(680px, 96vw)", maxHeight: "95dvh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 24px 60px rgba(0,0,0,.22)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px 14px", borderBottom: "1.5px solid #e2e8f0", flexShrink: 0 }}>
-              <h2 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 900, color: "#0f1b3f" }}>✏️ Modifier l'annonce (admin)</h2>
+              <h2 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 900, color: "#0f1b3f" }}><Pencil size={16} aria-hidden="true" /> Modifier l'annonce (admin)</h2>
               <button onClick={() => { setEditVehicle(null); setEditForm(null); setEditPhotos([]); }}
                 style={{ background: "#f1f5f9", border: "none", borderRadius: 8, width: 34, height: 34, fontSize: "1.1rem", cursor: "pointer" }}>✕</button>
             </div>
@@ -1460,7 +1461,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
               ) : (
                 <>
                   <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                    {[{ v: "location", l: "🔑 Location" }, { v: "vente", l: "💰 Vente" }].map((o) => (
+                    {[{ v: "location", l: "Location" }, { v: "vente", l: "Vente" }].map((o) => (
                       <button key={o.v} type="button" onClick={() => { setExportMode(false); setEditForm((p) => ({ ...p, type: o.v })); }}
                         style={{ flex: 1, padding: "8px 12px", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: ".85rem",
                           border: !exportMode && editForm.type === o.v ? "2px solid #7c3aed" : "1.5px solid #e2e8f0",
@@ -1474,7 +1475,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                         border: exportMode ? "2px solid #6366f1" : "1.5px solid #e2e8f0",
                         background: exportMode ? "rgba(99,102,241,.08)" : "#fff",
                         color: exportMode ? "#6366f1" : "#475569" }}>
-                      🌍 Exportation
+                      <Globe size={16} aria-hidden="true" /> Exportation
                     </button>
                   </div>
 
@@ -1485,12 +1486,12 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                       </p>
                       <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                         <div style={{ flex: 1 }}>
-                          <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Prix d'export *</label>
+                          <label className={styles.uiLibelle}>Prix d'export *</label>
                           <input type="number" min="0" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                             value={exportForm.price} onChange={(e) => setExportForm((p) => ({ ...p, price: e.target.value }))} />
                         </div>
                         <div style={{ flex: 1 }}>
-                          <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Devise</label>
+                          <label className={styles.uiLibelle}>Devise</label>
                           <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                             value={exportForm.currency} onChange={(e) => setExportForm((p) => ({ ...p, currency: e.target.value }))}>
                             {IE_CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
@@ -1498,7 +1499,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                         </div>
                       </div>
                       <div style={{ marginBottom: 8 }}>
-                        <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Pays de destination *</label>
+                        <label className={styles.uiLibelle}>Pays de destination *</label>
                         <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
                           <input list="dl-export-avail-admin" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                             value={exportAvailText} onChange={(e) => setExportAvailText(e.target.value)}
@@ -1520,7 +1521,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                       </div>
                       <div style={{ display: "flex", gap: 10 }}>
                         <button onClick={handleConvertToExport} disabled={exportSaving} className={styles.btnApprove} style={{ fontSize: ".85rem", padding: "8px 18px" }}>
-                          {exportSaving ? "Conversion…" : "🌍 Transformer en annonce Export"}
+                          {exportSaving ? "Conversion…" : "Transformer en annonce Export"}
                         </button>
                         <button onClick={() => setExportMode(false)} className={styles.btnGhost} style={{ fontSize: ".85rem", padding: "8px 18px" }}>Annuler</button>
                       </div>
@@ -1547,19 +1548,19 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                   </div>
 
                   <div style={{ marginBottom: 12 }}>
-                    <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Titre</label>
+                    <label className={styles.uiLibelle}>Titre</label>
                     <input type="text" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                       value={editForm.title} onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))} />
                   </div>
 
                   <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Marque</label>
+                      <label className={styles.uiLibelle}>Marque</label>
                       <input type="text" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.marque} onChange={(e) => setEditForm((p) => ({ ...p, marque: e.target.value }))} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Modèle</label>
+                      <label className={styles.uiLibelle}>Modèle</label>
                       <input type="text" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.modele} onChange={(e) => setEditForm((p) => ({ ...p, modele: e.target.value }))} />
                     </div>
@@ -1567,21 +1568,21 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
 
                   <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Année</label>
+                      <label className={styles.uiLibelle}>Année</label>
                       <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.annee} onChange={(e) => setEditForm((p) => ({ ...p, annee: e.target.value }))}>
                         {Array.from({ length: 30 }, (_, i) => new Date().getFullYear() - i).map((y) => <option key={y} value={y}>{y}</option>)}
                       </select>
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>État</label>
+                      <label className={styles.uiLibelle}>État</label>
                       <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.etat} onChange={(e) => setEditForm((p) => ({ ...p, etat: e.target.value }))}>
                         {["Neuf", "Comme neuf", "Bon état", "À réparer"].map((e_) => <option key={e_} value={e_}>{e_}</option>)}
                       </select>
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Couleur</label>
+                      <label className={styles.uiLibelle}>Couleur</label>
                       <input type="text" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.couleur} onChange={(e) => setEditForm((p) => ({ ...p, couleur: e.target.value }))} />
                     </div>
@@ -1589,21 +1590,21 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
 
                   <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
                     <div style={{ flex: "1 1 140px" }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Type de véhicule</label>
+                      <label className={styles.uiLibelle}>Type de véhicule</label>
                       <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.vehicleType} onChange={(e) => setEditForm((p) => ({ ...p, vehicleType: e.target.value }))}>
                         {["SUV", "Berline", "Sportif", "Citadine", "Monospace", "Pick-up", "Cabriolet", "Utilitaire"].map((t) => <option key={t} value={t}>{t}</option>)}
                       </select>
                     </div>
                     <div style={{ flex: "1 1 140px" }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Carburant</label>
+                      <label className={styles.uiLibelle}>Carburant</label>
                       <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.carburant} onChange={(e) => setEditForm((p) => ({ ...p, carburant: e.target.value }))}>
                         {["Essence", "Diesel", "Hybride", "Électrique", "GPL"].map((f) => <option key={f} value={f}>{f}</option>)}
                       </select>
                     </div>
                     <div style={{ flex: "1 1 140px" }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Transmission</label>
+                      <label className={styles.uiLibelle}>Transmission</label>
                       <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.transmission} onChange={(e) => setEditForm((p) => ({ ...p, transmission: e.target.value }))}>
                         {["Automatique", "Manuelle"].map((t) => <option key={t} value={t}>{t}</option>)}
@@ -1613,17 +1614,17 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
 
                   <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Places</label>
+                      <label className={styles.uiLibelle}>Places</label>
                       <input type="number" min="1" max="20" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.nombrePlaces} onChange={(e) => setEditForm((p) => ({ ...p, nombrePlaces: e.target.value }))} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Portes</label>
+                      <label className={styles.uiLibelle}>Portes</label>
                       <input type="number" min="2" max="6" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.nombrePortes} onChange={(e) => setEditForm((p) => ({ ...p, nombrePortes: e.target.value }))} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Kilométrage</label>
+                      <label className={styles.uiLibelle}>Kilométrage</label>
                       <input type="number" min="0" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.kilometrage} onChange={(e) => setEditForm((p) => ({ ...p, kilometrage: e.target.value }))} />
                     </div>
@@ -1631,12 +1632,12 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
 
                   <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: ".85rem", marginBottom: 12 }}>
                     <input type="checkbox" checked={editForm.climatisation} onChange={(e) => setEditForm((p) => ({ ...p, climatisation: e.target.checked }))} />
-                    ❄️ Climatisation
+                    <Snowflake size={16} aria-hidden="true" /> Climatisation
                   </label>
 
                   <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>
+                      <label className={styles.uiLibelle}>
                         {editForm.type === "vente" ? "Prix de vente" : "Prix / jour"}
                       </label>
                       <div style={{ display: "flex", gap: 6 }}>
@@ -1656,7 +1657,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                     </div>
                     {editForm.type !== "vente" && (
                       <div style={{ flex: 1 }}>
-                        <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Caution</label>
+                        <label className={styles.uiLibelle}>Caution</label>
                         <div style={{ display: "flex", gap: 6 }}>
                           <input type="number" min="0" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                             value={editCautionEntry} onChange={(e) => handleEditPriceEntryChange("caution", e.target.value)} />
@@ -1672,7 +1673,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                     <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
                       {[["pricePerWeek", editWeekEntry, "Tarif semaine (optionnel, dès 7 jours)"], ["pricePerMonth", editMonthEntry, "Tarif mensuel (optionnel, dès 30 jours)"]].map(([champ, entree, libelle]) => (
                         <div key={champ} style={{ flex: 1, minWidth: 200 }}>
-                          <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>{libelle}</label>
+                          <label className={styles.uiLibelle}>{libelle}</label>
                           <div style={{ display: "flex", gap: 6 }}>
                             <input type="number" min="0" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                               value={entree} onChange={(e) => handleEditPriceEntryChange(champ, e.target.value)} />
@@ -1687,7 +1688,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                   )}
 
                   <div style={{ marginBottom: 12 }}>
-                    <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Devise d'affichage de l'annonce</label>
+                    <label className={styles.uiLibelle}>Devise d'affichage de l'annonce</label>
                     <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                       value={editForm.currency || ""} onChange={(e) => setEditForm((p) => ({ ...p, currency: e.target.value }))}>
                       <option value="">Automatique (devise du visiteur)</option>
@@ -1702,7 +1703,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
 
                   {editForm.type !== "vente" && (
                     <div style={{ marginBottom: 12 }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Durée de location proposée</label>
+                      <label className={styles.uiLibelle}>Durée de location proposée</label>
                       <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.rentalDurationType} onChange={(e) => setEditForm((p) => ({ ...p, rentalDurationType: e.target.value }))}>
                         <option value="les_deux">Courte et longue durée</option>
@@ -1714,7 +1715,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
 
                   <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Pays</label>
+                      <label className={styles.uiLibelle}>Pays</label>
                       <select style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.country} onChange={(e) => setEditForm((p) => ({ ...p, country: e.target.value }))}>
                         <option value="">— Non précisé —</option>
@@ -1722,13 +1723,13 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                       </select>
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Ville</label>
+                      <label className={styles.uiLibelle}>Ville</label>
                       <input type="text" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.ville} onChange={(e) => setEditForm((p) => ({ ...p, ville: e.target.value }))} />
                     </div>
                   </div>
                   <div style={{ marginBottom: 12 }}>
-                    <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Adresse</label>
+                    <label className={styles.uiLibelle}>Adresse</label>
                     <input type="text" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                       value={editForm.adresse} onChange={(e) => setEditForm((p) => ({ ...p, adresse: e.target.value }))} />
                   </div>
@@ -1741,19 +1742,19 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                       déjà (EDITABLE, vehicleController.updateVehicle). */}
                   <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Nom du contact</label>
+                      <label className={styles.uiLibelle}>Nom du contact</label>
                       <input type="text" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.contactNom} onChange={(e) => setEditForm((p) => ({ ...p, contactNom: e.target.value }))} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Téléphone du contact</label>
+                      <label className={styles.uiLibelle}>Téléphone du contact</label>
                       <input type="tel" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                         value={editForm.contactTel} onChange={(e) => setEditForm((p) => ({ ...p, contactTel: e.target.value }))} />
                     </div>
                   </div>
 
                   <div style={{ marginBottom: 12 }}>
-                    <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Description</label>
+                    <label className={styles.uiLibelle}>Description</label>
                     <textarea rows={3} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem", resize: "vertical" }}
                       value={editForm.description} onChange={(e) => setEditForm((p) => ({ ...p, description: e.target.value }))} />
                   </div>
@@ -1761,12 +1762,12 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                   {editForm.type !== "vente" && (
                     <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                       <div style={{ flex: 1 }}>
-                        <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Âge minimum requis</label>
+                        <label className={styles.uiLibelle}>Âge minimum requis</label>
                         <input type="number" min="0" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                           value={editForm.ageMin} onChange={(e) => setEditForm((p) => ({ ...p, ageMin: e.target.value }))} />
                       </div>
                       <div style={{ flex: 1 }}>
-                        <label style={{ display: "block", fontSize: ".82rem", fontWeight: 600, marginBottom: 4 }}>Durée minimale de location (jours)</label>
+                        <label className={styles.uiLibelle}>Durée minimale de location (jours)</label>
                         <input type="number" min="1" max="30" style={{ width: "100%", boxSizing: "border-box", padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".85rem" }}
                           value={editForm.dureeMinLocation} onChange={(e) => setEditForm((p) => ({ ...p, dureeMinLocation: e.target.value }))} />
                       </div>
@@ -1790,7 +1791,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
                         </label>
                         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: ".85rem" }} title="Re-vérifié côté serveur : sans effet si le partenaire propriétaire n'est pas certifié/Founding Partner">
                           <input type="checkbox" checked={editForm.instantBook} onChange={(e) => setEditForm((p) => ({ ...p, instantBook: e.target.checked }))} />
-                          ⚡ Réservation instantanée
+                          <Zap size={16} aria-hidden="true" /> Réservation instantanée
                         </label>
                       </>
                     )}
@@ -1802,7 +1803,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
 
                   <div style={{ display: "flex", gap: 10 }}>
                     <button onClick={handleSaveEditVehicle} disabled={editSaving} className={styles.btnApprove} style={{ fontSize: ".85rem", padding: "8px 18px" }}>
-                      {editSaving ? "Envoi…" : "✅ Enregistrer"}
+                      {editSaving ? "Envoi…" : "Enregistrer"}
                     </button>
                     <button onClick={() => { setEditVehicle(null); setEditForm(null); setEditPhotos([]); }} className={styles.btnGhost} style={{ fontSize: ".85rem", padding: "8px 18px" }}>
                       Annuler
@@ -1819,7 +1820,7 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
       {seasonalModal && (
         <div className={styles.overlay} onClick={() => setSeasonalModal(null)}>
           <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
-            <h3>🗓️ Tarifs saisonniers — {seasonalModal.title || seasonalModal.name}</h3>
+            <h3><CalendarDays size={16} aria-hidden="true" /> Tarifs saisonniers — {seasonalModal.title || seasonalModal.name}</h3>
             <p style={{ margin: "0 0 14px", fontSize: "0.85rem", color: "#64748b" }}>
               Périodes de l'année (récurrentes chaque année) où un prix/jour différent s'applique automatiquement.
               Le prix normal du véhicule reste appliqué en dehors de ces périodes.
@@ -1891,12 +1892,12 @@ export function CatalogueSection({ vehicles, drivers, vehiclesTotal, loadMoreVeh
             ))}
 
             <button type="button" className={styles.btnGhost} style={{ marginBottom: 14 }} onClick={addSeasonalRule}>
-              ➕ Ajouter une période
+              <Plus size={16} aria-hidden="true" /> Ajouter une période
             </button>
 
             <div className={styles.confirmActions}>
               <button className={styles.btnApprove} onClick={handleSaveSeasonal} disabled={seasonalSaving}>
-                {seasonalSaving ? "Envoi…" : "✅ Enregistrer"}
+                {seasonalSaving ? "Envoi…" : "Enregistrer"}
               </button>
               <button className={styles.btnGhost} onClick={() => setSeasonalModal(null)}>Annuler</button>
             </div>

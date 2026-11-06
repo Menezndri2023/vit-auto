@@ -1,5 +1,6 @@
 import { Badge, CERTIF_CFG, CountryFlag, KYC_CFG, Pagination, ROLE_CONFIG, fmtDate } from "../shared.jsx";
 import styles from "../../AdminPanel.module.css";
+import { Pencil, Shield, Trash2, Gift, Link2 } from "lucide-react";
 
 // Onglet « Comptes » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -13,7 +14,7 @@ export default function ComptesSection({
   return (
     <div className={styles.tabContent}>
       <div className={styles.filterBar}>
-        <input className={styles.searchInput} placeholder="🔍 Rechercher un utilisateur..."
+        <input className={styles.searchInput} placeholder="Rechercher un utilisateur..."
           value={userSearch} onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }} />
         <select className={styles.filterSelect} value={userRole}
           onChange={(e) => { setUserRole(e.target.value); setUserPage(1); }}>
@@ -69,7 +70,7 @@ export default function ComptesSection({
                           {u.phone || "— aucun numéro —"}
                           <button type="button" onClick={() => updatePhone(u._id, u.phone)} title="Modifier le téléphone"
                             style={{ border: "none", background: "none", cursor: "pointer", padding: 0, fontSize: ".78rem", lineHeight: 1 }}>
-                            ✏️
+                            <Pencil size={16} aria-hidden="true" />
                           </button>
                         </div>
                       </div>
@@ -100,18 +101,18 @@ export default function ComptesSection({
                         <button className={u.isActive ? styles.btnBlock : styles.btnUnblock}
                           onClick={() => setConfirm({ message: `${u.isActive ? "Bloquer" : "Débloquer"} le compte de ${u.firstName} ${u.lastName} ?`, action: () => toggleBlock(u._id) })}
                           title={u.isActive ? "Bloquer" : "Débloquer"}>
-                          {u.isActive ? "🚫 Bloquer" : "✅ Débloquer"}
+                          {u.isActive ? "Bloquer" : "Débloquer"}
                         </button>
                       )}
                       {!isSelf && (
                         <button className={styles.btnDeleteSm}
                           onClick={() => setConfirm({ message: `Supprimer définitivement ${u.firstName} ${u.lastName} ? Cette action est irréversible.`, danger: true, action: () => deleteUser(u._id) })}
-                          title="Supprimer">🗑️</button>
+                          title="Supprimer"><Trash2 size={16} aria-hidden="true" /></button>
                       )}
                       {u.role === "partenaire" && (
                         <button className={styles.btnGhost} style={{ fontSize: ".72rem" }}
                           onClick={() => openTrustOverview(u)}
-                          title="Vue de confiance unifiée">🛡️ Confiance</button>
+                          title="Vue de confiance unifiée"><Shield size={16} aria-hidden="true" /> Confiance</button>
                       )}
                       {/* L'administrateur partage lui aussi les liens
                           de vitrine des partenaires (consigne du
@@ -120,12 +121,12 @@ export default function ComptesSection({
                       {u.role === "partenaire" && (
                         <button className={styles.btnGhost} style={{ fontSize: ".72rem" }}
                           onClick={() => setVitrineModal(u)}
-                          title="Lien de vitrine à partager">🔗 Vitrine</button>
+                          title="Lien de vitrine à partager"><Link2 size={16} aria-hidden="true" /> Vitrine</button>
                       )}
                       {u.role === "client" && (
                         <button className={styles.btnGhost} style={{ fontSize: ".72rem" }}
                           onClick={() => openLoyalty(u)}
-                          title="Points de fidélité et historique">🎁 Fidélité</button>
+                          title="Points de fidélité et historique"><Gift size={16} aria-hidden="true" /> Fidélité</button>
                       )}
                     </div>
                   </td>

@@ -1,4 +1,5 @@
 import styles from "../../AdminPanel.module.css";
+import { Ticket } from "lucide-react";
 
 // Onglet « Demandes d'assistance » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -8,10 +9,10 @@ export default function AssistanceSection({
 }) {
   return (
     <div className={styles.tabContent}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+      <div className={styles.uiEnteteSection}>
         <div>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>🎫 Demandes d'assistance</h2>
-          <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>
+          <h2 className={styles.uiTitreSection}><Ticket size={16} aria-hidden="true" /> Demandes d'assistance</h2>
+          <p className={styles.uiSousTitre}>
             File ordonnée par échéance de première réponse.
             {ticketsEnRetard > 0 && <strong style={{ color: "#dc2626" }}> {ticketsEnRetard} demande{ticketsEnRetard > 1 ? "s" : ""} hors délai.</strong>}
           </p>

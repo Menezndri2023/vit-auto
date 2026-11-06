@@ -23,7 +23,8 @@ describe("Onglet CRM partenaires", () => {
     renderPage(<AdminPanel />, { route: "/admin?tab=partner_crm", path: "/admin" });
     expect(await screen.findByText("Garage Atlas")).toBeTruthy();
     expect(screen.getByText("Vérifié").getAttribute("title")).toBe("Manque : offre");
-    expect(screen.getByText(/Envoyer la grille · .*⏰/)).toBeTruthy();
+    expect(screen.getByText(/Envoyer la grille · /)).toBeTruthy();
+    expect(screen.getByLabelText("en retard")).toBeTruthy();
     expect(screen.getByText("Activés (réel)")).toBeTruthy();
     expect(screen.getAllByText("À relancer").length).toBeGreaterThan(0);
   });

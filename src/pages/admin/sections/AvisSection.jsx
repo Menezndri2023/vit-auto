@@ -1,3 +1,4 @@
+import { Star } from "lucide-react";
 import styles from "../../AdminPanel.module.css";
 
 // Onglet « Avis clients » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
@@ -8,8 +9,8 @@ export default function AvisSection({
 }) {
   return (
     <div className={styles.tabContent}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
-        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>⭐ Avis clients — modération</h2>
+      <div className={styles.uiEnteteSection}>
+        <h2 className={styles.uiTitre}><Star size={16} aria-hidden="true" /> Avis clients — modération</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <select value={reviewsTargetType} onChange={(e) => setReviewsTargetType(e.target.value)} style={{ border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 12px", fontSize: ".85rem" }}>
             <option value="">Toutes les cibles</option>
@@ -57,13 +58,13 @@ export default function AvisSection({
             <div key={r._id} className={styles.chartCard} style={{ opacity: r.visible ? 1 : 0.6 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
                 <div>
-                  <strong>{"⭐".repeat(r.note)}</strong>{" "}
+                  <strong>{"".repeat(r.note)}</strong>{" "}
                   <span style={{ color: "#64748b", fontSize: ".85rem" }}>
                     — {r.targetType === "platform" ? "Plateforme VIT AUTO" : r.targetLabel || (r.targetType === "vehicle" ? "Véhicule" : r.targetType === "driver" ? "Chauffeur" : r.targetType === "partner" ? "Agence" : "Client")} · par {r.reviewer?.firstName} {r.reviewer?.lastName}
                   </span>
                   {r.targetType === "platform" && r.wentWell != null && (
                     <span style={{ marginLeft: 8, fontSize: ".78rem", fontWeight: 700, color: r.wentWell ? "#059669" : "#dc2626" }}>
-                      {r.wentWell ? "👍 Bien déroulée" : "👎 Mal déroulée"}
+                      {r.wentWell ? "Bien déroulée" : "Mal déroulée"}
                     </span>
                   )}
                   {!r.visible && <span style={{ marginLeft: 8, fontSize: ".72rem", color: "#ef4444", fontWeight: 700 }}>MASQUÉ</span>}
@@ -74,7 +75,7 @@ export default function AvisSection({
                   disabled={reviewActioning === r._id}
                   onClick={() => toggleReviewVisibility(r)}
                 >
-                  {r.visible ? "🚫 Masquer" : "↺ Réafficher"}
+                  {r.visible ? "Masquer" : "↺ Réafficher"}
                 </button>
               </div>
             </div>

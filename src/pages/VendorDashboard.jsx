@@ -1414,13 +1414,13 @@ function TxForm({ form, setForm, onSubmit, onCancel, cancelLabel = "Annuler", su
       <div className={styles.txRow}>
         <label className={styles.txLabel}>Mode de paiement *</label>
         <select className={styles.txSelect} value={form.paymentMethod} onChange={(e) => setForm((p) => ({ ...p, paymentMethod: e.target.value }))}>
-          <option value="cash"><Banknote size={16} aria-hidden="true" /> Espèces</option>
+          <option value="cash">Espèces</option>
           <option value="orange_money">🟠 Orange Money</option>
-          <option value="wave"><Waves size={16} aria-hidden="true" /> Wave</option>
+          <option value="wave">Wave</option>
           <option value="mtn">🟡 MTN Mobile Money</option>
           <option value="moov">🔵 Moov Money</option>
-          <option value="card"><CreditCard size={16} aria-hidden="true" /> Carte bancaire</option>
-          <option value="virement"><Landmark size={16} aria-hidden="true" /> Virement bancaire</option>
+          <option value="card">Carte bancaire</option>
+          <option value="virement">Virement bancaire</option>
         </select>
       </div>
 
@@ -1429,9 +1429,9 @@ function TxForm({ form, setForm, onSubmit, onCancel, cancelLabel = "Annuler", su
           <div className={styles.txRow}>
             <label className={styles.txLabel}>Mode de financement conclu *</label>
             <select className={styles.txSelect} value={financing.type} onChange={(e) => setFinancing({ type: e.target.value })}>
-              <option value="comptant"><Banknote size={16} aria-hidden="true" /> Comptant (paiement intégral)</option>
-              <option value="leasing"><Landmark size={16} aria-hidden="true" /> Leasing (LOA)</option>
-              <option value="credit"><CreditCard size={16} aria-hidden="true" /> Crédit classique</option>
+              <option value="comptant">Comptant (paiement intégral)</option>
+              <option value="leasing">Leasing (LOA)</option>
+              <option value="credit">Crédit classique</option>
             </select>
           </div>
           {financing.type !== "comptant" && (
@@ -3363,7 +3363,7 @@ export default function VendorDashboard() {
               <Hourglass size={16} aria-hidden="true" /> {waitingCount} en attente
             </button>
           )}
-          <button className={styles.refreshBtn} onClick={handleRefresh} disabled={refreshing}>
+          <button className={styles.refreshBtn} onClick={handleRefresh} disabled={refreshing} aria-label="Actualiser">
             <RefreshCw size={16} aria-hidden="true" style={{ animation: refreshing ? "spin .8s linear infinite" : "none" }} />
           </button>
           {!isIndividualSeller && (
@@ -5053,9 +5053,9 @@ export default function VendorDashboard() {
               <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                 <select value={maintenanceForm.type} onChange={(e) => setMaintenanceForm((p) => ({ ...p, type: e.target.value }))}
                   style={{ padding: "7px 10px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: ".82rem" }}>
-                  <option value="entretien"><Wrench size={16} aria-hidden="true" /> Entretien</option>
-                  <option value="incident"><AlertTriangle size={16} aria-hidden="true" /> Incident</option>
-                  <option value="dommage"><OctagonAlert size={16} aria-hidden="true" /> Dommage</option>
+                  <option value="entretien">Entretien</option>
+                  <option value="incident">Incident</option>
+                  <option value="dommage">Dommage</option>
                 </select>
                 <input type="number" placeholder="Kilométrage" value={maintenanceForm.kilometrage}
                   onChange={(e) => setMaintenanceForm((p) => ({ ...p, kilometrage: e.target.value }))}
@@ -5674,7 +5674,7 @@ export default function VendorDashboard() {
                       <strong>{new Date(b.start).toLocaleDateString("fr-FR")} → {new Date(b.end).toLocaleDateString("fr-FR")}</strong>
                       {b.reason && <p style={{ margin: "2px 0 0", color: "#64748b" }}>{b.reason}</p>}
                     </div>
-                    <button onClick={() => handleRemoveBlackout(b._id)} style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: ".8rem" }}><Trash2 size={16} aria-hidden="true" /></button>
+                    <button onClick={() => handleRemoveBlackout(b._id)} style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: ".8rem" }} aria-label="Supprimer"><Trash2 size={16} aria-hidden="true" /></button>
                   </div>
                 ))}
               </div>
@@ -5721,7 +5721,7 @@ export default function VendorDashboard() {
                       <strong>{new Date(b.start).toLocaleDateString("fr-FR")} → {new Date(b.end).toLocaleDateString("fr-FR")}</strong>
                       {b.reason && <p style={{ margin: "2px 0 0", color: "#64748b" }}>{b.reason}</p>}
                     </div>
-                    <button onClick={() => handleRemoveActivityBlackout(b._id)} style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: ".8rem" }}><Trash2 size={16} aria-hidden="true" /></button>
+                    <button onClick={() => handleRemoveActivityBlackout(b._id)} style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: ".8rem" }} aria-label="Supprimer"><Trash2 size={16} aria-hidden="true" /></button>
                   </div>
                 ))}
               </div>

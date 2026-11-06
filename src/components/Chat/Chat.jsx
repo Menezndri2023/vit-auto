@@ -212,7 +212,7 @@ function ConversationView({ channel }) {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKey}
         />
-        <button className={styles.sendBtn} onClick={handleSend} disabled={!text.trim() || sending}>
+        <button className={styles.sendBtn} onClick={handleSend} disabled={!text.trim() || sending} aria-label="Envoyer">
           <SendHorizontal size={16} aria-hidden="true" />
         </button>
       </div>

@@ -1,5 +1,6 @@
 // Extrait d'AdminPanel.jsx (découpe par onglet, 2026-09-12) — logique inchangée.
 import { CERT_LEVEL_FIELDS, ENTITY_TYPE_LABELS, INCOTERM_LABELS, InfoField, PAYMENT_MODE_LABELS, TagList, VEHICLE_INV_LABELS, fmtCertField, safeHref, safeImgHref } from "../shared.jsx";
+import { AlertTriangle, Building2, Car, CreditCard, Ship, Clapperboard, Folder, Image, User } from "lucide-react";
 
 // ── Documents soumis pour un niveau de certification (image + lien plein écran,
 // même pattern que les documents Partner Verification / Import-Export) ──────────
@@ -80,7 +81,7 @@ export function FoundingDocs({ o }) {
     return (
       <div style={{ marginTop: 12 }}>
         <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
-          🧑 Pièce justificative (partenaire particulier)
+          <User size={16} aria-hidden="true" /> Pièce justificative (partenaire particulier)
         </div>
         {hasIndividualDoc ? (
           <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", background: "#fff", maxWidth: 200 }}>
@@ -94,7 +95,7 @@ export function FoundingDocs({ o }) {
           </div>
         ) : (
           <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "10px 14px", fontSize: ".8rem", color: "#dc2626" }}>
-            ⚠️ Aucune pièce justificative soumise par ce partenaire particulier.
+            <AlertTriangle size={16} aria-hidden="true" /> Aucune pièce justificative soumise par ce partenaire particulier.
           </div>
         )}
       </div>
@@ -104,7 +105,7 @@ export function FoundingDocs({ o }) {
   if (!hasLegal && !hasMedia) {
     return (
       <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 10, padding: "10px 14px", marginTop: 12, fontSize: ".8rem", color: "#dc2626" }}>
-        ⚠️ Aucun document légal ni média soumis par ce partenaire.
+        <AlertTriangle size={16} aria-hidden="true" /> Aucun document légal ni média soumis par ce partenaire.
       </div>
     );
   }
@@ -113,7 +114,7 @@ export function FoundingDocs({ o }) {
     <div style={{ marginTop: 12 }}>
       {hasLegal && (
         <div style={{ marginBottom: hasMedia ? 12 : 0 }}>
-          <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>📁 Documents légaux</div>
+          <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}><Folder size={16} aria-hidden="true" /> Documents légaux</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px,1fr))", gap: 10 }}>
             {FOUNDING_LEGAL_DOCS.map(({ key, label }) => (
               <div key={key} style={{ border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
@@ -133,7 +134,7 @@ export function FoundingDocs({ o }) {
       )}
       {hasMedia && (
         <div>
-          <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>🖼️ Médias plateforme</div>
+          <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}><Image size={16} aria-hidden="true" /> Médias plateforme</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px,1fr))", gap: 8 }}>
             {media.logo && (
               <a href={safeImgHref(media.logo)} target="_blank" rel="noreferrer noopener" title="Logo">
@@ -150,7 +151,7 @@ export function FoundingDocs({ o }) {
           </div>
           {media.promotionalVideo && (
             <a href={safeHref(media.promotionalVideo)} target="_blank" rel="noreferrer noopener" style={{ display: "inline-block", marginTop: 8, fontSize: ".78rem", color: "#2563eb", textDecoration: "underline" }}>
-              🎬 Voir la vidéo promotionnelle ↗
+              <Clapperboard size={16} aria-hidden="true" /> Voir la vidéo promotionnelle ↗
             </a>
           )}
         </div>
@@ -176,7 +177,7 @@ export function FoundingBusinessInfo({ o }) {
   if (!hasAny) {
     return (
       <div style={{ background: "#fffbeb", border: "1.5px solid #fde68a", borderRadius: 10, padding: "10px 14px", marginTop: 12, fontSize: ".8rem", color: "#92400e" }}>
-        ⚠️ Aucune information commerciale (activité, export, paiement, conditions) renseignée par ce partenaire.
+        <AlertTriangle size={16} aria-hidden="true" /> Aucune information commerciale (activité, export, paiement, conditions) renseignée par ce partenaire.
       </div>
     );
   }
@@ -184,7 +185,7 @@ export function FoundingBusinessInfo({ o }) {
   return (
     <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 14 }}>
       <div>
-        <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>🏢 Vérification commerciale</div>
+        <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}><Building2 size={16} aria-hidden="true" /> Vérification commerciale</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
           <InfoField label="Présentation" value={bv.companyPresentation} />
           <InfoField label="Années d'expérience" value={bv.yearsExperience || "—"} />
@@ -212,12 +213,12 @@ export function FoundingBusinessInfo({ o }) {
       </div>
 
       <div>
-        <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>🚗 Inventaire véhicules</div>
+        <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}><Car size={16} aria-hidden="true" /> Inventaire véhicules</div>
         <TagList items={activeVehicleTypes} labels={VEHICLE_INV_LABELS} />
       </div>
 
       <div>
-        <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>🚢 Capacités export</div>
+        <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}><Ship size={16} aria-hidden="true" /> Capacités export</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
           <div>
             <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Ports d'expédition</div>
@@ -235,7 +236,7 @@ export function FoundingBusinessInfo({ o }) {
       </div>
 
       <div>
-        <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>💳 Paiement & conditions commerciales</div>
+        <div style={{ fontSize: ".72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}><CreditCard size={16} aria-hidden="true" /> Paiement & conditions commerciales</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
           <InfoField label="Banque" value={pi.bankName} />
           <InfoField label="Devise préférée" value={pi.preferredCurrency} />

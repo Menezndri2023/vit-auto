@@ -1,5 +1,6 @@
 // Extrait d'AdminPanel.jsx (découpe par onglet, 2026-09-12) — logique inchangée.
 import styles from "../../AdminPanel.module.css";
+import { Pencil, Trash2, Eye, Megaphone, MousePointerClick } from "lucide-react";
 
 // ── Publicités & Campagnes — le backend (server/models/Ad.js, controllers/
 // adsController.js, routes/ads.js) existait déjà en entier (CRUD + tracking
@@ -24,10 +25,10 @@ export function AdsSection({ ads, loading, form, setForm, saving, onSave, onTogg
       </div>
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>
+        <div className={styles.uiVide}>Chargement…</div>
       ) : ads.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
-          <div style={{ fontSize: "3rem", marginBottom: 12 }}>📢</div>
+        <div className={styles.uiVide}>
+          <div className={styles.uiVideIcone}><Megaphone size={16} aria-hidden="true" /></div>
           <p style={{ fontWeight: 600 }}>Aucune bannière/campagne pour le moment.</p>
         </div>
       ) : (
@@ -36,17 +37,17 @@ export function AdsSection({ ads, loading, form, setForm, saving, onSave, onTogg
             <div key={ad._id} style={{ border: `2px solid ${ad.active ? "#10b981" : "#e2e8f0"}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
               {ad.image
                 ? <img src={ad.image} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: 100, objectFit: "cover" }} onError={(e) => { e.target.style.display = "none"; }} />
-                : <div style={{ height: 100, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>📢</div>}
+                : <div style={{ height: 100, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}><Megaphone size={16} aria-hidden="true" /></div>}
               <div style={{ padding: "10px 12px" }}>
                 <div style={{ fontSize: ".85rem", fontWeight: 700, color: "#0f1b3f" }}>{ad.title}</div>
                 <div style={{ fontSize: ".74rem", color: "#94a3b8", marginBottom: 6 }}>{AD_POSITION_LABELS[ad.position] || ad.position}</div>
-                <div style={{ fontSize: ".76rem", color: "#64748b", marginBottom: 8 }}>👁️ {ad.views || 0} vues · 🖱️ {ad.clicks || 0} clics</div>
+                <div style={{ fontSize: ".76rem", color: "#64748b", marginBottom: 8 }}><Eye size={16} aria-hidden="true" /> {ad.views || 0} vues · <MousePointerClick size={16} aria-hidden="true" /> {ad.clicks || 0} clics</div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => setForm(ad)} style={{ flex: 1, padding: "5px 0", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#fff", cursor: "pointer", fontWeight: 700, fontSize: ".76rem" }}>✏️ Éditer</button>
+                  <button onClick={() => setForm(ad)} style={{ flex: 1, padding: "5px 0", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#fff", cursor: "pointer", fontWeight: 700, fontSize: ".76rem" }}><Pencil size={16} aria-hidden="true" /> Éditer</button>
                   <button onClick={() => onToggle(ad)} style={{ flex: 1, padding: "5px 0", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: ".76rem", background: ad.active ? "#fef3c7" : "#d1fae5", color: ad.active ? "#b45309" : "#047857" }}>
-                    {ad.active ? "⏸️ Pause" : "▶️ Activer"}
+                    {ad.active ? "Pause" : "▶️ Activer"}
                   </button>
-                  <button onClick={() => onDelete(ad._id)} style={{ padding: "5px 10px", borderRadius: 8, border: "none", background: "#fee2e2", color: "#dc2626", cursor: "pointer", fontWeight: 700, fontSize: ".76rem" }}>🗑️</button>
+                  <button onClick={() => onDelete(ad._id)} style={{ padding: "5px 10px", borderRadius: 8, border: "none", background: "#fee2e2", color: "#dc2626", cursor: "pointer", fontWeight: 700, fontSize: ".76rem" }} aria-label="Supprimer"><Trash2 size={16} aria-hidden="true" /></button>
                 </div>
               </div>
             </div>
@@ -57,7 +58,7 @@ export function AdsSection({ ads, loading, form, setForm, saving, onSave, onTogg
       {form && (
         <div className={styles.overlay} onClick={() => setForm(null)}>
           <div className={styles.confirmBox} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
-            <h3>{form._id ? "✏️ Modifier l'annonce" : "+ Nouvelle annonce"}</h3>
+            <h3>{form._id ? "Modifier l'annonce" : "+ Nouvelle annonce"}</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, margin: "14px 0" }}>
               <input placeholder="Titre *" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
                 style={{ padding: "8px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: ".85rem" }} />

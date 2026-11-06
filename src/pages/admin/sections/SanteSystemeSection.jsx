@@ -1,5 +1,6 @@
 import { MaintenanceSection } from "./MaintenanceSection.jsx";
 import styles from "../../AdminPanel.module.css";
+import { Plug, Stethoscope } from "lucide-react";
 
 // Onglet « Santé système » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -9,7 +10,7 @@ export default function SanteSystemeSection({
   return (
     <div className={styles.tabContent}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
-        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0f1b3f", margin: 0 }}>🩺 Santé système</h2>
+        <h2 className={styles.uiTitre}><Stethoscope size={16} aria-hidden="true" /> Santé système</h2>
         <button className={styles.btnRefresh} onClick={loadSystemHealth}>↻ Actualiser</button>
       </div>
 
@@ -40,7 +41,7 @@ export default function SanteSystemeSection({
           </div>
           {systemHealth.integrations && (
             <div style={{ marginTop: "1.5rem" }}>
-              <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f1b3f", margin: "0 0 4px" }}>🔌 Intégrations configurées en production</h3>
+              <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "#0f1b3f", margin: "0 0 4px" }}><Plug size={16} aria-hidden="true" /> Intégrations configurées en production</h3>
               <p style={{ margin: "0 0 .75rem", fontSize: ".8rem", color: "#64748b" }}>Seuls les noms des variables manquantes sont affichés, jamais leurs valeurs. À compléter dans les variables d'environnement Render.</p>
               <div style={{ overflowX: "auto" }}>
                 <table className={styles.table} style={{ width: "100%", fontSize: ".82rem" }}>

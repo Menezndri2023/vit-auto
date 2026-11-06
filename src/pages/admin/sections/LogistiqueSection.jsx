@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { fmtDate } from "../shared.jsx";
 import { LIBELLES_STATUT, TYPES_BESOIN, LIBELLES_DEVIS, nomPays, DONNEURS_ORDRE, PAYEURS, libelleDe, TYPES_DOCUMENT } from "../../../constants/logistique";
 import css from "./DossiersImportSection.module.css";
+import { BarChart3, CheckCircle2, Package, AlarmClock } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // VIT-AUTO Logistique — pilotage admin (2026-10-27)
@@ -40,7 +41,7 @@ function Indicateurs({ appel }) {
   return (
     <div className={css.panneau}>
       <div className={css.panneauEntete}>
-        <h3>📊 Indicateurs</h3>
+        <h3><BarChart3 size={16} aria-hidden="true" /> Indicateurs</h3>
         <div className={css.filtres}>
           <label>Du <input type="date" value={periode.depuis} onChange={(e) => setPeriode((p) => ({ ...p, depuis: e.target.value }))} /></label>
           <label>au <input type="date" value={periode.jusqua} onChange={(e) => setPeriode((p) => ({ ...p, jusqua: e.target.value }))} /></label>
@@ -142,7 +143,7 @@ function Detail({ id, appel, onRetour }) {
     <div className={css.panneau}>
       <button type="button" className={css.btnSec} onClick={onRetour}>← Toutes les demandes</button>
       <h3 style={{ marginTop: 10 }}>{d.reference} — {LIBELLES_STATUT[d.statut]}</h3>
-      {info && <p className={css.muted} role="status">✅ {info}</p>}
+      {info && <p className={css.muted} role="status"><CheckCircle2 size={16} aria-hidden="true" /> {info}</p>}
       {erreur && <p className={css.erreur} role="alert">{erreur}</p>}
 
       <div className={css.bloc}>
@@ -279,7 +280,7 @@ export function LogistiqueSection({ headers }) {
 
   return (
     <section className={css.section}>
-      <h2>📦 VIT-AUTO Logistique — mise en relation gratuite</h2>
+      <h2><Package size={16} aria-hidden="true" /> VIT-AUTO Logistique — mise en relation gratuite</h2>
       <p className={css.muted}>Demandes de transport de véhicules et de pièces. VIT AUTO qualifie, sollicite les prestataires de la Zone Transit et trace le dossier ; elle ne facture rien.</p>
       <Indicateurs appel={appel} />
       <div className={css.panneau}>
@@ -302,7 +303,7 @@ export function LogistiqueSection({ headers }) {
               <tbody>
                 {demandes.map((d) => (
                   <tr key={d._id}>
-                    <td>{d.reference}{d.enRetard ? " ⏰" : ""}</td>
+                    <td>{d.reference}{d.enRetard && <> <AlarmClock size={14} role="img" aria-label="en retard" style={{ verticalAlign: "-2px", color: "#dc2626" }} /></>}</td>
                     <td>{fmtDate(d.createdAt)}</td>
                     <td>{TYPES_BESOIN.find((t) => t.code === d.typeBesoin)?.libelle}</td>
                     <td>{d.depart?.pays} → {d.arrivee?.pays}</td>

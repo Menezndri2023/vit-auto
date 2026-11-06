@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useCurrency } from "../../../context/CurrencyContext";
 import styles from "../../AdminPanel.module.css";
+import { Globe, Eye, Flag } from "lucide-react";
 
 // ── Règles de mise en avant par pays (2026-09-17) ───────────────────────────
 // Ce que voit un visiteur en page d'accueil dépend de SON pays : carrousel,
@@ -11,10 +12,10 @@ import styles from "../../AdminPanel.module.css";
 // L'admin règle N et S ici, globalement ou pays par pays, et vérifie le rendu
 // de chaque vitrine pour un pays donné.
 const EMPLACEMENTS = [
-  { k: "hero",        l: "🎠 Carrousel" },
-  { k: "vedette",     l: "⭐ Véhicules en vedette" },
-  { k: "loisirs",     l: "🎈 Activités & loisirs" },
-  { k: "partenaires", l: "🤝 Partenaires à la une (international)" },
+  { k: "hero",        l: "Carrousel" },
+  { k: "vedette",     l: "Véhicules en vedette" },
+  { k: "loisirs",     l: "Activités & loisirs" },
+  { k: "partenaires", l: "Partenaires à la une (international)" },
 ];
 
 export function SpotlightRulesSection({ token, showToast }) {
@@ -54,9 +55,9 @@ export function SpotlightRulesSection({ token, showToast }) {
       const d = await r.json();
       if (!r.ok) throw new Error(d.message || "Erreur");
       setRegles(d.regles);
-      showToast?.("✅ Règles enregistrées — vitrines recomposées.");
+      showToast?.("Règles enregistrées — vitrines recomposées.");
       chargerApercu(paysApercu);
-    } catch (e) { showToast?.(`❌ ${e.message}`); }
+    } catch (e) { showToast?.(`${e.message}`); }
     finally { setSaving(false); }
   };
 
@@ -72,7 +73,7 @@ export function SpotlightRulesSection({ token, showToast }) {
   return (
     <div>
       <div className={styles.chartCard} style={{ marginBottom: 20 }}>
-        <h3 className={styles.chartTitle}>🌍 Règle par défaut (tous les pays)</h3>
+        <h3 className={styles.chartTitle}><Globe size={16} aria-hidden="true" /> Règle par défaut (tous les pays)</h3>
         <p style={{ fontSize: ".82rem", color: "#64748b", margin: "4px 0 14px", lineHeight: 1.55 }}>
           Chaque visiteur voit le contenu de <strong>son pays</strong> (Maroc → Maroc, France → France). Un partenaire occupe au plus
           <strong> N places</strong> par vitrine dès que le pays compte <strong>S partenaires</strong> actifs ; en dessous, le plafond
@@ -86,7 +87,7 @@ export function SpotlightRulesSection({ token, showToast }) {
             <input type="number" min="1" max="1000" style={champ} value={regles.defaut.seuilPartenaires} onChange={(e) => setDefaut("seuilPartenaires", e.target.value)} /></label>
         </div>
 
-        <h3 className={styles.chartTitle} style={{ marginTop: 22 }}>🏳️ Exceptions par pays</h3>
+        <h3 className={styles.chartTitle} style={{ marginTop: 22 }}><Flag size={16} aria-hidden="true" /> Exceptions par pays</h3>
         {regles.parPays.length === 0 && <p style={{ fontSize: ".82rem", color: "#94a3b8" }}>Aucune exception : la règle par défaut s'applique partout.</p>}
         {regles.parPays.map((p, i) => (
           <div key={i} style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
@@ -101,13 +102,13 @@ export function SpotlightRulesSection({ token, showToast }) {
         ))}
         <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
           <button type="button" onClick={ajouterPays} className={styles.btnReject}>+ Ajouter une exception</button>
-          <button type="button" onClick={enregistrer} disabled={saving} className={styles.btnApprove}>{saving ? "…" : "💾 Enregistrer les règles"}</button>
+          <button type="button" onClick={enregistrer} disabled={saving} className={styles.btnApprove}>{saving ? "…" : "Enregistrer les règles"}</button>
         </div>
       </div>
 
       <div className={styles.chartCard}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
-          <h3 className={styles.chartTitle} style={{ margin: 0 }}>👁️ Ce que voit un visiteur</h3>
+          <h3 className={styles.chartTitle} style={{ margin: 0 }}><Eye size={16} aria-hidden="true" /> Ce que voit un visiteur</h3>
           <select value={paysApercu} onChange={(e) => setPaysApercu(e.target.value)} style={{ ...champ, width: 240 }}>
             {COUNTRIES_CONFIG.map((c) => <option key={c.code} value={c.code}>{c.flag} {c.name}</option>)}
           </select>
@@ -121,7 +122,7 @@ export function SpotlightRulesSection({ token, showToast }) {
                 <strong style={{ fontSize: ".88rem" }}>{l}</strong>
                 <span style={{ fontSize: ".76rem", color: "#64748b" }}>
                   {!v ? "indisponible"
-                    : v.repliMondial ? `🌍 internationale — ${r ? `${r.nbPartenaires ?? 0} partenaire(s) ${nomPays(paysApercu)}` : "aucun contenu du pays"}`
+                    : v.repliMondial ? `internationale — ${r ? `${r.nbPartenaires ?? 0} partenaire(s) ${nomPays(paysApercu)}` : "aucun contenu du pays"}`
                     : r ? `${nomPays(paysApercu)} · ${r.nbPartenaires} partenaire(s) · ${r.plafond} place(s) max par partenaire${r.plafond !== r.maxParPartenaire ? " (assoupli, sous le seuil)" : ""}`
                     : "tous pays combinés"}
                 </span>

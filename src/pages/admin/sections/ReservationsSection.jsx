@@ -2,6 +2,7 @@ import { Badge, Pagination, STATUS_BK, fmtDate } from "../shared.jsx";
 import { ClientDocumentsModal } from "./ClientDocuments.jsx";
 import { downloadAuthFile } from "../../../utils/downloadAuthFile";
 import styles from "../../AdminPanel.module.css";
+import { AlertTriangle, Banknote, BookOpen, CalendarDays, Car, CheckCircle2, FileText, Flag, Handshake, KeyRound, Landmark, MapPin, Receipt, Sailboat, Settings, Trash2, Wrench, Zap, BadgeCheck, Download, Scale } from "lucide-react";
 
 // Onglet « Réservations » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -39,12 +40,12 @@ export default function ReservationsSection({
           style={{ flex:1, minWidth:160, padding:"0.4rem 0.75rem", border:"1.5px solid #e2e8f0", borderRadius:8, fontSize:"0.85rem" }} />
         <select className={styles.filterSelect} value={bkType} onChange={e => { setBkType(e.target.value); setBkPage(1); }}>
           <option value="all">Tous types</option>
-          <option value="location">📅 Location</option>
-          <option value="essai">🔑 Essai/Vente</option>
-          <option value="chauffeur">🚘 Chauffeur</option>
-          <option value="leasing">🏦 Leasing</option>
-          <option value="activite">🎈 Loisirs</option>
-          <option value="piece">🔩 Pièces</option>
+          <option value="location">Location</option>
+          <option value="essai">Essai/Vente</option>
+          <option value="chauffeur">Chauffeur</option>
+          <option value="leasing">Leasing</option>
+          <option value="activite">Loisirs</option>
+          <option value="piece">Pièces</option>
         </select>
         <select className={styles.filterSelect} value={bkStatus} onChange={e => { setBkStatus(e.target.value); setBkPage(1); }}>
           <option value="all">Tous statuts</option>
@@ -53,11 +54,11 @@ export default function ReservationsSection({
           <option value="in_progress">En cours</option>
           <option value="waiting_client_validation">À valider</option>
           <option value="completed">Terminées</option>
-          <option value="disputed">⚠️ Litiges</option>
+          <option value="disputed">Litiges</option>
           <option value="cancelled">Annulées</option>
         </select>
         <span className={styles.filterCount}>{filteredBookings.length} résultat{filteredBookings.length!==1?"s":""}</span>
-        <button onClick={() => exportBookings("csv")} style={{ padding:"0.4rem 0.9rem", background:"#0f1b3f", color:"#fff", border:"none", borderRadius:8, cursor:"pointer", fontSize:"0.8rem", fontWeight:700 }}>⬇️ CSV</button>
+        <button onClick={() => exportBookings("csv")} style={{ padding:"0.4rem 0.9rem", background:"#0f1b3f", color:"#fff", border:"none", borderRadius:8, cursor:"pointer", fontSize:"0.8rem", fontWeight:700 }}><Download size={16} aria-hidden="true" /> CSV</button>
         <button onClick={loadAll} className={styles.btnRefresh}>↻</button>
       </div>
 
@@ -69,7 +70,7 @@ export default function ReservationsSection({
           <tbody>
             {paginate(filteredBookings, bkPage).map((b) => {
               const bs = STATUS_BK[b.status] || STATUS_BK.pending;
-              const typeIcons = { location:"📅", essai:"🔑", chauffeur:"🚘", leasing:"🏦" };
+              const typeIcons = { location:"", essai:"", chauffeur:"", leasing:<Landmark size={16} aria-hidden="true" /> };
               const vName = b.vehicle ? [b.vehicle.title, b.vehicle.marque, b.vehicle.modele].filter(Boolean).join(" ") : (b.driver ? `Chauffeur: ${b.driver.firstName||""}` : "—");
               const clientName = `${b.clientInfo?.firstName||""} ${b.clientInfo?.lastName||""}`.trim();
               const kycColors = { VERIFIE:"#059669", EN_ATTENTE:"#d97706", REFUSE:"#dc2626", A_REVOIR_MANUELLEMENT:"#2563eb" };
@@ -81,17 +82,17 @@ export default function ReservationsSection({
                   <td>
                     <div>
                       <strong style={{ fontSize:"0.8rem", fontFamily:"monospace", color:"#6366f1" }}>{b.reference || b._id?.slice(-6)}</strong>
-                      {isDisputed && <span style={{ display:"block", fontSize:"0.7rem", color:"#dc2626", fontWeight:700 }}>⚠️ LITIGE</span>}
+                      {isDisputed && <span style={{ display:"block", fontSize:"0.7rem", color:"#dc2626", fontWeight:700 }}><AlertTriangle size={16} aria-hidden="true" /> LITIGE</span>}
                     </div>
                   </td>
                   <td>
                     <div>
                       <strong style={{ fontSize:"0.82rem" }}>{clientName || "—"}</strong>
                       <span className={styles.vehMeta}>{b.clientInfo?.email}</span>
-                      <span className={styles.vehMeta} title="Numéro de passeport" style={{ fontFamily:"monospace" }}>📔 {b.clientInfo?.passportNumber || "—"}</span>
+                      <span className={styles.vehMeta} title="Numéro de passeport" style={{ fontFamily:"monospace" }}><BookOpen size={16} aria-hidden="true" /> {b.clientInfo?.passportNumber || "—"}</span>
                       {kycStatus && (
                         <span style={{ display:"inline-block", fontSize:"0.65rem", fontWeight:700, padding:"1px 6px", borderRadius:99, background: kycStatus==="VERIFIE"?"#d1fae5":"#fef3c7", color: kycColors[kycStatus]||"#d97706", marginTop:2 }}>
-                          {kycStatus==="VERIFIE"?"✅ KYC":kycStatus==="REFUSE"?"❌ KYC":"⏳ KYC"}
+                          {kycStatus==="VERIFIE"?"KYC":kycStatus==="REFUSE"?"KYC":"KYC"}
                         </span>
                       )}
                     </div>
@@ -118,21 +119,21 @@ export default function ReservationsSection({
                           const r = await downloadAuthFile(`/api/bookings/${b._id}/receipt`, `recu-${b.reference || b._id}.pdf`, token);
                           if (!r.ok) showToast(r.message, "error");
                         }}
-                        style={{ fontSize:"0.7rem", padding:"2px 6px", background:"#f1f5f9", color:"#0f1b3f", border:"none", borderRadius:6, cursor:"pointer" }} title="Reçu PDF">🧾</button>
+                        style={{ fontSize:"0.7rem", padding:"2px 6px", background:"#f1f5f9", color:"#0f1b3f", border:"none", borderRadius:6, cursor:"pointer" }} title="Reçu PDF"><Receipt size={16} aria-hidden="true" /></button>
                       {/* Documents client joints à la réservation (2026-09) — l'admin
                           ne voyait que le numéro de pièce, jamais les documents
                           eux-mêmes, alors qu'ils sont la pièce maîtresse en cas de
                           litige (voir ClientDocumentsModal). */}
                       <button style={{ fontSize:"0.7rem", padding:"2px 6px", background:"#eff6ff", color:"#1d4ed8", border:"none", borderRadius:6, cursor:"pointer", fontWeight:700 }}
-                        onClick={() => setDocsModal({ booking: b })} title="Documents client">📄</button>
+                        onClick={() => setDocsModal({ booking: b })} title="Documents client"><FileText size={16} aria-hidden="true" /></button>
                       {b.status === "pending" && (
                         <button className={styles.btnApprove} style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem" }}
-                          onClick={() => setBkActionModal({ id:b._id, name:clientName, action:"confirmed" })} title="Confirmer">✅</button>
+                          onClick={() => setBkActionModal({ id:b._id, name:clientName, action:"confirmed" })} title="Confirmer"><CheckCircle2 size={16} aria-hidden="true" /></button>
                       )}
                       {isActive && b.status !== "pending" && (
                         <button style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem", background:"#e0f2fe", color:"#0369a1", border:"none", borderRadius:6, cursor:"pointer", fontWeight:700 }}
                           onClick={() => { setForceModal({ booking:b }); setForceAmount(b.montantTotal||""); setForceNote(""); }}
-                          title="Forcer complétion">⚡</button>
+                          title="Forcer complétion"><Zap size={16} aria-hidden="true" /></button>
                       )}
                       {/* Refonte (demande explicite) : parité admin/partenaire sur les
                           réservations — le partenaire fait progresser une commande étape
@@ -147,20 +148,20 @@ export default function ReservationsSection({
                           title="Changer l'étape (comme le partenaire)"
                           style={{ fontSize:"0.7rem", padding:"2px 4px", borderRadius:6, border:"1.5px solid #e2e8f0", color:"#0f1b3f", fontWeight:600 }}>
                           <option value="">Étape…</option>
-                          <option value="preparing">⚙️ Préparation</option>
-                          <option value="ready">✅ Prêt</option>
-                          <option value="in_progress">🚗 En cours</option>
-                          <option value="client_arrived">🤝 Client présent</option>
-                          <option value="driver_arrived">📍 Chauffeur arrivé</option>
-                          <option value="waiting_client_validation">💰 Transaction</option>
-                          <option value="transaction_concluded">✔️ Transaction conclue</option>
-                          <option value="completed">🏁 Terminée</option>
+                          <option value="preparing">Préparation</option>
+                          <option value="ready">Prêt</option>
+                          <option value="in_progress">En cours</option>
+                          <option value="client_arrived">Client présent</option>
+                          <option value="driver_arrived">Chauffeur arrivé</option>
+                          <option value="waiting_client_validation">Transaction</option>
+                          <option value="transaction_concluded">Transaction conclue</option>
+                          <option value="completed">Terminée</option>
                         </select>
                       )}
                       {isDisputed && (
                         <button style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem", background:"#fee2e2", color:"#dc2626", border:"1px solid #fca5a5", borderRadius:6, cursor:"pointer", fontWeight:700 }}
                           onClick={() => { setDisputeModal({ booking:b }); setDisputeNote(""); setDisputeResol("completed"); }}
-                          title="Résoudre litige">⚖️</button>
+                          title="Résoudre litige"><Scale size={16} aria-hidden="true" /></button>
                       )}
                       {!["cancelled","completed"].includes(b.status) && (
                         <button className={styles.btnReject} style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem" }}
@@ -170,7 +171,7 @@ export default function ReservationsSection({
                       {b.status === "cancelled" && (
                         <button className={styles.btnReject} style={{ padding:"0.2rem 0.5rem", fontSize:"0.72rem", opacity:.7 }}
                           onClick={() => setConfirm({ message:`Supprimer définitivement la commande ${b.reference||""}?`, danger:true, action:()=>adminDeleteBooking(b._id) })}
-                          title="Supprimer">🗑️</button>
+                          title="Supprimer"><Trash2 size={16} aria-hidden="true" /></button>
                       )}
                     </div>
                   </td>

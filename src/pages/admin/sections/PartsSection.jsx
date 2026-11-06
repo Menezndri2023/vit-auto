@@ -6,12 +6,13 @@ import styles from "../../AdminPanel.module.css";
 import { Badge, StatCard, fmtDate } from "../shared.jsx";
 import { PART_CATEGORY_LABELS, PART_CONDITION_LABELS } from "../../../constants/spareParts";
 import { useCurrency } from "../../../context/CurrencyContext";
+import { AlertTriangle, CheckCircle2, Package, Wrench, Banknote, Hourglass } from "lucide-react";
 
 const STATUS_CFG = {
-  pending:  { label: "⏳ En attente", color: "#d97706", bg: "#fef3c7" },
-  approved: { label: "✅ Publiée",    color: "#10b981", bg: "#d1fae5" },
-  rejected: { label: "❌ Rejetée",    color: "#dc2626", bg: "#fee2e2" },
-  archived: { label: "📦 Archivée",   color: "#64748b", bg: "#f1f5f9" },
+  pending:  { label: "En attente", color: "#d97706", bg: "#fef3c7" },
+  approved: { label: "Publiée",    color: "#10b981", bg: "#d1fae5" },
+  rejected: { label: "Rejetée",    color: "#dc2626", bg: "#fee2e2" },
+  archived: { label: "Archivée",   color: "#64748b", bg: "#f1f5f9" },
 };
 
 export function PartsSection({ headers, bookings = [], onToast }) {
@@ -47,7 +48,7 @@ export function PartsSection({ headers, bookings = [], onToast }) {
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.message || "Erreur serveur.");
       setParts((prev) => prev.map((p) => (p._id === id ? d.part : p)));
-      onToast?.(status === "approved" ? "✅ Pièce publiée." : status === "rejected" ? "Pièce rejetée." : "Statut mis à jour.");
+      onToast?.(status === "approved" ? "Pièce publiée." : status === "rejected" ? "Pièce rejetée." : "Statut mis à jour.");
     } catch (e) {
       onToast?.(e.message || "Impossible de mettre à jour.", "error");
     } finally { setBusy(null); }
@@ -63,17 +64,17 @@ export function PartsSection({ headers, bookings = [], onToast }) {
     <div>
       <div className={styles.sectionHeaderRow} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: "1rem" }}>
         <div>
-          <h2 style={{ margin: 0 }}>🔩 Pièces détachées</h2>
-          <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Validez les annonces (vente directe ou importation, toujours livrées) ; les commandes sont transmises directement au vendeur et suivies dans Réservations.</p>
+          <h2 style={{ margin: 0 }}><Wrench size={16} aria-hidden="true" /> Pièces détachées</h2>
+          <p className={styles.uiSousTitre}>Validez les annonces (vente directe ou importation, toujours livrées) ; les commandes sont transmises directement au vendeur et suivies dans Réservations.</p>
         </div>
         <button className={styles.btnRefresh} style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px" }} onClick={load}>↻ Actualiser</button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 12, marginBottom: "1.5rem" }}>
-        <StatCard icon="⏳" label="En attente"          value={counts.pending}  color="#f59e0b" />
-        <StatCard icon="✅" label="Publiées"            value={counts.approved} color="#10b981" />
-        <StatCard icon="📦" label="Commandes"           value={commandes.length} color="#3b82f6" />
-        <StatCard icon="💰" label="CA livré / commission" value={`${fmt(ca)} / ${fmt(commission)}`} color="#6366f1" />
+        <StatCard icon={<Hourglass size={20} aria-hidden="true" />} label="En attente"          value={counts.pending}  color="#f59e0b" />
+        <StatCard icon={<CheckCircle2 size={20} aria-hidden="true" />} label="Publiées"            value={counts.approved} color="#10b981" />
+        <StatCard icon={<Package size={20} aria-hidden="true" />} label="Commandes"           value={commandes.length} color="#3b82f6" />
+        <StatCard icon={<Banknote size={20} aria-hidden="true" />} label="CA livré / commission" value={`${fmt(ca)} / ${fmt(commission)}`} color="#6366f1" />
       </div>
 
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
@@ -86,12 +87,12 @@ export function PartsSection({ headers, bookings = [], onToast }) {
       </div>
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>
+        <div className={styles.uiVide}>Chargement…</div>
       ) : error ? (
-        <div style={{ color: "#dc2626", padding: "1rem" }}>⚠️ {error}</div>
+        <div style={{ color: "#dc2626", padding: "1rem" }}><AlertTriangle size={16} aria-hidden="true" /> {error}</div>
       ) : visible.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
-          <div style={{ fontSize: "3rem", marginBottom: 12 }}>🔩</div>
+        <div className={styles.uiVide}>
+          <div className={styles.uiVideIcone}><Wrench size={16} aria-hidden="true" /></div>
           <p style={{ fontWeight: 600 }}>Aucune pièce dans cette liste.</p>
         </div>
       ) : (
@@ -107,7 +108,7 @@ export function PartsSection({ headers, bookings = [], onToast }) {
                   <tr key={p._id} className={styles.tr}>
                     <td>
                       <div className={styles.vehicleCell}>
-                        {p.thumbnail || p.images?.[0] ? <img src={p.thumbnail || p.images[0]} alt="" className={styles.vehThumb} loading="lazy" decoding="async" /> : <div className={styles.vehThumbPlaceholder}>🔩</div>}
+                        {p.thumbnail || p.images?.[0] ? <img src={p.thumbnail || p.images[0]} alt="" className={styles.vehThumb} loading="lazy" decoding="async" /> : <div className={styles.vehThumbPlaceholder}><Wrench size={16} aria-hidden="true" /></div>}
                         <div>
                           <strong>{p.title}</strong>
                           <span className={styles.vehMeta}>{[p.brand, p.reference && `réf. ${p.reference}`, PART_CONDITION_LABELS[p.condition]].filter(Boolean).join(" · ")}</span>
@@ -116,7 +117,7 @@ export function PartsSection({ headers, bookings = [], onToast }) {
                       </div>
                     </td>
                     <td><Badge label={PART_CATEGORY_LABELS[p.category] || p.category} color="#0f766e" bg="#ccfbf1" /></td>
-                    <td style={{ fontSize: ".85rem" }}>{p.saleMode === "import" ? `🌍 Import (${p.importInfo?.originCountry || "?"}, ${p.importInfo?.leadTimeDays || "?"} j)` : "📦 En stock"}</td>
+                    <td style={{ fontSize: ".85rem" }}>{p.saleMode === "import" ? `Import (${p.importInfo?.originCountry || "?"}, ${p.importInfo?.leadTimeDays || "?"} j)` : "En stock"}</td>
                     <td className={styles.tdPrice}>{p.price ? fmt(p.price) : "—"}</td>
                     <td style={{ fontSize: ".85rem", color: "#64748b" }}>{p.stock == null ? "sur cde" : p.stock}{p.ventes > 0 ? ` · ${p.ventes} vendue(s)` : ""}</td>
                     <td style={{ fontSize: ".85rem", color: "#64748b" }}>{p.ville || "—"}{p.country ? ` (${p.country})` : ""}</td>
@@ -124,9 +125,9 @@ export function PartsSection({ headers, bookings = [], onToast }) {
                     <td className={styles.tdDate}>{fmtDate(p.createdAt)}</td>
                     <td>
                       <div className={styles.actionBtns}>
-                        {p.status !== "approved" && <button className={styles.btnApprove} disabled={busy === p._id} onClick={() => decide(p._id, "approved")}>✅ Publier</button>}
+                        {p.status !== "approved" && <button className={styles.btnApprove} disabled={busy === p._id} onClick={() => decide(p._id, "approved")}><CheckCircle2 size={16} aria-hidden="true" /> Publier</button>}
                         {p.status !== "rejected" && <button className={styles.btnReject} disabled={busy === p._id} onClick={() => { setRejectModal({ id: p._id, title: p.title }); setRejectReason(""); }}>✕ Rejeter</button>}
-                        {p.status === "approved" && <button className={styles.btnGhost} disabled={busy === p._id} onClick={() => decide(p._id, "archived")}>📦 Archiver</button>}
+                        {p.status === "approved" && <button className={styles.btnGhost} disabled={busy === p._id} onClick={() => decide(p._id, "archived")}><Package size={16} aria-hidden="true" /> Archiver</button>}
                         {p.rejectionReason && <span style={{ fontSize: ".75rem", color: "#dc2626" }}>Motif : {p.rejectionReason}</span>}
                       </div>
                     </td>

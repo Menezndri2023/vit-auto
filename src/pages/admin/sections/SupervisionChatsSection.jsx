@@ -1,5 +1,6 @@
 import styles from "../../AdminPanel.module.css";
 import { timeAgo } from "../shared.jsx";
+import { Eye } from "lucide-react";
 
 // Onglet « Chats Client↔Partenaire » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
 // l'état et les actions restent dans le panneau, passés ici en propriétés.
@@ -9,10 +10,10 @@ export default function SupervisionChatsSection({
 }) {
   return (
     <div className={styles.tabContent}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+      <div className={styles.uiEnteteSection}>
         <div>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>👁️ Chats Client↔Partenaire</h2>
-          <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Supervision en lecture seule — aucun échange n'a lieu hors de la plateforme.</p>
+          <h2 className={styles.uiTitreSection}><Eye size={16} aria-hidden="true" /> Chats Client↔Partenaire</h2>
+          <p className={styles.uiSousTitre}>Supervision en lecture seule — aucun échange n'a lieu hors de la plateforme.</p>
         </div>
         <button style={{ background: "#f1f5f9", color: "#0f1b3f", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 700, fontSize: ".8rem" }}
           onClick={loadClientPartnerChats}>↻ Actualiser</button>
@@ -28,7 +29,7 @@ export default function SupervisionChatsSection({
               <div style={{ padding: 24, textAlign: "center", color: "#94a3b8", fontSize: ".85rem" }}>Chargement…</div>
             ) : cpChats.length === 0 ? (
               <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>
-                <div style={{ fontSize: "2rem", marginBottom: 8 }}>👁️</div>
+                <div style={{ fontSize: "2rem", marginBottom: 8 }}><Eye size={16} aria-hidden="true" /></div>
                 <p style={{ fontSize: ".85rem", fontWeight: 600 }}>Aucune conversation client↔partenaire.</p>
               </div>
             ) : cpChats.map((c) => {
@@ -54,7 +55,7 @@ export default function SupervisionChatsSection({
         <div style={{ border: "1.5px solid #e2e8f0", borderRadius: 12, display: "flex", flexDirection: "column", background: "#fff", overflow: "hidden" }}>
           {!cpActive ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", flexDirection: "column", gap: 8 }}>
-              <div style={{ fontSize: "2.4rem" }}>👁️</div>
+              <div style={{ fontSize: "2.4rem" }}><Eye size={16} aria-hidden="true" /></div>
               <p style={{ fontSize: ".85rem", fontWeight: 600 }}>Sélectionnez une conversation à superviser.</p>
             </div>
           ) : (

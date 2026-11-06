@@ -30,7 +30,7 @@ export function RolesSection({ admins, loading, savingId, onToggle, currentUserI
                 <div style={{ fontSize: ".78rem", color: "#94a3b8" }}>{a.email}</div>
               </div>
               <span style={{ fontSize: ".74rem", fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: isGeneral ? "#fef3c7" : assigned.length ? "#eff6ff" : "#fef2f2", color: isGeneral ? "#b45309" : assigned.length ? "#1d4ed8" : "#b91c1c" }}>
-                {isGeneral ? "👑 Administrateur général — accès à tout" : `${assigned.length} domaine${assigned.length > 1 ? "s" : ""} assigné${assigned.length > 1 ? "s" : ""}`}
+                {isGeneral ? "Administrateur général — accès à tout" : `${assigned.length} domaine${assigned.length > 1 ? "s" : ""} assigné${assigned.length > 1 ? "s" : ""}`}
               </span>
             </div>
 
@@ -45,7 +45,7 @@ export function RolesSection({ admins, loading, savingId, onToggle, currentUserI
                 marginBottom: 12, fontFamily: "inherit",
               }}>
               <div style={{ fontWeight: 800, fontSize: ".84rem", color: isGeneral ? "#b45309" : "#475569" }}>
-                {isGeneral ? "👑 Administrateur général — accès total" : "👑 Faire de ce compte un administrateur général"}
+                {isGeneral ? "Administrateur général — accès total" : "Faire de ce compte un administrateur général"}
               </div>
               <div style={{ fontSize: ".76rem", color: "#94a3b8", marginTop: 2 }}>
                 Accès à toute l'administration, sans aucune permission à attribuer — ses identifiants

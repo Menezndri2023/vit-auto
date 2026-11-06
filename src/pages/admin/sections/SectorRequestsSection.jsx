@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Compass } from "lucide-react";
 import styles from "../../AdminPanel.module.css";
 import { fmtDate } from "../shared.jsx";
 import { SECTEUR_LABELS, ACTIVITY_LABELS } from "../../../constants/partnerTaxonomy";
@@ -81,10 +82,10 @@ export function SectorRequestsSection({ headers, onCountChange }) {
       {erreur && <p style={{ color: "#dc2626", fontSize: ".85rem" }}>{erreur}</p>}
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>
+        <div className={styles.uiVide}>Chargement…</div>
       ) : demandes.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
-          <div style={{ fontSize: "3rem", marginBottom: 12 }}>🧭</div>
+        <div className={styles.uiVide}>
+          <div className={styles.uiVideIcone}><Compass size={16} aria-hidden="true" /></div>
           <p style={{ fontWeight: 600 }}>Aucune demande {STATUTS.find((s) => s.id === statut)?.label.toLowerCase()}.</p>
         </div>
       ) : (

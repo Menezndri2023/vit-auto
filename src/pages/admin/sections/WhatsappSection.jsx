@@ -1,4 +1,5 @@
 import { Badge, fmtDate } from "../shared.jsx";
+import { MessageCircle } from "lucide-react";
 import styles from "../../AdminPanel.module.css";
 
 // Onglet « Bot WhatsApp partenaires » — extrait d'AdminPanel.jsx le 2026-11-02, à l'identique :
@@ -9,10 +10,10 @@ export default function WhatsappSection({
 }) {
   return (
     <div className={styles.tabContent}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: 12 }}>
+      <div className={styles.uiEnteteSection}>
         <div>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0f1b3f", margin: "0 0 3px" }}>💬 Bot WhatsApp partenaires</h2>
-          <p style={{ margin: 0, fontSize: ".83rem", color: "#64748b" }}>Claude répond automatiquement aux prospects/partenaires sur WhatsApp. Conversations transférées à un humain ci-dessous.</p>
+          <h2 className={styles.uiTitreSection}><MessageCircle size={16} aria-hidden="true" /> Bot WhatsApp partenaires</h2>
+          <p className={styles.uiSousTitre}>Claude répond automatiquement aux prospects/partenaires sur WhatsApp. Conversations transférées à un humain ci-dessous.</p>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <select value={waFilter} onChange={(e) => setWaFilter(e.target.value)}
@@ -33,8 +34,8 @@ export default function WhatsappSection({
           {/* Liste des conversations */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {waConversations.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
-                <div style={{ fontSize: "3rem", marginBottom: 12 }}>💬</div>
+              <div className={styles.uiVide}>
+                <div className={styles.uiVideIcone}><MessageCircle size={16} aria-hidden="true" /></div>
                 <p style={{ fontWeight: 600 }}>Aucune conversation pour ce filtre.</p>
               </div>
             ) : waConversations.map((c) => (
@@ -47,7 +48,7 @@ export default function WhatsappSection({
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <strong style={{ fontSize: ".88rem", color: "#0f1b3f" }}>{c.contactName || c.phone}</strong>
                   <Badge
-                    label={{ bot: "🤖 Bot", escalated: "🚩 À reprendre", closed: "Clôturée" }[c.status]}
+                    label={{ bot: "Bot", escalated: "À reprendre", closed: "Clôturée" }[c.status]}
                     color={c.status === "escalated" ? "#dc2626" : c.status === "bot" ? "#059669" : "#94a3b8"}
                     bg={c.status === "escalated" ? "#fee2e2" : c.status === "bot" ? "#ecfdf5" : "#f1f5f9"}
                   />
@@ -87,7 +88,7 @@ export default function WhatsappSection({
                   }}>
                     {m.role !== "user" && (
                       <div style={{ fontSize: ".68rem", fontWeight: 700, opacity: 0.7, marginBottom: 2 }}>
-                        {m.role === "admin" ? "Vous (admin)" : "🤖 Bot"}
+                        {m.role === "admin" ? "Vous (admin)" : "Bot"}
                       </div>
                     )}
                     {m.content}

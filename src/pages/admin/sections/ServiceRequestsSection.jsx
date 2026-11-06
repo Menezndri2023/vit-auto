@@ -1,20 +1,21 @@
 // Extrait d'AdminPanel.jsx (découpe par onglet, 2026-09-12) — logique inchangée.
 import styles from "../../AdminPanel.module.css";
 import { Badge, StatCard } from "../shared.jsx";
+import { CheckCircle2, XCircle, Wrench, ClipboardList, Search } from "lucide-react";
 
 // ── Demandes de services génériques (transport/transit/douanes/immatriculation/
 // garantie/financement/change de devises) — décision manuelle admin, commission
 // calculée à l'approbation depuis PricingConfig.services.<catégorie>.
 const SVC_REQ_CATEGORY_LABELS = {
-  transport: "🚢 Transport", transit: "🛃 Transit", douanes: "🏛️ Douanes",
-  immatriculation: "🪪 Immatriculation", garantie: "🛡️ Garantie",
-  financement: "🏦 Financement", change_devises: "💱 Change de devises",
+  transport: "Transport", transit: "Transit", douanes: "Douanes",
+  immatriculation: "Immatriculation", garantie: "Garantie",
+  financement: "Financement", change_devises: "Change de devises",
 };
 
 const SVC_REQ_STATUS_CFG = {
-  pending:  { label: "🔍 En attente", color: "#d97706", bg: "#fef3c7" },
-  approved: { label: "✅ Approuvée",  color: "#10b981", bg: "#d1fae5" },
-  rejected: { label: "❌ Refusée",    color: "#dc2626", bg: "#fee2e2" },
+  pending:  { label: "En attente", color: "#d97706", bg: "#fef3c7" },
+  approved: { label: "Approuvée",  color: "#10b981", bg: "#d1fae5" },
+  rejected: { label: "Refusée",    color: "#dc2626", bg: "#fee2e2" },
 };
 
 export function ServiceRequestsSection({ requests, loading, category, onCategoryChange, onDecide }) {
@@ -35,17 +36,17 @@ export function ServiceRequestsSection({ requests, loading, category, onCategory
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 14, marginBottom: "1.5rem" }}>
-        <StatCard icon="📋" label="Total demandes" value={requests.length}  color="#6366f1" />
-        <StatCard icon="🔍" label="En attente"      value={counts.pending}  color="#d97706" />
-        <StatCard icon="✅" label="Approuvées"      value={counts.approved} color="#10b981" />
-        <StatCard icon="❌" label="Refusées"        value={counts.rejected} color="#dc2626" />
+        <StatCard icon={<ClipboardList size={20} aria-hidden="true" />} label="Total demandes" value={requests.length}  color="#6366f1" />
+        <StatCard icon={<Search size={20} aria-hidden="true" />} label="En attente"      value={counts.pending}  color="#d97706" />
+        <StatCard icon={<CheckCircle2 size={20} aria-hidden="true" />} label="Approuvées"      value={counts.approved} color="#10b981" />
+        <StatCard icon={<XCircle size={20} aria-hidden="true" />} label="Refusées"        value={counts.rejected} color="#dc2626" />
       </div>
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Chargement…</div>
+        <div className={styles.uiVide}>Chargement…</div>
       ) : requests.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>
-          <div style={{ fontSize: "3rem", marginBottom: 12 }}>🧰</div>
+        <div className={styles.uiVide}>
+          <div className={styles.uiVideIcone}><Wrench size={16} aria-hidden="true" /></div>
           <p style={{ fontWeight: 600 }}>Aucune demande pour le moment.</p>
         </div>
       ) : (
@@ -74,9 +75,9 @@ export function ServiceRequestsSection({ requests, loading, category, onCategory
                       {r.status === "pending" && (
                         <div style={{ display: "flex", gap: 6 }}>
                           <button className={styles.btnRefresh} style={{ background: "#10b981", color: "#fff", border: "none" }}
-                            onClick={() => onDecide({ id: r._id, status: "approved" })}>✅</button>
+                            onClick={() => onDecide({ id: r._id, status: "approved" })}><CheckCircle2 size={16} aria-hidden="true" /></button>
                           <button className={styles.btnRefresh} style={{ background: "#dc2626", color: "#fff", border: "none" }}
-                            onClick={() => onDecide({ id: r._id, status: "rejected" })}>❌</button>
+                            onClick={() => onDecide({ id: r._id, status: "rejected" })}><XCircle size={16} aria-hidden="true" /></button>
                         </div>
                       )}
                     </td>
