@@ -7,6 +7,7 @@ import { useToast } from "../context/ToastContext";
 import { CAR_MAKES, BODY_TYPES, COUNTRIES_ALL, CURRENCIES, getCountryFlag } from "../data/autocomplete";
 import { PAYMENTS_ENABLED_FALLBACK, PAYMENTS_DISABLED_NOTICE } from "../config/featureFlags";
 import { INCOTERMS, INCOTERM_STAGES, INCOTERM_GROUP_LABELS, getIncoterm, isIncotermCompatible } from "../constants/incoterms";
+import { Car, Globe, PackageOpen, CheckCircle2, Hourglass, XCircle, Wallet, Search, AlertTriangle, Lightbulb, Megaphone, Eye, Trash2, Zap, FilePen, Tag, Play, Archive, History, Award } from "lucide-react";
 import styles from "./VendorPublish.module.css";
 
 // USD est la devise de base réelle des montants véhicule/réservation sur tout
@@ -18,11 +19,11 @@ const fmtIE = (p, c = "EUR") => p ? `${Number(p).toLocaleString("fr-FR")} ${c}` 
 // Cohérent avec IETransaction.escrow.method (server/models/IETransaction.js).
 // Pas d'espèces pour un achat international (véhicule expédié par container/fret).
 const PAYMENT_METHOD_OPTIONS = [
-  { value: "carte",        label: "💳 Carte bancaire" },
-  { value: "virement",     label: "🏦 Virement bancaire" },
-  { value: "mobile_money", label: "📱 Mobile Money" },
-  { value: "crypto",       label: "₿ Cryptomonnaie" },
-  { value: "lc",           label: "📄 Lettre de crédit (L/C)" },
+  { value: "carte",        label: "Carte bancaire" },
+  { value: "virement",     label: "Virement bancaire" },
+  { value: "mobile_money", label: "Mobile Money" },
+  { value: "crypto",       label: "Cryptomonnaie" },
+  { value: "lc",           label: "Lettre de crédit (L/C)" },
 ];
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
@@ -59,8 +60,6 @@ const PROFILE_STATUS = {
   rejected:  { label: "Refusé",      color: "#ef4444", bg: "#fef2f2", icon: "❌" },
   suspended: { label: "Suspendu",    color: "#ef4444", bg: "#fef2f2", icon: "🚫" },
 };
-
-const BADGE_ICONS = { silver: "🥈", gold: "🥇", platinum: "💎", none: "" };
 
 const FILTER_TABS = [
   { key: "all",      label: "Toutes"      },
@@ -107,7 +106,7 @@ const VehicleCard = ({ v, bookings, onDelete, onBoost, onLifecycle, paymentsOpen
       <div className={styles.cardThumb}>
         {v.image
           ? <img src={v.image} alt={v.name} loading="lazy" decoding="async" />
-          : <span className={styles.cardThumbFallback}>🚗</span>
+          : <span className={styles.cardThumbFallback}><Car size={40} aria-hidden="true" /></span>
         }
         <span className={styles.statusDot} style={{ background: st.dot }} title={st.label} />
       </div>
@@ -130,7 +129,7 @@ const VehicleCard = ({ v, bookings, onDelete, onBoost, onLifecycle, paymentsOpen
         {v.validationErrors?.length > 0 && v.status !== "approved" && (
           <div className={styles.errorsBox}>
             {v.validationErrors.slice(0, 3).map((e, i) => (
-              <span key={i} className={styles.errorTag}>❌ {e}</span>
+              <span key={i} className={styles.errorTag}><XCircle size={12} aria-hidden="true" /> {e}</span>
             ))}
           </div>
         )}
@@ -150,30 +149,30 @@ const VehicleCard = ({ v, bookings, onDelete, onBoost, onLifecycle, paymentsOpen
               onClick={() => onBoost(v)}
               title={!paymentsOpen ? PAYMENTS_DISABLED_NOTICE : undefined}
             >
-              ⚡ Booster
+              <Zap size={14} aria-hidden="true" /> Booster
             </button>
           )}
           {v.status === "rejected" && (
             <span className={styles.rejectTip}>Corrigez votre annonce et soumettez à nouveau</span>
           )}
           {isLive && (
-            <button className={styles.deleteBtn} style={{ background: "#f1f5f9", color: "#475569" }} onClick={() => onLifecycle(v, "draft")}>📝 Brouillon</button>
+            <button className={styles.deleteBtn} style={{ background: "#f1f5f9", color: "#475569" }} onClick={() => onLifecycle(v, "draft")}><FilePen size={14} aria-hidden="true" /> Brouillon</button>
           )}
           {isLive && (
-            <button className={styles.deleteBtn} style={{ background: "#eef2ff", color: "#6366f1" }} onClick={() => onLifecycle(v, "sold")}>🏷️ Marquer vendu</button>
+            <button className={styles.deleteBtn} style={{ background: "#eef2ff", color: "#6366f1" }} onClick={() => onLifecycle(v, "sold")}><Tag size={14} aria-hidden="true" /> Marquer vendu</button>
           )}
           {["draft", "archived"].includes(v.status) && (
-            <button className={styles.deleteBtn} style={{ background: "#ecfdf5", color: "#10b981" }} onClick={() => onLifecycle(v, "pending")}>▶️ Remettre en vente</button>
+            <button className={styles.deleteBtn} style={{ background: "#ecfdf5", color: "#10b981" }} onClick={() => onLifecycle(v, "pending")}><Play size={14} aria-hidden="true" /> Remettre en vente</button>
           )}
           {v.status === "draft" && (
-            <button className={styles.deleteBtn} style={{ background: "#f8fafc", color: "#94a3b8" }} onClick={() => onLifecycle(v, "archived")}>🗄️ Archiver</button>
+            <button className={styles.deleteBtn} style={{ background: "#f8fafc", color: "#94a3b8" }} onClick={() => onLifecycle(v, "archived")}><Archive size={14} aria-hidden="true" /> Archiver</button>
           )}
           {v.statusHistory?.length > 0 && (
             <button className={styles.deleteBtn} style={{ background: "none", color: "#94a3b8" }} onClick={() => setShowHistory((s) => !s)}>
-              🕓 Historique
+              <History size={14} aria-hidden="true" /> Historique
             </button>
           )}
-          <button className={styles.deleteBtn} onClick={() => onDelete(v)}>🗑️ Supprimer</button>
+          <button className={styles.deleteBtn} onClick={() => onDelete(v)}><Trash2 size={14} aria-hidden="true" /> Supprimer</button>
         </div>
         {showHistory && (
           <div style={{ marginTop: 8, borderTop: "1px solid #f1f5f9", paddingTop: 8, fontSize: ".76rem", color: "#64748b" }}>
@@ -241,7 +240,7 @@ const BoostModal = ({ vehicle, token, onClose, onBoosted }) => {
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.boostModal} onClick={(e) => e.stopPropagation()}>
         <button className={styles.modalClose} onClick={onClose}>✕</button>
-        <h2 className={styles.boostTitle}>⚡ Booster mon annonce</h2>
+        <h2 className={styles.boostTitle}><Zap size={20} aria-hidden="true" /> Booster mon annonce</h2>
         <p className={styles.boostSub}>Multipliez la visibilité de <strong>{vehicle?.name}</strong> et recevez plus de réservations.</p>
         <div className={styles.boostPacksGrid}>
           {BOOST_TIERS.map((b) => (
@@ -369,7 +368,7 @@ function IEListingForm({ onClose, onSaved, token }) {
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.boostModal} style={{ maxWidth: 760, maxHeight: "90vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h3 style={{ margin: 0 }}>🌍 Nouvelle annonce Import/Export</h3>
+          <h3 style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Globe size={20} aria-hidden="true" /> Nouvelle annonce Import/Export</h3>
           <button className={styles.modalClose} style={{ position: "relative", top: "auto", right: "auto" }} onClick={onClose}>✕</button>
         </div>
 
@@ -593,7 +592,7 @@ function IEListingForm({ onClose, onSaved, token }) {
           Prix négociable
         </label>
 
-        {err && <p style={{ color: "#ef4444", fontSize: ".85rem", margin: "0 0 12px" }}>❌ {err}</p>}
+        {err && <p style={{ color: "#ef4444", fontSize: ".85rem", margin: "0 0 12px" }}>{err}</p>}
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ padding: "10px 20px", border: "1.5px solid #e2e8f0", borderRadius: 10, background: "#fff", cursor: "pointer", fontWeight: 600 }}>Annuler</button>
@@ -727,7 +726,7 @@ const VendorPublish = () => {
     } catch { toastErr("Erreur réseau — réessayez."); }
   };
 
-  const badgeIcon  = BADGE_ICONS[ieProfile?.badgeLevel || "none"];
+  const hasBadge   = !!ieProfile?.badgeLevel && ieProfile.badgeLevel !== "none";
   const isVerified = ieProfile?.status === "verified";
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -744,13 +743,13 @@ const VendorPublish = () => {
           {mainTab === "vehicles" && (
             <>
               <Link to="/partner-fleet-import" className={styles.importBtn}>
-                📦 Importer ma flotte
+                <PackageOpen size={16} aria-hidden="true" /> Importer ma flotte
               </Link>
               <button className={styles.newBtn} onClick={() => navigate("/vendor")}>+ Nouvelle annonce</button>
             </>
           )}
           {mainTab === "import-export" && isVerified && (
-            <button className={styles.newBtn} onClick={() => setShowIeForm(true)}>🌍 Nouvelle annonce IE</button>
+            <button className={styles.newBtn} onClick={() => setShowIeForm(true)}><Globe size={16} aria-hidden="true" /> Nouvelle annonce IE</button>
           )}
         </div>
       </div>
@@ -758,13 +757,14 @@ const VendorPublish = () => {
       {/* ── Onglets principaux ── */}
       <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "2px solid #f1f5f9" }}>
         {[
-          { key: "vehicles",      icon: "🚗", label: "Véhicules" },
-          { key: "import-export", icon: "🌍", label: "Import / Export" },
+          { key: "vehicles",      Icone: Car, label: "Véhicules" },
+          { key: "import-export", Icone: Globe, label: "Import / Export" },
         ].map((t) => (
           <button
             key={t.key}
             onClick={() => setMainTab(t.key)}
             style={{
+              display: "inline-flex", alignItems: "center", gap: 7,
               padding: "10px 22px", border: "none", background: "none", cursor: "pointer",
               fontWeight: 700, fontSize: ".92rem",
               color: mainTab === t.key ? "#ff4d2d" : "#64748b",
@@ -772,7 +772,7 @@ const VendorPublish = () => {
               marginBottom: -2, transition: "all .2s",
             }}
           >
-            {t.icon} {t.label}
+            <t.Icone size={17} aria-hidden="true" /> {t.label}
             {t.key === "import-export" && ieListings.length > 0 && (
               <span style={{ marginLeft: 6, background: "#ff4d2d", color: "#fff", borderRadius: 99, padding: "1px 7px", fontSize: ".72rem" }}>
                 {ieListings.length}
@@ -789,11 +789,11 @@ const VendorPublish = () => {
         <>
           {/* KPI */}
           <div className={styles.kpiRow}>
-            <div className={styles.kpiCard}><span className={styles.kpiIcon}>📦</span><span className={styles.kpiValue}>{partnerVehicles.length}</span><span className={styles.kpiLabel}>Total annonces</span></div>
-            <div className={styles.kpiCard}><span className={styles.kpiIcon}>✅</span><span className={styles.kpiValue} style={{ color: "#10b981" }}>{published}</span><span className={styles.kpiLabel}>Publiées</span></div>
-            <div className={styles.kpiCard}><span className={styles.kpiIcon}>⏳</span><span className={styles.kpiValue} style={{ color: "#f59e0b" }}>{pending}</span><span className={styles.kpiLabel}>En attente</span></div>
-            <div className={styles.kpiCard}><span className={styles.kpiIcon}>❌</span><span className={styles.kpiValue} style={{ color: "#ef4444" }}>{rejected}</span><span className={styles.kpiLabel}>Rejetées</span></div>
-            <div className={styles.kpiCard}><span className={styles.kpiIcon}>💰</span><span className={styles.kpiValue} style={{ color: "#10b981" }}>{fmt(totalRevenue)}</span><span className={styles.kpiLabel}>Revenus générés</span></div>
+            <div className={styles.kpiCard}><span className={styles.kpiIcon}><PackageOpen size={20} aria-hidden="true" /></span><span className={styles.kpiValue}>{partnerVehicles.length}</span><span className={styles.kpiLabel}>Total annonces</span></div>
+            <div className={styles.kpiCard}><span className={styles.kpiIcon} style={{ color: "#10b981" }}><CheckCircle2 size={20} aria-hidden="true" /></span><span className={styles.kpiValue} style={{ color: "#10b981" }}>{published}</span><span className={styles.kpiLabel}>Publiées</span></div>
+            <div className={styles.kpiCard}><span className={styles.kpiIcon} style={{ color: "#f59e0b" }}><Hourglass size={20} aria-hidden="true" /></span><span className={styles.kpiValue} style={{ color: "#f59e0b" }}>{pending}</span><span className={styles.kpiLabel}>En attente</span></div>
+            <div className={styles.kpiCard}><span className={styles.kpiIcon} style={{ color: "#ef4444" }}><XCircle size={20} aria-hidden="true" /></span><span className={styles.kpiValue} style={{ color: "#ef4444" }}>{rejected}</span><span className={styles.kpiLabel}>Rejetées</span></div>
+            <div className={styles.kpiCard}><span className={styles.kpiIcon} style={{ color: "#10b981" }}><Wallet size={20} aria-hidden="true" /></span><span className={styles.kpiValue} style={{ color: "#10b981" }}>{fmt(totalRevenue)}</span><span className={styles.kpiLabel}>Revenus générés</span></div>
           </div>
 
           {/* Toolbar */}
@@ -814,7 +814,7 @@ const VendorPublish = () => {
               })}
             </div>
             <div className={styles.searchWrap}>
-              <span className={styles.searchIcon}>🔍</span>
+              <span className={styles.searchIcon}><Search size={16} aria-hidden="true" /></span>
               <input className={styles.searchInput} placeholder="Rechercher par nom ou ville..." value={search} onChange={(e) => setSearch(e.target.value)} />
               {search && <button className={styles.searchClear} onClick={() => setSearch("")}>✕</button>}
             </div>
@@ -822,7 +822,7 @@ const VendorPublish = () => {
 
           {rejected > 0 && (
             <div className={styles.rejectAlert}>
-              <span>⚠️</span>
+              <AlertTriangle size={18} aria-hidden="true" />
               <span>Vous avez <strong>{rejected} annonce{rejected > 1 ? "s" : ""} rejetée{rejected > 1 ? "s" : ""}</strong>.{" "}
                 Corrigez les erreurs et publiez depuis{" "}
                 <button className={styles.alertLink} onClick={() => navigate("/vendor")}>Nouvelle annonce</button>.
@@ -832,7 +832,7 @@ const VendorPublish = () => {
 
           {filtered.length === 0 ? (
             <div className={styles.emptyState}>
-              <div className={styles.emptyIcon}>🚗</div>
+              <div className={styles.emptyIcon}><Car size={48} aria-hidden="true" /></div>
               <h3>{search ? "Aucun résultat" : "Aucune annonce"}</h3>
               <p>{search ? `Aucune annonce ne correspond à "${search}".` : "Publiez votre première annonce pour commencer à recevoir des réservations."}</p>
               {!search && <button className={styles.newBtnSm} onClick={() => navigate("/vendor")}>Créer une annonce</button>}
@@ -847,10 +847,10 @@ const VendorPublish = () => {
 
           {partnerVehicles.length > 0 && (
             <div className={styles.tipBox}>
-              <span className={styles.tipIcon}>💡</span>
+              <span className={styles.tipIcon}><Lightbulb size={18} aria-hidden="true" /></span>
               <div>
-                <strong>Conseil :</strong> Les annonces avec 4 photos ou plus et une description détaillée reçoivent
-                en moyenne <strong>3× plus de réservations</strong>.
+                <strong>Conseil :</strong> Les annonces avec 4 photos ou plus et une description détaillée inspirent
+                davantage confiance et <strong>reçoivent plus de demandes</strong>.
               </div>
             </div>
           )}
@@ -873,7 +873,7 @@ const VendorPublish = () => {
               "Importateur" séparée : voir ensureImporterProfile côté serveur). */}
           {!user?.isFounder && (!ieProfile || ieProfile.status === "none") ? (
             <div style={{ background: "#fffbeb", border: "1.5px solid #f59e0b", borderRadius: 14, padding: "20px 24px", marginBottom: 24, display: "flex", gap: 16, alignItems: "flex-start" }}>
-              <span style={{ fontSize: "1.8rem" }}>⚠️</span>
+              <span style={{ color: "#f59e0b", flexShrink: 0 }}><AlertTriangle size={28} aria-hidden="true" /></span>
               <div>
                 <strong style={{ display: "block", marginBottom: 4 }}>Devenez Founding Partner pour publier en export</strong>
                 <p style={{ margin: "0 0 12px", color: "#92400e", fontSize: ".88rem" }}>
@@ -886,7 +886,7 @@ const VendorPublish = () => {
             </div>
           ) : ieProfile?.status === "pending" ? (
             <div style={{ background: "#fffbeb", border: "1.5px solid #f59e0b", borderRadius: 14, padding: "20px 24px", marginBottom: 24, display: "flex", gap: 16, alignItems: "center" }}>
-              <span style={{ fontSize: "2rem" }}>⏳</span>
+              <span style={{ color: "#f59e0b", flexShrink: 0 }}><Hourglass size={28} aria-hidden="true" /></span>
               <div>
                 <strong>Candidature en cours d'examen</strong>
                 <p style={{ margin: "4px 0 0", color: "#92400e", fontSize: ".88rem" }}>Notre équipe examine votre dossier sous 48–72h ouvrables. Vous recevrez une notification.</p>
@@ -894,7 +894,7 @@ const VendorPublish = () => {
             </div>
           ) : ieProfile?.status === "rejected" ? (
             <div style={{ background: "#fef2f2", border: "1.5px solid #fca5a5", borderRadius: 14, padding: "20px 24px", marginBottom: 24, display: "flex", gap: 16, alignItems: "flex-start" }}>
-              <span style={{ fontSize: "1.8rem" }}>❌</span>
+              <span style={{ color: "#ef4444", flexShrink: 0 }}><XCircle size={28} aria-hidden="true" /></span>
               <div>
                 <strong>Candidature refusée</strong>
                 {ieProfile.rejectionReason && <p style={{ margin: "4px 0 8px", color: "#7f1d1d", fontSize: ".85rem" }}>Motif : {ieProfile.rejectionReason}</p>}
@@ -906,9 +906,9 @@ const VendorPublish = () => {
           ) : ieProfile ? (
             <div style={{ background: "#ecfdf5", border: "1.5px solid #6ee7b7", borderRadius: 14, padding: "18px 24px", marginBottom: 24, display: "flex", gap: 16, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
               <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                <span style={{ fontSize: "2rem" }}>✅</span>
+                <span style={{ color: "#10b981", flexShrink: 0 }}><CheckCircle2 size={28} aria-hidden="true" /></span>
                 <div>
-                  <strong style={{ display: "block" }}>Founding Partner {badgeIcon} {ieProfile.badgeLevel?.toUpperCase()}</strong>
+                  <strong style={{ display: "flex", alignItems: "center", gap: 6 }}>Founding Partner {hasBadge && <Award size={16} aria-hidden="true" style={{ color: "#d97706" }} />} {hasBadge ? ieProfile.badgeLevel.toUpperCase() : ""}</strong>
                   <p style={{ margin: "2px 0 0", color: "#065f46", fontSize: ".85rem" }}>
                     Publiez vos véhicules à exporter — manuellement ou en masse (fichier/Google Sheet).
                   </p>
@@ -919,7 +919,7 @@ const VendorPublish = () => {
                   + Nouvelle annonce
                 </button>
                 <Link to="/partner-fleet-import?type=export" style={{ display: "inline-block", padding: "9px 20px", background: "#6366f1", color: "#fff", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem" }}>
-                  📦 Importer en masse
+                  Importer en masse
                 </Link>
                 <Link to="/importer-dashboard" style={{ display: "inline-block", padding: "9px 20px", border: "1.5px solid #10b981", color: "#10b981", borderRadius: 10, fontWeight: 700, textDecoration: "none", fontSize: ".88rem" }}>
                   Tableau de bord complet →
@@ -933,22 +933,22 @@ const VendorPublish = () => {
           {/* KPIs Import/Export */}
           <div className={styles.kpiRow} style={{ marginBottom: 24 }}>
             <div className={styles.kpiCard}>
-              <span className={styles.kpiIcon}>📢</span>
+              <span className={styles.kpiIcon}><Megaphone size={20} aria-hidden="true" /></span>
               <span className={styles.kpiValue}>{ieListings.length}</span>
               <span className={styles.kpiLabel}>Total annonces IE</span>
             </div>
             <div className={styles.kpiCard}>
-              <span className={styles.kpiIcon}>✅</span>
+              <span className={styles.kpiIcon} style={{ color: "#10b981" }}><CheckCircle2 size={20} aria-hidden="true" /></span>
               <span className={styles.kpiValue} style={{ color: "#10b981" }}>{ieListings.filter((l) => l.status === "approved").length}</span>
               <span className={styles.kpiLabel}>Publiées</span>
             </div>
             <div className={styles.kpiCard}>
-              <span className={styles.kpiIcon}>⏳</span>
+              <span className={styles.kpiIcon} style={{ color: "#f59e0b" }}><Hourglass size={20} aria-hidden="true" /></span>
               <span className={styles.kpiValue} style={{ color: "#f59e0b" }}>{ieListings.filter((l) => l.status === "pending").length}</span>
               <span className={styles.kpiLabel}>En attente</span>
             </div>
             <div className={styles.kpiCard}>
-              <span className={styles.kpiIcon}>👁️</span>
+              <span className={styles.kpiIcon} style={{ color: "#6366f1" }}><Eye size={20} aria-hidden="true" /></span>
               <span className={styles.kpiValue} style={{ color: "#6366f1" }}>{ieListings.reduce((acc, l) => acc + (l.views || 0), 0)}</span>
               <span className={styles.kpiLabel}>Vues totales</span>
             </div>
@@ -957,12 +957,12 @@ const VendorPublish = () => {
           {/* Liste annonces IE */}
           {ieLoading ? (
             <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>
-              <div className={styles.kpiIcon} style={{ fontSize: "1.5rem" }}>⏳</div>
+              <div className={styles.kpiIcon}><Hourglass size={24} aria-hidden="true" /></div>
               <p>Chargement…</p>
             </div>
           ) : ieListings.length === 0 ? (
             <div className={styles.emptyState}>
-              <div className={styles.emptyIcon}>🌍</div>
+              <div className={styles.emptyIcon}><Globe size={48} aria-hidden="true" /></div>
               <h3>Aucune annonce import/export</h3>
               <p>{isVerified ? "Publiez votre première annonce import/export." : "Devenez importateur vérifié pour publier des annonces."}</p>
               {isVerified && (
@@ -981,7 +981,7 @@ const VendorPublish = () => {
                     <div className={styles.cardThumb}>
                       {l.mainPhoto
                         ? <img src={l.mainPhoto} alt={l.title} loading="lazy" decoding="async" />
-                        : <span className={styles.cardThumbFallback}>🚗</span>
+                        : <span className={styles.cardThumbFallback}><Car size={40} aria-hidden="true" /></span>
                       }
                       <span className={styles.statusDot} style={{ background: st.color }} title={st.label} />
                     </div>
@@ -1008,7 +1008,7 @@ const VendorPublish = () => {
                         </p>
                       )}
                       <div className={styles.cardActions}>
-                        <button className={styles.deleteBtn} onClick={() => deleteIeListing(l._id)}>🗑️ Supprimer</button>
+                        <button className={styles.deleteBtn} onClick={() => deleteIeListing(l._id)}><Trash2 size={14} aria-hidden="true" /> Supprimer</button>
                       </div>
                     </div>
                   </div>
@@ -1042,7 +1042,7 @@ const VendorPublish = () => {
       {deleteVehicle && (
         <div className={styles.modalOverlay} onClick={() => setDelete(null)}>
           <div className={styles.deleteModal} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.deleteIcon}>🗑️</div>
+            <div className={styles.deleteIcon} style={{ color: "#ef4444" }}><Trash2 size={40} aria-hidden="true" /></div>
             <h3>Supprimer cette annonce ?</h3>
             <p><strong>{deleteVehicle.name || deleteVehicle.title}</strong> sera définitivement supprimée. Cette action est irréversible.</p>
             <div className={styles.deleteActions}>

@@ -683,3 +683,15 @@
 
 /* 10,2–10,9 px → 11,2 px (audit 2026-09-15). */
 .miniLbl, .typeBadge, .statusBadge { font-size: 0.7rem; }
+
+/* ── Icônes vectorielles (2026-11-06) : à la place des émojis ── */
+.newBtn, .boostBtn, .deleteBtn, .errorTag { display: inline-flex; align-items: center; gap: 6px; }
+.importBtn { gap: 7px; }
+.boostTitle { display: flex; align-items: center; gap: 8px; color: #0f1b3f; }
+.boostTitle svg { color: #6366f1; }
+.kpiIcon { display: inline-flex; color: #64748b; }
+.searchIcon { display: inline-flex; color: #94a3b8; }
+.rejectAlert > svg { color: #d97706; flex-shrink: 0; margin-top: 1px; }
+.cardThumbFallback, .emptyIcon { color: #cbd5e1; }
+.emptyIcon, .deleteIcon { display: flex; justify-content: center; }
+.tipIcon { display: inline-flex; color: #d97706; }
