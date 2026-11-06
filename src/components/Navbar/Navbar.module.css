@@ -716,7 +716,12 @@ a.linkBtn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 
 /* Icônes vectorielles (2026-11-06) : à la place des émojis. */
-.activitiesTrigger, .userBadge, .badgePartner { display: inline-flex; align-items: center; gap: 6px; }
+/* Réservé à l'ordinateur : placées en fin de fichier, ces règles écrasaient
+   le masquage mobile (badge et Déconnexion réapparaissaient sous 900 px et
+   élargissaient la page à 515 px). */
+@media (min-width: 901px) {
+  .activitiesTrigger, .userBadge, .badgePartner { display: inline-flex; align-items: center; gap: 6px; }
+}
 .diIcon { display: inline-flex; }
 .navbar a svg { vertical-align: -3px; flex-shrink: 0; }
 /* Écrans moyens (901–1599 px) : un client connecté a jusqu'à huit liens et la
@@ -724,7 +729,7 @@ a.linkBtn { display: inline-flex; align-items: center; text-decoration: none; }
    horizontal). Les liens secondaires n'y gardent que leur icône ; le libellé
    reste en info-bulle (title) et revient en entier au-delà de 1 600 px et dans
    le menu mobile. */
-.lienAvecIcone { display: inline-flex; align-items: center; gap: 6px; }
+@media (min-width: 901px) { .lienAvecIcone { display: inline-flex; align-items: center; gap: 6px; } }
 @media (min-width: 901px) and (max-width: 1599px) {
   .lienTexte { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
