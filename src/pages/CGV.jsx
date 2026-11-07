@@ -54,7 +54,7 @@ export default function CGV() {
           Conditions Générales de Vente
         </h1>
         <p style={{ margin: 0, color: "rgba(255,255,255,.65)", fontSize: "0.85rem" }}>
-          Juillet 2026 · VIT AUTO
+          Juillet 2026, mise à jour le 6 novembre 2026 · VIT AUTO
         </p>
       </div>
 
@@ -85,7 +85,8 @@ export default function CGV() {
       <Art n="2" title="Formation de la commande">
         <p>Une commande est réputée formée lorsque :</p>
         <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
-          <Li>Pour un achat classique : le paiement est confirmé (ou l'acompte pour un financement) et une confirmation est envoyée au client</Li>
+          <Li>Pour l'achat d'un véhicule : la vente est conclue <strong>directement entre l'acheteur et le vendeur</strong>, aux conditions fixées par le vendeur, après la demande d'essai ou de rappel faite sur VIT AUTO ; VIT AUTO ne perçoit pas le prix de vente</Li>
+          <Li>Pour une réservation (location, chauffeur, activité) ou une pièce détachée : le partenaire confirme la demande et une confirmation est envoyée au client</Li>
           <Li>Pour une transaction Import/Export : le fournisseur a confirmé la réservation, puis envoyé une <strong>offre finale</strong> détaillant tous les frais, acceptée explicitement par le client avant tout paiement</Li>
         </ul>
       </Art>
@@ -110,17 +111,17 @@ export default function CGV() {
       </Art>
 
       <Art n="4" title="Moyens de paiement">
-        <p>Selon le service, un ou plusieurs moyens de paiement peuvent être proposés :</p>
-        <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
-          <Li><strong>Paiement par carte bancaire</strong> — traité et confirmé automatiquement via notre prestataire de paiement</Li>
-          <Li><strong>Orange Money / Wave</strong> — traité et confirmé automatiquement</Li>
-          <Li><strong>Virement bancaire, mobile money (autre opérateur), cryptomonnaie ou espèces</strong> — le client déclare son paiement, qui est ensuite <strong>vérifié manuellement</strong> par un administrateur avant validation ; ce délai de vérification manuelle peut retarder la confirmation de quelques heures à quelques jours ouvrés</Li>
-        </ul>
+        <p>
+          Le client règle <strong>directement le partenaire</strong> (loueur, vendeur, chauffeur, prestataire d'activité,
+          vendeur de pièces ou exportateur) : VIT AUTO ne reçoit, ne conserve ni ne reverse le prix d'une transaction
+          conclue entre un client et un partenaire. Les modalités de règlement applicables (espèces sur place, à la
+          livraison, ou tout autre moyen convenu avec le partenaire) sont précisées avant la confirmation de chaque
+          transaction.
+        </p>
         <p style={{ marginTop: 10 }}>
           Le paiement en ligne (carte bancaire, Orange Money, Wave) n'est <strong>pas encore ouvert</strong> : VIT AUTO
-          prépare une solution de paiement sécurisé avec un prestataire adapté. D'ici là, les modalités de paiement
-          applicables à chaque transaction sont précisées avant sa confirmation — notamment le règlement en espèces,
-          directement auprès du partenaire, pour la location, les loisirs, les chauffeurs et les pièces détachées.
+          prépare une solution de paiement sécurisé avec un prestataire habilité. Ces conditions seront mises à jour
+          avant son ouverture.
         </p>
         <p style={{ marginTop: 10 }}>
           Pour les transactions Import/Export, l'acheteur règle <strong>directement</strong> l'exportateur, selon le contrat
@@ -195,13 +196,12 @@ export default function CGV() {
 
       <Art n="9" title="Remboursement et résolution des litiges">
         <p>
-          Les remboursements ne sont pas automatiques : ils font l'objet d'une <strong>décision au cas par cas</strong> par
-          notre équipe support/administration, après examen du litige entre le client et le partenaire, puis sont
-          exécutés manuellement (le prestataire de paiement concerné n'est pas débité automatiquement par la
-          plateforme). Pour une transaction Import/Export, un litige peut être ouvert directement depuis le suivi de
-          la transaction ; un administrateur VIT AUTO tranche après avoir recueilli les éléments des deux parties, et
-          peut décider d'un remboursement total ou partiel du client, du versement au partenaire, ou d'une solution
-          intermédiaire.
+          VIT AUTO ne détenant pas les fonds, un éventuel remboursement est dû et effectué <strong>par le partenaire</strong>
+          qui a reçu le paiement ; il n'est jamais automatique. En cas de désaccord, le client ou le partenaire peut
+          signaler un problème depuis son espace (et, pour une transaction Import/Export, ouvrir un litige depuis le
+          suivi de la transaction) : l'équipe VIT AUTO recueille les éléments des deux parties et propose une
+          solution amiable. Le partenaire qui ne respecte pas ses engagements s'expose aux mesures prévues par les
+          conditions partenaires (suspension de ses annonces, retrait de la plateforme).
         </p>
       </Art>
 

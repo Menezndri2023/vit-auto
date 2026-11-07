@@ -78,7 +78,7 @@ export default function ConditionsPartenaires() {
           <Li><strong>Partenaire :</strong> toute agence de location, concessionnaire, particulier ou chauffeur professionnel inscrit sur la plateforme pour proposer des véhicules ou services.</Li>
           <Li><strong>Annonce :</strong> toute publication de véhicule (location, vente) ou de service (chauffeur) effectuée par un partenaire.</Li>
           <Li><strong>Réservation :</strong> toute demande validée par un client et confirmée par le partenaire via la plateforme.</Li>
-          <Li><strong>Commission :</strong> pourcentage prélevé par VIT AUTO sur chaque transaction.</Li>
+          <Li><strong>Commission :</strong> pourcentage de la transaction dû par le partenaire à VIT AUTO et facturé par VIT AUTO.</Li>
           <Li><strong>Partenaire Fondateur :</strong> tout partenaire ayant complété le programme d'intégration obligatoire (LOI + Accord de Partenariat Fondateur), condition préalable à toute publication.</Li>
         </ul>
       </Art>
@@ -145,8 +145,10 @@ export default function ConditionsPartenaires() {
           est celui en vigueur à la création de la réservation ou de la transaction.
         </p>
         <p style={{ marginTop: 12 }}>
-          Les commissions sur les réservations (location, chauffeur, activités) sont automatiquement déduites à chaque transaction. Le solde net est viré
-          au partenaire dans un délai de <strong>2 à 5 jours ouvrés</strong> après confirmation de la réservation.
+          Le client règle directement le partenaire : VIT AUTO n'encaisse pas le prix des transactions et ne reverse
+          donc aucun solde. Les commissions dues (location, chauffeur, activités, pièces, ventes attribuées) sont
+          suivies dans l'espace partenaire et <strong>facturées par VIT AUTO</strong> au partenaire, qui les règle à
+          réception de la facture.
         </p>
         <p style={{ marginTop: 12 }}>
           <strong>Vente de véhicules — attribution des prospects.</strong> VIT AUTO n'est pas une place de marché
