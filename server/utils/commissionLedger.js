@@ -1,4 +1,5 @@
 import CommissionLedger from "../models/CommissionLedger.js";
+import Payment from "../models/Payment.js";
 import logger from "./logger.js";
 
 // ── Suivi réel des reversements partenaire ──────────────────────────────────
@@ -26,7 +27,21 @@ export async function recordPartnerPayout(booking) {
       || booking.activity?.owner?._id || booking.activity?.owner
       || booking.part?.owner?._id || booking.part?.owner;
     if (!ownerId) return;
-    if (!booking.partnerPayout || booking.partnerPayout <= 0) return;
+
+    // Sens de la ligne (audit du 2026-11-06). VIT AUTO n'encaisse rien pour
+    // compte de tiers (ENCAISSEMENT_TIERS_AUTORISE fermé) : le client règle le
+    // partenaire directement, VIT AUTO ne lui doit donc AUCUN reversement — c'est
+    // le partenaire qui doit la commission. Chaque réservation terminée créait
+    // pourtant un « reversement en attente de virement » du montant partenaire.
+    // Seul un paiement réellement encaissé chez un prestataire (terminé, et pas
+    // le règlement en espèces sur place, enregistré lui aussi comme Payment)
+    // donne un reversement.
+    const encaisseParVitAuto = await Payment.exists({
+      booking: booking._id, status: { $in: ["completed", "partially_refunded"] }, method: { $ne: "cash" },
+    });
+    const montant = encaisseParVitAuto ? booking.partnerPayout : booking.commissionAmount;
+    if (!montant || montant <= 0) return;
+    const ref = booking.reference ? `Réservation ${booking.reference}` : null;
 
     await CommissionLedger.findOneAndUpdate(
       { transactionId: booking._id.toString(), transactionType: "booking" },
@@ -39,11 +54,11 @@ export async function recordPartnerPayout(booking) {
           // Booking.commissionRate est une fraction (0.15) — le schéma
           // CommissionLedger attend un pourcentage (15).
           commissionRate:   Math.round((booking.commissionRate || 0) * 10000) / 100,
-          commissionAmount: booking.partnerPayout,
+          commissionAmount: montant,
           currency:         booking.devise || "USD",
-          type:             "partner_direct",
+          type:             encaisseParVitAuto ? "partner_direct" : "platform_fee",
           status:           "pending",
-          notes:            booking.reference ? `Réservation ${booking.reference}` : null,
+          notes:            encaisseParVitAuto ? ref : `${ref || "Réservation"} — règlement direct, commission due par le partenaire`,
         },
       },
       { upsert: true, setDefaultsOnInsert: true }

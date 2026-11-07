@@ -4,6 +4,7 @@ import { getMyPayouts, adminListPayouts, adminMarkPaid } from "../controllers/co
 import { recordPartnerPayout } from "../utils/commissionLedger.js";
 import CommissionLedger from "../models/CommissionLedger.js";
 import Booking from "../models/Booking.js";
+import Payment from "../models/Payment.js";
 import { createUser, createVehicleDoc } from "./helpers/fixtures.js";
 import { mockReqRes } from "./helpers/mockReqRes.js";
 
@@ -28,8 +29,9 @@ async function makeBooking(overrides = {}) {
 // nulle part — un partenaire n'avait aucune trace de ce qui lui était
 // réellement dû vs déjà versé.
 describe("recordPartnerPayout — création automatique à la complétion d'une commande", () => {
-  it("crée une entrée de reversement quand une commande passe à 'completed'", async () => {
+  it("crée une entrée de reversement quand une commande ENCAISSÉE par VIT AUTO passe à 'completed'", async () => {
     const { booking, partner } = await makeBooking({ status: "waiting_client_validation" });
+    await Payment.create({ booking: booking._id, amount: 20000, method: "card", status: "completed" });
     const admin = await createUser({ role: "admin" });
     const { req, res } = mockReqRes({ user: admin, params: { id: booking._id.toString() }, body: { status: "completed" } });
     await updateBookingStatus(req, res);
@@ -39,7 +41,30 @@ describe("recordPartnerPayout — création automatique à la complétion d'une 
     expect(entry).toBeTruthy();
     expect(entry.partnerId.toString()).toBe(partner._id.toString());
     expect(entry.commissionAmount).toBe(17000);
+    expect(entry.type).toBe("partner_direct");
     expect(entry.status).toBe("pending");
+  });
+
+  // Audit du 2026-11-06 : VIT AUTO n'encaisse rien pour compte de tiers — en
+  // règlement direct (ou en espèces sur place), VIT AUTO ne doit rien au
+  // partenaire ; c'est lui qui doit la commission.
+  it("règlement direct : la ligne est la commission DUE par le partenaire, pas un reversement", async () => {
+    const { booking } = await makeBooking({ status: "waiting_client_validation" });
+    const admin = await createUser({ role: "admin" });
+    const { req, res } = mockReqRes({ user: admin, params: { id: booking._id.toString() }, body: { status: "completed" } });
+    await updateBookingStatus(req, res);
+    const entry = await CommissionLedger.findOne({ transactionId: booking._id.toString() });
+    expect(entry.type).toBe("platform_fee");
+    expect(entry.commissionAmount).toBe(3000);
+  });
+
+  it("espèces sur place (Payment « cash » terminé) : commission due, jamais un reversement", async () => {
+    const { booking } = await makeBooking({ status: "completed" });
+    await Payment.create({ booking: booking._id, amount: 20000, method: "cash", status: "completed" });
+    await recordPartnerPayout(await Booking.findById(booking._id).populate("vehicle", "owner"));
+    const entry = await CommissionLedger.findOne({ transactionId: booking._id.toString() });
+    expect(entry.type).toBe("platform_fee");
+    expect(entry.commissionAmount).toBe(3000);
   });
 
   it("ne crée jamais deux entrées pour la même commande (idempotent, upsert)", async () => {
@@ -56,8 +81,8 @@ describe("recordPartnerPayout — création automatique à la complétion d'une 
     expect(entries[0].partnerId.toString()).toBe(partner._id.toString());
   });
 
-  it("ne crée rien si partnerPayout est nul ou absent", async () => {
-    const { booking } = await makeBooking({ status: "waiting_client_validation", partnerPayout: 0 });
+  it("ne crée rien si aucun montant n'est dû (ni reversement ni commission)", async () => {
+    const { booking } = await makeBooking({ status: "waiting_client_validation", partnerPayout: 0, commissionAmount: 0 });
     const admin = await createUser({ role: "admin" });
     const { req, res } = mockReqRes({ user: admin, params: { id: booking._id.toString() }, body: { status: "completed" } });
     await updateBookingStatus(req, res);
